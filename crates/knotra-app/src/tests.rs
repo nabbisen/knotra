@@ -3,8 +3,8 @@
 #[cfg(test)]
 mod tests {
     use crate::config::AppConfig;
-    use crate::message::{FilterMessage, Message};
     use crate::state::{AppState, Screen};
+    use crate::message::{Message, FilterMessage};
 
     fn make_state() -> AppState {
         AppState::new(AppConfig::default())

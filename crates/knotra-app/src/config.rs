@@ -93,8 +93,11 @@ pub fn load_config(paths: &AppPaths) -> (AppConfig, Option<String>) {
 /// Persist configuration to disk.
 pub fn save_config(config: &AppConfig, paths: &AppPaths) -> Result<(), String> {
     if let Some(parent) = paths.config_file.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("cannot create config dir: {e}"))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("cannot create config dir: {e}"))?;
     }
-    let text = toml::to_string_pretty(config).map_err(|e| format!("serialization error: {e}"))?;
-    std::fs::write(&paths.config_file, text).map_err(|e| format!("cannot write config.toml: {e}"))
+    let text =
+        toml::to_string_pretty(config).map_err(|e| format!("serialization error: {e}"))?;
+    std::fs::write(&paths.config_file, text)
+        .map_err(|e| format!("cannot write config.toml: {e}"))
 }

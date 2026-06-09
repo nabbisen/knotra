@@ -1,10 +1,7 @@
 //! Sync Center view (Phase 3 implementation).
 
+use iced::{widget::{column, text}, Element, Length};
 use crate::{message::Message, state::AppState};
-use iced::{
-    Element, Length,
-    widget::{column, text},
-};
 
 pub fn view(state: &AppState) -> Element<Message> {
     column![

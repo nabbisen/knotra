@@ -1,6 +1,4 @@
 //! knotra — multi-project VCS dashboard
-//!
-//! Entry point: initialises logging, then hands control to the iced runtime.
 
 mod app;
 mod config;
@@ -20,10 +18,10 @@ fn main() -> iced::Result {
         )
         .init();
 
-    tracing::info!("knotra starting");
+    tracing::info!("knotra v0.2.0 starting");
 
     iced::application(app::init, app::update, app::view)
         .title(|_: &state::AppState| String::from("knotra"))
-        .subscription(|_| iced::Subscription::none())
+        .subscription(app::subscription)
         .run()
 }

@@ -11,14 +11,11 @@ pub mod settings;
 pub mod sync_center;
 
 use iced::{
+    widget::{button, column, container, row, text, Space},
     Alignment, Element, Length,
-    widget::{Space, button, column, container, row, text},
 };
 
-use crate::{
-    message::Message,
-    state::{AppState, Screen},
-};
+use crate::{message::Message, state::{AppState, Screen}};
 use snora::widget::SIDEBAR_WIDTH;
 
 /// Render the full application layout: sidebar + main content area.
@@ -35,7 +32,9 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
 
     let layout = row![
         sidebar,
-        container(content).width(Length::Fill).height(Length::Fill)
+        container(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
     ]
     .height(Length::Fill);
 
@@ -62,7 +61,9 @@ fn view_sidebar(state: &AppState) -> Element<'_, Message> {
         (Screen::Settings, "nav.settings"),
     ];
 
-    let mut nav = column![].spacing(2).padding([8, 0]);
+    let mut nav = column![]
+        .spacing(2)
+        .padding([8, 0]);
 
     nav = nav.push(
         container(text("knotra").size(18))

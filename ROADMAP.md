@@ -23,12 +23,12 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 
 **Goal:** Live project status cards on the dashboard.
 
-- [ ] Async workspace status refresh (concurrent, throttled)
-- [ ] Per-card: context, ahead/behind, uncommitted, untracked, conflict
-- [ ] Manual refresh button
-- [ ] Filter by status / group / search
-- [ ] Grouping by case / tag
-- [ ] Add / remove projects from workspace UI
+- [x] Async workspace status refresh (concurrent, throttled)
+- [x] Per-card: context, ahead/behind, uncommitted, untracked, conflict
+- [x] Manual refresh button
+- [x] Filter by status / group / search
+- [x] Grouping by case / tag
+- [x] Add / remove projects from workspace UI
 
 ---
 
