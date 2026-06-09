@@ -1,10 +1,41 @@
-[package]
-name = "skjra"
-version = "0.2.0"
-edition = "2024"
+[workspace]
+members = [
+    "crates/knotra-app",
+]
+resolver = "2"
 
-[dependencies]
-chrono = { version = "0", default-features = false, features = ["clock"] }
-endringer = "0"
-iced = "0.14"
-rfd = "0.17"
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["nabbisen"]
+license = "Apache-2.0"
+repository = "https://github.com/nabbisen/knotra"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+serde_json = "1"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# GUI
+iced = { version = "0.14", features = ["tokio", "image", "svg", "advanced"] }
+snora = "*"
+
+# Git
+endringer = "*"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"

@@ -1,13 +1,9 @@
-## 🛡️ Security Policy
+# Security Policy
 
-### Reporting a Vulnerability
+## Reporting a Vulnerability
 
-If you discover a potential security issue or vulnerability in this software, **please do not create a public issue**.
+Please report security vulnerabilities by opening a GitHub Security Advisory.
 
-Instead, kindly report it privately by sending an [email 📧](nabbisen@scqr.net])
+Do **not** open a public issue for security vulnerabilities.
 
-We will do our best to assess and respond in a timely manner, but please understand that this project is maintained voluntarily in free time. Thank you for your understanding and responsible disclosure.
-
-### Supported Versions
-
-This project is currently maintained as a best-effort activity. Only the latest version is considered to receive potential fixes.
+We aim to respond within reasonable days and also to publish a fix within reasonable days for critical issues.
