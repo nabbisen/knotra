@@ -186,3 +186,8 @@ stability signal is strong (317 tests, typed errors, audited contracts).
 - [x] `endringer-* 0.19.2` → `0.33.1` in `knotra-vcs/Cargo.toml`
 - [x] No source code changes required
 - [x] 0/0 warnings, 36 knotra-vcs tests pass against 0.33.1
+
+## v0.18.1 — Codebase housekeeping
+
+- [x] `cargo fmt`
+- [x] `Cargo.toml`

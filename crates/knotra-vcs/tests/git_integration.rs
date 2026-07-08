@@ -5,11 +5,7 @@
 //!   clean | uncommitted | untracked | ahead | behind | ahead+behind
 //!   conflict | tag-created | permission-error | jj-project (skipped if jj absent)
 
-use std::{
-    fs,
-    path::Path,
-    process::Command,
-};
+use std::{fs, path::Path, process::Command};
 
 use knotra_vcs::{
     VcsAdapter,
@@ -60,11 +56,16 @@ async fn clean_repo_reports_synced() {
 
     let status = VcsAdapter::read_project_status(&project).await;
 
-    assert!(status.read_error.is_none(),
-        "unexpected error: {:?}", status.read_error);
+    assert!(
+        status.read_error.is_none(),
+        "unexpected error: {:?}",
+        status.read_error
+    );
     assert_eq!(status.identity.vcs_kind, VcsKind::Git);
-    assert!(!status.working_tree.is_dirty(),
-        "clean repo should not be dirty");
+    assert!(
+        !status.working_tree.is_dirty(),
+        "clean repo should not be dirty"
+    );
     assert!(!status.conflict.has_conflict);
     assert!(status.context.is_some());
 }
@@ -84,9 +85,15 @@ async fn repo_with_uncommitted_file_is_dirty() {
     let status = VcsAdapter::read_project_status(&project).await;
 
     assert!(status.read_error.is_none());
-    assert!(status.working_tree.is_dirty(), "modified file should make repo dirty");
-    assert!(status.working_tree.uncommitted_count > 0,
-        "uncommitted_count should be > 0, got {}", status.working_tree.uncommitted_count);
+    assert!(
+        status.working_tree.is_dirty(),
+        "modified file should make repo dirty"
+    );
+    assert!(
+        status.working_tree.uncommitted_count > 0,
+        "uncommitted_count should be > 0, got {}",
+        status.working_tree.uncommitted_count
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -104,8 +111,11 @@ async fn repo_with_untracked_file_shows_untracked_count() {
     let status = VcsAdapter::read_project_status(&project).await;
 
     assert!(status.read_error.is_none());
-    assert!(status.working_tree.untracked_count > 0,
-        "untracked_count should be > 0, got {}", status.working_tree.untracked_count);
+    assert!(
+        status.working_tree.untracked_count > 0,
+        "untracked_count should be > 0, got {}",
+        status.working_tree.untracked_count
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -115,7 +125,7 @@ async fn repo_with_untracked_file_shows_untracked_count() {
 #[tokio::test]
 async fn ahead_repo_shows_nonzero_ahead_count() {
     let remote_dir = tempfile::tempdir().unwrap();
-    let local_dir  = tempfile::tempdir().unwrap();
+    let local_dir = tempfile::tempdir().unwrap();
 
     // Create bare remote.
     git(&["init", "--bare", "-b", "main"], remote_dir.path());
@@ -127,9 +137,13 @@ async fn ahead_repo_shows_nonzero_ahead_count() {
         .env("GIT_AUTHOR_EMAIL", "test@test.local")
         .env("GIT_COMMITTER_NAME", "Test")
         .env("GIT_COMMITTER_EMAIL", "test@test.local")
-        .status().unwrap();
+        .status()
+        .unwrap();
 
-    git(&["config", "user.email", "test@test.local"], local_dir.path());
+    git(
+        &["config", "user.email", "test@test.local"],
+        local_dir.path(),
+    );
     git(&["config", "user.name", "Test"], local_dir.path());
 
     // Commit something locally.
@@ -146,11 +160,14 @@ async fn ahead_repo_shows_nonzero_ahead_count() {
     git(&["commit", "-m", "ahead commit"], local_dir.path());
 
     let project = make_project(local_dir.path());
-    let status  = VcsAdapter::read_project_status(&project).await;
+    let status = VcsAdapter::read_project_status(&project).await;
 
     assert!(status.read_error.is_none());
-    assert_eq!(status.remote.ahead, 1,
-        "should be 1 ahead, got {}", status.remote.ahead);
+    assert_eq!(
+        status.remote.ahead, 1,
+        "should be 1 ahead, got {}",
+        status.remote.ahead
+    );
     assert_eq!(status.remote.behind, 0);
 }
 
@@ -166,7 +183,8 @@ async fn behind_repo_shows_nonzero_behind_count() {
         Command::new("git")
             .args(["clone", remote_dir.path().to_str().unwrap(), "."])
             .current_dir(dir.path())
-            .status().unwrap();
+            .status()
+            .unwrap();
         git(&["config", "user.email", "test@test.local"], dir.path());
         git(&["config", "user.name", "Test"], dir.path());
     }
@@ -193,12 +211,17 @@ async fn behind_repo_shows_nonzero_behind_count() {
     // behind might be 0 if clone2 main doesn't track origin yet
     // The test is valid if either behind > 0 or remote.ahead shows clone1 is ahead
     // Just check no error and remote info is available.
-    eprintln!("behind_test: ahead={} behind={} upstream={:?}",
-        status.remote.ahead, status.remote.behind, status.remote.upstream);
+    eprintln!(
+        "behind_test: ahead={} behind={} upstream={:?}",
+        status.remote.ahead, status.remote.behind, status.remote.upstream
+    );
     // If tracking is set up, behind should be > 0.
     if status.remote.upstream.is_some() {
-        assert!(status.remote.behind > 0,
-            "should be behind, got {} behind", status.remote.behind);
+        assert!(
+            status.remote.behind > 0,
+            "should be behind, got {} behind",
+            status.remote.behind
+        );
     }
 }
 
@@ -218,7 +241,8 @@ async fn ahead_and_behind_repo() {
         Command::new("git")
             .args(["clone", remote_dir.path().to_str().unwrap(), "."])
             .current_dir(dir.path())
-            .status().unwrap();
+            .status()
+            .unwrap();
         git(&["config", "user.email", "test@test.local"], dir.path());
         git(&["config", "user.name", "Test"], dir.path());
     }
@@ -247,11 +271,19 @@ async fn ahead_and_behind_repo() {
     git(&["fetch", "origin"], clone2_dir.path());
 
     let project = make_project(clone2_dir.path());
-    let status  = VcsAdapter::read_project_status(&project).await;
+    let status = VcsAdapter::read_project_status(&project).await;
 
     assert!(status.read_error.is_none());
-    assert!(status.remote.ahead  > 0, "should be ahead,  got {}", status.remote.ahead);
-    assert!(status.remote.behind > 0, "should be behind, got {}", status.remote.behind);
+    assert!(
+        status.remote.ahead > 0,
+        "should be ahead,  got {}",
+        status.remote.ahead
+    );
+    assert!(
+        status.remote.behind > 0,
+        "should be behind, got {}",
+        status.remote.behind
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -285,12 +317,13 @@ async fn conflict_repo_shows_has_conflict() {
         .env("GIT_AUTHOR_EMAIL", "test@test.local")
         .env("GIT_COMMITTER_NAME", "Test")
         .env("GIT_COMMITTER_EMAIL", "test@test.local")
-        .status().unwrap();
+        .status()
+        .unwrap();
     // merge should fail (exit != 0 for conflict)
     assert!(!merge_status.success(), "expected merge conflict");
 
     let project = make_project(dir.path());
-    let status  = VcsAdapter::read_project_status(&project).await;
+    let status = VcsAdapter::read_project_status(&project).await;
 
     assert!(status.read_error.is_none());
     assert!(status.conflict.has_conflict, "should detect merge conflict");
@@ -309,7 +342,7 @@ async fn tag_created_blocks_freeze_validation() {
     init_repo(dir.path());
     git(&["tag", "v1.0.0"], dir.path());
 
-    let project  = make_project(dir.path());
+    let project = make_project(dir.path());
     let projects = vec![project.clone()];
     let selection: HashSet<_> = [project.id.clone()].into_iter().collect();
 
@@ -317,7 +350,10 @@ async fn tag_created_blocks_freeze_validation() {
     let entry = &validation.entries[0];
 
     assert!(entry.tag_exists, "tag should be detected as existing");
-    assert!(!entry.blockers.is_empty(), "existing tag should block freeze");
+    assert!(
+        !entry.blockers.is_empty(),
+        "existing tag should block freeze"
+    );
 }
 
 #[tokio::test]
@@ -330,24 +366,36 @@ async fn tag_create_and_delete_roundtrip() {
 
     // Create tag.
     let create_result = VcsAdapter::create_tag(&project, "v2.0.0").await;
-    assert!(create_result.success,
-        "tag_create failed: {:?}", create_result.error_message);
+    assert!(
+        create_result.success,
+        "tag_create failed: {:?}",
+        create_result.error_message
+    );
 
     // Verify via validate.
     use std::collections::HashSet;
     let projects = vec![project.clone()];
     let selection: HashSet<_> = [project.id.clone()].into_iter().collect();
     let v = VcsAdapter::validate_freeze(&projects, &selection, "v2.0.0", 4).await;
-    assert!(v.entries[0].tag_exists, "tag should be detected after creation");
+    assert!(
+        v.entries[0].tag_exists,
+        "tag should be detected after creation"
+    );
 
     // Delete tag (rollback).
     let delete_result = VcsAdapter::delete_tag(&project, "v2.0.0").await;
-    assert!(delete_result.success,
-        "tag_delete failed: {:?}", delete_result.error_message);
+    assert!(
+        delete_result.success,
+        "tag_delete failed: {:?}",
+        delete_result.error_message
+    );
 
     // Verify gone.
     let v2 = VcsAdapter::validate_freeze(&projects, &selection, "v2.0.0", 4).await;
-    assert!(!v2.entries[0].tag_exists, "tag should be gone after deletion");
+    assert!(
+        !v2.entries[0].tag_exists,
+        "tag should be gone after deletion"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -357,9 +405,11 @@ async fn tag_create_and_delete_roundtrip() {
 #[tokio::test]
 async fn nonexistent_path_returns_read_error() {
     let project = Project::new("missing", "/nonexistent/path/to/nowhere");
-    let status  = VcsAdapter::read_project_status(&project).await;
-    assert!(status.read_error.is_some(),
-        "non-existent path should produce read_error");
+    let status = VcsAdapter::read_project_status(&project).await;
+    assert!(
+        status.read_error.is_some(),
+        "non-existent path should produce read_error"
+    );
 }
 
 #[tokio::test]
@@ -388,7 +438,11 @@ async fn list_contexts_returns_current_branch() {
 
     let ctx_list = VcsAdapter::list_contexts(&project).await;
 
-    assert!(ctx_list.warning.is_none() || !ctx_list.candidates.is_empty(), "unexpected: {:?}", ctx_list.warning);
+    assert!(
+        ctx_list.warning.is_none() || !ctx_list.candidates.is_empty(),
+        "unexpected: {:?}",
+        ctx_list.warning
+    );
     let current = ctx_list.candidates.iter().find(|c| c.is_current);
     assert!(current.is_some(), "should find current branch");
     assert_eq!(current.unwrap().label, "main");
@@ -404,8 +458,15 @@ async fn list_contexts_includes_second_branch() {
 
     let ctx_list = VcsAdapter::list_contexts(&project).await;
 
-    assert!(ctx_list.candidates.iter().any(|c| c.label == "featurenew"),
-        "should list featurenew branch, found: {:?}", ctx_list.candidates.iter().map(|c| &c.label).collect::<Vec<_>>());
+    assert!(
+        ctx_list.candidates.iter().any(|c| c.label == "featurenew"),
+        "should list featurenew branch, found: {:?}",
+        ctx_list
+            .candidates
+            .iter()
+            .map(|c| &c.label)
+            .collect::<Vec<_>>()
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -418,7 +479,7 @@ async fn log_since_collects_commits_since_tag() {
     init_repo(dir.path());
     git(&["config", "user.email", "test@test.local"], dir.path());
     git(&["config", "user.name", "Test"], dir.path());
-    git(&["tag", "v0.1.0"], dir.path());  // tag at initial commit
+    git(&["tag", "v0.1.0"], dir.path()); // tag at initial commit
 
     // Two more commits after the tag.
     fs::write(dir.path().join("a.txt"), "a\n").unwrap();
@@ -432,11 +493,29 @@ async fn log_since_collects_commits_since_tag() {
     let project = make_project(dir.path());
     let commits = VcsAdapter::log_since(&project, "v0.1.0", None).await;
 
-    assert!(commits.error.is_none(), "log_since error: {:?}", commits.error);
-    assert_eq!(commits.entries.len(), 2,
-        "should collect 2 commits, got {}", commits.entries.len());
-    assert!(commits.entries.iter().any(|e| e.subject.contains("feat: add a")));
-    assert!(commits.entries.iter().any(|e| e.subject.contains("fix: fix b")));
+    assert!(
+        commits.error.is_none(),
+        "log_since error: {:?}",
+        commits.error
+    );
+    assert_eq!(
+        commits.entries.len(),
+        2,
+        "should collect 2 commits, got {}",
+        commits.entries.len()
+    );
+    assert!(
+        commits
+            .entries
+            .iter()
+            .any(|e| e.subject.contains("feat: add a"))
+    );
+    assert!(
+        commits
+            .entries
+            .iter()
+            .any(|e| e.subject.contains("fix: fix b"))
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -449,15 +528,18 @@ async fn clean_repo_passes_freeze_validation() {
 
     let dir = tempfile::tempdir().unwrap();
     init_repo(dir.path());
-    let project  = make_project(dir.path());
+    let project = make_project(dir.path());
     let projects = vec![project.clone()];
     let selection: HashSet<_> = [project.id.clone()].into_iter().collect();
 
     let v = VcsAdapter::validate_freeze(&projects, &selection, "v3.0.0", 4).await;
 
     let entry = &v.entries[0];
-    assert!(entry.blockers.is_empty(),
-        "clean repo should have no blockers, got: {:?}", entry.blockers);
+    assert!(
+        entry.blockers.is_empty(),
+        "clean repo should have no blockers, got: {:?}",
+        entry.blockers
+    );
     assert!(entry.ready());
     assert!(v.all_ready());
 }
@@ -471,14 +553,16 @@ async fn dirty_repo_blocks_freeze_validation() {
     // Make it dirty.
     fs::write(dir.path().join("README.md"), "dirty\n").unwrap();
 
-    let project  = make_project(dir.path());
+    let project = make_project(dir.path());
     let projects = vec![project.clone()];
     let selection: HashSet<_> = [project.id.clone()].into_iter().collect();
 
     let v = VcsAdapter::validate_freeze(&projects, &selection, "v4.0.0", 4).await;
 
-    assert!(!v.entries[0].blockers.is_empty(),
-        "dirty repo should have blockers");
+    assert!(
+        !v.entries[0].blockers.is_empty(),
+        "dirty repo should have blockers"
+    );
     assert!(!v.all_ready());
 }
 
@@ -497,13 +581,17 @@ async fn switch_context_changes_branch() {
     let project = make_project(dir.path());
     let (result, _hint) = VcsAdapter::switch_context(&project, "featurex").await;
 
-    assert!(result.success,
-        "switch failed: {:?}\nstderr: {}", result.error_message, result.stderr);
+    assert!(
+        result.success,
+        "switch failed: {:?}\nstderr: {}",
+        result.error_message, result.stderr
+    );
 
     let output = Command::new("git")
         .args(["symbolic-ref", "--short", "HEAD"])
         .current_dir(dir.path())
-        .output().unwrap();
+        .output()
+        .unwrap();
     let branch = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     assert_eq!(branch, "featurex", "expected featurex, got {:?}", branch);
 }
@@ -535,7 +623,7 @@ async fn jj_repo_uses_jujutsu_vcs_kind() {
     }
 
     let project = Project::new("jj-repo", dir.path().to_str().unwrap());
-    let status  = VcsAdapter::read_project_status(&project).await;
+    let status = VcsAdapter::read_project_status(&project).await;
 
     // The project should be recognised as jj, not produce a read error.
     assert_eq!(status.identity.vcs_kind, VcsKind::Jujutsu);

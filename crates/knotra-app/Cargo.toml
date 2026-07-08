@@ -1,30 +1,33 @@
 [package]
-name = "knotra-app"
+name        = "knotra"
 description = "knotra: multi-project VCS dashboard and bulk-operation tool"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+readme      = "../../README.md"
+version.workspace       = true
+edition.workspace       = true
+license.workspace       = true
+authors.workspace       = true
 
 [[bin]]
-name = "knotra"
-path = "src/main.rs"
+name    = "knotra"
+path    = "src/main.rs"
 
 [dependencies]
-rfd = { version = "0.15", default-features = false, features = ["tokio", "xdg-portal"] }
-knotra-vcs = { path = "../knotra-vcs" }
-knotra-ui  = { path = "../knotra-ui" }
-snora      = "0.18"
+knotra-ui                   = { workspace = true }
+knotra-vcs                  = { workspace = true }
 
-tokio.workspace = true
-serde.workspace = true
-toml.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-anyhow.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-iced.workspace = true
-uuid.workspace = true
-chrono.workspace = true
-dirs.workspace = true
+iced                        = { workspace = true }
+snora                       = { workspace = true }
+
+chrono                      = { workspace = true }
+dirs                        = { workspace = true }
+rfd                         = { workspace = true }
+
+anyhow                      = { workspace = true }
+tokio                       = { workspace = true }
+serde                       = { workspace = true }
+serde_json                  = { workspace = true }
+thiserror                   = { workspace = true }
+toml                        = { workspace = true }
+tracing                     = { workspace = true }
+tracing-subscriber          = { workspace = true }
+uuid                        = { workspace = true }

@@ -2,13 +2,11 @@
 
 use std::path::Path;
 
-use crate::{
-    model::{
-        operation::{ProjectOperationResult, RecoveryHint},
-        project::Project,
-        status::{ProjectStatus, VcsKind, WorkspaceStatus},
-        workspace::Workspace,
-    },
+use crate::model::{
+    operation::{ProjectOperationResult, RecoveryHint},
+    project::Project,
+    status::{ProjectStatus, VcsKind, WorkspaceStatus},
+    workspace::Workspace,
 };
 
 use super::{git, jj};
@@ -18,8 +16,12 @@ use super::{git, jj};
 // ---------------------------------------------------------------------------
 
 pub async fn detect_vcs_kind(path: &Path) -> Option<VcsKind> {
-    if path.join(".jj").is_dir()  { return Some(VcsKind::Jujutsu); }
-    if path.join(".git").exists() { return Some(VcsKind::Git); }
+    if path.join(".jj").is_dir() {
+        return Some(VcsKind::Jujutsu);
+    }
+    if path.join(".git").exists() {
+        return Some(VcsKind::Git);
+    }
     None
 }
 
@@ -35,7 +37,7 @@ impl VcsAdapter {
     pub async fn read_project_status(project: &Project) -> ProjectStatus {
         let kind = detect_vcs_kind(Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git)      => git::read_status(project).await,
+            Some(VcsKind::Git) => git::read_status(project).await,
             Some(VcsKind::Jujutsu) => jj::read_status(project).await,
             None => ProjectStatus {
                 project_id: project.id.clone(),
@@ -53,7 +55,10 @@ impl VcsAdapter {
         }
     }
 
-    pub async fn read_workspace_status(workspace: &Workspace, max_concurrent: usize) -> WorkspaceStatus {
+    pub async fn read_workspace_status(
+        workspace: &Workspace,
+        max_concurrent: usize,
+    ) -> WorkspaceStatus {
         use std::sync::Arc;
         use tokio::sync::Semaphore;
 
@@ -72,12 +77,15 @@ impl VcsAdapter {
         let mut statuses = Vec::with_capacity(handles.len());
         for h in handles {
             match h.await {
-                Ok(s)  => statuses.push(s),
+                Ok(s) => statuses.push(s),
                 Err(e) => tracing::error!("project status task panicked: {e}"),
             }
         }
 
-        WorkspaceStatus { projects: statuses, last_refresh: Some(chrono::Utc::now()) }
+        WorkspaceStatus {
+            projects: statuses,
+            last_refresh: Some(chrono::Utc::now()),
+        }
     }
 
     // --- Write: fetch ---
@@ -85,7 +93,7 @@ impl VcsAdapter {
     pub async fn fetch(project: &Project) -> ProjectOperationResult {
         let kind = detect_vcs_kind(Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git)      => git::fetch(project).await,
+            Some(VcsKind::Git) => git::fetch(project).await,
             Some(VcsKind::Jujutsu) => jj::fetch(project).await,
             None => ProjectOperationResult {
                 project_id: project.id.clone(),
@@ -110,7 +118,7 @@ impl VcsAdapter {
     ) -> (ProjectOperationResult, Option<RecoveryHint>) {
         let kind = detect_vcs_kind(Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git)      => git::smart_pull(project, stash_dirty).await,
+            Some(VcsKind::Git) => git::smart_pull(project, stash_dirty).await,
             Some(VcsKind::Jujutsu) => jj::smart_pull(project, stash_dirty).await,
             None => (
                 ProjectOperationResult {
@@ -135,7 +143,7 @@ impl VcsAdapter {
     pub async fn list_contexts(project: &Project) -> crate::model::status::ContextList {
         let kind = detect_vcs_kind(Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git)      => git::list_contexts(project).await,
+            Some(VcsKind::Git) => git::list_contexts(project).await,
             Some(VcsKind::Jujutsu) => jj::list_contexts(project).await,
             None => crate::model::status::ContextList {
                 project_id: project.id.clone(),
@@ -158,7 +166,7 @@ impl VcsAdapter {
     ) {
         let kind = detect_vcs_kind(Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git)      => git::switch_context(project, target).await,
+            Some(VcsKind::Git) => git::switch_context(project, target).await,
             Some(VcsKind::Jujutsu) => jj::switch_context(project, target).await,
             None => (
                 crate::model::operation::ProjectOperationResult {
@@ -191,24 +199,26 @@ impl VcsAdapter {
         use std::sync::Arc;
         use tokio::sync::Semaphore;
 
-        let sem  = Arc::new(Semaphore::new(max_concurrent));
+        let sem = Arc::new(Semaphore::new(max_concurrent));
         let name = freeze_name.to_owned();
         let mut handles = Vec::new();
 
         for project in projects {
-            let project  = project.clone();
-            let sem      = Arc::clone(&sem);
-            let name     = name.clone();
+            let project = project.clone();
+            let sem = Arc::clone(&sem);
+            let name = name.clone();
             let included = selection.contains(&project.id);
 
             handles.push(tokio::spawn(async move {
                 let _permit = sem.acquire().await.expect("open");
                 let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
                 match kind {
-                    Some(VcsKind::Git)      => git::validate_for_freeze(&project, &name, included).await,
-                    Some(VcsKind::Jujutsu) => jj::validate_for_freeze(&project, &name, included).await,
+                    Some(VcsKind::Git) => git::validate_for_freeze(&project, &name, included).await,
+                    Some(VcsKind::Jujutsu) => {
+                        jj::validate_for_freeze(&project, &name, included).await
+                    }
                     None => crate::model::operation::FreezeValidationEntry {
-                        project_id:   project.id.clone(),
+                        project_id: project.id.clone(),
                         project_name: project.name.clone(),
                         included,
                         is_clean: false,
@@ -222,7 +232,9 @@ impl VcsAdapter {
 
         let mut entries = Vec::with_capacity(handles.len());
         for h in handles {
-            if let Ok(e) = h.await { entries.push(e); }
+            if let Ok(e) = h.await {
+                entries.push(e);
+            }
         }
 
         crate::model::operation::FreezeValidation {
@@ -249,11 +261,7 @@ impl VcsAdapter {
         let freeze_name = &validation.freeze_name;
 
         // Only process projects that are included and not blocked.
-        let ready_entries: Vec<_> = validation
-            .entries
-            .iter()
-            .filter(|e| e.ready())
-            .collect();
+        let ready_entries: Vec<_> = validation.entries.iter().filter(|e| e.ready()).collect();
 
         if ready_entries.is_empty() {
             return FreezeResult {
@@ -263,30 +271,28 @@ impl VcsAdapter {
             };
         }
 
-        let project_map: std::collections::HashMap<_, _> = projects
-            .iter()
-            .map(|p| (p.id.clone(), p))
-            .collect();
+        let project_map: std::collections::HashMap<_, _> =
+            projects.iter().map(|p| (p.id.clone(), p)).collect();
 
         let mut completed: Vec<FreezeProjectResult> = Vec::new();
-        let mut failed    = false;
+        let mut failed = false;
 
         // --- Execute in order ---
         for entry in &ready_entries {
             let project = match project_map.get(&entry.project_id) {
                 Some(p) => *p,
-                None    => {
+                None => {
                     failed = true;
                     completed.push(FreezeProjectResult {
-                        project_id:         entry.project_id.clone(),
-                        project_name:       entry.project_name.clone(),
-                        success:            false,
-                        commands_executed:  vec![],
-                        stdout:             String::new(),
-                        stderr:             String::new(),
+                        project_id: entry.project_id.clone(),
+                        project_name: entry.project_name.clone(),
+                        success: false,
+                        commands_executed: vec![],
+                        stdout: String::new(),
+                        stderr: String::new(),
                         rollback_attempted: false,
                         rollback_succeeded: None,
-                        recovery_hint:      None,
+                        recovery_hint: None,
                     });
                     break;
                 }
@@ -294,32 +300,30 @@ impl VcsAdapter {
 
             let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
             let result = match kind {
-                Some(VcsKind::Git) =>
-                    git::tag_create(project, freeze_name).await,
-                Some(VcsKind::Jujutsu) =>
-                    jj::bookmark_create(project, freeze_name).await,
+                Some(VcsKind::Git) => git::tag_create(project, freeze_name).await,
+                Some(VcsKind::Jujutsu) => jj::bookmark_create(project, freeze_name).await,
                 None => crate::model::operation::ProjectOperationResult {
-                    project_id:        project.id.clone(),
-                    success:           false,
+                    project_id: project.id.clone(),
+                    success: false,
                     commands_executed: vec![],
-                    stdout:            String::new(),
-                    stderr:            String::new(),
-                    exit_code:         None,
-                    error_message:     Some(format!("no repository at {}", project.path)),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: Some(format!("no repository at {}", project.path)),
                 },
             };
 
             let success = result.success;
             completed.push(FreezeProjectResult {
-                project_id:         project.id.clone(),
-                project_name:       entry.project_name.clone(),
+                project_id: project.id.clone(),
+                project_name: entry.project_name.clone(),
                 success,
-                commands_executed:  result.commands_executed,
-                stdout:             result.stdout,
-                stderr:             result.stderr,
+                commands_executed: result.commands_executed,
+                stdout: result.stdout,
+                stderr: result.stderr,
                 rollback_attempted: false,
                 rollback_succeeded: None,
-                recovery_hint:      None,
+                recovery_hint: None,
             });
 
             if !success {
@@ -346,27 +350,32 @@ impl VcsAdapter {
         let mut any_rollback_failed = false;
 
         for res in completed.iter_mut() {
-            if !succeeded_ids.contains(&res.project_id) { continue; }
+            if !succeeded_ids.contains(&res.project_id) {
+                continue;
+            }
 
             let project = match project_map.get(&res.project_id) {
                 Some(p) => *p,
-                None    => { res.rollback_attempted = true; res.rollback_succeeded = Some(false); any_rollback_failed = true; continue; }
+                None => {
+                    res.rollback_attempted = true;
+                    res.rollback_succeeded = Some(false);
+                    any_rollback_failed = true;
+                    continue;
+                }
             };
 
             let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
             let rb = match kind {
-                Some(VcsKind::Git) =>
-                    git::tag_delete(project, freeze_name).await,
-                Some(VcsKind::Jujutsu) =>
-                    jj::bookmark_delete(project, freeze_name).await,
+                Some(VcsKind::Git) => git::tag_delete(project, freeze_name).await,
+                Some(VcsKind::Jujutsu) => jj::bookmark_delete(project, freeze_name).await,
                 None => crate::model::operation::ProjectOperationResult {
-                    project_id:        project.id.clone(),
-                    success:           false,
+                    project_id: project.id.clone(),
+                    success: false,
                     commands_executed: vec![],
-                    stdout:            String::new(),
-                    stderr:            String::new(),
-                    exit_code:         None,
-                    error_message:     Some("no repository".to_owned()),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: Some("no repository".to_owned()),
                 },
             };
 
@@ -377,17 +386,15 @@ impl VcsAdapter {
                 any_rollback_failed = true;
                 let cmd = match kind {
                     Some(VcsKind::Jujutsu) => format!("jj bookmark delete {freeze_name}"),
-                    _                       => format!("git tag -d {freeze_name}"),
+                    _ => format!("git tag -d {freeze_name}"),
                 };
                 res.recovery_hint = Some(RecoveryHint {
                     project_id: project.id.clone(),
-                    situation:  format!(
+                    situation: format!(
                         "rollback failed — tag/bookmark '{}' may still exist on this project",
                         freeze_name
                     ),
-                    suggested_commands: vec![
-                        format!("cd {:?} && {}", project.path, cmd),
-                    ],
+                    suggested_commands: vec![format!("cd {:?} && {}", project.path, cmd)],
                     see_also: None,
                 });
             }
@@ -413,30 +420,33 @@ impl VcsAdapter {
     ) -> crate::model::conflict::ProjectConflictDetail {
         let kind = detect_vcs_kind(Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git)      => git::list_conflicted_files(project).await,
+            Some(VcsKind::Git) => git::list_conflicted_files(project).await,
             Some(VcsKind::Jujutsu) => jj::list_conflicted_files(project).await,
             None => crate::model::conflict::ProjectConflictDetail {
-                project_id:       project.id.clone(),
-                project_name:     project.name.clone(),
+                project_id: project.id.clone(),
+                project_name: project.name.clone(),
                 conflicted_files: vec![],
-                note:             None,
-                read_error:       Some(format!("no repository at {}", project.path)),
+                note: None,
+                read_error: Some(format!("no repository at {}", project.path)),
             },
         }
     }
 
-    pub async fn mark_resolved(project: &Project, file_path: &str) -> crate::model::operation::ProjectOperationResult {
+    pub async fn mark_resolved(
+        project: &Project,
+        file_path: &str,
+    ) -> crate::model::operation::ProjectOperationResult {
         let kind = detect_vcs_kind(Path::new(&project.path)).await;
         match kind {
             Some(VcsKind::Git) => git::mark_resolved(project, file_path).await,
             _ => crate::model::operation::ProjectOperationResult {
-                project_id:        project.id.clone(),
-                success:           false,
+                project_id: project.id.clone(),
+                success: false,
                 commands_executed: vec![],
-                stdout:            String::new(),
-                stderr:            String::new(),
-                exit_code:         None,
-                error_message:     Some("mark-resolved only supported for Git".to_owned()),
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: None,
+                error_message: Some("mark-resolved only supported for Git".to_owned()),
             },
         }
     }
@@ -446,13 +456,13 @@ impl VcsAdapter {
         match kind {
             Some(VcsKind::Git) => git::abort_merge(project).await,
             _ => crate::model::operation::ProjectOperationResult {
-                project_id:        project.id.clone(),
-                success:           false,
+                project_id: project.id.clone(),
+                success: false,
                 commands_executed: vec![],
-                stdout:            String::new(),
-                stderr:            String::new(),
-                exit_code:         None,
-                error_message:     Some("abort-merge only supported for Git".to_owned()),
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: None,
+                error_message: Some("abort-merge only supported for Git".to_owned()),
             },
         }
     }
@@ -467,28 +477,26 @@ impl VcsAdapter {
         use std::sync::Arc;
         use tokio::sync::Semaphore;
 
-        let sem   = Arc::new(Semaphore::new(max_concurrent));
+        let sem = Arc::new(Semaphore::new(max_concurrent));
         let since = since_ref.to_owned();
         let mut handles = Vec::new();
 
         for project in projects {
             let project = project.clone();
-            let sem     = Arc::clone(&sem);
-            let since   = since.clone();
+            let sem = Arc::clone(&sem);
+            let since = since.clone();
             handles.push(tokio::spawn(async move {
                 let _permit = sem.acquire().await.expect("open");
                 let kind = detect_vcs_kind(Path::new(&project.path)).await;
                 match kind {
-                    Some(VcsKind::Git) =>
-                        git::log_since(&project, &since, None).await,
-                    Some(VcsKind::Jujutsu) =>
-                        jj::log_since(&project, &since, None).await,
+                    Some(VcsKind::Git) => git::log_since(&project, &since, None).await,
+                    Some(VcsKind::Jujutsu) => jj::log_since(&project, &since, None).await,
                     None => crate::model::changelog::ProjectCommits {
-                        project_id:   project.id.clone(),
+                        project_id: project.id.clone(),
                         project_name: project.name.clone(),
-                        since_ref:    since,
-                        entries:      vec![],
-                        error:        Some(format!("no repository at {}", project.path)),
+                        since_ref: since,
+                        entries: vec![],
+                        error: Some(format!("no repository at {}", project.path)),
                     },
                 }
             }));
@@ -496,13 +504,15 @@ impl VcsAdapter {
 
         let mut project_commits = Vec::with_capacity(handles.len());
         for h in handles {
-            if let Ok(c) = h.await { project_commits.push(c); }
+            if let Ok(c) = h.await {
+                project_commits.push(c);
+            }
         }
 
         crate::model::changelog::ChangelogDraft {
-            release_name:  since_ref.to_owned(),
-            generated_at:  chrono::Utc::now(),
-            projects:      project_commits,
+            release_name: since_ref.to_owned(),
+            generated_at: chrono::Utc::now(),
+            projects: project_commits,
         }
     }
 
@@ -520,7 +530,9 @@ impl VcsAdapter {
         for project in projects {
             // Try Cargo.toml in the project root.
             let cargo_path = format!("{}/Cargo.toml", project.path);
-            let Ok(manifest) = parse_cargo_toml(&cargo_path) else { continue; };
+            let Ok(manifest) = parse_cargo_toml(&cargo_path) else {
+                continue;
+            };
 
             if let Some(ref pkg_name) = manifest.package_name {
                 name_to_id.insert(pkg_name.clone(), project.id.clone());
@@ -528,11 +540,11 @@ impl VcsAdapter {
 
             for dep in &manifest.dependencies {
                 edges.push(DependencyEdge {
-                    from_project_id:   project.id.clone(),
+                    from_project_id: project.id.clone(),
                     from_project_name: project.name.clone(),
-                    to_project_name:   dep.name.clone(),
-                    version_req:       dep.version_req.clone(),
-                    is_path_dep:       dep.is_path,
+                    to_project_name: dep.name.clone(),
+                    version_req: dep.version_req.clone(),
+                    is_path_dep: dep.is_path,
                 });
             }
         }
@@ -556,18 +568,21 @@ impl VcsAdapter {
 
 impl VcsAdapter {
     /// Push a tag to the remote (`git push origin <tag>`).
-    pub async fn push_tag(project: &Project, tag_name: &str) -> crate::model::operation::ProjectOperationResult {
+    pub async fn push_tag(
+        project: &Project,
+        tag_name: &str,
+    ) -> crate::model::operation::ProjectOperationResult {
         let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
         match kind {
             Some(VcsKind::Git) => git::push_tags(project, tag_name).await,
             _ => crate::model::operation::ProjectOperationResult {
-                project_id:        project.id.clone(),
-                success:           false,
+                project_id: project.id.clone(),
+                success: false,
                 commands_executed: vec![],
-                stdout:            String::new(),
-                stderr:            String::new(),
-                exit_code:         None,
-                error_message:     Some("push_tag only supported for Git".to_owned()),
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: None,
+                error_message: Some("push_tag only supported for Git".to_owned()),
             },
         }
     }
@@ -582,7 +597,6 @@ impl VcsAdapter {
 impl VcsAdapter {
     // --- Tag management ---
 
-
     /// Create a tag or jj bookmark, with an optional annotation message.
     ///
     /// `message = None` → lightweight tag (same as [`VcsAdapter::create_tag`]).  
@@ -595,15 +609,17 @@ impl VcsAdapter {
     ) -> crate::model::operation::ProjectOperationResult {
         let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
         match (kind, message) {
-            (Some(VcsKind::Git), Some(msg)) =>
-                git::tag_create_annotated(project, tag_name, msg).await,
-            (Some(VcsKind::Git), None) =>
-                git::tag_create(project, tag_name).await,
-            (Some(VcsKind::Jujutsu), _) =>
-                jj::bookmark_create(project, tag_name).await,
+            (Some(VcsKind::Git), Some(msg)) => {
+                git::tag_create_annotated(project, tag_name, msg).await
+            }
+            (Some(VcsKind::Git), None) => git::tag_create(project, tag_name).await,
+            (Some(VcsKind::Jujutsu), _) => jj::bookmark_create(project, tag_name).await,
             (None, _) => crate::model::operation::ProjectOperationResult {
-                project_id: project.id.clone(), success: false,
-                commands_executed: vec![], stdout: String::new(), stderr: String::new(),
+                project_id: project.id.clone(),
+                success: false,
+                commands_executed: vec![],
+                stdout: String::new(),
+                stderr: String::new(),
                 exit_code: None,
                 error_message: Some(format!("no repository at {}", project.path)),
             },
@@ -614,21 +630,22 @@ impl VcsAdapter {
     ///
     /// For Git this creates a lightweight tag (`git tag <name>`).
     /// For jj this creates a bookmark (`jj bookmark create <name> -r @`).
-    pub async fn create_tag(project: &Project, tag_name: &str)
-        -> crate::model::operation::ProjectOperationResult
-    {
+    pub async fn create_tag(
+        project: &Project,
+        tag_name: &str,
+    ) -> crate::model::operation::ProjectOperationResult {
         let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git)      => git::tag_create(project, tag_name).await,
+            Some(VcsKind::Git) => git::tag_create(project, tag_name).await,
             Some(VcsKind::Jujutsu) => jj::bookmark_create(project, tag_name).await,
             None => crate::model::operation::ProjectOperationResult {
-                project_id:        project.id.clone(),
-                success:           false,
+                project_id: project.id.clone(),
+                success: false,
                 commands_executed: vec![],
-                stdout:            String::new(),
-                stderr:            String::new(),
-                exit_code:         None,
-                error_message:     Some(format!("no repository at {}", project.path)),
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: None,
+                error_message: Some(format!("no repository at {}", project.path)),
             },
         }
     }
@@ -637,21 +654,22 @@ impl VcsAdapter {
     ///
     /// For Git: `git tag -d <name>`.
     /// For jj: `jj bookmark delete <name>`.
-    pub async fn delete_tag(project: &Project, tag_name: &str)
-        -> crate::model::operation::ProjectOperationResult
-    {
+    pub async fn delete_tag(
+        project: &Project,
+        tag_name: &str,
+    ) -> crate::model::operation::ProjectOperationResult {
         let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git)      => git::tag_delete(project, tag_name).await,
+            Some(VcsKind::Git) => git::tag_delete(project, tag_name).await,
             Some(VcsKind::Jujutsu) => jj::bookmark_delete(project, tag_name).await,
             None => crate::model::operation::ProjectOperationResult {
-                project_id:        project.id.clone(),
-                success:           false,
+                project_id: project.id.clone(),
+                success: false,
                 commands_executed: vec![],
-                stdout:            String::new(),
-                stderr:            String::new(),
-                exit_code:         None,
-                error_message:     Some(format!("no repository at {}", project.path)),
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: None,
+                error_message: Some(format!("no repository at {}", project.path)),
             },
         }
     }
@@ -667,14 +685,14 @@ impl VcsAdapter {
     ) -> crate::model::changelog::ProjectCommits {
         let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git)      => git::log_since(project, since_ref, until_ref).await,
+            Some(VcsKind::Git) => git::log_since(project, since_ref, until_ref).await,
             Some(VcsKind::Jujutsu) => jj::log_since(project, since_ref, until_ref).await,
             None => crate::model::changelog::ProjectCommits {
-                project_id:   project.id.clone(),
+                project_id: project.id.clone(),
                 project_name: project.name.clone(),
-                since_ref:    since_ref.to_owned(),
-                entries:      vec![],
-                error:        Some(format!("no repository at {}", project.path)),
+                since_ref: since_ref.to_owned(),
+                entries: vec![],
+                error: Some(format!("no repository at {}", project.path)),
             },
         }
     }
@@ -703,14 +721,18 @@ impl VcsAdapter {
         use endringer_async::AsyncRepository;
         let path = std::path::Path::new(&project.path);
         match detect_vcs_kind(path).await {
-            Some(VcsKind::Git) => {
-                AsyncRepository::open(path).await.ok()?
-                    .worktree_status().await.ok()
-            }
-            Some(VcsKind::Jujutsu) => {
-                AsyncRepository::open_jj(path).await.ok()?
-                    .worktree_status().await.ok()
-            }
+            Some(VcsKind::Git) => AsyncRepository::open(path)
+                .await
+                .ok()?
+                .worktree_status()
+                .await
+                .ok(),
+            Some(VcsKind::Jujutsu) => AsyncRepository::open_jj(path)
+                .await
+                .ok()?
+                .worktree_status()
+                .await
+                .ok(),
             None => None,
         }
     }

@@ -29,9 +29,7 @@ fn project_id_is_unique() {
 
 #[test]
 fn project_status_healthy_requires_no_errors() {
-    use crate::model::status::{
-        ConflictStatus, RemoteStatus, RepositoryIdentity,
-    };
+    use crate::model::status::{ConflictStatus, RemoteStatus, RepositoryIdentity};
     use chrono::Utc;
 
     let id = ProjectId::new();
@@ -54,9 +52,7 @@ fn project_status_healthy_requires_no_errors() {
 
 #[test]
 fn project_status_unhealthy_when_behind() {
-    use crate::model::status::{
-        ConflictStatus, RemoteStatus, RepositoryIdentity,
-    };
+    use crate::model::status::{ConflictStatus, RemoteStatus, RepositoryIdentity};
     use chrono::Utc;
 
     let id = ProjectId::new();

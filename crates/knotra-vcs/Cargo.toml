@@ -1,25 +1,27 @@
 [package]
-name = "knotra-vcs"
-description = "knotra VCS facade: multi-project VcsAdapter + domain model over the published endringer crates"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+name        = "knotra-vcs"
+description = "knotra VCS facade: multi-project VcsAdapter + domain model over the published endringer crates."
+readme      = "README.md"
+version.workspace       = true
+edition.workspace       = true
+license.workspace       = true
+authors.workspace       = true
 
 [dependencies]
-endringer-core  = "0.33.1"
-endringer-git   = "0.33.1"
-endringer-jj    = "0.33.1"
-endringer-async = "0.33.1"
-toml.workspace = true
-tokio.workspace = true
-serde.workspace = true
-thiserror.workspace = true
-anyhow.workspace = true
-tracing.workspace = true
-uuid.workspace = true
-chrono.workspace = true
+endringer-core              = { workspace = true }
+endringer-git               = { workspace = true }
+endringer-jj                = { workspace = true }
+endringer-async             = { workspace = true }
+
+anyhow                      = { workspace = true }
+chrono                      = { workspace = true }
+serde                       = { workspace = true }
+thiserror                   = { workspace = true }
+tokio                       = { workspace = true }
+toml                        = { workspace = true }
+tracing                     = { workspace = true }
+uuid                        = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
-filetime = "0.2"
+filetime                    = { workspace = true }
+tempfile                    = { workspace = true }

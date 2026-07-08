@@ -7,6 +7,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.18.1] — 2026-07-08
+
+### Changed — Codebase housekeeping
+
+- `cargo fmt`
+- `Cargo.toml`
+
+---
+
 ## [0.18.0] — 2026-06-11
 
 ### Changed — Migrate to endringer 0.33.1 (RFC-020)

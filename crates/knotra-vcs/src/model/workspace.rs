@@ -9,9 +9,15 @@ use super::project::{Project, ProjectId};
 pub struct WorkspaceId(pub uuid::Uuid);
 
 impl WorkspaceId {
-    pub fn new() -> Self { WorkspaceId(uuid::Uuid::new_v4()) }
+    pub fn new() -> Self {
+        WorkspaceId(uuid::Uuid::new_v4())
+    }
 }
-impl Default for WorkspaceId { fn default() -> Self { Self::new() } }
+impl Default for WorkspaceId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl std::fmt::Display for WorkspaceId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
@@ -29,8 +35,17 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn new(name: impl Into<String>) -> Self {
-        Workspace { id: WorkspaceId::new(), name: name.into(), projects: Vec::new(), description: None }
+        Workspace {
+            id: WorkspaceId::new(),
+            name: name.into(),
+            projects: Vec::new(),
+            description: None,
+        }
     }
-    pub fn add_project(&mut self, project: Project) { self.projects.push(project); }
-    pub fn remove_project(&mut self, id: &ProjectId) { self.projects.retain(|p| &p.id != id); }
+    pub fn add_project(&mut self, project: Project) {
+        self.projects.push(project);
+    }
+    pub fn remove_project(&mut self, id: &ProjectId) {
+        self.projects.retain(|p| &p.id != id);
+    }
 }

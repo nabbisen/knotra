@@ -4,8 +4,8 @@
 //! `state.add_project_dialog.is_some()`.
 
 use iced::{
-    widget::{button, column, container, row, text, text_input, Space},
     Alignment, Element, Length,
+    widget::{Space, button, column, container, row, text, text_input},
 };
 
 use crate::{
@@ -16,20 +16,14 @@ use crate::{
 pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     let dialog = state.add_project_dialog.as_ref()?;
 
-    let name_input = text_input(
-        state.t("dialog.add_project.name_hint"),
-        &dialog.name,
-    )
-    .on_input(|s| Message::Workspace(WorkspaceMessage::AddProjectNameChanged(s)))
-    .padding([6, 10]);
+    let name_input = text_input(state.t("dialog.add_project.name_hint"), &dialog.name)
+        .on_input(|s| Message::Workspace(WorkspaceMessage::AddProjectNameChanged(s)))
+        .padding([6, 10]);
 
-    let path_input = text_input(
-        state.t("dialog.add_project.path_hint"),
-        &dialog.path,
-    )
-    .on_input(|s| Message::Workspace(WorkspaceMessage::AddProjectPathChanged(s)))
-    .padding([6, 10])
-    .width(Length::Fill);
+    let path_input = text_input(state.t("dialog.add_project.path_hint"), &dialog.path)
+        .on_input(|s| Message::Workspace(WorkspaceMessage::AddProjectPathChanged(s)))
+        .padding([6, 10])
+        .width(Length::Fill);
 
     let browse_btn = button(text(state.t("dialog.add_project.browse")).size(12))
         .on_press(Message::Workspace(WorkspaceMessage::BrowsePathRequested))
@@ -64,18 +58,10 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     .padding(24);
 
     if let Some(ref err) = dialog.error {
-        body = body.push(
-            text(err.as_str()).size(12)
-        );
+        body = body.push(text(err.as_str()).size(12));
     }
 
-    body = body.push(
-        row![confirm_btn, cancel_btn].spacing(8)
-    );
+    body = body.push(row![confirm_btn, cancel_btn].spacing(8));
 
-    Some(
-        container(body)
-            .width(Length::Fixed(440.0))
-            .into()
-    )
+    Some(container(body).width(Length::Fixed(440.0)).into())
 }

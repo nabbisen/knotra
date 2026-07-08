@@ -29,18 +29,18 @@ impl StatusColor {
         if dark {
             match self {
                 StatusColor::Healthy => Color::from_rgb8(0x4c, 0xaf, 0x50), // green-500
-                StatusColor::Behind => Color::from_rgb8(0xff, 0xb7, 0x4d), // amber-300
-                StatusColor::Ahead => Color::from_rgb8(0x42, 0xa5, 0xf5), // blue-400
-                StatusColor::Dirty => Color::from_rgb8(0xff, 0xb7, 0x4d), // amber-300
+                StatusColor::Behind => Color::from_rgb8(0xff, 0xb7, 0x4d),  // amber-300
+                StatusColor::Ahead => Color::from_rgb8(0x42, 0xa5, 0xf5),   // blue-400
+                StatusColor::Dirty => Color::from_rgb8(0xff, 0xb7, 0x4d),   // amber-300
                 StatusColor::Conflict => Color::from_rgb8(0xef, 0x53, 0x50), // red-400
                 StatusColor::Unknown => Color::from_rgb8(0x75, 0x75, 0x75), // grey-600
             }
         } else {
             match self {
                 StatusColor::Healthy => Color::from_rgb8(0x2e, 0x7d, 0x32), // green-800
-                StatusColor::Behind => Color::from_rgb8(0xe6, 0x51, 0x00), // orange-900
-                StatusColor::Ahead => Color::from_rgb8(0x15, 0x65, 0xc0), // blue-800
-                StatusColor::Dirty => Color::from_rgb8(0xe6, 0x51, 0x00), // orange-900
+                StatusColor::Behind => Color::from_rgb8(0xe6, 0x51, 0x00),  // orange-900
+                StatusColor::Ahead => Color::from_rgb8(0x15, 0x65, 0xc0),   // blue-800
+                StatusColor::Dirty => Color::from_rgb8(0xe6, 0x51, 0x00),   // orange-900
                 StatusColor::Conflict => Color::from_rgb8(0xc6, 0x28, 0x28), // red-800
                 StatusColor::Unknown => Color::from_rgb8(0x61, 0x61, 0x61), // grey-700
             }

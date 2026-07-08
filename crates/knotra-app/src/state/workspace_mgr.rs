@@ -1,6 +1,5 @@
 //! Multi-workspace management state.
 
-
 /// State for the workspace-switcher and manager UI.
 #[derive(Debug, Default)]
 pub struct WorkspaceMgrState {
