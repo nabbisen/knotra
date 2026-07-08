@@ -125,7 +125,7 @@ endringer 0.19.2 library backends.
 - [x] `log_since` uses CLI ref-range (`git log <ref>..HEAD`)
 - [x] 0 warnings, 36 endringer tests pass, knotra-app check clean
 
-## v0.11.0 — RFC 001–0008 Implementation
+## v0.11.0 — RFC 001–008 Implementation
 
 All design issues identified in the v0.10.0 design-note review are resolved.
 

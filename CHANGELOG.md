@@ -7,9 +7,43 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.11.1] — 2026-05-23
+
+### Added — UI/UX Redesign RFCs (009 – 017)
+
+This is a **documentation-only release**.  No code changes; nine detailed
+RFCs for the v0.12 → v0.16 UI/UX redesign are added under `rfcs/`.  Together
+they describe the migration from screen-based navigation to a single-view,
+selection-driven dashboard.
+
+| RFC  | Title                                       | Target | Effort       |
+|------|---------------------------------------------|--------|--------------|
+| [009](rfcs/009-selection-model.md)        | Selection model and selection bar          | v0.12 | Medium        |
+| [010](rfcs/010-attention-tiers.md)        | Three-tier attention grouping (Needs Attention / Active / Clean) | v0.13 | Medium |
+| [011](rfcs/011-activity-strip.md)         | Activity strip at bottom of window         | v0.12 | Small–Medium  |
+| [012](rfcs/012-command-palette.md)        | Command palette (⌘K) with fuzzy search     | v0.12 stub / v0.13 full | Medium |
+| [013](rfcs/013-bulk-action-modals.md)     | Bulk action modals replacing 5 screens     | v0.14 | **Large**     |
+| [014](rfcs/014-project-detail-panel.md)   | Right-docked project detail side panel     | v0.15 | Medium        |
+| [015](rfcs/015-workspace-tabs.md)         | Workspace tabs at top + ⌘1/⌘2 shortcuts    | v0.15 | Small–Medium  |
+| [016](rfcs/016-keyboard-shortcuts.md)     | Keyboard shortcuts table + `?` cheat sheet | v0.13 | Medium        |
+| [017](rfcs/017-screen-removal.md)         | Removal of Sync Center / Freezer / ContextOps / Conflict Resolution / Changelog screens | v0.16 | Small–Medium |
+
+### Design Source
+
+The redesign rationale and IA decisions are documented in
+[`docs/src/contributing/ui-ux-redesign.md`](docs/src/contributing/ui-ux-redesign.md).
+Each RFC carries forward the relevant design decisions with implementation-level
+detail — state shape, message variants, file boundaries, test plans.
+
+### Status of 001 – 008
+
+The technical RFCs from v0.11.0 are marked **Implemented** in their status
+tables.  Code references in those RFCs reflect the shipped v0.11.0 surface.
+
+
 ## [0.11.0] — 2026-05-22
 
-### Added / Fixed — RFC 001–0008 Implementation
+### Added / Fixed — RFC 001–008 Implementation
 
 All eight RFCs introduced in v0.10.1 are implemented in this release.
 
@@ -149,14 +183,14 @@ for all open design questions identified in the v0.10.0 design-note review.
 
 | RFC  | Title | Priority |
 |------|-------|----------|
-| [0001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
-| [0002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
-| [0003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
-| [0004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
-| [0005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
-| [0006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
-| [0007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
-| [0008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
+| [001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
+| [002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
+| [003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
+| [004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
+| [005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
+| [006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
+| [007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
+| [008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
 
 Each RFC follows a lightweight template (Summary / Problem / Design / Test Plan /
 Security Considerations) and is extended with Requirements, External/Internal
@@ -361,9 +395,43 @@ The three `endringer::vcs::git::*` direct calls in `git_integration.rs` are repl
 - Changelog copy now uses real clipboard write, not a status-bar placeholder.
 
 
+## [0.11.1] — 2026-05-23
+
+### Added — UI/UX Redesign RFCs (009 – 017)
+
+This is a **documentation-only release**.  No code changes; nine detailed
+RFCs for the v0.12 → v0.16 UI/UX redesign are added under `rfcs/`.  Together
+they describe the migration from screen-based navigation to a single-view,
+selection-driven dashboard.
+
+| RFC  | Title                                       | Target | Effort       |
+|------|---------------------------------------------|--------|--------------|
+| [009](rfcs/009-selection-model.md)        | Selection model and selection bar          | v0.12 | Medium        |
+| [010](rfcs/010-attention-tiers.md)        | Three-tier attention grouping (Needs Attention / Active / Clean) | v0.13 | Medium |
+| [011](rfcs/011-activity-strip.md)         | Activity strip at bottom of window         | v0.12 | Small–Medium  |
+| [012](rfcs/012-command-palette.md)        | Command palette (⌘K) with fuzzy search     | v0.12 stub / v0.13 full | Medium |
+| [013](rfcs/013-bulk-action-modals.md)     | Bulk action modals replacing 5 screens     | v0.14 | **Large**     |
+| [014](rfcs/014-project-detail-panel.md)   | Right-docked project detail side panel     | v0.15 | Medium        |
+| [015](rfcs/015-workspace-tabs.md)         | Workspace tabs at top + ⌘1/⌘2 shortcuts    | v0.15 | Small–Medium  |
+| [016](rfcs/016-keyboard-shortcuts.md)     | Keyboard shortcuts table + `?` cheat sheet | v0.13 | Medium        |
+| [017](rfcs/017-screen-removal.md)         | Removal of Sync Center / Freezer / ContextOps / Conflict Resolution / Changelog screens | v0.16 | Small–Medium |
+
+### Design Source
+
+The redesign rationale and IA decisions are documented in
+[`docs/src/contributing/ui-ux-redesign.md`](docs/src/contributing/ui-ux-redesign.md).
+Each RFC carries forward the relevant design decisions with implementation-level
+detail — state shape, message variants, file boundaries, test plans.
+
+### Status of 001 – 008
+
+The technical RFCs from v0.11.0 are marked **Implemented** in their status
+tables.  Code references in those RFCs reflect the shipped v0.11.0 surface.
+
+
 ## [0.11.0] — 2026-05-22
 
-### Added / Fixed — RFC 001–0008 Implementation
+### Added / Fixed — RFC 001–008 Implementation
 
 All eight RFCs introduced in v0.10.1 are implemented in this release.
 
@@ -503,14 +571,14 @@ for all open design questions identified in the v0.10.0 design-note review.
 
 | RFC  | Title | Priority |
 |------|-------|----------|
-| [0001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
-| [0002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
-| [0003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
-| [0004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
-| [0005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
-| [0006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
-| [0007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
-| [0008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
+| [001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
+| [002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
+| [003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
+| [004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
+| [005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
+| [006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
+| [007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
+| [008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
 
 Each RFC follows a lightweight template (Summary / Problem / Design / Test Plan /
 Security Considerations) and is extended with Requirements, External/Internal
