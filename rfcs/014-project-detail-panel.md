@@ -2,7 +2,7 @@
 
 | Field          | Value                                                                  |
 |----------------|------------------------------------------------------------------------|
-| Status         | Proposed                                                               |
+| Status      | **Implemented** (v0.12.0)         |
 | Priority       | Medium — drill-down replacement for ContextOps screen single-project case |
 | Effort         | Medium — new panel widget, content layout, animation                   |
 | Target version | v0.15                                                                  |

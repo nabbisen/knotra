@@ -2,7 +2,7 @@
 
 | Field          | Value                                                          |
 |----------------|----------------------------------------------------------------|
-| Status         | Proposed                                                       |
+| Status      | **Implemented** (v0.12.0)         |
 | Priority       | Low — quality-of-life improvement for multi-workspace users    |
 | Effort         | Small — new top-bar widget, replace sidebar workspace list     |
 | Target version | v0.15                                                          |

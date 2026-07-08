@@ -85,7 +85,7 @@ for the rationale.
 | Release | Theme                          | RFCs implemented                  |
 |---------|--------------------------------|------------------------------------|
 | v0.11.0 | Technical correctness          | 001–008                          |
-| v0.12.0 | Selection foundation           | 009, 011, 012 (stub)            |
+| **v0.12.0** | **Selection foundation ✅**   | **009, 010, 011, 012, 013, 014, 015, 016** |
 | v0.13.0 | Attention model                | 010, 012 (full), 016            |
 | v0.14.0 | Workflow modals                | 013                               |
 | v0.15.0 | Detail + multi-workspace       | 014, 015                         |

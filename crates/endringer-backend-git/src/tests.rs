@@ -3,7 +3,7 @@ use endringer_backend_core::types::CommitId;
 #[test]
 fn commit_id_ord() {
     let a = CommitId::from_hex("0000000000000000000000000000000000000000").unwrap();
-    let b = CommitId::from_hex("0000000000000000000000000000000000000001").unwrap();
+    let b = CommitId::from_hex("000000000000000000000000000000000000001").unwrap();
     let c = CommitId::from_hex("ffffffffffffffffffffffffffffffffffffffff").unwrap();
 
     assert!(a < b);
@@ -34,8 +34,8 @@ fn commit_id_from_hex_invalid() {
 
 #[test]
 fn diff_summary_is_sorted() {
-    use std::path::PathBuf;
     use endringer_backend_core::types::DiffSummary;
+    use std::path::PathBuf;
 
     // DiffSummary itself has no sorting logic; the sorting guarantee comes
     // from the backend. Verify the type supports it.

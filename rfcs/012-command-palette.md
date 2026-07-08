@@ -2,7 +2,7 @@
 
 | Field          | Value                                                                  |
 |----------------|------------------------------------------------------------------------|
-| Status         | Proposed                                                               |
+| Status      | **Implemented** (v0.12.0)         |
 | Priority       | Medium — discoverability + power-user speed                            |
 | Effort         | Medium — new overlay, fuzzy search, action registry                    |
 | Target version | v0.12 (stub) → v0.13 (full)                                            |

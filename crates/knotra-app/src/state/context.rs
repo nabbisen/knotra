@@ -47,6 +47,8 @@ pub enum ContextPhase {
 #[derive(Debug, Default)]
 pub struct ContextOpsState {
     pub phase: ContextPhase,
+    /// Branch name typed in the Switch modal.
+    pub target_context: String,
     /// Context lists cached per project (invalidated on switch / refresh).
     pub cached_lists: std::collections::HashMap<ProjectId, ContextList>,
 }

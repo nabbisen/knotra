@@ -2,7 +2,7 @@
 
 | Field          | Value                                                                |
 |----------------|----------------------------------------------------------------------|
-| Status         | Proposed                                                             |
+| Status      | **Implemented** (v0.12.0)         |
 | Priority       | Medium — completes the keyboard-first interaction model              |
 | Effort         | Medium — central key-binding table, overlay, conflict resolution     |
 | Target version | v0.13                                                                |

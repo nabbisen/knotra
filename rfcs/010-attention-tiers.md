@@ -2,7 +2,7 @@
 
 | Field          | Value                                                                |
 |----------------|----------------------------------------------------------------------|
-| Status         | Proposed                                                             |
+| Status      | **Implemented** (v0.12.0)         |
 | Priority       | **High** — defines the new mental model of the dashboard             |
 | Effort         | Medium — tier classification, layout changes, settings toggle        |
 | Target version | v0.13                                                                |

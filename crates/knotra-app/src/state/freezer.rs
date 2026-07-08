@@ -19,6 +19,7 @@ pub enum FreezerPhase {
     /// Validation complete — awaiting user confirmation.
     ValidationReady(FreezeValidation),
     /// Execution in progress.
+    #[allow(dead_code)]
     Executing,
     /// Execution complete — show result.
     Done(FreezeResult),

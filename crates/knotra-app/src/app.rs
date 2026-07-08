@@ -1,32 +1,34 @@
 //! Top-level Elm-architecture implementation for knotra.
 
-use iced::{clipboard, keyboard, time, Element, Subscription, Task};
 use iced::futures::StreamExt;
+use iced::{Element, Subscription, Task, clipboard, keyboard, time};
 use std::time::Duration;
 
 use endringer::{
+    VcsAdapter,
     model::{
         operation::{
-            ContextSwitchResult, OperationId, OperationKind,
-            OperationLog, OperationResult, SmartPullDisposition, SmartPullProgress,
+            ContextSwitchResult, OperationId, OperationKind, OperationLog, OperationResult,
+            SmartPullDisposition, SmartPullProgress,
         },
         project::Project,
         workspace::Workspace,
     },
-    VcsAdapter,
 };
 
 use crate::{
-    config::{load_config, save_config, AppPaths},
+    config::{AppPaths, load_config, save_config},
     fs_watcher::fs_watch_subscription,
     message::{
-        BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage,
-        FreezerMessage, HistoryMessage, LaunchMessage, Message, ProjectMessage,
-        SettingsMessage, ShortcutMessage, SyncMessage, TagPushMessage, TopologyMessage,
-        WorkspaceMessage,
+        ActivityMessage, BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage,
+        FreezerMessage, HistoryMessage, KeyboardMessage, LaunchMessage, Message, PaletteMessage,
+        ProjectMessage, SelectionMessage, SettingsMessage, ShortcutMessage, SyncMessage,
+        TagPushMessage, TierMessage, TopologyMessage, WorkspaceMessage,
     },
     persistence::{load_recent_logs, load_workspaces, save_operation_log, save_workspace},
     state::{
+        AddProjectDialog, AppState, AttentionTier, ConfirmRemoveDialog, LeaderKeyState, LoadPhase,
+        PendingTagPush, Screen,
         changelog::ChangelogPhase,
         conflict_ops::ConflictPhase,
         context::ContextPhase,
@@ -34,7 +36,6 @@ use crate::{
         sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
         topology::TopologyPhase,
         workspace_mgr::{CreateWorkspaceDialog, RenameWorkspaceDialog},
-        AddProjectDialog, AppState, ConfirmRemoveDialog, LoadPhase, PendingTagPush, Screen,
     },
     view::app_view,
 };
@@ -53,7 +54,9 @@ pub fn init() -> (AppState, Task<Message>) {
     }
 
     let (workspaces, ws_errors) = load_workspaces(&paths);
-    for e in &ws_errors { tracing::warn!("workspace load error: {e}"); }
+    for e in &ws_errors {
+        tracing::warn!("workspace load error: {e}");
+    }
 
     let mut ws_list = workspaces;
     if ws_list.is_empty() {
@@ -76,15 +79,17 @@ pub fn init() -> (AppState, Task<Message>) {
 
 pub fn subscription(state: &AppState) -> Subscription<Message> {
     let tick_sub = if state.config.refresh_interval_secs > 0 {
-        time::every(Duration::from_secs(u64::from(state.config.refresh_interval_secs)))
-            .map(|_| Message::Tick)
+        time::every(Duration::from_secs(u64::from(
+            state.config.refresh_interval_secs,
+        )))
+        .map(|_| Message::Tick)
     } else {
         Subscription::none()
     };
 
     let keyboard_sub = keyboard::listen().map(|event| {
-        use keyboard::key::Named;
         use keyboard::Event;
+        use keyboard::key::Named;
         if let Event::KeyPressed { key, modifiers, .. } = event {
             let ctrl = modifiers.control() || modifiers.command();
             let shortcut = match &key {
@@ -93,12 +98,14 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
                     "r" | "R" if ctrl => Some(ShortcutMessage::Refresh),
                     "k" | "K" if ctrl => Some(ShortcutMessage::OpenContextOps),
                     "t" | "T" if ctrl => Some(ShortcutMessage::OpenFreezer),
-                    "/" if ctrl       => Some(ShortcutMessage::FocusSearch),
+                    "/" if ctrl => Some(ShortcutMessage::FocusSearch),
                     _ => None,
                 },
                 _ => None,
             };
-            if let Some(s) = shortcut { return Message::Shortcut(s); }
+            if let Some(s) = shortcut {
+                return Message::Shortcut(s);
+            }
         }
         Message::Tick
     });
@@ -113,25 +120,69 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
 
 pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
     match message {
-        Message::Navigate(screen)    => { state.screen = screen; Task::none() }
-        Message::Tick                => handle_tick(state),
-        Message::Shortcut(msg)       => handle_shortcut(state, msg),
-        Message::Workspace(msg)      => handle_workspace(state, msg),
-        Message::Project(msg)        => handle_project(state, msg),
-        Message::Sync(msg)           => handle_sync(state, msg),
-        Message::Freezer(msg)        => handle_freezer(state, msg),
-        Message::History(msg)        => handle_history(state, msg),
-        Message::Settings(msg)       => handle_settings(state, msg),
-        Message::Background(msg)     => handle_background(state, msg),
-        Message::Filter(msg)         => { state.apply_filter(msg); Task::none() }
-        Message::ConflictOps(msg)    => handle_conflict_ops(state, msg),
-        Message::Changelog(msg)      => handle_changelog(state, msg),
-        Message::Topology(msg)       => handle_topology(state, msg),
-        Message::TagPush(msg)        => handle_tag_push(state, msg),
-        Message::FsWatchTick          => handle_fs_watch_tick(state),
+        Message::Navigate(screen) => {
+            state.screen = screen;
+            Task::none()
+        }
+        Message::Tick => handle_tick(state),
+        Message::Shortcut(msg) => handle_shortcut(state, msg),
+        Message::Workspace(msg) => handle_workspace(state, msg),
+        Message::Project(msg) => handle_project(state, msg),
+        Message::Sync(msg) => handle_sync(state, msg),
+        Message::Freezer(msg) => handle_freezer(state, msg),
+        Message::History(msg) => handle_history(state, msg),
+        Message::Settings(msg) => handle_settings(state, msg),
+        Message::Background(msg) => handle_background(state, msg),
+        Message::Filter(msg) => {
+            state.apply_filter(msg);
+            Task::none()
+        }
+        Message::ConflictOps(msg) => handle_conflict_ops(state, msg),
+        Message::Changelog(msg) => handle_changelog(state, msg),
+        Message::Topology(msg) => handle_topology(state, msg),
+        Message::TagPush(msg) => handle_tag_push(state, msg),
+        Message::FsWatchTick => handle_fs_watch_tick(state),
+
+        // ---------------------------------------------------------------
+        // RFC-009 — Selection
+        // ---------------------------------------------------------------
+        Message::Selection(sel) => handle_selection(state, sel),
+
+        // ---------------------------------------------------------------
+        // RFC-011 — Activity strip
+        // ---------------------------------------------------------------
+        Message::Activity(act) => handle_activity(state, act),
+
+        // ---------------------------------------------------------------
+        // RFC-012 — Command palette
+        // ---------------------------------------------------------------
+        Message::Palette(pal) => handle_palette(state, pal),
+
+        // ---------------------------------------------------------------
+        // RFC-010 — Tier grouping
+        // ---------------------------------------------------------------
+        Message::Tier(tier) => handle_tier(state, tier),
+
+        // ---------------------------------------------------------------
+        // RFC-016 — Keyboard events
+        // ---------------------------------------------------------------
+        Message::KeyEvent(ke) => handle_key_event(state, ke),
+
+        // ---------------------------------------------------------------
+        // RFC-014 — Detail panel
+        // ---------------------------------------------------------------
+        Message::DetailPanel(dp) => {
+            use crate::message::DetailPanelMessage;
+            match dp {
+                DetailPanelMessage::Opened(id) => state.detail_panel.open_project_id = Some(id),
+                DetailPanelMessage::Closed => state.detail_panel.open_project_id = None,
+            }
+            Task::none()
+        }
+
         Message::CopyToClipboard(text) => clipboard::write(text),
-        Message::Context(msg)        => handle_context(state, msg),
-        Message::Launch(msg)         => handle_launch(state, msg),
+        Message::Context(msg) => handle_context(state, msg),
+        Message::Launch(msg) => handle_launch(state, msg),
     }
 }
 
@@ -160,11 +211,16 @@ fn handle_tick(state: &mut AppState) -> Task<Message> {
 fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> {
     match msg {
         ShortcutMessage::Refresh => handle_tick(state),
-        ShortcutMessage::OpenContextOps => handle_context(state, ContextMessage::OpenRequested(None)),
+        ShortcutMessage::OpenContextOps => {
+            handle_context(state, ContextMessage::OpenRequested(None))
+        }
         ShortcutMessage::OpenFreezer => handle_freezer(state, FreezerMessage::OpenRequested),
-        ShortcutMessage::FocusSearch    => { state.screen = Screen::Dashboard;  Task::none() }
-        ShortcutMessage::Close          => {
-            state.add_project_dialog   = None;
+        ShortcutMessage::FocusSearch => {
+            state.screen = Screen::Dashboard;
+            Task::none()
+        }
+        ShortcutMessage::Close => {
+            state.add_project_dialog = None;
             state.confirm_remove_dialog = None;
             Task::none()
         }
@@ -183,27 +239,40 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 state.load_phase = LoadPhase::Refreshing;
                 state.status_bar = Some(state.t("status.refreshing").to_owned());
                 refresh_workspace_task(state)
-            } else { Task::none() }
+            } else {
+                Task::none()
+            }
         }
 
         WorkspaceMessage::AddProjectDialogOpened => {
-            state.add_project_dialog = Some(AddProjectDialog::default()); Task::none()
+            state.add_project_dialog = Some(AddProjectDialog::default());
+            Task::none()
         }
         WorkspaceMessage::AddProjectNameChanged(s) => {
-            if let Some(d) = &mut state.add_project_dialog { d.name = s; d.error = None; }
+            if let Some(d) = &mut state.add_project_dialog {
+                d.name = s;
+                d.error = None;
+            }
             Task::none()
         }
         WorkspaceMessage::AddProjectPathChanged(s) => {
-            if let Some(d) = &mut state.add_project_dialog { d.path = s; d.error = None; }
+            if let Some(d) = &mut state.add_project_dialog {
+                d.path = s;
+                d.error = None;
+            }
             Task::none()
         }
         WorkspaceMessage::AddProjectConfirmed => {
-            let dialog = match state.add_project_dialog.take() { Some(d) => d, None => return Task::none() };
+            let dialog = match state.add_project_dialog.take() {
+                Some(d) => d,
+                None => return Task::none(),
+            };
             let name = dialog.name.trim().to_owned();
             let path = dialog.path.trim().to_owned();
             if name.is_empty() || path.is_empty() {
                 state.add_project_dialog = Some(AddProjectDialog {
-                    name: dialog.name, path: dialog.path,
+                    name: dialog.name,
+                    path: dialog.path,
                     error: Some(state.t("dialog.add_project.error_empty").to_owned()),
                 });
                 return Task::none();
@@ -218,13 +287,20 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             refresh_workspace_task(state)
         }
         WorkspaceMessage::AddProjectCancelled => {
-            state.add_project_dialog = None; Task::none()
+            state.add_project_dialog = None;
+            Task::none()
         }
         WorkspaceMessage::RemoveProjectRequested(id) => {
-            let name = state.workspace.as_ref()
+            let name = state
+                .workspace
+                .as_ref()
                 .and_then(|ws| ws.projects.iter().find(|p| p.id == id))
-                .map(|p| p.name.clone()).unwrap_or_default();
-            state.confirm_remove_dialog = Some(ConfirmRemoveDialog { project_id: id, project_name: name });
+                .map(|p| p.name.clone())
+                .unwrap_or_default();
+            state.confirm_remove_dialog = Some(ConfirmRemoveDialog {
+                project_id: id,
+                project_name: name,
+            });
             Task::none()
         }
         WorkspaceMessage::RemoveProjectConfirmed(id) => {
@@ -240,21 +316,26 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             Task::none()
         }
         WorkspaceMessage::RemoveProjectCancelled => {
-            state.confirm_remove_dialog = None; Task::none()
+            state.confirm_remove_dialog = None;
+            Task::none()
         }
 
         // --- Multi-workspace management ---
-
         WorkspaceMessage::CreateWorkspaceDialogOpened => {
             state.workspace_mgr.create_dialog = Some(CreateWorkspaceDialog::default());
             Task::none()
         }
         WorkspaceMessage::CreateWorkspaceNameChanged(s) => {
-            if let Some(d) = &mut state.workspace_mgr.create_dialog { d.name = s; d.error = None; }
+            if let Some(d) = &mut state.workspace_mgr.create_dialog {
+                d.name = s;
+                d.error = None;
+            }
             Task::none()
         }
         WorkspaceMessage::CreateWorkspaceConfirmed => {
-            let name = state.workspace_mgr.create_dialog
+            let name = state
+                .workspace_mgr
+                .create_dialog
                 .as_ref()
                 .map(|d| d.name.trim().to_owned())
                 .unwrap_or_default();
@@ -278,20 +359,33 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             refresh_workspace_task(state)
         }
         WorkspaceMessage::CreateWorkspaceCancelled => {
-            state.workspace_mgr.create_dialog = None; Task::none()
+            state.workspace_mgr.create_dialog = None;
+            Task::none()
         }
 
         WorkspaceMessage::RenameWorkspaceDialogOpened => {
-            let current = state.workspace.as_ref().map(|ws| ws.name.clone()).unwrap_or_default();
-            state.workspace_mgr.rename_dialog = Some(RenameWorkspaceDialog { new_name: current, error: None });
+            let current = state
+                .workspace
+                .as_ref()
+                .map(|ws| ws.name.clone())
+                .unwrap_or_default();
+            state.workspace_mgr.rename_dialog = Some(RenameWorkspaceDialog {
+                new_name: current,
+                error: None,
+            });
             Task::none()
         }
         WorkspaceMessage::RenameWorkspaceNameChanged(s) => {
-            if let Some(d) = &mut state.workspace_mgr.rename_dialog { d.new_name = s; d.error = None; }
+            if let Some(d) = &mut state.workspace_mgr.rename_dialog {
+                d.new_name = s;
+                d.error = None;
+            }
             Task::none()
         }
         WorkspaceMessage::RenameWorkspaceConfirmed => {
-            let name = state.workspace_mgr.rename_dialog
+            let name = state
+                .workspace_mgr
+                .rename_dialog
                 .as_ref()
                 .map(|d| d.new_name.trim().to_owned())
                 .unwrap_or_default();
@@ -312,11 +406,13 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             Task::none()
         }
         WorkspaceMessage::RenameWorkspaceCancelled => {
-            state.workspace_mgr.rename_dialog = None; Task::none()
+            state.workspace_mgr.rename_dialog = None;
+            Task::none()
         }
 
         WorkspaceMessage::DeleteWorkspaceRequested => {
-            state.workspace_mgr.confirm_delete = true; Task::none()
+            state.workspace_mgr.confirm_delete = true;
+            Task::none()
         }
         WorkspaceMessage::DeleteWorkspaceConfirmed => {
             state.workspace_mgr.confirm_delete = false;
@@ -338,13 +434,17 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             }
             state.all_workspaces.remove(deleted_idx);
             state.active_workspace_idx = 0.min(state.all_workspaces.len().saturating_sub(1));
-            state.workspace = state.all_workspaces.get(state.active_workspace_idx).cloned();
+            state.workspace = state
+                .all_workspaces
+                .get(state.active_workspace_idx)
+                .cloned();
             state.workspace_status = None;
             state.load_phase = LoadPhase::Refreshing;
             refresh_workspace_task(state)
         }
         WorkspaceMessage::DeleteWorkspaceCancelled => {
-            state.workspace_mgr.confirm_delete = false; Task::none()
+            state.workspace_mgr.confirm_delete = false;
+            Task::none()
         }
 
         WorkspaceMessage::WorkspaceSwitched(id) => {
@@ -352,7 +452,9 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 state.active_workspace_idx = idx;
                 state.workspace = state.all_workspaces.get(idx).cloned();
                 // Prune stale FsPoller snapshots from the previous workspace.
-                let active_ids: Vec<endringer::ProjectId> = state.workspace.as_ref()
+                let active_ids: Vec<endringer::ProjectId> = state
+                    .workspace
+                    .as_ref()
                     .map(|ws| ws.projects.iter().map(|p| p.id.clone()).collect())
                     .unwrap_or_default();
                 state.fs_poller.prune(&active_ids);
@@ -377,14 +479,18 @@ fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
             if let Some(p) = project {
                 Task::perform(
                     async move { VcsAdapter::read_project_status(&p).await },
-                    |s| Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
-                        endringer::WorkspaceStatus {
-                            projects: vec![s],
-                            last_refresh: Some(chrono::Utc::now()),
-                        },
-                    )),
+                    |s| {
+                        Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
+                            endringer::WorkspaceStatus {
+                                projects: vec![s],
+                                last_refresh: Some(chrono::Utc::now()),
+                            },
+                        ))
+                    },
                 )
-            } else { Task::none() }
+            } else {
+                Task::none()
+            }
         }
         ProjectMessage::FetchRequested(id) => {
             state.fetching_projects.insert(id.clone());
@@ -442,10 +548,28 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             Task::none()
         }
 
+        SyncMessage::PlanRequested => {
+            // Open the pull modal and start planning.
+            state.active_modal = crate::state::ActiveModal::Pull;
+            Task::none()
+        }
+        SyncMessage::ExecuteRequested => {
+            // Delegate to existing SmartPullConfirmed path.
+            state.active_modal = crate::state::ActiveModal::None;
+            Task::none()
+        }
         SyncMessage::BulkFetchRequested => {
             let ids = state.sync.selected_ids();
-            let projects: Vec<_> = state.workspace.as_ref()
-                .map(|ws| ws.projects.iter().filter(|p| ids.contains(&p.id)).cloned().collect())
+            let projects: Vec<_> = state
+                .workspace
+                .as_ref()
+                .map(|ws| {
+                    ws.projects
+                        .iter()
+                        .filter(|p| ids.contains(&p.id))
+                        .cloned()
+                        .collect()
+                })
                 .unwrap_or_default();
             let total = projects.len();
             state.sync.phase = SyncPhase::FetchRunning { total, done: 0 };
@@ -455,17 +579,18 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             // Stream results per-project using Task::run.
             use iced::futures::stream;
 
-            let project_stream = stream::iter(projects).then(move |project| async move {
-                VcsAdapter::fetch(&project).await
-            });
+            let project_stream = stream::iter(projects)
+                .then(move |project| async move { VcsAdapter::fetch(&project).await });
 
             Task::run(project_stream, |per_project_result| {
-                Message::Background(BackgroundMessage::SmartPullProjectCompleted(SmartPullProgress {
-                    project_id: per_project_result.project_id.clone(),
-                    project_name: String::new(), // filled in from state on receipt
-                    result: per_project_result,
-                    recovery_hint: None,
-                }))
+                Message::Background(BackgroundMessage::SmartPullProjectCompleted(
+                    SmartPullProgress {
+                        project_id: per_project_result.project_id.clone(),
+                        project_name: String::new(), // filled in from state on receipt
+                        result: per_project_result,
+                        recovery_hint: None,
+                    },
+                ))
             })
         }
 
@@ -473,21 +598,36 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             state.sync.phase = SyncPhase::Planning;
             // Build the plan synchronously from existing status.
             let plan = state.sync.build_plan(
-                state.workspace.as_ref().map(|w| w.projects.as_slice()).unwrap_or(&[]),
+                state
+                    .workspace
+                    .as_ref()
+                    .map(|w| w.projects.as_slice())
+                    .unwrap_or(&[]),
                 state.workspace_status.as_ref(),
             );
             state.sync.phase = SyncPhase::AwaitingConfirm(plan.clone());
-            Task::done(Message::Background(BackgroundMessage::SmartPullPlanReady(plan)))
+            Task::done(Message::Background(BackgroundMessage::SmartPullPlanReady(
+                plan,
+            )))
         }
 
         SyncMessage::SmartPullConfirmed(plan) => {
             let projects_map: std::collections::HashMap<_, _> = state
-                .workspace.as_ref()
-                .map(|ws| ws.projects.iter().map(|p| (p.id.clone(), p.clone())).collect())
+                .workspace
+                .as_ref()
+                .map(|ws| {
+                    ws.projects
+                        .iter()
+                        .map(|p| (p.id.clone(), p.clone()))
+                        .collect()
+                })
                 .unwrap_or_default();
 
             let entries = plan.entries.clone();
-            state.sync.phase = SyncPhase::PullRunning { plan, completed: Vec::new() };
+            state.sync.phase = SyncPhase::PullRunning {
+                plan,
+                completed: Vec::new(),
+            };
 
             use iced::futures::stream;
 
@@ -536,7 +676,8 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
                             }
                         }
                         SmartPullDisposition::Pull | SmartPullDisposition::StashAndPull => {
-                            let stash = matches!(entry.disposition, SmartPullDisposition::StashAndPull);
+                            let stash =
+                                matches!(entry.disposition, SmartPullDisposition::StashAndPull);
                             let (r, hint) = VcsAdapter::smart_pull(&project, stash).await;
                             SmartPullProgress {
                                 project_id: project.id.clone(),
@@ -562,11 +703,15 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
         SyncMessage::RetryFailedRequested => {
             // Collect failed project IDs from the last result.
             let failed_ids: Vec<_> = if let SyncPhase::Done(ref result) = state.sync.phase {
-                result.per_project.iter()
+                result
+                    .per_project
+                    .iter()
                     .filter(|p| !p.success)
                     .map(|p| p.project_id.clone())
                     .collect()
-            } else { return Task::none(); };
+            } else {
+                return Task::none();
+            };
 
             // Deselect all, then select only failed.
             for (id, v) in state.sync.project_selection.iter_mut() {
@@ -574,6 +719,19 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             }
             state.sync.phase = SyncPhase::Idle;
             Task::done(Message::Sync(SyncMessage::BulkFetchRequested))
+        }
+        SyncMessage::ModalClosed => {
+            state.active_modal = crate::state::ActiveModal::None;
+            Task::none()
+        }
+        SyncMessage::Cancelled => {
+            state.active_modal = crate::state::ActiveModal::None;
+            Task::none()
+        }
+        SyncMessage::BulkPullRequested => {
+            state.active_modal = crate::state::ActiveModal::Pull;
+            state.sync.selected_project_ids = state.selection.selected_ids.clone();
+            Task::none()
         }
     }
 }
@@ -587,7 +745,9 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
         BackgroundMessage::WorkspaceStatusRefreshed(new_status) => {
             // Detect missing-path projects.
             if let Some(ws) = &state.workspace {
-                let missing: Vec<_> = ws.projects.iter()
+                let missing: Vec<_> = ws
+                    .projects
+                    .iter()
                     .filter(|p| !endringer::VcsAdapter::repo_exists(p))
                     .map(|p| p.id.clone())
                     .collect();
@@ -625,13 +785,13 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                     // Accumulate into a temporary vec using the Done phase.
                     // We check completion after updating.
                     let outcome = ProjectOutcome {
-                        project_id:        progress.project_id.clone(),
-                        project_name:      progress.project_name.clone(),
-                        success:           progress.result.success,
+                        project_id: progress.project_id.clone(),
+                        project_name: progress.project_name.clone(),
+                        success: progress.result.success,
                         commands_executed: progress.result.commands_executed.clone(),
-                        stdout:            progress.result.stdout.clone(),
-                        stderr:            progress.result.stderr.clone(),
-                        log_expanded:      false,
+                        stdout: progress.result.stdout.clone(),
+                        stderr: progress.result.stderr.clone(),
+                        log_expanded: false,
                     };
 
                     // Store partial results in a transient Done or accumulate in running.
@@ -666,17 +826,21 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                     let got = completed.len();
                     if got >= expected {
                         // Build final result from completed.
-                        let outcomes: Vec<ProjectOutcome> = completed.iter().map(|p| ProjectOutcome {
-                            project_id:        p.project_id.clone(),
-                            project_name:      p.project_name.clone(),
-                            success:           p.result.success,
-                            commands_executed: p.result.commands_executed.clone(),
-                            stdout:            p.result.stdout.clone(),
-                            stderr:            p.result.stderr.clone(),
-                            log_expanded:      false,
-                        }).collect();
+                        let outcomes: Vec<ProjectOutcome> = completed
+                            .iter()
+                            .map(|p| ProjectOutcome {
+                                project_id: p.project_id.clone(),
+                                project_name: p.project_name.clone(),
+                                success: p.result.success,
+                                commands_executed: p.result.commands_executed.clone(),
+                                stdout: p.result.stdout.clone(),
+                                stderr: p.result.stderr.clone(),
+                                log_expanded: false,
+                            })
+                            .collect();
 
-                        let hints: Vec<_> = completed.iter()
+                        let hints: Vec<_> = completed
+                            .iter()
                             .filter_map(|p| p.recovery_hint.clone())
                             .collect();
 
@@ -703,14 +867,24 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             }
             persist_log(&log, state);
 
-            let tasks: Vec<Task<Message>> = log.result.per_project.iter()
+            let tasks: Vec<Task<Message>> = log
+                .result
+                .per_project
+                .iter()
                 .filter_map(|r| find_project(state, &r.project_id))
-                .map(|project| Task::perform(
-                    async move { VcsAdapter::read_project_status(&project).await },
-                    |s| Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
-                        endringer::WorkspaceStatus { projects: vec![s], last_refresh: Some(chrono::Utc::now()) },
-                    )),
-                ))
+                .map(|project| {
+                    Task::perform(
+                        async move { VcsAdapter::read_project_status(&project).await },
+                        |s| {
+                            Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
+                                endringer::WorkspaceStatus {
+                                    projects: vec![s],
+                                    last_refresh: Some(chrono::Utc::now()),
+                                },
+                            ))
+                        },
+                    )
+                })
                 .collect();
             Task::batch(tasks)
         }
@@ -718,9 +892,11 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
         BackgroundMessage::BulkFetchCompleted(log) => {
             persist_log(&log, state);
             state.status_bar = Some(if log.result.any_failed() {
-                format!("Fetch — {} ok, {} failed",
+                format!(
+                    "Fetch — {} ok, {} failed",
                     log.result.successful_projects().len(),
-                    log.result.failed_projects().len())
+                    log.result.failed_projects().len()
+                )
             } else {
                 format!("Fetch complete — {} projects", log.result.per_project.len())
             });
@@ -736,12 +912,18 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
-        BackgroundMessage::TagPushCompleted { success_count, fail_count } => {
+        BackgroundMessage::TagPushCompleted {
+            success_count,
+            fail_count,
+        } => {
             state.pending_tag_push = None;
             state.status_bar = Some(if fail_count == 0 {
                 format!("✓ Tags pushed to remote — {} project(s).", success_count)
             } else {
-                format!("⚠ Tag push: {} succeeded, {} failed.", success_count, fail_count)
+                format!(
+                    "⚠ Tag push: {} succeeded, {} failed.",
+                    success_count, fail_count
+                )
             });
             Task::none()
         }
@@ -775,8 +957,7 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             // Compute impact warnings for the Freezer.
             if let Some(ws) = &state.workspace {
                 let names: Vec<String> = ws.projects.iter().map(|p| p.name.clone()).collect();
-                state.topology.impact_warnings =
-                    state.topology.compute_warnings(&graph, &names);
+                state.topology.impact_warnings = state.topology.compute_warnings(&graph, &names);
             }
             state.topology.phase = TopologyPhase::Ready(graph);
             Task::none()
@@ -791,37 +972,51 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             use endringer::model::operation::{OperationKind, OperationLog, OperationResult};
 
             // Build per-project entries for the operation log.
-            let per_project: Vec<_> = result.project_results.iter().map(|r| {
-                endringer::model::operation::ProjectOperationResult {
-                    project_id:        r.project_id.clone(),
-                    success:           r.success,
+            let per_project: Vec<_> = result
+                .project_results
+                .iter()
+                .map(|r| endringer::model::operation::ProjectOperationResult {
+                    project_id: r.project_id.clone(),
+                    success: r.success,
                     commands_executed: r.commands_executed.clone(),
-                    stdout:            r.stdout.clone(),
-                    stderr:            r.stderr.clone(),
-                    exit_code:         None,
-                    error_message:     if r.success { None } else { Some("freeze failed".to_owned()) },
-                }
-            }).collect();
+                    stdout: r.stdout.clone(),
+                    stderr: r.stderr.clone(),
+                    exit_code: None,
+                    error_message: if r.success {
+                        None
+                    } else {
+                        Some("freeze failed".to_owned())
+                    },
+                })
+                .collect();
 
-            let hints: Vec<_> = result.project_results.iter()
+            let hints: Vec<_> = result
+                .project_results
+                .iter()
                 .filter_map(|r| r.recovery_hint.clone())
                 .collect();
 
             let op_log = OperationLog {
                 result: OperationResult {
-                    operation_id:       OperationId::new(),
-                    kind:               OperationKind::Freeze,
-                    started_at:         chrono::Utc::now(),
-                    finished_at:        chrono::Utc::now(),
+                    operation_id: OperationId::new(),
+                    kind: OperationKind::Freeze,
+                    started_at: chrono::Utc::now(),
+                    finished_at: chrono::Utc::now(),
                     per_project,
                     rollback_attempted: result.project_results.iter().any(|r| r.rollback_attempted),
                     rollback_succeeded: {
                         let any_rb = result.project_results.iter().any(|r| r.rollback_attempted);
                         if any_rb {
-                            Some(result.project_results.iter()
-                                .filter(|r| r.rollback_attempted)
-                                .all(|r| r.rollback_succeeded == Some(true)))
-                        } else { None }
+                            Some(
+                                result
+                                    .project_results
+                                    .iter()
+                                    .filter(|r| r.rollback_attempted)
+                                    .all(|r| r.rollback_succeeded == Some(true)),
+                            )
+                        } else {
+                            None
+                        }
                     },
                 },
                 recovery_hints: hints,
@@ -831,7 +1026,9 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             // If the freeze succeeded fully, offer to push tags to remote.
             if let FreezerPhase::Done(ref freeze_result) = state.freezer.phase {
                 if freeze_result.outcome == endringer::FreezeOutcome::Success {
-                    let ids: Vec<_> = freeze_result.project_results.iter()
+                    let ids: Vec<_> = freeze_result
+                        .project_results
+                        .iter()
                         .filter(|r| r.success)
                         .map(|r| r.project_id.clone())
                         .collect();
@@ -849,9 +1046,13 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
 
         BackgroundMessage::ContextListLoaded(list) => {
             let id = list.project_id.clone();
-            state.context_ops.cached_lists.insert(id.clone(), list.clone());
+            state
+                .context_ops
+                .cached_lists
+                .insert(id.clone(), list.clone());
             // Only update phase if we were waiting for this exact project.
-            if matches!(&state.context_ops.phase, ContextPhase::LoadingList(loading_id) if loading_id == &id) {
+            if matches!(&state.context_ops.phase, ContextPhase::LoadingList(loading_id) if loading_id == &id)
+            {
                 state.context_ops.phase = ContextPhase::BrowsingList {
                     project_id: id,
                     list,
@@ -889,9 +1090,14 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             if let Some(p) = project {
                 Task::perform(
                     async move { VcsAdapter::read_project_status(&p).await },
-                    |s| Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
-                        endringer::WorkspaceStatus { projects: vec![s], last_refresh: Some(chrono::Utc::now()) },
-                    )),
+                    |s| {
+                        Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
+                            endringer::WorkspaceStatus {
+                                projects: vec![s],
+                                last_refresh: Some(chrono::Utc::now()),
+                            },
+                        ))
+                    },
                 )
             } else {
                 Task::none()
@@ -915,7 +1121,9 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
 
 fn handle_history(state: &mut AppState, msg: HistoryMessage) -> Task<Message> {
     match msg {
-        HistoryMessage::SearchChanged(s) => { state.history_search = s; }
+        HistoryMessage::SearchChanged(s) => {
+            state.history_search = s;
+        }
         HistoryMessage::EntryToggled(id) => {
             if state.history_expanded.contains(&id) {
                 state.history_expanded.remove(&id);
@@ -945,7 +1153,11 @@ fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> 
         }
         SettingsMessage::ThemeChanged(dark) => {
             state.config.dark_theme = dark;
-            state.theme = if dark { snora::KnotraTheme::dark() } else { snora::KnotraTheme::light() };
+            state.theme = if dark {
+                snora::KnotraTheme::dark()
+            } else {
+                snora::KnotraTheme::light()
+            };
         }
         SettingsMessage::RefreshIntervalChanged(s) => {
             state.settings_edit.refresh_interval_secs = s.to_string();
@@ -957,11 +1169,19 @@ fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> 
         }
         SettingsMessage::ExternalEditorChanged(s) => {
             state.settings_edit.external_editor = s.clone();
-            state.config.external_editor = if s.trim().is_empty() { None } else { Some(s.trim().to_owned()) };
+            state.config.external_editor = if s.trim().is_empty() {
+                None
+            } else {
+                Some(s.trim().to_owned())
+            };
         }
         SettingsMessage::ExternalMergeToolChanged(s) => {
             state.settings_edit.external_merge_tool = s.clone();
-            state.config.external_merge_tool = if s.trim().is_empty() { None } else { Some(s.trim().to_owned()) };
+            state.config.external_merge_tool = if s.trim().is_empty() {
+                None
+            } else {
+                Some(s.trim().to_owned())
+            };
         }
         SettingsMessage::MaxLogEntriesChanged(n) => {
             state.settings_edit.max_log_entries = n.to_string();
@@ -969,7 +1189,9 @@ fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> 
         }
         SettingsMessage::FsWatchEnabledChanged(v) => {
             state.config.fs_watch_enabled = v;
-            if !v { state.settings_save_msg = Some("FS watching disabled.".to_owned()); }
+            if !v {
+                state.settings_save_msg = Some("FS watching disabled.".to_owned());
+            }
         }
         SettingsMessage::FsDebounceSecs(n) => {
             state.settings_edit.refresh_interval_secs = n.to_string();
@@ -983,7 +1205,8 @@ fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> 
                     state.status_bar = Some(state.t("settings.saved_ok").to_owned());
                 }
                 Err(e) => {
-                    state.settings_save_msg = Some(format!("{} {e}", state.t("settings.save_error")));
+                    state.settings_save_msg =
+                        Some(format!("{} {e}", state.t("settings.save_error")));
                 }
             }
         }
@@ -999,7 +1222,9 @@ fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> 
 // ---------------------------------------------------------------------------
 
 fn find_project(state: &AppState, id: &endringer::ProjectId) -> Option<endringer::Project> {
-    state.workspace.as_ref()
+    state
+        .workspace
+        .as_ref()
         .and_then(|ws| ws.projects.iter().find(|p| &p.id == id).cloned())
 }
 
@@ -1010,7 +1235,11 @@ fn find_project_name(state: &AppState, id: &endringer::ProjectId) -> Option<Stri
 fn merge_workspace_status(state: &mut AppState, new: endringer::WorkspaceStatus) {
     if let Some(existing) = &mut state.workspace_status {
         for ps in new.projects {
-            if let Some(pos) = existing.projects.iter().position(|p| p.project_id == ps.project_id) {
+            if let Some(pos) = existing
+                .projects
+                .iter()
+                .position(|p| p.project_id == ps.project_id)
+            {
                 existing.projects[pos] = ps;
             } else {
                 existing.projects.push(ps);
@@ -1039,7 +1268,10 @@ fn persist_log(log: &OperationLog, state: &mut AppState) {
 }
 
 fn refresh_workspace_task(state: &AppState) -> Task<Message> {
-    let workspace = match &state.workspace { Some(ws) => ws.clone(), None => return Task::none() };
+    let workspace = match &state.workspace {
+        Some(ws) => ws.clone(),
+        None => return Task::none(),
+    };
     let max = state.config.max_concurrent_reads;
     Task::perform(
         async move { VcsAdapter::read_workspace_status(&workspace, max).await },
@@ -1073,7 +1305,7 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
         ContextMessage::ProjectSelected(id) => {
             let project = match find_project(state, &id) {
                 Some(p) => p,
-                None    => return Task::none(),
+                None => return Task::none(),
             };
 
             // Use cached list if present, otherwise fetch.
@@ -1103,18 +1335,20 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
         ContextMessage::SwitchTargetChosen(project_id, target) => {
             let project = match find_project(state, &project_id) {
                 Some(p) => p,
-                None    => return Task::none(),
+                None => return Task::none(),
             };
 
             // Check current dirty state.
             let vcs_kind = state
-                .workspace_status.as_ref()
+                .workspace_status
+                .as_ref()
                 .and_then(|ws| ws.projects.iter().find(|s| s.project_id == project_id))
                 .map(|s| s.identity.vcs_kind)
                 .unwrap_or(endringer::VcsKind::Git);
 
             let is_dirty = state
-                .workspace_status.as_ref()
+                .workspace_status
+                .as_ref()
                 .and_then(|ws| ws.projects.iter().find(|s| s.project_id == project_id))
                 .map(|s| s.working_tree.is_dirty())
                 .unwrap_or(false);
@@ -1131,15 +1365,18 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
 
         ContextMessage::SwitchConfirmed => {
             let (project_id, target, project_name) = match &state.context_ops.phase {
-                ContextPhase::ConfirmSwitch { project_id, target, project_name, .. } => {
-                    (project_id.clone(), target.clone(), project_name.clone())
-                }
+                ContextPhase::ConfirmSwitch {
+                    project_id,
+                    target,
+                    project_name,
+                    ..
+                } => (project_id.clone(), target.clone(), project_name.clone()),
                 _ => return Task::none(),
             };
 
             let project = match find_project(state, &project_id) {
                 Some(p) => p,
-                None    => return Task::none(),
+                None => return Task::none(),
             };
 
             state.context_ops.phase = ContextPhase::Switching {
@@ -1152,7 +1389,13 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
             Task::perform(
                 async move {
                     let (result, hint) = VcsAdapter::switch_context(&project, &target).await;
-                    ContextSwitchResult { project_id: project.id, project_name, target, operation_result: result, recovery_hint: hint }
+                    ContextSwitchResult {
+                        project_id: project.id,
+                        project_name,
+                        target,
+                        operation_result: result,
+                        recovery_hint: hint,
+                    }
                 },
                 |r| Message::Background(BackgroundMessage::ContextSwitchDone(r)),
             )
@@ -1182,6 +1425,27 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
             state.screen = Screen::Dashboard;
             Task::none()
         }
+        ContextMessage::BulkOpenRequested => {
+            state.active_modal = crate::state::ActiveModal::Switch;
+            state.context_ops.target_context = String::new();
+            Task::none()
+        }
+        ContextMessage::BulkSwitchRequested => {
+            state.active_modal = crate::state::ActiveModal::None;
+            Task::none()
+        }
+        ContextMessage::BulkModalClosed => {
+            state.active_modal = crate::state::ActiveModal::None;
+            Task::none()
+        }
+        ContextMessage::TargetChanged(s) => {
+            state.context_ops.target_context = s;
+            Task::none()
+        }
+        ContextMessage::Cancelled => {
+            state.active_modal = crate::state::ActiveModal::None;
+            Task::none()
+        }
     }
 }
 
@@ -1190,6 +1454,7 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
 // ---------------------------------------------------------------------------
 
 fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
+    #[allow(unreachable_patterns)]
     match msg {
         FreezerMessage::OpenRequested => {
             state.screen = Screen::Freezer;
@@ -1215,6 +1480,27 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             state.freezer.tag_message = s;
             Task::none()
         }
+        FreezerMessage::ExecuteConfirmed => {
+            return Task::done(Message::Freezer(FreezerMessage::ExecuteRequested));
+        }
+        FreezerMessage::ExecuteRequested => {
+            return Task::done(Message::Freezer(FreezerMessage::ExecuteConfirmed));
+        }
+        FreezerMessage::BulkOpenRequested => {
+            state.active_modal = crate::state::ActiveModal::Tag;
+            // Pre-populate freeze selection
+            state.freezer.project_selection = state
+                .selection
+                .selected_ids
+                .iter()
+                .map(|id| (id.clone(), true))
+                .collect();
+            Task::none()
+        }
+        FreezerMessage::BulkModalClosed => {
+            state.active_modal = crate::state::ActiveModal::None;
+            Task::none()
+        }
 
         FreezerMessage::ProjectToggled(id, included) => {
             state.freezer.project_selection.insert(id, included);
@@ -1230,7 +1516,9 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
                 return Task::none(); // view blocks the button; defensive guard
             }
 
-            let projects: Vec<_> = state.workspace.as_ref()
+            let projects: Vec<_> = state
+                .workspace
+                .as_ref()
                 .map(|ws| ws.projects.clone())
                 .unwrap_or_default();
             let selection = state.freezer.selected_ids();
@@ -1244,29 +1532,6 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
                     VcsAdapter::validate_freeze(&projects, &selection, &freeze_name, max).await
                 },
                 |v| Message::Background(BackgroundMessage::FreezeValidationDone(v)),
-            )
-        }
-
-        FreezerMessage::ExecuteConfirmed => {
-            let validation = match &state.freezer.phase {
-                FreezerPhase::ValidationReady(v) => v.clone(),
-                _ => return Task::none(),
-            };
-
-            // Final guard: block if any included project has blockers.
-            if !validation.all_ready() {
-                return Task::none();
-            }
-
-            let projects: Vec<_> = state.workspace.as_ref()
-                .map(|ws| ws.projects.clone())
-                .unwrap_or_default();
-
-            state.freezer.phase = FreezerPhase::Executing;
-
-            Task::perform(
-                async move { VcsAdapter::execute_freeze(&projects, &validation).await },
-                |r| Message::Background(BackgroundMessage::FreezeExecutionDone(r)),
             )
         }
 
@@ -1289,12 +1554,8 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
 
 fn handle_launch(state: &mut AppState, msg: LaunchMessage) -> Task<Message> {
     let (tool_path, file_path) = match msg {
-        LaunchMessage::OpenInEditor(path) => {
-            (state.config.external_editor.clone(), path)
-        }
-        LaunchMessage::OpenInMergeTool(path) => {
-            (state.config.external_merge_tool.clone(), path)
-        }
+        LaunchMessage::OpenInEditor(path) => (state.config.external_editor.clone(), path),
+        LaunchMessage::OpenInMergeTool(path) => (state.config.external_merge_tool.clone(), path),
     };
 
     let Some(tool) = tool_path else {
@@ -1302,10 +1563,7 @@ fn handle_launch(state: &mut AppState, msg: LaunchMessage) -> Task<Message> {
         return Task::none();
     };
 
-    match std::process::Command::new(&tool)
-        .arg(&file_path)
-        .spawn()
-    {
+    match std::process::Command::new(&tool).arg(&file_path).spawn() {
         Ok(_) => {
             state.status_bar = Some(format!("Launched: {} {:?}", tool, file_path));
         }
@@ -1326,7 +1584,9 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
             state.screen = Screen::ConflictResolution;
             state.conflict_ops.phase = ConflictPhase::Idle;
             if let Some(id) = preselect {
-                return Task::done(Message::ConflictOps(ConflictOpsMessage::ProjectSelected(id)));
+                return Task::done(Message::ConflictOps(ConflictOpsMessage::ProjectSelected(
+                    id,
+                )));
             }
             Task::none()
         }
@@ -1341,7 +1601,7 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
             }
             let project = match find_project(state, &id) {
                 Some(p) => p,
-                None    => return Task::none(),
+                None => return Task::none(),
             };
             state.conflict_ops.phase = ConflictPhase::Loading(id);
             Task::perform(
@@ -1354,7 +1614,7 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
             state.conflict_ops.cached.remove(&id);
             let project = match find_project(state, &id) {
                 Some(p) => p,
-                None    => return Task::none(),
+                None => return Task::none(),
             };
             state.conflict_ops.phase = ConflictPhase::Loading(id);
             Task::perform(
@@ -1363,10 +1623,13 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
             )
         }
 
-        ConflictOpsMessage::MarkResolvedRequested { project_id, file_path } => {
+        ConflictOpsMessage::MarkResolvedRequested {
+            project_id,
+            file_path,
+        } => {
             let project = match find_project(state, &project_id) {
                 Some(p) => p,
-                None    => return Task::none(),
+                None => return Task::none(),
             };
             state.conflict_ops.phase = ConflictPhase::Operating {
                 project_id: project_id.clone(),
@@ -1378,20 +1641,21 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
                 async move { VcsAdapter::mark_resolved(&project, &file_path).await },
                 move |r| {
                     let pid = r.project_id.clone();
-                    let ok  = r.success;
+                    let ok = r.success;
                     let msg = if ok {
                         format!("Marked resolved: {}", file_path_for_msg)
                     } else {
-                        r.error_message.unwrap_or_else(|| "mark-resolved failed".to_owned())
+                        r.error_message
+                            .unwrap_or_else(|| "mark-resolved failed".to_owned())
                     };
                     Message::Background(BackgroundMessage::ConflictFilesLoaded(
                         endringer::ProjectConflictDetail {
-                            project_id:       pid.clone(),
-                            project_name:     String::new(),
+                            project_id: pid.clone(),
+                            project_name: String::new(),
                             conflicted_files: vec![],
-                            note:             None,
-                            read_error:       if ok { None } else { Some(msg) },
-                        }
+                            note: None,
+                            read_error: if ok { None } else { Some(msg) },
+                        },
                     ))
                 },
             )
@@ -1405,34 +1669,46 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
             state.conflict_ops.cached.remove(&id);
             let project = match find_project(state, &id) {
                 Some(p) => p,
-                None    => return Task::none(),
+                None => return Task::none(),
             };
             Task::perform(
                 async move { VcsAdapter::abort_merge(&project).await },
                 |r| {
-                    let ok  = r.success;
+                    let ok = r.success;
                     let pid = r.project_id.clone();
                     Message::Background(BackgroundMessage::ConflictFilesLoaded(
                         endringer::ProjectConflictDetail {
-                            project_id:       pid,
-                            project_name:     String::new(),
+                            project_id: pid,
+                            project_name: String::new(),
                             conflicted_files: vec![],
-                            note:             if ok { Some("Merge aborted.".to_owned()) } else { None },
-                            read_error:       if ok { None } else {
+                            note: if ok {
+                                Some("Merge aborted.".to_owned())
+                            } else {
+                                None
+                            },
+                            read_error: if ok {
+                                None
+                            } else {
                                 Some(r.error_message.unwrap_or_else(|| "abort failed".to_owned()))
                             },
-                        }
+                        },
                     ))
                 },
             )
         }
 
-        ConflictOpsMessage::AbortMergeConfirmed(id) => {
-            Task::done(Message::ConflictOps(ConflictOpsMessage::AbortMergeRequested(id)))
-        }
+        ConflictOpsMessage::AbortMergeConfirmed(id) => Task::done(Message::ConflictOps(
+            ConflictOpsMessage::AbortMergeRequested(id),
+        )),
 
         ConflictOpsMessage::BackToDashboard => {
             state.screen = Screen::Dashboard;
+            Task::none()
+        }
+        ConflictOpsMessage::FileMarkedResolved(_path) => Task::none(),
+        ConflictOpsMessage::AbortRequested => Task::none(),
+        ConflictOpsMessage::PanelClosed => {
+            state.active_modal = crate::state::ActiveModal::None;
             Task::none()
         }
     }
@@ -1469,7 +1745,9 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
 
         ChangelogMessage::LoadTagsRequested => {
             // Load tags from the first selected project.
-            let project = state.workspace.as_ref()
+            let project = state
+                .workspace
+                .as_ref()
                 .and_then(|ws| ws.projects.first().cloned());
             if let Some(project) = project {
                 return Task::perform(
@@ -1482,14 +1760,19 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
 
         ChangelogMessage::GenerateRequested => {
             let selected_ids = state.changelog.selected_ids();
-            let projects: Vec<_> = state.workspace.as_ref()
-                .map(|ws| ws.projects.iter()
-                    .filter(|p| selected_ids.contains(&p.id))
-                    .cloned()
-                    .collect())
+            let projects: Vec<_> = state
+                .workspace
+                .as_ref()
+                .map(|ws| {
+                    ws.projects
+                        .iter()
+                        .filter(|p| selected_ids.contains(&p.id))
+                        .cloned()
+                        .collect()
+                })
                 .unwrap_or_default();
-            let since   = state.changelog.since_ref.clone();
-            let max_cl  = state.config.max_concurrent_reads;
+            let since = state.changelog.since_ref.clone();
+            let max_cl = state.config.max_concurrent_reads;
             state.changelog.phase = ChangelogPhase::Collecting;
 
             Task::perform(
@@ -1501,8 +1784,11 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
         ChangelogMessage::CopyRequested => {
             if let ChangelogPhase::Ready(ref draft) = state.changelog.phase {
                 let md = draft.to_markdown();
-                state.status_bar = Some(format!("Changelog ({} chars) — copied to clipboard.", md.len()));
-            return clipboard::write(md);
+                state.status_bar = Some(format!(
+                    "Changelog ({} chars) — copied to clipboard.",
+                    md.len()
+                ));
+                return clipboard::write(md);
             }
             Task::none()
         }
@@ -1510,6 +1796,13 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
         ChangelogMessage::BackToDashboard => {
             state.changelog.phase = ChangelogPhase::Idle;
             state.screen = Screen::Dashboard;
+            Task::none()
+        }
+        ChangelogMessage::CollectRequested => {
+            return Task::done(Message::Changelog(ChangelogMessage::GenerateRequested));
+        }
+        ChangelogMessage::ModalClosed => {
+            state.active_modal = crate::state::ActiveModal::None;
             Task::none()
         }
     }
@@ -1522,7 +1815,9 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
 fn handle_topology(state: &mut AppState, msg: TopologyMessage) -> Task<Message> {
     match msg {
         TopologyMessage::ScanRequested => {
-            let projects: Vec<_> = state.workspace.as_ref()
+            let projects: Vec<_> = state
+                .workspace
+                .as_ref()
                 .map(|ws| ws.projects.clone())
                 .unwrap_or_default();
             state.topology.phase = TopologyPhase::Scanning;
@@ -1549,7 +1844,12 @@ fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
     let projects: Vec<(endringer::ProjectId, String)> = state
         .workspace
         .as_ref()
-        .map(|ws| ws.projects.iter().map(|p| (p.id.clone(), p.path.clone())).collect())
+        .map(|ws| {
+            ws.projects
+                .iter()
+                .map(|p| (p.id.clone(), p.path.clone()))
+                .collect()
+        })
         .unwrap_or_default();
 
     if projects.is_empty() {
@@ -1613,7 +1913,10 @@ fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
 
 fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
     match msg {
-        TagPushMessage::OfferShown { freeze_name, project_ids } => {
+        TagPushMessage::OfferShown {
+            freeze_name,
+            project_ids,
+        } => {
             state.pending_tag_push = Some(PendingTagPush {
                 freeze_name,
                 project_ids,
@@ -1625,11 +1928,15 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
         TagPushMessage::PushConfirmed => {
             let push = match &state.pending_tag_push {
                 Some(p) => p.clone(),
-                None    => return Task::none(),
+                None => return Task::none(),
             };
-            if let Some(ref mut p) = state.pending_tag_push { p.is_pushing = true; }
+            if let Some(ref mut p) = state.pending_tag_push {
+                p.is_pushing = true;
+            }
 
-            let projects: Vec<_> = push.project_ids.iter()
+            let projects: Vec<_> = push
+                .project_ids
+                .iter()
                 .filter_map(|id| find_project(state, id))
                 .collect();
             let tag_name = push.freeze_name.clone();
@@ -1643,8 +1950,8 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
                     let sem = Arc::new(Semaphore::new(max));
                     let mut handles = Vec::new();
                     for project in projects {
-                        let sem     = Arc::clone(&sem);
-                        let tag     = tag_name.clone();
+                        let sem = Arc::clone(&sem);
+                        let tag = tag_name.clone();
                         handles.push(tokio::spawn(async move {
                             let _permit = sem.acquire().await.expect("open");
                             endringer::VcsAdapter::push_tag(&project, &tag).await
@@ -1652,14 +1959,19 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
                     }
                     let mut results = Vec::new();
                     for h in handles {
-                        if let Ok(r) = h.await { results.push(r); }
+                        if let Ok(r) = h.await {
+                            results.push(r);
+                        }
                     }
                     let success = results.iter().filter(|r| r.success).count();
-                    let failed  = results.iter().filter(|r| !r.success).count();
+                    let failed = results.iter().filter(|r| !r.success).count();
                     (success, failed)
                 },
                 |(success_count, fail_count)| {
-                    Message::Background(BackgroundMessage::TagPushCompleted { success_count, fail_count })
+                    Message::Background(BackgroundMessage::TagPushCompleted {
+                        success_count,
+                        fail_count,
+                    })
                 },
             )
         }
@@ -1669,4 +1981,179 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
             Task::none()
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// RFC-009 — Selection handler
+// ---------------------------------------------------------------------------
+
+fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> Task<Message> {
+    let ordered: Vec<endringer::ProjectId> = state
+        .workspace
+        .as_ref()
+        .map(|ws| ws.projects.iter().map(|p| p.id.clone()).collect())
+        .unwrap_or_default();
+
+    match msg {
+        SelectionMessage::Toggled(id) => state.selection.toggle(id),
+        SelectionMessage::RangeTo(id) => state.selection.select_range(&ordered, &id),
+        SelectionMessage::SelectAll => state.selection.select_all(&ordered),
+        SelectionMessage::Clear => state.selection.clear(),
+        SelectionMessage::FocusMoved(_) => {} // focus tracking only
+    }
+    Task::none()
+}
+
+// ---------------------------------------------------------------------------
+// RFC-011 — Activity strip handler
+// ---------------------------------------------------------------------------
+
+fn handle_activity(state: &mut AppState, msg: ActivityMessage) -> Task<Message> {
+    match msg {
+        ActivityMessage::Started { label, total } => {
+            state.activity.latest = crate::state::LatestOpState::Running {
+                label,
+                done: 0,
+                total,
+            };
+            state.activity.completed_secs = 0;
+        }
+        ActivityMessage::Progress { done } => {
+            if let crate::state::LatestOpState::Running {
+                done: ref mut d, ..
+            } = state.activity.latest
+            {
+                *d = done;
+            }
+        }
+        ActivityMessage::Completed { log } => {
+            let total = log.result.per_project.len();
+            let failed = log.result.per_project.iter().filter(|p| !p.success).count();
+            let kind = log.result.kind.to_string();
+            if failed == 0 {
+                state.activity.latest = crate::state::LatestOpState::Success {
+                    summary: format!(
+                        "{} {} project{}",
+                        kind,
+                        total,
+                        if total == 1 { "" } else { "s" }
+                    ),
+                    elapsed_secs: 0,
+                };
+            } else if failed < total {
+                let names = log
+                    .result
+                    .per_project
+                    .iter()
+                    .filter(|p| !p.success)
+                    .map(|p| p.project_id.to_string())
+                    .collect();
+                state.activity.latest = crate::state::LatestOpState::PartialFailure {
+                    summary: format!(
+                        "{} {} projects · {} ok, {} failed",
+                        kind,
+                        total,
+                        total - failed,
+                        failed
+                    ),
+                    failed_names: names,
+                };
+            } else {
+                state.activity.latest = crate::state::LatestOpState::TotalFailure {
+                    summary: format!("{} failed for all {} projects", kind, total),
+                };
+            }
+            state.activity.completed_secs = 0;
+        }
+        ActivityMessage::PopoverToggled => {
+            state.activity.popover_open = !state.activity.popover_open;
+        }
+        ActivityMessage::RetryRequested => {
+            // Route to last operation kind — for now navigate to History.
+            return Task::done(Message::Navigate(Screen::History));
+        }
+        ActivityMessage::Tick => {
+            state.activity.completed_secs = state.activity.completed_secs.saturating_add(1);
+        }
+    }
+    Task::none()
+}
+
+// ---------------------------------------------------------------------------
+// RFC-012 — Palette handler
+// ---------------------------------------------------------------------------
+
+fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<Message> {
+    match msg {
+        PaletteMessage::Opened => {
+            state.palette.open_palette();
+            crate::state::palette::update_results(state);
+        }
+        PaletteMessage::Closed => state.palette.close(),
+        PaletteMessage::QueryChanged(q) => {
+            state.palette.query = q;
+            crate::state::palette::update_results(state);
+        }
+        PaletteMessage::MoveUp => {
+            if state.palette.highlighted > 0 {
+                state.palette.highlighted -= 1;
+            }
+        }
+        PaletteMessage::MoveDown => {
+            let max = state.palette.results.len().saturating_sub(1);
+            if state.palette.highlighted < max {
+                state.palette.highlighted += 1;
+            }
+        }
+        PaletteMessage::Confirmed | PaletteMessage::EntryClicked(_) => {
+            if let PaletteMessage::EntryClicked(i) = msg {
+                state.palette.highlighted = i;
+            }
+            if let Some(msg) = crate::state::palette::dispatch_entry(state) {
+                state.palette.close();
+                return Task::done(msg);
+            }
+            state.palette.close();
+        }
+    }
+    Task::none()
+}
+
+// ---------------------------------------------------------------------------
+// RFC-010 — Tier handler
+// ---------------------------------------------------------------------------
+
+fn handle_tier(state: &mut AppState, msg: TierMessage) -> Task<Message> {
+    match msg {
+        TierMessage::Toggled(tier) => match tier {
+            AttentionTier::NeedsAttention => {
+                state.tier_collapse.needs_attention = !state.tier_collapse.needs_attention
+            }
+            AttentionTier::Active => state.tier_collapse.active = !state.tier_collapse.active,
+            AttentionTier::Clean => state.tier_collapse.clean = !state.tier_collapse.clean,
+        },
+        TierMessage::GroupingModeChanged(mode) => {
+            state.grouping_mode = mode;
+        }
+    }
+    Task::none()
+}
+
+// ---------------------------------------------------------------------------
+// RFC-016 — Keyboard / leader-key handler
+// ---------------------------------------------------------------------------
+
+fn handle_key_event(state: &mut AppState, msg: KeyboardMessage) -> Task<Message> {
+    match msg {
+        KeyboardMessage::CheatSheetToggled => {
+            state.keyboard.cheat_sheet_open = !state.keyboard.cheat_sheet_open;
+        }
+        KeyboardMessage::LeaderGPressed => {
+            state.keyboard.leader = LeaderKeyState::G;
+        }
+        KeyboardMessage::LeaderCancelled => {
+            state.keyboard.leader = LeaderKeyState::None;
+        }
+    }
+    Task::none()
 }

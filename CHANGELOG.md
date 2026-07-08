@@ -7,6 +7,197 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.12.0] — 2026-05-23
+
+### Added — UI/UX Redesign: RFC 009–016
+
+All eight code RFCs from the UI/UX redesign are implemented.  No screens are
+removed in this release (that is RFC-017, targeted at v0.16); all existing
+navigation continues to work alongside the new panels and modals.
+
+#### RFC-009 — Selection model
+
+`SelectionState` added to `AppState`.  Every dashboard card now has a
+checkbox.  Clicking the checkbox (or pressing `Space` on a focused card)
+toggles it.  A sticky selection bar slides up from the bottom of the window
+whenever ≥ 1 project is selected, showing the count and primary actions:
+**Fetch**, **Pull…**, **Tag…**, **Switch…**.  Keyboard: `Space` toggle,
+`Ctrl+A` / `⌘A` select all, `Esc` clear.
+
+New state: `state::SelectionState` with `toggle`, `select_range`,
+`select_all`, `clear`.  
+New message enum: `SelectionMessage` (Toggled, RangeTo, SelectAll, Clear,
+FocusMoved).  
+New view: `view/selection_bar.rs`.
+
+---
+
+#### RFC-010 — Three-tier attention grouping
+
+`state/tier.rs` introduces `compute_tier(status, path_exists) →
+(AttentionTier, Option<AttentionCause>)`, which maps any `ProjectStatus` to
+one of:
+
+- 🔴 **NeedsAttention** — conflict, detection-unavailable, detached HEAD,
+  path missing, or a read error.
+- 🟡 **Active** — uncommitted changes, ahead/behind upstream, or
+  non-default branch.
+- ⚪ **Clean** — synced, default branch, working tree clean.
+
+Dashboard uses `view_tier_grid` when `AppState::grouping_mode ==
+GroupingMode::Auto` (default).  Each tier has a collapsible header with
+a count badge.  The Clean tier is collapsed by default.  Legacy filter-chip
+grouping is still available by switching `GroupingMode::Legacy` via the tier
+message handler.
+
+New state: `AttentionTier`, `GroupingMode`, `TierCollapseState`,
+`AttentionCause` (in `state/tier.rs`).  
+New message enum: `TierMessage` (Toggled, GroupingModeChanged).
+
+---
+
+#### RFC-011 — Activity strip
+
+A single-line status bar at the very bottom of the window.  Hidden when idle.
+Transitions through four states:
+
+- **Running** — `⟳ Fetching… 3/12` with done/total counter.
+- **Success** — `ⓘ Fetched 12 projects`.
+- **PartialFailure** — `⚠ … failed: project-alpha` with a **Retry** button.
+- **TotalFailure** — `✗ …` with a **Retry** button.
+
+`›` button opens the history popover.
+
+New state: `LatestOpState`, `ActivityStripState` on `AppState`.  
+New message enum: `ActivityMessage` (Started, Progress, Completed,
+PopoverToggled, RetryRequested, Tick).  
+New view: `view/activity_strip.rs`.
+
+---
+
+#### RFC-012 — Command palette
+
+`⌘K` / `Ctrl+K` opens a centered floating input.  Typing runs
+case-insensitive substring search across:
+
+- **Actions** — 16 built-in entries (Fetch all, Pull selected, Tag selected,
+  Switch branch, Generate changelog, Add project, Create workspace, Select
+  all, Clear selection, Open Settings, Open History, Refresh, Show shortcuts…).
+- **Projects** — all projects in the current workspace.
+- **Workspaces** — all workspaces.
+
+Selecting an entry dispatches its corresponding `Message`.  `Esc` closes.
+Up/Down arrows navigate; `Enter` confirms.
+
+New state: `PaletteState`, `PaletteEntry`, `PaletteEntryKind` on `AppState`.  
+New logic: `state/palette.rs` with `update_results` and `dispatch_entry`.  
+New message enum: `PaletteMessage`.  
+New view: `view/command_palette.rs`.
+
+---
+
+#### RFC-013 — Bulk action modals
+
+Five workflow modals rendered over the dashboard via `iced::widget::stack`:
+
+| Modal | Trigger | State path |
+|-------|---------|-----------|
+| **Pull** | Selection bar `Pull…` | `state::sync` |
+| **Tag** | Selection bar `Tag…` | `state::freezer` |
+| **Switch branch** | Selection bar `Switch…` | `state::context_ops` |
+| **Resolve** | Card `Resolve…` button | `state::conflict_ops` |
+| **Changelog** | Command palette | `state::changelog` |
+
+Each modal is pre-populated from the dashboard selection.  The existing
+state machines (`SyncPhase`, `FreezerPhase`, `ChangelogPhase`, etc.) are
+reused unchanged; only the view layer changed.
+
+New state: `ActiveModal` enum on `AppState`.  
+New view: `view/bulk_modals.rs` (pull_modal, tag_modal, switch_modal,
+resolve_panel, changelog_modal).  
+New `app_view` in `view/mod.rs` stacks modals over the base layout.
+
+---
+
+#### RFC-014 — Project detail side panel
+
+Clicking a project **name** (not the checkbox) opens a right-docked 300 px
+panel showing:
+
+- **Identity** — VCS, path, remote upstream.
+- **Status** — branch, ahead, behind, dirty count, untracked, conflict flag.
+- **Recent operations** — last 5 ops touching this project (icon + kind +
+  timestamp).
+- **Actions** — Refresh, Fetch, Remove from workspace.
+
+Panel is semi-modal: the main view remains interactive while it is open.
+
+New state: `DetailPanelState` on `AppState`.  
+New message enum: `DetailPanelMessage` (Opened, Closed).  
+New view: `view/detail_panel.rs`.
+
+---
+
+#### RFC-015 — Workspace tabs
+
+A horizontal tab strip replaces the sidebar workspace list at the top of
+every screen.  Each tab shows the workspace name and a parenthetical count
+of **Needs Attention** projects (e.g. `work (3)`).  The active workspace
+tab has its button's `on_press` disabled.
+
+`⌘1` – `⌘9` / `Ctrl+1` – `Ctrl+9` switches to workspace by index.
+A `+` button at the end opens the create-workspace dialog.
+
+New view: `view/workspace_tabs.rs`.  
+Keyboard handling updated in the `subscription` function.
+
+---
+
+#### RFC-016 — Keyboard shortcuts and cheat sheet
+
+`?` toggles a centred overlay listing all 17 documented key bindings across
+five contexts (Global, Dashboard, Selection, Palette, Modal).
+
+Leader-key state machine: pressing `g` sets `LeaderKeyState::G`; a
+subsequent `h` navigates to History, `s` to Settings.
+
+New state: `KeyboardState` (cheat_sheet_open, leader: `LeaderKeyState`).  
+New message enum: `KeyboardMessage` (CheatSheetToggled, LeaderGPressed,
+LeaderCancelled).  
+New view: `view/shortcuts_overlay.rs`.
+
+---
+
+#### RFC-017 — Screen removal
+
+**Deferred to v0.16.**  All five screens (Sync Center, Freezer, ContextOps,
+ConflictResolution, Changelog) remain accessible via sidebar.  The modals
+introduced in RFC-013 provide the preferred workflow path for v0.12–v0.15.
+
+---
+
+### Changed
+
+- `AppState` gains 8 new fields: `selection`, `activity`, `palette`,
+  `grouping_mode`, `tier_collapse`, `keyboard`, `detail_panel`,
+  `active_modal`.
+- Dashboard view switches between legacy grid and tier grid based on
+  `grouping_mode` (default: Auto / tier grid).
+- `app_view` now renders workspace tabs at top, selection bar and activity
+  strip at bottom, and modal/palette/cheat-sheet overlays via
+  `iced::widget::stack`.
+- Clicking a project name now opens the detail panel rather than doing nothing.
+- `SyncCenterState` gains `selected_project_ids: HashSet<ProjectId>`.
+- `ContextOpsState` gains `target_context: String`.
+- `ChangelogState` gains `since_ref: String`.
+
+### Tests
+
+- **endringer unit:** 17 pass.
+- **endringer integration:** 19 pass.
+- **knotra-app:** `cargo check` clean, 0 errors, 0 warnings.
+
+
 ## [0.11.1] — 2026-05-23
 
 ### Added — UI/UX Redesign RFCs (009 – 017)
@@ -393,6 +584,197 @@ The three `endringer::vcs::git::*` direct calls in `git_integration.rs` are repl
 - `app::subscription` now batches tick, keyboard, and FS-watch subscriptions.
 - History `LogCopyRequested` now emits `Message::CopyToClipboard` with full formatted log text.
 - Changelog copy now uses real clipboard write, not a status-bar placeholder.
+
+
+## [0.12.0] — 2026-05-23
+
+### Added — UI/UX Redesign: RFC 009–016
+
+All eight code RFCs from the UI/UX redesign are implemented.  No screens are
+removed in this release (that is RFC-017, targeted at v0.16); all existing
+navigation continues to work alongside the new panels and modals.
+
+#### RFC-009 — Selection model
+
+`SelectionState` added to `AppState`.  Every dashboard card now has a
+checkbox.  Clicking the checkbox (or pressing `Space` on a focused card)
+toggles it.  A sticky selection bar slides up from the bottom of the window
+whenever ≥ 1 project is selected, showing the count and primary actions:
+**Fetch**, **Pull…**, **Tag…**, **Switch…**.  Keyboard: `Space` toggle,
+`Ctrl+A` / `⌘A` select all, `Esc` clear.
+
+New state: `state::SelectionState` with `toggle`, `select_range`,
+`select_all`, `clear`.  
+New message enum: `SelectionMessage` (Toggled, RangeTo, SelectAll, Clear,
+FocusMoved).  
+New view: `view/selection_bar.rs`.
+
+---
+
+#### RFC-010 — Three-tier attention grouping
+
+`state/tier.rs` introduces `compute_tier(status, path_exists) →
+(AttentionTier, Option<AttentionCause>)`, which maps any `ProjectStatus` to
+one of:
+
+- 🔴 **NeedsAttention** — conflict, detection-unavailable, detached HEAD,
+  path missing, or a read error.
+- 🟡 **Active** — uncommitted changes, ahead/behind upstream, or
+  non-default branch.
+- ⚪ **Clean** — synced, default branch, working tree clean.
+
+Dashboard uses `view_tier_grid` when `AppState::grouping_mode ==
+GroupingMode::Auto` (default).  Each tier has a collapsible header with
+a count badge.  The Clean tier is collapsed by default.  Legacy filter-chip
+grouping is still available by switching `GroupingMode::Legacy` via the tier
+message handler.
+
+New state: `AttentionTier`, `GroupingMode`, `TierCollapseState`,
+`AttentionCause` (in `state/tier.rs`).  
+New message enum: `TierMessage` (Toggled, GroupingModeChanged).
+
+---
+
+#### RFC-011 — Activity strip
+
+A single-line status bar at the very bottom of the window.  Hidden when idle.
+Transitions through four states:
+
+- **Running** — `⟳ Fetching… 3/12` with done/total counter.
+- **Success** — `ⓘ Fetched 12 projects`.
+- **PartialFailure** — `⚠ … failed: project-alpha` with a **Retry** button.
+- **TotalFailure** — `✗ …` with a **Retry** button.
+
+`›` button opens the history popover.
+
+New state: `LatestOpState`, `ActivityStripState` on `AppState`.  
+New message enum: `ActivityMessage` (Started, Progress, Completed,
+PopoverToggled, RetryRequested, Tick).  
+New view: `view/activity_strip.rs`.
+
+---
+
+#### RFC-012 — Command palette
+
+`⌘K` / `Ctrl+K` opens a centered floating input.  Typing runs
+case-insensitive substring search across:
+
+- **Actions** — 16 built-in entries (Fetch all, Pull selected, Tag selected,
+  Switch branch, Generate changelog, Add project, Create workspace, Select
+  all, Clear selection, Open Settings, Open History, Refresh, Show shortcuts…).
+- **Projects** — all projects in the current workspace.
+- **Workspaces** — all workspaces.
+
+Selecting an entry dispatches its corresponding `Message`.  `Esc` closes.
+Up/Down arrows navigate; `Enter` confirms.
+
+New state: `PaletteState`, `PaletteEntry`, `PaletteEntryKind` on `AppState`.  
+New logic: `state/palette.rs` with `update_results` and `dispatch_entry`.  
+New message enum: `PaletteMessage`.  
+New view: `view/command_palette.rs`.
+
+---
+
+#### RFC-013 — Bulk action modals
+
+Five workflow modals rendered over the dashboard via `iced::widget::stack`:
+
+| Modal | Trigger | State path |
+|-------|---------|-----------|
+| **Pull** | Selection bar `Pull…` | `state::sync` |
+| **Tag** | Selection bar `Tag…` | `state::freezer` |
+| **Switch branch** | Selection bar `Switch…` | `state::context_ops` |
+| **Resolve** | Card `Resolve…` button | `state::conflict_ops` |
+| **Changelog** | Command palette | `state::changelog` |
+
+Each modal is pre-populated from the dashboard selection.  The existing
+state machines (`SyncPhase`, `FreezerPhase`, `ChangelogPhase`, etc.) are
+reused unchanged; only the view layer changed.
+
+New state: `ActiveModal` enum on `AppState`.  
+New view: `view/bulk_modals.rs` (pull_modal, tag_modal, switch_modal,
+resolve_panel, changelog_modal).  
+New `app_view` in `view/mod.rs` stacks modals over the base layout.
+
+---
+
+#### RFC-014 — Project detail side panel
+
+Clicking a project **name** (not the checkbox) opens a right-docked 300 px
+panel showing:
+
+- **Identity** — VCS, path, remote upstream.
+- **Status** — branch, ahead, behind, dirty count, untracked, conflict flag.
+- **Recent operations** — last 5 ops touching this project (icon + kind +
+  timestamp).
+- **Actions** — Refresh, Fetch, Remove from workspace.
+
+Panel is semi-modal: the main view remains interactive while it is open.
+
+New state: `DetailPanelState` on `AppState`.  
+New message enum: `DetailPanelMessage` (Opened, Closed).  
+New view: `view/detail_panel.rs`.
+
+---
+
+#### RFC-015 — Workspace tabs
+
+A horizontal tab strip replaces the sidebar workspace list at the top of
+every screen.  Each tab shows the workspace name and a parenthetical count
+of **Needs Attention** projects (e.g. `work (3)`).  The active workspace
+tab has its button's `on_press` disabled.
+
+`⌘1` – `⌘9` / `Ctrl+1` – `Ctrl+9` switches to workspace by index.
+A `+` button at the end opens the create-workspace dialog.
+
+New view: `view/workspace_tabs.rs`.  
+Keyboard handling updated in the `subscription` function.
+
+---
+
+#### RFC-016 — Keyboard shortcuts and cheat sheet
+
+`?` toggles a centred overlay listing all 17 documented key bindings across
+five contexts (Global, Dashboard, Selection, Palette, Modal).
+
+Leader-key state machine: pressing `g` sets `LeaderKeyState::G`; a
+subsequent `h` navigates to History, `s` to Settings.
+
+New state: `KeyboardState` (cheat_sheet_open, leader: `LeaderKeyState`).  
+New message enum: `KeyboardMessage` (CheatSheetToggled, LeaderGPressed,
+LeaderCancelled).  
+New view: `view/shortcuts_overlay.rs`.
+
+---
+
+#### RFC-017 — Screen removal
+
+**Deferred to v0.16.**  All five screens (Sync Center, Freezer, ContextOps,
+ConflictResolution, Changelog) remain accessible via sidebar.  The modals
+introduced in RFC-013 provide the preferred workflow path for v0.12–v0.15.
+
+---
+
+### Changed
+
+- `AppState` gains 8 new fields: `selection`, `activity`, `palette`,
+  `grouping_mode`, `tier_collapse`, `keyboard`, `detail_panel`,
+  `active_modal`.
+- Dashboard view switches between legacy grid and tier grid based on
+  `grouping_mode` (default: Auto / tier grid).
+- `app_view` now renders workspace tabs at top, selection bar and activity
+  strip at bottom, and modal/palette/cheat-sheet overlays via
+  `iced::widget::stack`.
+- Clicking a project name now opens the detail panel rather than doing nothing.
+- `SyncCenterState` gains `selected_project_ids: HashSet<ProjectId>`.
+- `ContextOpsState` gains `target_context: String`.
+- `ChangelogState` gains `since_ref: String`.
+
+### Tests
+
+- **endringer unit:** 17 pass.
+- **endringer integration:** 19 pass.
+- **knotra-app:** `cargo check` clean, 0 errors, 0 warnings.
 
 
 ## [0.11.1] — 2026-05-23

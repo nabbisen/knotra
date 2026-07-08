@@ -2,7 +2,7 @@
 
 | Field          | Value                                                              |
 |----------------|--------------------------------------------------------------------|
-| Status         | Proposed                                                           |
+| Status      | **Implemented** (v0.12.0)         |
 | Priority       | Medium — improves outcome visibility                               |
 | Effort         | Small–Medium — new bottom widget, minor state additions            |
 | Target version | v0.12                                                              |

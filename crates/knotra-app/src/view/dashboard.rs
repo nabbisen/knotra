@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 //! Dashboard view: card grid with filter chips, grouping, and add-project dialog.
 
 use endringer::model::{project::Project, status::ProjectStatus};
@@ -8,9 +9,14 @@ use iced::{
 use snora::{theme::StatusColor, widget::CARD_GAP};
 
 use crate::{
-    message::{FilterMessage, Message, ProjectMessage, StatusFilter, WorkspaceMessage},
+    message::{
+        DetailPanelMessage, FilterMessage, Message, ProjectMessage,
+        SelectionMessage, StatusFilter, SyncMessage, TierMessage, WorkspaceMessage,
+    },
     state::{
+        AttentionTier, GroupingMode,
         dashboard::{build_display_groups, project_status_color},
+        tier::compute_tier,
         AppState, LoadPhase,
     },
 };
@@ -39,7 +45,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             }
         }
         LoadPhase::Error(_)    => view_error(state),
-        LoadPhase::Ready       => view_card_grid(state),
+        LoadPhase::Ready       => {
+            if state.grouping_mode == GroupingMode::Auto {
+                view_tier_grid(state)
+            } else {
+                view_card_grid(state)
+            }
+        }
     };
 
     // Layer dialogs on top when open.
@@ -194,6 +206,77 @@ fn view_filter_chips(state: &AppState) -> Element<'_, Message> {
 // Card grid with grouping
 // ---------------------------------------------------------------------------
 
+
+// ---------------------------------------------------------------------------
+// Tier-based card grid (RFC-010)
+// ---------------------------------------------------------------------------
+
+fn view_tier_grid(state: &AppState) -> Element<'_, Message> {
+    use iced::widget::{button, column, container, row, text};
+    use iced::Length;
+    use snora::widget::CARD_GAP;
+
+    let projects = state.workspace.as_ref()
+        .map(|w| w.projects.as_slice()).unwrap_or(&[]);
+    let wss = state.workspace_status.as_ref();
+
+    // Classify all projects into tiers.
+    let mut needs_att: Vec<_> = Vec::new();
+    let mut active:    Vec<_> = Vec::new();
+    let mut clean:     Vec<_> = Vec::new();
+
+    for p in projects {
+        let status   = wss.and_then(|w| w.projects.iter().find(|ps| ps.project_id == p.id));
+        let missing  = state.missing_projects.contains(&p.id);
+        let (tier, cause) = compute_tier(status, !missing);
+        match tier {
+            AttentionTier::NeedsAttention => needs_att.push((p, status, cause)),
+            AttentionTier::Active         => active.push((p, status, cause)),
+            AttentionTier::Clean          => clean.push((p, status, cause)),
+        }
+    }
+
+    let mut page: Vec<Element<'_, Message>> = Vec::new();
+
+    // Helper: render a collapsible tier section.
+    macro_rules! tier_section {
+        ($entries:expr, $label:expr, $icon:expr, $tier:expr, $collapsed:expr) => {{
+            if !$entries.is_empty() {
+                let toggle_btn = button(
+                    text(format!("{} {} ({})  {}",
+                        $icon, $label, $entries.len(),
+                        if $collapsed { "▶" } else { "▼" }
+                    )).size(13)
+                )
+                .on_press(Message::Tier(TierMessage::Toggled($tier)));
+                page.push(
+                    container(toggle_btn)
+                        .width(Length::Fill)
+                        .padding([4, 0])
+                        .into()
+                );
+                if !$collapsed {
+                    for (proj, status, _cause) in &$entries {
+                        page.push(view_project_card(state, proj, *status));
+                    }
+                }
+            }
+        }};
+    }
+
+    tier_section!(needs_att, "Needs attention", "🔴",
+        AttentionTier::NeedsAttention, state.tier_collapse.needs_attention);
+    tier_section!(active, "Active", "🟡",
+        AttentionTier::Active, state.tier_collapse.active);
+    tier_section!(clean, "Clean", "⚪",
+        AttentionTier::Clean, state.tier_collapse.clean);
+
+    if page.is_empty() {
+        return placeholder("No projects match the current filter.");
+    }
+    column(page).spacing(CARD_GAP).padding(12).into()
+}
+
 fn view_card_grid(state: &AppState) -> Element<'_, Message> {
     let projects = state
         .workspace
@@ -284,9 +367,19 @@ fn view_project_card<'a>(
 
     let is_fetching = state.fetching_projects.contains(&project.id);
 
-    // Header row: name  |  VCS badge
+    // Header row: checkbox | name  |  VCS badge
+    let is_selected = state.selection.contains(&project.id);
+    let checkbox_label = if is_selected { "☑" } else { "☐" };
+    let select_btn = button(text(checkbox_label).size(13))
+        .on_press(Message::Selection(SelectionMessage::Toggled(project.id.clone())));
+
+    // Clicking the name opens the detail panel (RFC-014)
+    let name_btn = button(text(project.name.clone()).size(14))
+        .on_press(Message::DetailPanel(DetailPanelMessage::Opened(project.id.clone())));
+
     let header_row = row![
-        text(project.name.clone()).size(14),
+        select_btn,
+        name_btn,
         Space::new().width(Length::Fill),
         text(vcs_label).size(11),
     ]

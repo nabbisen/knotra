@@ -14,9 +14,9 @@ pub enum ChangelogPhase {
 
 #[derive(Debug, Default)]
 pub struct ChangelogState {
-    pub phase: ChangelogPhase,
-    /// The "since" reference (tag or commit hash) entered by the user.
+    /// The "since" reference (tag or commit hash) for the Changelog modal.
     pub since_ref: String,
+    pub phase: ChangelogPhase,
     /// Available tags loaded from the first registered project (used for selector).
     pub available_tags: Vec<String>,
     /// Per-project inclusion.

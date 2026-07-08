@@ -1,11 +1,9 @@
 //! All `Message` variants for the knotra GUI.
 
 use endringer::{
-    ContextList, ContextSwitchResult, FreezeResult, FreezeValidation,
-    ProjectId,
+    ContextList, ContextSwitchResult, FreezeResult, FreezeValidation, ProjectId, WorkspaceStatus,
     model::operation::{OperationId, OperationLog, SmartPullPlan, SmartPullProgress},
     model::workspace::WorkspaceId,
-    WorkspaceStatus,
 };
 
 use crate::state::Screen;
@@ -28,6 +26,12 @@ pub enum Message {
     Changelog(ChangelogMessage),
     Topology(TopologyMessage),
     Shortcut(ShortcutMessage),
+    Selection(SelectionMessage),
+    Activity(ActivityMessage),
+    Palette(PaletteMessage),
+    Tier(TierMessage),
+    KeyEvent(KeyboardMessage),
+    DetailPanel(DetailPanelMessage),
     /// Periodic tick from the FS-watch subscription.
     FsWatchTick,
     /// Request to write text to the system clipboard.
@@ -84,6 +88,11 @@ pub enum SyncMessage {
     SmartPullConfirmed(SmartPullPlan),
     SmartPullCancelled,
     RetryFailedRequested,
+    BulkPullRequested,
+    PlanRequested,
+    ExecuteRequested,
+    ModalClosed,
+    Cancelled,
 }
 
 // --- Context ---
@@ -97,6 +106,11 @@ pub enum ContextMessage {
     SwitchConfirmed,
     SwitchCancelled,
     BackToDashboard,
+    BulkOpenRequested,
+    BulkSwitchRequested,
+    BulkModalClosed,
+    TargetChanged(String),
+    Cancelled,
 }
 
 // --- Freezer ---
@@ -109,6 +123,10 @@ pub enum FreezerMessage {
     NameChanged(String),
     /// User typed in the optional tag annotation message field.
     TagMessageChanged(String),
+    BulkOpenRequested,
+    BulkModalClosed,
+    /// Alias for ExecuteConfirmed — used by bulk modal Execute button.
+    ExecuteRequested,
     /// User toggled a project's inclusion.
     ProjectToggled(ProjectId, bool),
     /// User requested pre-execution validation.
@@ -174,14 +192,19 @@ pub enum BackgroundMessage {
     /// Topology graph scanned.
     TopologyScanned(endringer::DependencyGraph),
     /// Tag push completed for all offered projects.
-    TagPushCompleted { success_count: usize, fail_count: usize },
+    TagPushCompleted {
+        success_count: usize,
+        fail_count: usize,
+    },
     /// Missing repository paths detected at refresh.
     MissingProjectsDetected(Vec<ProjectId>),
     /// Validation phase completed.
     FreezeValidationDone(FreezeValidation),
     /// Execution phase completed.
     FreezeExecutionDone(FreezeResult),
-    TaskError { description: String },
+    TaskError {
+        description: String,
+    },
 }
 
 // --- Filter ---
@@ -197,18 +220,23 @@ pub enum FilterMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum StatusFilter {
-    Healthy, Behind, Ahead, Dirty, Conflict, Error,
+    Healthy,
+    Behind,
+    Ahead,
+    Dirty,
+    Conflict,
+    Error,
 }
 #[allow(dead_code)]
 impl StatusFilter {
     pub fn label_key(&self) -> &'static str {
         match self {
-            StatusFilter::Healthy  => "filter.healthy",
-            StatusFilter::Behind   => "filter.behind",
-            StatusFilter::Ahead    => "filter.ahead",
-            StatusFilter::Dirty    => "filter.dirty",
+            StatusFilter::Healthy => "filter.healthy",
+            StatusFilter::Behind => "filter.behind",
+            StatusFilter::Ahead => "filter.ahead",
+            StatusFilter::Dirty => "filter.dirty",
             StatusFilter::Conflict => "filter.conflict",
-            StatusFilter::Error    => "filter.error",
+            StatusFilter::Error => "filter.error",
         }
     }
 }
@@ -220,10 +248,19 @@ pub enum ConflictOpsMessage {
     OpenRequested(Option<ProjectId>),
     ProjectSelected(ProjectId),
     RecheckRequested(ProjectId),
-    MarkResolvedRequested { project_id: ProjectId, file_path: String },
+    MarkResolvedRequested {
+        project_id: ProjectId,
+        file_path: String,
+    },
     AbortMergeRequested(ProjectId),
     AbortMergeConfirmed(ProjectId),
     BackToDashboard,
+    /// RFC-013: mark a file resolved in the resolve panel.
+    FileMarkedResolved(String),
+    /// RFC-013: abort merge in the resolve panel.
+    AbortRequested,
+    /// RFC-013: close the resolve panel.
+    PanelClosed,
 }
 
 // --- Changelog ---
@@ -237,6 +274,8 @@ pub enum ChangelogMessage {
     GenerateRequested,
     CopyRequested,
     BackToDashboard,
+    CollectRequested,
+    ModalClosed,
 }
 
 // --- Topology ---
@@ -251,7 +290,10 @@ pub enum TopologyMessage {
 #[allow(dead_code)]
 pub enum TagPushMessage {
     /// Offer to push after successful freeze.
-    OfferShown { freeze_name: String, project_ids: Vec<ProjectId> },
+    OfferShown {
+        freeze_name: String,
+        project_ids: Vec<ProjectId>,
+    },
     /// User accepted the push.
     PushConfirmed,
     /// User declined.
@@ -272,5 +314,81 @@ pub enum LaunchMessage {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum ShortcutMessage {
-    Refresh, OpenContextOps, OpenFreezer, FocusSearch, Close,
+    Refresh,
+    OpenContextOps,
+    OpenFreezer,
+    FocusSearch,
+    Close,
+}
+
+// ---------------------------------------------------------------------------
+// RFC-009 — Selection messages
+// ---------------------------------------------------------------------------
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum SelectionMessage {
+    Toggled(ProjectId),
+    RangeTo(ProjectId),
+    SelectAll,
+    Clear,
+    FocusMoved(ProjectId),
+}
+
+// ---------------------------------------------------------------------------
+// RFC-011 — Activity strip messages
+// ---------------------------------------------------------------------------
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum ActivityMessage {
+    Started { label: String, total: usize },
+    Progress { done: usize },
+    Completed { log: OperationLog },
+    PopoverToggled,
+    RetryRequested,
+    Tick,
+}
+
+// ---------------------------------------------------------------------------
+// RFC-012 — Command palette messages
+// ---------------------------------------------------------------------------
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum PaletteMessage {
+    Opened,
+    Closed,
+    QueryChanged(String),
+    MoveUp,
+    MoveDown,
+    Confirmed,
+    EntryClicked(usize),
+}
+
+// ---------------------------------------------------------------------------
+// RFC-010 — Attention tier messages
+// ---------------------------------------------------------------------------
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum TierMessage {
+    Toggled(crate::state::AttentionTier),
+    GroupingModeChanged(crate::state::GroupingMode),
+}
+
+// ---------------------------------------------------------------------------
+// RFC-016 — Keyboard messages
+// ---------------------------------------------------------------------------
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum KeyboardMessage {
+    CheatSheetToggled,
+    LeaderGPressed,
+    LeaderCancelled,
+}
+
+// ---------------------------------------------------------------------------
+// RFC-014 — Detail panel messages
+// ---------------------------------------------------------------------------
+#[derive(Debug, Clone)]
+pub enum DetailPanelMessage {
+    Opened(ProjectId),
+    Closed,
 }
