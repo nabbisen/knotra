@@ -90,7 +90,7 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 
 ## Future Considerations (Phase 7+)
 
-- Conflict resolution UI with direct merge-tool launch
-- Dependency topology visualisation (`Cargo.toml` static analysis)
-- Changelog auto-aggregation from multiple repositories
-- File-system event monitoring (optional, off by default)
+- [x] Conflict resolution UI with direct merge-tool launch
+- [x] Dependency topology visualisation (`Cargo.toml` static analysis)
+- [x] Changelog auto-aggregation from multiple repositories
+- [ ] File-system event monitoring (optional, off by default)

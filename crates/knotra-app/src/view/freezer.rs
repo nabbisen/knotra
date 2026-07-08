@@ -7,7 +7,7 @@ use iced::{
 };
 
 use crate::{
-    message::{FreezerMessage, Message},
+    message::{FreezerMessage, Message, TopologyMessage},
     state::{freezer::FreezerPhase, AppState},
 };
 
@@ -83,6 +83,9 @@ fn view_idle(state: &AppState) -> Element<'_, Message> {
         .into()
     }).collect();
 
+    let scan_btn = button(text(state.t("topology.scan")).size(12))
+        .on_press(Message::Topology(TopologyMessage::ScanRequested));
+
     let validate_btn = button(text(state.t("freezer.validate")))
         .on_press_maybe(
             if name_valid && !projects.is_empty() {
@@ -96,7 +99,7 @@ fn view_idle(state: &AppState) -> Element<'_, Message> {
         name_error,
         text(state.t("freezer.projects_label")).size(13),
         column(project_rows).spacing(2),
-        row![validate_btn].padding([8, 0]),
+        row![validate_btn, scan_btn].spacing(8).padding([8, 0]),
     ]
     .spacing(8)
     .padding(24)
@@ -117,6 +120,14 @@ fn view_validation(state: &AppState, validation: FreezeValidation) -> Element<'_
         state.t("freezer.validation_blocked")
     };
 
+    // Topology impact warnings.
+    let impact_warnings: Vec<Element<'_, Message>> = state.topology.impact_warnings.iter()
+        .filter(|w| validation.entries.iter().any(|e| e.ready() && e.project_name == w.frozen_project_name))
+        .map(|w| {
+            text(format!("  {} {}", state.t("topology.warning_prefix"), w.description())).size(11).into()
+        })
+        .collect();
+
     let entry_rows: Vec<Element<'_, Message>> = validation.entries.into_iter()
         .map(|entry| view_validation_entry_owned(state, entry))
         .collect();
@@ -134,9 +145,12 @@ fn view_validation(state: &AppState, validation: FreezeValidation) -> Element<'_
 
     let header_text = format!("{} — {}", state.t("freezer.title"), freeze_name);
 
+    let mut topo_col = column(impact_warnings).spacing(2);
+
     column![
         text(header_text).size(16),
         text(summary).size(13),
+        topo_col,
         column(entry_rows).spacing(4),
         row![execute_btn, revalidate_btn, cancel_btn].spacing(8).padding([8, 0]),
     ]

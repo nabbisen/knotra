@@ -23,6 +23,9 @@ pub enum Message {
     Background(BackgroundMessage),
     Filter(FilterMessage),
     Launch(LaunchMessage),
+    ConflictOps(ConflictOpsMessage),
+    Changelog(ChangelogMessage),
+    Topology(TopologyMessage),
     Shortcut(ShortcutMessage),
     Tick,
 }
@@ -132,6 +135,14 @@ pub enum BackgroundMessage {
     SmartPullPlanReady(SmartPullPlan),
     ContextListLoaded(ContextList),
     ContextSwitchDone(ContextSwitchResult),
+    /// Conflict file list loaded.
+    ConflictFilesLoaded(endringer::ProjectConflictDetail),
+    /// Changelog draft generated.
+    ChangelogDraftReady(endringer::ChangelogDraft),
+    /// Available tags loaded for changelog since-selector.
+    TagsLoaded(Vec<String>),
+    /// Topology graph scanned.
+    TopologyScanned(endringer::DependencyGraph),
     /// Validation phase completed.
     FreezeValidationDone(FreezeValidation),
     /// Execution phase completed.
@@ -163,6 +174,36 @@ impl StatusFilter {
             StatusFilter::Error    => "filter.error",
         }
     }
+}
+
+// --- Conflict resolution ---
+#[derive(Debug, Clone)]
+pub enum ConflictOpsMessage {
+    OpenRequested(Option<ProjectId>),
+    ProjectSelected(ProjectId),
+    RecheckRequested(ProjectId),
+    MarkResolvedRequested { project_id: ProjectId, file_path: String },
+    AbortMergeRequested(ProjectId),
+    AbortMergeConfirmed(ProjectId),
+    BackToDashboard,
+}
+
+// --- Changelog ---
+#[derive(Debug, Clone)]
+pub enum ChangelogMessage {
+    OpenRequested,
+    SinceRefChanged(String),
+    ProjectToggled(ProjectId, bool),
+    LoadTagsRequested,
+    GenerateRequested,
+    CopyRequested,
+    BackToDashboard,
+}
+
+// --- Topology ---
+#[derive(Debug, Clone)]
+pub enum TopologyMessage {
+    ScanRequested,
 }
 
 // --- External tool launch ---

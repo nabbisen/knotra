@@ -404,3 +404,157 @@ impl VcsAdapter {
         }
     }
 }
+
+impl VcsAdapter {
+    // --- Conflict resolution ---
+
+    pub async fn list_conflicted_files(
+        project: &Project,
+    ) -> crate::model::conflict::ProjectConflictDetail {
+        let kind = detect_vcs_kind(Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git)      => git::list_conflicted_files(project).await,
+            Some(VcsKind::Jujutsu) => jj::list_conflicted_files(project).await,
+            None => crate::model::conflict::ProjectConflictDetail {
+                project_id:       project.id.clone(),
+                project_name:     project.name.clone(),
+                conflicted_files: vec![],
+                note:             None,
+                read_error:       Some(format!("no repository at {}", project.path)),
+            },
+        }
+    }
+
+    pub async fn mark_resolved(project: &Project, file_path: &str) -> crate::model::operation::ProjectOperationResult {
+        let kind = detect_vcs_kind(Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git) => git::mark_resolved(project, file_path).await,
+            _ => crate::model::operation::ProjectOperationResult {
+                project_id:        project.id.clone(),
+                success:           false,
+                commands_executed: vec![],
+                stdout:            String::new(),
+                stderr:            String::new(),
+                exit_code:         None,
+                error_message:     Some("mark-resolved only supported for Git".to_owned()),
+            },
+        }
+    }
+
+    pub async fn abort_merge(project: &Project) -> crate::model::operation::ProjectOperationResult {
+        let kind = detect_vcs_kind(Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git) => git::abort_merge(project).await,
+            _ => crate::model::operation::ProjectOperationResult {
+                project_id:        project.id.clone(),
+                success:           false,
+                commands_executed: vec![],
+                stdout:            String::new(),
+                stderr:            String::new(),
+                exit_code:         None,
+                error_message:     Some("abort-merge only supported for Git".to_owned()),
+            },
+        }
+    }
+
+    // --- Changelog ---
+
+    pub async fn collect_changelog(
+        projects: &[Project],
+        since_ref: &str,
+        max_concurrent: usize,
+    ) -> crate::model::changelog::ChangelogDraft {
+        use std::sync::Arc;
+        use tokio::sync::Semaphore;
+
+        let sem   = Arc::new(Semaphore::new(max_concurrent));
+        let since = since_ref.to_owned();
+        let mut handles = Vec::new();
+
+        for project in projects {
+            let project = project.clone();
+            let sem     = Arc::clone(&sem);
+            let since   = since.clone();
+            handles.push(tokio::spawn(async move {
+                let _permit = sem.acquire().await.expect("open");
+                let kind = detect_vcs_kind(Path::new(&project.path)).await;
+                match kind {
+                    Some(VcsKind::Git) =>
+                        git::log_since(&project, &since, None).await,
+                    Some(VcsKind::Jujutsu) =>
+                        jj::log_since(&project, &since, None).await,
+                    None => crate::model::changelog::ProjectCommits {
+                        project_id:   project.id.clone(),
+                        project_name: project.name.clone(),
+                        since_ref:    since,
+                        entries:      vec![],
+                        error:        Some(format!("no repository at {}", project.path)),
+                    },
+                }
+            }));
+        }
+
+        let mut project_commits = Vec::with_capacity(handles.len());
+        for h in handles {
+            if let Ok(c) = h.await { project_commits.push(c); }
+        }
+
+        crate::model::changelog::ChangelogDraft {
+            release_name:  since_ref.to_owned(),
+            generated_at:  chrono::Utc::now(),
+            projects:      project_commits,
+        }
+    }
+
+    // --- Topology ---
+
+    /// Scan registered projects for Cargo.toml manifests and build a dependency graph.
+    pub async fn scan_topology(projects: &[Project]) -> crate::model::topology::DependencyGraph {
+        use crate::model::topology::{DependencyEdge, DependencyGraph, parse_cargo_toml};
+        use std::collections::HashMap;
+
+        // Build crate-name → ProjectId map first.
+        let mut name_to_id: HashMap<String, crate::model::project::ProjectId> = HashMap::new();
+        let mut edges = Vec::new();
+
+        for project in projects {
+            // Try Cargo.toml in the project root.
+            let cargo_path = format!("{}/Cargo.toml", project.path);
+            let Ok(manifest) = parse_cargo_toml(&cargo_path) else { continue; };
+
+            if let Some(ref pkg_name) = manifest.package_name {
+                name_to_id.insert(pkg_name.clone(), project.id.clone());
+            }
+
+            for dep in &manifest.dependencies {
+                edges.push(DependencyEdge {
+                    from_project_id:   project.id.clone(),
+                    from_project_name: project.name.clone(),
+                    to_project_name:   dep.name.clone(),
+                    version_req:       dep.version_req.clone(),
+                    is_path_dep:       dep.is_path,
+                });
+            }
+        }
+
+        // Only keep edges where `to_project_name` is a known registered project.
+        let known_names: std::collections::HashSet<String> = projects
+            .iter()
+            .map(|p| p.name.clone())
+            .chain(name_to_id.keys().cloned())
+            .collect();
+
+        edges.retain(|e| known_names.contains(&e.to_project_name));
+        DependencyGraph { edges }
+    }
+
+    /// List all tags in a project (for the changelog "since" selector).
+    pub async fn list_tags(project: &Project) -> Vec<String> {
+        let path = project.path.clone();
+        tokio::task::spawn_blocking(move || {
+            git::list_tags_blocking(&path)
+        })
+        .await
+        .unwrap_or_default()
+    }
+}

@@ -1,9 +1,12 @@
 //! Application state — single source of truth.
 
+pub mod changelog;
+pub mod conflict_ops;
 pub mod context;
 pub mod dashboard;
 pub mod freezer;
 pub mod sync;
+pub mod topology;
 
 use std::collections::HashSet;
 
@@ -35,6 +38,8 @@ pub enum Screen {
     Freezer,
     History,
     Settings,
+    ConflictResolution,
+    Changelog,
 }
 
 impl Screen {
@@ -44,8 +49,10 @@ impl Screen {
             Screen::SyncCenter => "nav.sync",
             Screen::ContextOps => "nav.context",
             Screen::Freezer    => "nav.freezer",
-            Screen::History    => "nav.history",
-            Screen::Settings   => "nav.settings",
+            Screen::History            => "nav.history",
+            Screen::Settings           => "nav.settings",
+            Screen::ConflictResolution => "nav.conflicts",
+            Screen::Changelog          => "nav.changelog",
         }
     }
 }
@@ -160,6 +167,12 @@ pub struct AppState {
     pub context_ops: context::ContextOpsState,
     /// Freezer state.
     pub freezer: freezer::FreezerState,
+    /// Conflict resolution state.
+    pub conflict_ops: conflict_ops::ConflictOpsState,
+    /// Changelog aggregation state.
+    pub changelog: changelog::ChangelogState,
+    /// Dependency topology state.
+    pub topology: topology::TopologyState,
 }
 
 impl AppState {
@@ -187,6 +200,9 @@ impl AppState {
             sync: sync::SyncCenterState::default(),
             context_ops: context::ContextOpsState::default(),
             freezer: freezer::FreezerState::default(),
+            conflict_ops: conflict_ops::ConflictOpsState::default(),
+            changelog: changelog::ChangelogState::default(),
+            topology: topology::TopologyState::default(),
             config,
         }
     }

@@ -3,6 +3,8 @@
 //! Each sub-module exports a single `view(state) -> Element<Message>` function.
 //! Views are pure — they only read `AppState` and emit `Message`s.
 
+pub mod changelog_view;
+pub mod conflict_ops;
 pub mod context_ops;
 pub mod dashboard;
 pub mod freezer;
@@ -26,8 +28,10 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
         Screen::SyncCenter => sync_center::view(state),
         Screen::ContextOps => context_ops::view(state),
         Screen::Freezer => freezer::view(state),
-        Screen::History => history::view(state),
-        Screen::Settings => settings::view(state),
+        Screen::History            => history::view(state),
+        Screen::Settings           => settings::view(state),
+        Screen::ConflictResolution => conflict_ops::view(state),
+        Screen::Changelog          => changelog_view::view(state),
     };
 
     let layout = row![
@@ -59,6 +63,8 @@ fn view_sidebar(state: &AppState) -> Element<'_, Message> {
         (Screen::Freezer, "nav.freezer"),
         (Screen::History, "nav.history"),
         (Screen::Settings, "nav.settings"),
+        (Screen::ConflictResolution, "nav.conflicts"),
+        (Screen::Changelog, "nav.changelog"),
     ];
 
     let mut nav = column![]

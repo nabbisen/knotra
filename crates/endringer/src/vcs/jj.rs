@@ -477,3 +477,119 @@ pub async fn validate_for_freeze(
         blockers: vec![format!("task join error: {e}")],
     })
 }
+
+// ---------------------------------------------------------------------------
+// Conflict resolution for jj
+// ---------------------------------------------------------------------------
+
+/// List conflicted files in a jj repository.
+pub async fn list_conflicted_files(
+    project: &Project,
+) -> crate::model::conflict::ProjectConflictDetail {
+    use crate::model::conflict::{ConflictMarker, ConflictedFile, ProjectConflictDetail};
+
+    let path         = project.path.clone();
+    let project_id   = project.id.clone();
+    let project_name = project.name.clone();
+
+    tokio::task::spawn_blocking(move || {
+        // `jj resolve --list` lists conflicted files.
+        let out = run_jj(&["resolve", "--list"], &path);
+        match out {
+            Err(e) => ProjectConflictDetail {
+                project_id, project_name,
+                conflicted_files: vec![],
+                note: None,
+                read_error: Some(e.to_string()),
+            },
+            Ok(o) => {
+                let text = String::from_utf8_lossy(&o.stdout);
+                let files: Vec<ConflictedFile> = text
+                    .lines()
+                    .filter(|l| !l.trim().is_empty())
+                    .map(|l| ConflictedFile {
+                        path: l.trim().to_owned(),
+                        marker: ConflictMarker::BothModified,
+                    })
+                    .collect();
+                ProjectConflictDetail {
+                    project_id, project_name,
+                    conflicted_files: files,
+                    note: Some(
+                        "Use `jj resolve <file>` or your configured merge tool to resolve.".to_owned()
+                    ),
+                    read_error: None,
+                }
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|e| crate::model::conflict::ProjectConflictDetail {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        conflicted_files: vec![],
+        note: None,
+        read_error: Some(format!("task join error: {e}")),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Changelog for jj
+// ---------------------------------------------------------------------------
+
+/// Collect commits for a jj repository since a bookmark.
+pub async fn log_since(
+    project: &Project,
+    since_ref: &str,
+    _until_ref: Option<&str>,
+) -> crate::model::changelog::ProjectCommits {
+    use crate::model::changelog::{CommitEntry, ProjectCommits};
+
+    let path         = project.path.clone();
+    let project_id   = project.id.clone();
+    let project_name = project.name.clone();
+    let since        = since_ref.to_owned();
+
+    tokio::task::spawn_blocking(move || {
+        let rev  = format!("{}..@", since);
+        let tmpl = r#"change_id.short(8) ++ "|" ++ description.first_line() ++ "|" ++ author.name() ++ "|" ++ committer.timestamp().format("%Y-%m-%dT%H:%M:%S+00:00") ++ "\n""#;
+        let out  = run_jj(&["log", "-r", &rev, "--no-graph", "-T", tmpl], &path);
+
+        match out {
+            Err(e) => ProjectCommits {
+                project_id, project_name, since_ref: since,
+                entries: vec![], error: Some(e.to_string()),
+            },
+            Ok(o) => {
+                let text = String::from_utf8_lossy(&o.stdout);
+                let entries: Vec<CommitEntry> = text
+                    .lines()
+                    .filter(|l| !l.trim().is_empty())
+                    .filter_map(|l| {
+                        let mut p = l.splitn(4, '|');
+                        let hash    = p.next()?.to_owned();
+                        let subject = p.next()?.to_owned();
+                        let author  = p.next()?.to_owned();
+                        let date_str= p.next()?.trim();
+                        let date = date_str
+                            .parse::<chrono::DateTime<chrono::Utc>>()
+                            .ok()?;
+                        Some(CommitEntry { hash, subject, author, date })
+                    })
+                    .collect();
+                ProjectCommits {
+                    project_id, project_name, since_ref: since,
+                    entries, error: None,
+                }
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|e| crate::model::changelog::ProjectCommits {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        since_ref: since_ref.to_owned(),
+        entries: vec![],
+        error: Some(format!("task join error: {e}")),
+    })
+}

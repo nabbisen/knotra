@@ -649,3 +649,178 @@ pub async fn validate_for_freeze(
         blockers: vec![format!("task join error: {e}")],
     })
 }
+
+// ---------------------------------------------------------------------------
+// Conflict resolution operations
+// ---------------------------------------------------------------------------
+
+/// List all conflicted files in a Git repository.
+pub async fn list_conflicted_files(
+    project: &Project,
+) -> crate::model::conflict::ProjectConflictDetail {
+    use crate::model::conflict::{ConflictMarker, ConflictedFile, ProjectConflictDetail};
+
+    let path        = project.path.clone();
+    let project_id  = project.id.clone();
+    let project_name= project.name.clone();
+
+    tokio::task::spawn_blocking(move || {
+        // `git diff --name-status --diff-filter=U` lists unmerged (conflicted) files.
+        let out = git_cmd(&["diff", "--name-status", "--diff-filter=U"], &path)
+            .map_err(|e| e.to_string());
+
+        match out {
+            Err(e) => ProjectConflictDetail {
+                project_id,
+                project_name,
+                conflicted_files: vec![],
+                note: None,
+                read_error: Some(e),
+            },
+            Ok(o) => {
+                let text = String::from_utf8_lossy(&o.stdout);
+                let files: Vec<ConflictedFile> = text
+                    .lines()
+                    .filter(|l| !l.trim().is_empty())
+                    .map(|l| {
+                        let mut parts = l.splitn(2, '\t');
+                        let status = parts.next().unwrap_or("").trim();
+                        let path = parts.next().unwrap_or("").trim().to_owned();
+                        let marker = match status {
+                            "UU" => ConflictMarker::BothModified,
+                            "AA" => ConflictMarker::BothAdded,
+                            "UD" | "DU" => ConflictMarker::DeleteModify,
+                            _ => ConflictMarker::Other,
+                        };
+                        ConflictedFile { path, marker }
+                    })
+                    .collect();
+                ProjectConflictDetail {
+                    project_id,
+                    project_name,
+                    conflicted_files: files,
+                    note: None,
+                    read_error: None,
+                }
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|e| crate::model::conflict::ProjectConflictDetail {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        conflicted_files: vec![],
+        note: None,
+        read_error: Some(format!("task join error: {e}")),
+    })
+}
+
+/// Mark a file as resolved (`git add <path>`).
+pub async fn mark_resolved(project: &Project, file_path: &str) -> ProjectOperationResult {
+    run_git(project, &["add", file_path]).await
+}
+
+/// Abort an in-progress merge (`git merge --abort`).
+pub async fn abort_merge(project: &Project) -> ProjectOperationResult {
+    run_git(project, &["merge", "--abort"]).await
+}
+
+// ---------------------------------------------------------------------------
+// Changelog: commit log collection
+// ---------------------------------------------------------------------------
+
+/// Collect commits between `since_ref` and `until_ref` (default HEAD).
+///
+/// `since_ref` is typically the name of the previous freeze tag.
+pub async fn log_since(
+    project: &Project,
+    since_ref: &str,
+    until_ref: Option<&str>,
+) -> crate::model::changelog::ProjectCommits {
+    use crate::model::changelog::{CommitEntry, ProjectCommits};
+
+    let path         = project.path.clone();
+    let project_id   = project.id.clone();
+    let project_name = project.name.clone();
+    let since        = since_ref.to_owned();
+    let until        = until_ref.unwrap_or("HEAD").to_owned();
+
+    tokio::task::spawn_blocking(move || {
+        // Format: hash|subject|author name|ISO date
+        let range = format!("{}..{}", since, until);
+        let fmt   = "%H|%s|%an|%aI";
+        let out   = git_cmd(
+            &["log", &range, &format!("--format={fmt}"), "--no-merges"],
+            &path,
+        );
+
+        match out {
+            Err(e) => ProjectCommits {
+                project_id,
+                project_name,
+                since_ref: since,
+                entries: vec![],
+                error: Some(e.to_string()),
+            },
+            Ok(o) if !o.status.success() => {
+                let stderr = String::from_utf8_lossy(&o.stderr).trim().to_owned();
+                ProjectCommits {
+                    project_id,
+                    project_name,
+                    since_ref: since,
+                    entries: vec![],
+                    error: Some(if stderr.is_empty() {
+                        format!("git log exited with status {:?}", o.status.code())
+                    } else {
+                        stderr
+                    }),
+                }
+            }
+            Ok(o) => {
+                let text = String::from_utf8_lossy(&o.stdout);
+                let entries: Vec<CommitEntry> = text
+                    .lines()
+                    .filter(|l| !l.trim().is_empty())
+                    .filter_map(|l| {
+                        let mut p = l.splitn(4, '|');
+                        let hash    = p.next()?.to_owned();
+                        let subject = p.next()?.to_owned();
+                        let author  = p.next()?.to_owned();
+                        let date_str= p.next()?.trim();
+                        let date = date_str
+                            .parse::<chrono::DateTime<chrono::Utc>>()
+                            .ok()?;
+                        Some(CommitEntry { hash, subject, author, date })
+                    })
+                    .collect();
+                ProjectCommits {
+                    project_id,
+                    project_name,
+                    since_ref: since,
+                    entries,
+                    error: None,
+                }
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|e| crate::model::changelog::ProjectCommits {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        since_ref: since_ref.to_owned(),
+        entries: vec![],
+        error: Some(format!("task join error: {e}")),
+    })
+}
+
+/// List local tags in a repository (for "since" selector).
+pub fn list_tags_blocking(path: &str) -> Vec<String> {
+    git_stdout(&["tag", "--sort=-version:refname"], path)
+        .map(|out| {
+            out.lines()
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| l.trim().to_owned())
+                .collect()
+        })
+        .unwrap_or_default()
+}

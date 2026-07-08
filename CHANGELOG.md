@@ -7,6 +7,46 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.7.0] — 2025-xx-xx
+
+### Added
+- Phase 7: Future Considerations — Conflict Resolution UI, Changelog Auto-aggregation, Dependency Topology Visualisation.
+
+**Conflict Resolution UI (`Screen::ConflictResolution`):**
+- `endringer/git`: `list_conflicted_files` (parses `git diff --name-status --diff-filter=U`), `mark_resolved` (`git add <file>`), `abort_merge` (`git merge --abort`).
+- `endringer/jj`: `list_conflicted_files` via `jj resolve --list`.
+- `VcsAdapter::list_conflicted_files`, `mark_resolved`, `abort_merge` dispatchers.
+- `model::conflict`: `ConflictedFile` (path + `ConflictMarker`), `ProjectConflictDetail`.
+- `state::conflict_ops::ConflictPhase` FSM: `Idle | Loading | Browsing | Operating | Done`.
+- View: conflicted-project selector → file list with per-file marker, Open in Editor / Open Merge Tool / Mark Resolved buttons, Abort Merge, Re-check.
+- Uses `LaunchMessage` (Phase 6) for editor/merge-tool integration.
+- 2 new unit tests for `ProjectConflictDetail`.
+
+**Changelog Auto-aggregation (`Screen::Changelog`):**
+- `endringer/git`: `log_since(project, since_ref, until_ref)` — `git log <range>` with custom format, parses into `CommitEntry`.
+- `endringer/jj`: `log_since` via `jj log` template.
+- `VcsAdapter::collect_changelog` — concurrent collection with semaphore cap → `ChangelogDraft`.
+- `VcsAdapter::list_tags` — loads available tags for the "since" selector.
+- `model::changelog`: `CommitEntry`, `ProjectCommits`, `ChangelogDraft` with `to_markdown()` and `total_commits()`.
+- `state::changelog::ChangelogState` — since-ref, project selection, available-tags list, phase FSM.
+- View: since-ref text input, tag quick-selector, project checkboxes, generate button (guards `is_ready_to_collect()`), Markdown draft preview (first 50 lines), Copy button.
+- 3 new unit tests for `ChangelogDraft` (markdown rendering, empty-project skip, total-commits sum).
+- 3 new unit tests for `ChangelogState` (ready guard).
+
+**Dependency Topology Visualisation (Freezer integration):**
+- `model::topology`: `DependencyEdge`, `DependencyGraph` (direct + transitive dependents via BFS), `ImpactWarning`, `CargoManifest`, `parse_cargo_toml_str`.
+- `VcsAdapter::scan_topology` — reads `Cargo.toml` from each project root, builds cross-project dependency graph (only retains edges where both ends are registered projects).
+- `state::topology::TopologyState` with `compute_warnings` — produces `ImpactWarning` for projects that are dependencies of other registered projects.
+- Freezer idle view: **Scan Dependencies** button triggers `TopologyMessage::ScanRequested`.
+- Freezer validation view: topology impact warnings shown above the per-project entry table (e.g. "'shared-lib' is depended upon by: api, worker").
+- 5 new unit tests: direct dependents, transitive BFS, Cargo.toml basic parse, workspace parse, warning description.
+- 3 new unit tests for `TopologyState::compute_warnings`.
+
+**Navigation additions:**
+- Two new sidebar entries: **Conflicts** (`Screen::ConflictResolution`) and **Changelog** (`Screen::Changelog`).
+- i18n: 30+ new keys for conflicts, changelog, and topology in both `en` and `ja`.
+
+
 ## [0.6.0] — 2025-xx-xx
 
 ### Added

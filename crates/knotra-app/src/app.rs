@@ -14,20 +14,24 @@ use endringer::{
         workspace::Workspace,
     },
     VcsAdapter,
+    DependencyGraph,
 };
 
 use crate::{
     config::{load_config, save_config, AppPaths},
     message::{
-        BackgroundMessage, ContextMessage, FilterMessage, FreezerMessage, HistoryMessage,
-        LaunchMessage, Message, ProjectMessage, SettingsMessage, ShortcutMessage, SyncMessage,
-        WorkspaceMessage,
+        BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage, FilterMessage,
+        FreezerMessage, HistoryMessage, LaunchMessage, Message, ProjectMessage,
+        SettingsMessage, ShortcutMessage, SyncMessage, TopologyMessage, WorkspaceMessage,
     },
     persistence::{load_recent_logs, load_workspaces, save_operation_log, save_workspace},
     state::{
+        changelog::ChangelogPhase,
+        conflict_ops::ConflictPhase,
         context::{ContextOpsState, ContextPhase},
         freezer::FreezerPhase,
         sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
+        topology::TopologyPhase,
         AddProjectDialog, AppState, ConfirmRemoveDialog, LoadPhase, Screen,
     },
     view::app_view,
@@ -113,6 +117,9 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         Message::Settings(msg)       => handle_settings(state, msg),
         Message::Background(msg)     => handle_background(state, msg),
         Message::Filter(msg)         => { state.apply_filter(msg); Task::none() }
+        Message::ConflictOps(msg)    => handle_conflict_ops(state, msg),
+        Message::Changelog(msg)      => handle_changelog(state, msg),
+        Message::Topology(msg)       => handle_topology(state, msg),
         Message::Context(msg)        => handle_context(state, msg),
         Message::Launch(msg)         => handle_launch(state, msg),
     }
@@ -587,6 +594,37 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
         | BackgroundMessage::ContextSwitchCompleted(log)
         | BackgroundMessage::FreezeCompleted(log) => {
             persist_log(&log, state);
+            Task::none()
+        }
+
+        BackgroundMessage::ConflictFilesLoaded(detail) => {
+            let id = detail.project_id.clone();
+            state.conflict_ops.cached.insert(id.clone(), detail.clone());
+            state.conflict_ops.phase = ConflictPhase::Browsing {
+                project_id: id,
+                detail,
+            };
+            Task::none()
+        }
+
+        BackgroundMessage::ChangelogDraftReady(draft) => {
+            state.changelog.phase = ChangelogPhase::Ready(draft);
+            Task::none()
+        }
+
+        BackgroundMessage::TagsLoaded(tags) => {
+            state.changelog.available_tags = tags;
+            Task::none()
+        }
+
+        BackgroundMessage::TopologyScanned(graph) => {
+            // Compute impact warnings for the Freezer.
+            if let Some(ws) = &state.workspace {
+                let names: Vec<String> = ws.projects.iter().map(|p| p.name.clone()).collect();
+                state.topology.impact_warnings =
+                    state.topology.compute_warnings(&graph, &names);
+            }
+            state.topology.phase = TopologyPhase::Ready(graph);
             Task::none()
         }
 
@@ -1093,4 +1131,222 @@ fn handle_launch(state: &mut AppState, msg: LaunchMessage) -> Task<Message> {
         }
     }
     Task::none()
+}
+
+// ---------------------------------------------------------------------------
+// Conflict resolution handler
+// ---------------------------------------------------------------------------
+
+fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Message> {
+    match msg {
+        ConflictOpsMessage::OpenRequested(preselect) => {
+            state.screen = Screen::ConflictResolution;
+            state.conflict_ops.phase = ConflictPhase::Idle;
+            if let Some(id) = preselect {
+                return Task::done(Message::ConflictOps(ConflictOpsMessage::ProjectSelected(id)));
+            }
+            Task::none()
+        }
+
+        ConflictOpsMessage::ProjectSelected(id) => {
+            if let Some(cached) = state.conflict_ops.cached.get(&id).cloned() {
+                state.conflict_ops.phase = ConflictPhase::Browsing {
+                    project_id: id,
+                    detail: cached,
+                };
+                return Task::none();
+            }
+            let project = match find_project(state, &id) {
+                Some(p) => p,
+                None    => return Task::none(),
+            };
+            state.conflict_ops.phase = ConflictPhase::Loading(id);
+            Task::perform(
+                async move { VcsAdapter::list_conflicted_files(&project).await },
+                |d| Message::Background(BackgroundMessage::ConflictFilesLoaded(d)),
+            )
+        }
+
+        ConflictOpsMessage::RecheckRequested(id) => {
+            state.conflict_ops.cached.remove(&id);
+            let project = match find_project(state, &id) {
+                Some(p) => p,
+                None    => return Task::none(),
+            };
+            state.conflict_ops.phase = ConflictPhase::Loading(id);
+            Task::perform(
+                async move { VcsAdapter::list_conflicted_files(&project).await },
+                |d| Message::Background(BackgroundMessage::ConflictFilesLoaded(d)),
+            )
+        }
+
+        ConflictOpsMessage::MarkResolvedRequested { project_id, file_path } => {
+            let project = match find_project(state, &project_id) {
+                Some(p) => p,
+                None    => return Task::none(),
+            };
+            state.conflict_ops.phase = ConflictPhase::Operating {
+                project_id: project_id.clone(),
+                action: format!("git add {}", file_path),
+            };
+            state.conflict_ops.cached.remove(&project_id);
+            let file_path_for_msg = file_path.clone();
+            Task::perform(
+                async move { VcsAdapter::mark_resolved(&project, &file_path).await },
+                move |r| {
+                    let pid = r.project_id.clone();
+                    let ok  = r.success;
+                    let msg = if ok {
+                        format!("Marked resolved: {}", file_path_for_msg)
+                    } else {
+                        r.error_message.unwrap_or_else(|| "mark-resolved failed".to_owned())
+                    };
+                    Message::Background(BackgroundMessage::ConflictFilesLoaded(
+                        endringer::ProjectConflictDetail {
+                            project_id:       pid.clone(),
+                            project_name:     String::new(),
+                            conflicted_files: vec![],
+                            note:             None,
+                            read_error:       if ok { None } else { Some(msg) },
+                        }
+                    ))
+                },
+            )
+        }
+
+        ConflictOpsMessage::AbortMergeRequested(id) => {
+            state.conflict_ops.phase = ConflictPhase::Operating {
+                project_id: id.clone(),
+                action: "git merge --abort".to_owned(),
+            };
+            state.conflict_ops.cached.remove(&id);
+            let project = match find_project(state, &id) {
+                Some(p) => p,
+                None    => return Task::none(),
+            };
+            Task::perform(
+                async move { VcsAdapter::abort_merge(&project).await },
+                |r| {
+                    let ok  = r.success;
+                    let pid = r.project_id.clone();
+                    Message::Background(BackgroundMessage::ConflictFilesLoaded(
+                        endringer::ProjectConflictDetail {
+                            project_id:       pid,
+                            project_name:     String::new(),
+                            conflicted_files: vec![],
+                            note:             if ok { Some("Merge aborted.".to_owned()) } else { None },
+                            read_error:       if ok { None } else {
+                                Some(r.error_message.unwrap_or_else(|| "abort failed".to_owned()))
+                            },
+                        }
+                    ))
+                },
+            )
+        }
+
+        ConflictOpsMessage::AbortMergeConfirmed(id) => {
+            Task::done(Message::ConflictOps(ConflictOpsMessage::AbortMergeRequested(id)))
+        }
+
+        ConflictOpsMessage::BackToDashboard => {
+            state.screen = Screen::Dashboard;
+            Task::none()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Changelog handler
+// ---------------------------------------------------------------------------
+
+fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message> {
+    match msg {
+        ChangelogMessage::OpenRequested => {
+            state.screen = Screen::Changelog;
+            if let Some(ws) = &state.workspace {
+                let ids: Vec<_> = ws.projects.iter().map(|p| p.id.clone()).collect();
+                state.changelog.init_selection(&ids);
+            }
+            state.changelog.phase = ChangelogPhase::Idle;
+            Task::none()
+        }
+
+        ChangelogMessage::SinceRefChanged(s) => {
+            state.changelog.since_ref = s;
+            if matches!(state.changelog.phase, ChangelogPhase::Ready(_)) {
+                state.changelog.phase = ChangelogPhase::Idle;
+            }
+            Task::none()
+        }
+
+        ChangelogMessage::ProjectToggled(id, v) => {
+            state.changelog.project_selection.insert(id, v);
+            Task::none()
+        }
+
+        ChangelogMessage::LoadTagsRequested => {
+            // Load tags from the first selected project.
+            let project = state.workspace.as_ref()
+                .and_then(|ws| ws.projects.first().cloned());
+            if let Some(project) = project {
+                return Task::perform(
+                    async move { VcsAdapter::list_tags(&project).await },
+                    |tags| Message::Background(BackgroundMessage::TagsLoaded(tags)),
+                );
+            }
+            Task::none()
+        }
+
+        ChangelogMessage::GenerateRequested => {
+            let selected_ids = state.changelog.selected_ids();
+            let projects: Vec<_> = state.workspace.as_ref()
+                .map(|ws| ws.projects.iter()
+                    .filter(|p| selected_ids.contains(&p.id))
+                    .cloned()
+                    .collect())
+                .unwrap_or_default();
+            let since   = state.changelog.since_ref.clone();
+            let max     = state.config.max_concurrent_reads;
+            state.changelog.phase = ChangelogPhase::Collecting;
+
+            Task::perform(
+                async move { VcsAdapter::collect_changelog(&projects, &since, max).await },
+                |draft| Message::Background(BackgroundMessage::ChangelogDraftReady(draft)),
+            )
+        }
+
+        ChangelogMessage::CopyRequested => {
+            if let ChangelogPhase::Ready(ref draft) = state.changelog.phase {
+                let md = draft.to_markdown();
+                state.status_bar = Some(format!("Changelog ({} chars) — copy via clipboard API (Phase 8).", md.len()));
+            }
+            Task::none()
+        }
+
+        ChangelogMessage::BackToDashboard => {
+            state.changelog.phase = ChangelogPhase::Idle;
+            state.screen = Screen::Dashboard;
+            Task::none()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Topology handler
+// ---------------------------------------------------------------------------
+
+fn handle_topology(state: &mut AppState, msg: TopologyMessage) -> Task<Message> {
+    match msg {
+        TopologyMessage::ScanRequested => {
+            let projects: Vec<_> = state.workspace.as_ref()
+                .map(|ws| ws.projects.clone())
+                .unwrap_or_default();
+            state.topology.phase = TopologyPhase::Scanning;
+
+            Task::perform(
+                async move { VcsAdapter::scan_topology(&projects).await },
+                |graph| Message::Background(BackgroundMessage::TopologyScanned(graph)),
+            )
+        }
+    }
 }
