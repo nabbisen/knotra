@@ -22,6 +22,7 @@ pub enum Message {
     Settings(SettingsMessage),
     Background(BackgroundMessage),
     Filter(FilterMessage),
+    Launch(LaunchMessage),
     Shortcut(ShortcutMessage),
     Tick,
 }
@@ -100,6 +101,7 @@ pub enum HistoryMessage {
     SearchChanged(String),
     LogCopyRequested(OperationId),
     EntryToggled(OperationId),
+    BackToDashboard,
 }
 
 // --- Settings ---
@@ -109,7 +111,12 @@ pub enum SettingsMessage {
     ThemeChanged(bool),
     RefreshIntervalChanged(u32),
     MaxConcurrentChanged(usize),
+    ExternalEditorChanged(String),
+    ExternalMergeToolChanged(String),
+    MaxLogEntriesChanged(usize),
     SaveRequested,
+    /// Navigate back to Dashboard.
+    BackToDashboard,
 }
 
 // --- Background ---
@@ -156,6 +163,15 @@ impl StatusFilter {
             StatusFilter::Error    => "filter.error",
         }
     }
+}
+
+// --- External tool launch ---
+#[derive(Debug, Clone)]
+pub enum LaunchMessage {
+    /// Open a file path in the configured external editor.
+    OpenInEditor(String),
+    /// Open a file path in the configured merge tool.
+    OpenInMergeTool(String),
 }
 
 // --- Shortcuts ---

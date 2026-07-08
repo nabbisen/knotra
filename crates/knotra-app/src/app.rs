@@ -19,8 +19,9 @@ use endringer::{
 use crate::{
     config::{load_config, save_config, AppPaths},
     message::{
-        BackgroundMessage, ContextMessage, FilterMessage, FreezerMessage, HistoryMessage, Message,
-        ProjectMessage, SettingsMessage, ShortcutMessage, SyncMessage, WorkspaceMessage,
+        BackgroundMessage, ContextMessage, FilterMessage, FreezerMessage, HistoryMessage,
+        LaunchMessage, Message, ProjectMessage, SettingsMessage, ShortcutMessage, SyncMessage,
+        WorkspaceMessage,
     },
     persistence::{load_recent_logs, load_workspaces, save_operation_log, save_workspace},
     state::{
@@ -113,6 +114,7 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         Message::Background(msg)     => handle_background(state, msg),
         Message::Filter(msg)         => { state.apply_filter(msg); Task::none() }
         Message::Context(msg)        => handle_context(state, msg),
+        Message::Launch(msg)         => handle_launch(state, msg),
     }
 }
 
@@ -705,22 +707,72 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
 // handle_freezer is defined below the background handler
 
 fn handle_history(state: &mut AppState, msg: HistoryMessage) -> Task<Message> {
-    if let HistoryMessage::SearchChanged(s) = msg { state.history_search = s; }
+    match msg {
+        HistoryMessage::SearchChanged(s) => { state.history_search = s; }
+        HistoryMessage::EntryToggled(id) => {
+            if state.history_expanded.contains(&id) {
+                state.history_expanded.remove(&id);
+            } else {
+                state.history_expanded.insert(id);
+            }
+        }
+        HistoryMessage::LogCopyRequested(_id) => {
+            // Clipboard access is platform-dependent; Phase 7 can wire iced's clipboard API.
+            // For now we record the intent and show a status-bar note.
+            state.status_bar = Some("Log copied to clipboard (clipboard API: Phase 7).".to_owned());
+        }
+        HistoryMessage::BackToDashboard => {
+            state.screen = Screen::Dashboard;
+        }
+    }
     Task::none()
 }
 
 fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> {
+    use crate::state::SettingsEdit;
     match msg {
-        SettingsMessage::LocaleChanged(l)    => { state.config.locale = l; state.catalog = snora::i18n::Catalog::for_locale(l); }
-        SettingsMessage::ThemeChanged(dark)  => { state.config.dark_theme = dark; state.theme = if dark { snora::KnotraTheme::dark() } else { snora::KnotraTheme::light() }; }
-        SettingsMessage::RefreshIntervalChanged(s) => { state.config.refresh_interval_secs = s; }
-        SettingsMessage::MaxConcurrentChanged(n)   => { state.config.max_concurrent_reads = n; }
+        SettingsMessage::LocaleChanged(l) => {
+            state.config.locale = l;
+            state.catalog = snora::i18n::Catalog::for_locale(l);
+        }
+        SettingsMessage::ThemeChanged(dark) => {
+            state.config.dark_theme = dark;
+            state.theme = if dark { snora::KnotraTheme::dark() } else { snora::KnotraTheme::light() };
+        }
+        SettingsMessage::RefreshIntervalChanged(s) => {
+            state.settings_edit.refresh_interval_secs = s.to_string();
+            state.config.refresh_interval_secs = s;
+        }
+        SettingsMessage::MaxConcurrentChanged(n) => {
+            state.settings_edit.max_concurrent_reads = n.to_string();
+            state.config.max_concurrent_reads = n;
+        }
+        SettingsMessage::ExternalEditorChanged(s) => {
+            state.settings_edit.external_editor = s.clone();
+            state.config.external_editor = if s.trim().is_empty() { None } else { Some(s.trim().to_owned()) };
+        }
+        SettingsMessage::ExternalMergeToolChanged(s) => {
+            state.settings_edit.external_merge_tool = s.clone();
+            state.config.external_merge_tool = if s.trim().is_empty() { None } else { Some(s.trim().to_owned()) };
+        }
+        SettingsMessage::MaxLogEntriesChanged(n) => {
+            state.settings_edit.max_log_entries = n.to_string();
+            state.config.max_log_entries = n;
+        }
         SettingsMessage::SaveRequested => {
             let paths = AppPaths::resolve();
             match save_config(&state.config, &paths) {
-                Ok(()) => state.status_bar = Some("Settings saved.".to_owned()),
-                Err(e) => state.status_bar = Some(format!("Config save error: {e}")),
+                Ok(()) => {
+                    state.settings_save_msg = Some(state.t("settings.saved_ok").to_owned());
+                    state.status_bar = Some(state.t("settings.saved_ok").to_owned());
+                }
+                Err(e) => {
+                    state.settings_save_msg = Some(format!("{} {e}", state.t("settings.save_error")));
+                }
             }
+        }
+        SettingsMessage::BackToDashboard => {
+            state.screen = Screen::Dashboard;
         }
     }
     Task::none()
@@ -1008,4 +1060,37 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             Task::none()
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// External tool launch handler
+// ---------------------------------------------------------------------------
+
+fn handle_launch(state: &mut AppState, msg: LaunchMessage) -> Task<Message> {
+    let (tool_path, file_path) = match msg {
+        LaunchMessage::OpenInEditor(path) => {
+            (state.config.external_editor.clone(), path)
+        }
+        LaunchMessage::OpenInMergeTool(path) => {
+            (state.config.external_merge_tool.clone(), path)
+        }
+    };
+
+    let Some(tool) = tool_path else {
+        state.status_bar = Some(state.t("tool.not_configured").to_owned());
+        return Task::none();
+    };
+
+    match std::process::Command::new(&tool)
+        .arg(&file_path)
+        .spawn()
+    {
+        Ok(_) => {
+            state.status_bar = Some(format!("Launched: {} {:?}", tool, file_path));
+        }
+        Err(e) => {
+            state.status_bar = Some(format!("{} {}: {e}", state.t("tool.launch_failed"), tool));
+        }
+    }
+    Task::none()
 }

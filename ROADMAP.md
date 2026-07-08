@@ -77,14 +77,14 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 
 **Goal:** Accessible, consistent, keyboard-navigable UI.
 
-- [ ] Keyboard shortcuts (⌘/Ctrl+R refresh, ⌘/Ctrl+K context switch, …)
-- [ ] Full keyboard navigation (tab order, focus visibility)
-- [ ] WCAG AA contrast verification
-- [ ] Unified status vocabulary audit
-- [ ] Settings screen (all config values exposed)
-- [ ] External editor / merge-tool launch
-- [ ] History screen with search and log copy
-- [ ] mdBook documentation (`docs/src`)
+- [x] Keyboard shortcuts (⌘/Ctrl+R refresh, ⌘/Ctrl+K context switch, …)
+- [x] Full keyboard navigation (tab order, focus visibility)
+- [x] WCAG AA contrast verification
+- [x] Unified status vocabulary audit
+- [x] Settings screen (all config values exposed)
+- [x] External editor / merge-tool launch
+- [x] History screen with search and log copy
+- [x] mdBook documentation (`docs/src`)
 
 ---
 

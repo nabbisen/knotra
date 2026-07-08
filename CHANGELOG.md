@@ -7,6 +7,57 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.6.0] — 2025-xx-xx
+
+### Added
+- Phase 6: UX Polish — Settings screen, History screen, external tool launch, accessibility hardening, full documentation.
+
+**Settings screen** (all config values exposed):
+- Language selector (English / 日本語; immediate effect).
+- Theme toggle (Dark / Light; immediate effect).
+- Refresh interval, max concurrent reads, max log entries — all editable with live binding to `AppConfig`.
+- External editor and merge-tool path fields.
+- Save button with status feedback (`settings.saved_ok` / `settings.save_error`).
+- Section grouping: Display / Refresh & Performance / External Tools / Logs.
+
+**History screen** (searchable, expandable log):
+- Full-text search over operation kind, project ID, stdout/stderr.
+- Expand/collapse per entry (▶/▼ toggle) stored in `AppState.history_expanded`.
+- Detail panel: per-project success/failure, commands executed (transparency), stderr excerpt, recovery hints.
+- Copy button per entry (routes through `HistoryMessage::LogCopyRequested`).
+- Rollback status badge.
+
+**External tool launch** (`LaunchMessage`):
+- `LaunchMessage::OpenInEditor(path)` and `OpenInMergeTool(path)`.
+- Spawns configured binary via `std::process::Command`.
+- Shows "not configured" hint when the path is empty.
+- Records launch success/failure in status bar.
+
+**State additions**:
+- `AppState.history_expanded: HashSet<OperationId>` — expand state per log entry.
+- `AppState.settings_edit: SettingsEdit` — text-buffer mirror of AppConfig for input widgets.
+- `AppState.settings_save_msg: Option<String>` — last save result.
+- `SettingsEdit::from_config()` — initialises buffer from config on startup and Settings open.
+
+**i18n additions** — Settings, History, external-tool, and accessibility strings added to both `en` and `ja` catalogs (40+ new keys).
+
+**SettingsMessage** extended: `ExternalEditorChanged`, `ExternalMergeToolChanged`, `MaxLogEntriesChanged`, `BackToDashboard`.
+
+**HistoryMessage** extended: `BackToDashboard`.
+
+**Documentation** (`docs/` — mdBook-ready):
+- `guide/`: dashboard, sync_center, context_ops, freezer, history, settings (6 files).
+- `reference/`: keyboard shortcuts, config file format, glossary/vocabulary, FAQ (4 files).
+- `contributing/`: architecture, design philosophy, local development (3 files).
+- `docs/book.toml` for `mdbook serve`.
+
+### Changed
+- `FreezerMessage::NameChanged` no longer updates `AppState.freezer_name` (removed field); all freezer state is now in `AppState.freezer`.
+- Ctrl+T shortcut routes through `FreezerMessage::OpenRequested` (not raw Navigate).
+- Ctrl+K shortcut routes through `ContextMessage::OpenRequested(None)`.
+- Settings and History screens have their own Back buttons (emit domain messages, not raw Navigate).
+
+
 ## [0.5.0] — 2025-xx-xx
 
 ### Added

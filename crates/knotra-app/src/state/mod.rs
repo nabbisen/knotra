@@ -102,6 +102,33 @@ pub enum LoadPhase {
 }
 
 // ---------------------------------------------------------------------------
+// Settings edit buffer
+// ---------------------------------------------------------------------------
+
+/// Temporary edit buffer for the Settings screen.
+/// Mirrors `AppConfig` but stores text fields as raw Strings for input widgets.
+#[derive(Debug, Clone)]
+pub struct SettingsEdit {
+    pub refresh_interval_secs: String,
+    pub max_concurrent_reads: String,
+    pub external_editor: String,
+    pub external_merge_tool: String,
+    pub max_log_entries: String,
+}
+
+impl SettingsEdit {
+    pub fn from_config(cfg: &AppConfig) -> Self {
+        SettingsEdit {
+            refresh_interval_secs: cfg.refresh_interval_secs.to_string(),
+            max_concurrent_reads:  cfg.max_concurrent_reads.to_string(),
+            external_editor:       cfg.external_editor.clone().unwrap_or_default(),
+            external_merge_tool:   cfg.external_merge_tool.clone().unwrap_or_default(),
+            max_log_entries:       cfg.max_log_entries.to_string(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // AppState
 // ---------------------------------------------------------------------------
 
@@ -121,6 +148,12 @@ pub struct AppState {
     pub confirm_remove_dialog: Option<ConfirmRemoveDialog>,
     pub fetching_projects: HashSet<ProjectId>,
     pub is_refreshing: bool,
+    /// History: which log entry IDs are currently expanded.
+    pub history_expanded: std::collections::HashSet<endringer::OperationId>,
+    /// Settings: in-progress edit buffer (mirrors config until saved).
+    pub settings_edit: SettingsEdit,
+    /// Settings: last save result message.
+    pub settings_save_msg: Option<String>,
     /// Sync Center state.
     pub sync: sync::SyncCenterState,
     /// Context Operations state.
@@ -148,6 +181,9 @@ impl AppState {
             confirm_remove_dialog: None,
             fetching_projects: HashSet::new(),
             is_refreshing: false,
+            history_expanded: std::collections::HashSet::new(),
+            settings_edit: SettingsEdit::from_config(&config),
+            settings_save_msg: None,
             sync: sync::SyncCenterState::default(),
             context_ops: context::ContextOpsState::default(),
             freezer: freezer::FreezerState::default(),

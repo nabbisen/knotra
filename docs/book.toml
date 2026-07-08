@@ -1,0 +1,11 @@
+[book]
+title = "knotra"
+description = "Multi-project VCS dashboard — user and contributor documentation"
+authors = ["nabbisen"]
+language = "en"
+multilingual = false
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/nabbisen/knotra"
+edit-url-template = "https://github.com/nabbisen/knotra/edit/main/docs/{path}"
