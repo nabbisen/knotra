@@ -64,12 +64,12 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 
 **Goal:** Atomic cross-repository static-point creation.
 
-- [ ] Freezer screen
-- [ ] Pre-execution validation (clean state, tag absence)
-- [ ] Atomic tag / bookmark creation
-- [ ] Automatic rollback on partial failure
-- [ ] Manual recovery hints when rollback fails
-- [ ] History record for every freeze attempt
+- [x] Freezer screen
+- [x] Pre-execution validation (clean state, tag absence)
+- [x] Atomic tag / bookmark creation
+- [x] Automatic rollback on partial failure
+- [x] Manual recovery hints when rollback fails
+- [x] History record for every freeze attempt
 
 ---
 

@@ -210,3 +210,118 @@ pub struct ContextSwitchResult {
     pub operation_result: ProjectOperationResult,
     pub recovery_hint: Option<RecoveryHint>,
 }
+
+// ---------------------------------------------------------------------------
+// Freezer (static-point creation) types
+// ---------------------------------------------------------------------------
+
+/// Per-project pre-execution validation result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FreezeValidationEntry {
+    pub project_id: ProjectId,
+    pub project_name: String,
+    /// True when the project will be included in the freeze.
+    pub included: bool,
+    /// True when the working tree is clean and there are no conflicts.
+    pub is_clean: bool,
+    /// True when a tag/bookmark with the freeze name already exists.
+    pub tag_exists: bool,
+    /// Non-fatal diagnostic notes for the user (e.g. "Ahead by 2").
+    pub notes: Vec<String>,
+    /// Reasons the project cannot be frozen (blocks execution).
+    pub blockers: Vec<String>,
+}
+
+impl FreezeValidationEntry {
+    /// True when this project blocks execution.
+    pub fn is_blocked(&self) -> bool {
+        !self.blockers.is_empty()
+    }
+
+    /// True when this project can be frozen.
+    pub fn ready(&self) -> bool {
+        self.included && !self.is_blocked()
+    }
+}
+
+/// Pre-execution validation across all selected projects.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FreezeValidation {
+    pub freeze_name: String,
+    pub entries: Vec<FreezeValidationEntry>,
+}
+
+impl FreezeValidation {
+    /// True when every included project is ready.
+    pub fn all_ready(&self) -> bool {
+        self.entries
+            .iter()
+            .filter(|e| e.included)
+            .all(|e| !e.is_blocked())
+    }
+
+    pub fn blocked_count(&self) -> usize {
+        self.entries.iter().filter(|e| e.included && e.is_blocked()).count()
+    }
+
+    pub fn ready_count(&self) -> usize {
+        self.entries.iter().filter(|e| e.ready()).count()
+    }
+}
+
+/// Outcome of freezing one project.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FreezeProjectResult {
+    pub project_id: ProjectId,
+    pub project_name: String,
+    pub success: bool,
+    pub commands_executed: Vec<String>,
+    pub stdout: String,
+    pub stderr: String,
+    /// True when a rollback was attempted for this project.
+    pub rollback_attempted: bool,
+    /// True when the rollback succeeded (only meaningful when `rollback_attempted`).
+    pub rollback_succeeded: Option<bool>,
+    pub recovery_hint: Option<RecoveryHint>,
+}
+
+/// Aggregate result for a complete freeze operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FreezeResult {
+    pub freeze_name: String,
+    pub project_results: Vec<FreezeProjectResult>,
+    /// Overall outcome.
+    pub outcome: FreezeOutcome,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FreezeOutcome {
+    /// All projects tagged successfully.
+    Success,
+    /// Some projects failed; rollback succeeded for all that had been tagged.
+    RolledBack,
+    /// Some projects failed and rollback itself partially or fully failed.
+    RollbackFailed,
+    /// All projects excluded or nothing to do.
+    NothingDone,
+}
+
+impl FreezeResult {
+    pub fn success_count(&self) -> usize {
+        self.project_results.iter().filter(|r| r.success).count()
+    }
+    pub fn failed_count(&self) -> usize {
+        self.project_results.iter().filter(|r| !r.success).count()
+    }
+    pub fn rollback_partial_failure(&self) -> bool {
+        self.project_results.iter().any(|r| {
+            r.rollback_attempted && r.rollback_succeeded == Some(false)
+        })
+    }
+    pub fn recovery_hints(&self) -> Vec<&RecoveryHint> {
+        self.project_results
+            .iter()
+            .filter_map(|r| r.recovery_hint.as_ref())
+            .collect()
+    }
+}

@@ -175,3 +175,232 @@ impl VcsAdapter {
         }
     }
 }
+
+impl VcsAdapter {
+    // --- Freezer: validate ---
+
+    /// Validate all selected projects before a freeze.
+    ///
+    /// Runs all validations concurrently with the standard semaphore cap.
+    pub async fn validate_freeze(
+        projects: &[crate::model::project::Project],
+        selection: &std::collections::HashSet<crate::model::project::ProjectId>,
+        freeze_name: &str,
+        max_concurrent: usize,
+    ) -> crate::model::operation::FreezeValidation {
+        use std::sync::Arc;
+        use tokio::sync::Semaphore;
+
+        let sem  = Arc::new(Semaphore::new(max_concurrent));
+        let name = freeze_name.to_owned();
+        let mut handles = Vec::new();
+
+        for project in projects {
+            let project  = project.clone();
+            let sem      = Arc::clone(&sem);
+            let name     = name.clone();
+            let included = selection.contains(&project.id);
+
+            handles.push(tokio::spawn(async move {
+                let _permit = sem.acquire().await.expect("open");
+                let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+                match kind {
+                    Some(VcsKind::Git)      => git::validate_for_freeze(&project, &name, included).await,
+                    Some(VcsKind::Jujutsu) => jj::validate_for_freeze(&project, &name, included).await,
+                    None => crate::model::operation::FreezeValidationEntry {
+                        project_id:   project.id.clone(),
+                        project_name: project.name.clone(),
+                        included,
+                        is_clean: false,
+                        tag_exists: false,
+                        notes: Vec::new(),
+                        blockers: vec![format!("no repository at {}", project.path)],
+                    },
+                }
+            }));
+        }
+
+        let mut entries = Vec::with_capacity(handles.len());
+        for h in handles {
+            if let Ok(e) = h.await { entries.push(e); }
+        }
+
+        crate::model::operation::FreezeValidation {
+            freeze_name: freeze_name.to_owned(),
+            entries,
+        }
+    }
+
+    // --- Freezer: execute (with rollback) ---
+
+    /// Execute the freeze: tag/bookmark creation with automatic rollback on failure.
+    ///
+    /// Projects are processed in order. If any fails, all previously tagged
+    /// projects are rolled back. Rollback failures are recorded but do not
+    /// prevent subsequent rollback attempts.
+    pub async fn execute_freeze(
+        projects: &[crate::model::project::Project],
+        validation: &crate::model::operation::FreezeValidation,
+    ) -> crate::model::operation::FreezeResult {
+        use crate::model::operation::{
+            FreezeOutcome, FreezeProjectResult, FreezeResult, RecoveryHint,
+        };
+
+        let freeze_name = &validation.freeze_name;
+
+        // Only process projects that are included and not blocked.
+        let ready_entries: Vec<_> = validation
+            .entries
+            .iter()
+            .filter(|e| e.ready())
+            .collect();
+
+        if ready_entries.is_empty() {
+            return FreezeResult {
+                freeze_name: freeze_name.clone(),
+                project_results: Vec::new(),
+                outcome: FreezeOutcome::NothingDone,
+            };
+        }
+
+        let project_map: std::collections::HashMap<_, _> = projects
+            .iter()
+            .map(|p| (p.id.clone(), p))
+            .collect();
+
+        let mut completed: Vec<FreezeProjectResult> = Vec::new();
+        let mut failed    = false;
+
+        // --- Execute in order ---
+        for entry in &ready_entries {
+            let project = match project_map.get(&entry.project_id) {
+                Some(p) => *p,
+                None    => {
+                    failed = true;
+                    completed.push(FreezeProjectResult {
+                        project_id:         entry.project_id.clone(),
+                        project_name:       entry.project_name.clone(),
+                        success:            false,
+                        commands_executed:  vec![],
+                        stdout:             String::new(),
+                        stderr:             String::new(),
+                        rollback_attempted: false,
+                        rollback_succeeded: None,
+                        recovery_hint:      None,
+                    });
+                    break;
+                }
+            };
+
+            let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+            let result = match kind {
+                Some(VcsKind::Git) =>
+                    git::tag_create(project, freeze_name).await,
+                Some(VcsKind::Jujutsu) =>
+                    jj::bookmark_create(project, freeze_name).await,
+                None => crate::model::operation::ProjectOperationResult {
+                    project_id:        project.id.clone(),
+                    success:           false,
+                    commands_executed: vec![],
+                    stdout:            String::new(),
+                    stderr:            String::new(),
+                    exit_code:         None,
+                    error_message:     Some(format!("no repository at {}", project.path)),
+                },
+            };
+
+            let success = result.success;
+            completed.push(FreezeProjectResult {
+                project_id:         project.id.clone(),
+                project_name:       entry.project_name.clone(),
+                success,
+                commands_executed:  result.commands_executed,
+                stdout:             result.stdout,
+                stderr:             result.stderr,
+                rollback_attempted: false,
+                rollback_succeeded: None,
+                recovery_hint:      None,
+            });
+
+            if !success {
+                failed = true;
+                break;
+            }
+        }
+
+        if !failed {
+            return FreezeResult {
+                freeze_name: freeze_name.clone(),
+                project_results: completed,
+                outcome: FreezeOutcome::Success,
+            };
+        }
+
+        // --- Rollback: delete tags/bookmarks already created ---
+        let succeeded_ids: Vec<_> = completed
+            .iter()
+            .filter(|r| r.success)
+            .map(|r| r.project_id.clone())
+            .collect();
+
+        let mut any_rollback_failed = false;
+
+        for res in completed.iter_mut() {
+            if !succeeded_ids.contains(&res.project_id) { continue; }
+
+            let project = match project_map.get(&res.project_id) {
+                Some(p) => *p,
+                None    => { res.rollback_attempted = true; res.rollback_succeeded = Some(false); any_rollback_failed = true; continue; }
+            };
+
+            let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+            let rb = match kind {
+                Some(VcsKind::Git) =>
+                    git::tag_delete(project, freeze_name).await,
+                Some(VcsKind::Jujutsu) =>
+                    jj::bookmark_delete(project, freeze_name).await,
+                None => crate::model::operation::ProjectOperationResult {
+                    project_id:        project.id.clone(),
+                    success:           false,
+                    commands_executed: vec![],
+                    stdout:            String::new(),
+                    stderr:            String::new(),
+                    exit_code:         None,
+                    error_message:     Some("no repository".to_owned()),
+                },
+            };
+
+            res.rollback_attempted = true;
+            res.rollback_succeeded = Some(rb.success);
+
+            if !rb.success {
+                any_rollback_failed = true;
+                let cmd = match kind {
+                    Some(VcsKind::Jujutsu) => format!("jj bookmark delete {freeze_name}"),
+                    _                       => format!("git tag -d {freeze_name}"),
+                };
+                res.recovery_hint = Some(RecoveryHint {
+                    project_id: project.id.clone(),
+                    situation:  format!(
+                        "rollback failed — tag/bookmark '{}' may still exist on this project",
+                        freeze_name
+                    ),
+                    suggested_commands: vec![
+                        format!("cd {:?} && {}", project.path, cmd),
+                    ],
+                    see_also: None,
+                });
+            }
+        }
+
+        FreezeResult {
+            freeze_name: freeze_name.clone(),
+            project_results: completed,
+            outcome: if any_rollback_failed {
+                FreezeOutcome::RollbackFailed
+            } else {
+                FreezeOutcome::RolledBack
+            },
+        }
+    }
+}

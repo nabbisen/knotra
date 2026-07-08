@@ -386,3 +386,94 @@ pub async fn switch_context(
 
     (result, hint)
 }
+
+// ---------------------------------------------------------------------------
+// Freeze (bookmark) operations
+// ---------------------------------------------------------------------------
+
+/// Check whether a bookmark with the given name exists.
+pub fn bookmark_exists_blocking(path: &str, name: &str) -> bool {
+    run_jj(&["bookmark", "list"], path)
+        .map(|o| {
+            let text = String::from_utf8_lossy(&o.stdout);
+            text.lines().any(|l| l.trim().starts_with(name))
+        })
+        .unwrap_or(false)
+}
+
+/// Create a jj bookmark at the current change (@).
+pub async fn bookmark_create(project: &Project, name: &str) -> ProjectOperationResult {
+    run_jj_command(project, &["bookmark", "create", name, "-r", "@"]).await
+}
+
+/// Delete a jj bookmark (rollback).
+pub async fn bookmark_delete(project: &Project, name: &str) -> ProjectOperationResult {
+    run_jj_command(project, &["bookmark", "delete", name]).await
+}
+
+/// Validate one jj project for a freeze.
+pub async fn validate_for_freeze(
+    project: &crate::model::project::Project,
+    freeze_name: &str,
+    included: bool,
+) -> crate::model::operation::FreezeValidationEntry {
+    use crate::model::operation::FreezeValidationEntry;
+
+    let path        = project.path.clone();
+    let freeze_name = freeze_name.to_owned();
+    let project_id_err   = project.id.clone();
+    let project_name_err = project.name.clone();
+    let project          = project.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let conflict = run_jj(
+            &["log", "-r", "@", "--no-graph", "-T", "conflict\n"],
+            &path,
+        )
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "true")
+        .unwrap_or(false);
+
+        // jj doesn't have a "dirty" state in the same sense; check for uncommitted diff.
+        let has_diff = run_jj(&["diff", "--stat"], &path)
+            .map(|o| {
+                let text = String::from_utf8_lossy(&o.stdout);
+                text.lines().any(|l| !l.trim().is_empty())
+            })
+            .unwrap_or(false);
+
+        let bm_exists = bookmark_exists_blocking(&path, &freeze_name);
+
+        let is_clean   = !has_diff && !conflict;
+        let mut blockers = Vec::new();
+
+        if conflict {
+            blockers.push("change has an unresolved conflict".to_owned());
+        }
+        if has_diff {
+            blockers.push("working change has uncommitted diff — create a new change first".to_owned());
+        }
+        if bm_exists {
+            blockers.push(format!("bookmark '{}' already exists", freeze_name));
+        }
+
+        FreezeValidationEntry {
+            project_id:   project.id.clone(),
+            project_name: project.name.clone(),
+            included,
+            is_clean,
+            tag_exists: bm_exists,
+            notes: Vec::new(),
+            blockers,
+        }
+    })
+    .await
+    .unwrap_or_else(|e| crate::model::operation::FreezeValidationEntry {
+        project_id:   project_id_err,
+        project_name: project_name_err,
+        included,
+        is_clean: false,
+        tag_exists: false,
+        notes: Vec::new(),
+        blockers: vec![format!("task join error: {e}")],
+    })
+}

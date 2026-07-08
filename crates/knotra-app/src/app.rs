@@ -7,8 +7,8 @@ use std::time::Duration;
 use endringer::{
     model::{
         operation::{
-            ContextSwitchResult, OperationId, OperationKind, OperationLog, OperationResult,
-            SmartPullDisposition, SmartPullPlan, SmartPullProgress,
+            ContextSwitchResult, FreezeOutcome, FreezeResult, OperationId, OperationKind,
+            OperationLog, OperationResult, SmartPullDisposition, SmartPullPlan, SmartPullProgress,
         },
         project::Project,
         workspace::Workspace,
@@ -25,6 +25,7 @@ use crate::{
     persistence::{load_recent_logs, load_workspaces, save_operation_log, save_workspace},
     state::{
         context::{ContextOpsState, ContextPhase},
+        freezer::FreezerPhase,
         sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
         AddProjectDialog, AppState, ConfirmRemoveDialog, LoadPhase, Screen,
     },
@@ -141,7 +142,7 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
     match msg {
         ShortcutMessage::Refresh => handle_tick(state),
         ShortcutMessage::OpenContextOps => handle_context(state, ContextMessage::OpenRequested(None)),
-        ShortcutMessage::OpenFreezer    => { state.screen = Screen::Freezer;    Task::none() }
+        ShortcutMessage::OpenFreezer => handle_freezer(state, FreezerMessage::OpenRequested),
         ShortcutMessage::FocusSearch    => { state.screen = Screen::Dashboard;  Task::none() }
         ShortcutMessage::Close          => {
             state.add_project_dialog   = None;
@@ -587,6 +588,56 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
+        BackgroundMessage::FreezeValidationDone(validation) => {
+            state.freezer.phase = FreezerPhase::ValidationReady(validation);
+            Task::none()
+        }
+
+        BackgroundMessage::FreezeExecutionDone(result) => {
+            use endringer::model::operation::{OperationKind, OperationLog, OperationResult};
+
+            // Build per-project entries for the operation log.
+            let per_project: Vec<_> = result.project_results.iter().map(|r| {
+                endringer::model::operation::ProjectOperationResult {
+                    project_id:        r.project_id.clone(),
+                    success:           r.success,
+                    commands_executed: r.commands_executed.clone(),
+                    stdout:            r.stdout.clone(),
+                    stderr:            r.stderr.clone(),
+                    exit_code:         None,
+                    error_message:     if r.success { None } else { Some("freeze failed".to_owned()) },
+                }
+            }).collect();
+
+            let hints: Vec<_> = result.project_results.iter()
+                .filter_map(|r| r.recovery_hint.clone())
+                .collect();
+
+            let op_log = OperationLog {
+                result: OperationResult {
+                    operation_id:       OperationId::new(),
+                    kind:               OperationKind::Freeze,
+                    started_at:         chrono::Utc::now(),
+                    finished_at:        chrono::Utc::now(),
+                    per_project,
+                    rollback_attempted: result.project_results.iter().any(|r| r.rollback_attempted),
+                    rollback_succeeded: {
+                        let any_rb = result.project_results.iter().any(|r| r.rollback_attempted);
+                        if any_rb {
+                            Some(result.project_results.iter()
+                                .filter(|r| r.rollback_attempted)
+                                .all(|r| r.rollback_succeeded == Some(true)))
+                        } else { None }
+                    },
+                },
+                recovery_hints: hints,
+            };
+            persist_log(&op_log, state);
+
+            state.freezer.phase = FreezerPhase::Done(result);
+            Task::none()
+        }
+
         BackgroundMessage::ContextListLoaded(list) => {
             let id = list.project_id.clone();
             state.context_ops.cached_lists.insert(id.clone(), list.clone());
@@ -651,10 +702,7 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
 // Freezer / History / Settings
 // ---------------------------------------------------------------------------
 
-fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
-    if let FreezerMessage::NameChanged(name) = msg { state.freezer_name = name; }
-    Task::none()
-}
+// handle_freezer is defined below the background handler
 
 fn handle_history(state: &mut AppState, msg: HistoryMessage) -> Task<Message> {
     if let HistoryMessage::SearchChanged(s) = msg { state.history_search = s; }
@@ -864,6 +912,99 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
 
         ContextMessage::BackToDashboard => {
             state.screen = Screen::Dashboard;
+            Task::none()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Freezer handler
+// ---------------------------------------------------------------------------
+
+fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
+    match msg {
+        FreezerMessage::OpenRequested => {
+            state.screen = Screen::Freezer;
+            // Reinitialise project selection from workspace.
+            if let Some(ws) = &state.workspace {
+                let ids: Vec<_> = ws.projects.iter().map(|p| p.id.clone()).collect();
+                state.freezer.init_selection(&ids);
+            }
+            state.freezer.phase = FreezerPhase::Idle;
+            Task::none()
+        }
+
+        FreezerMessage::NameChanged(name) => {
+            state.freezer.freeze_name = name;
+            // Reset to Idle when the name changes after validation.
+            if matches!(state.freezer.phase, FreezerPhase::ValidationReady(_)) {
+                state.freezer.phase = FreezerPhase::Idle;
+            }
+            Task::none()
+        }
+
+        FreezerMessage::ProjectToggled(id, included) => {
+            state.freezer.project_selection.insert(id, included);
+            // Invalidate validation when selection changes.
+            if matches!(state.freezer.phase, FreezerPhase::ValidationReady(_)) {
+                state.freezer.phase = FreezerPhase::Idle;
+            }
+            Task::none()
+        }
+
+        FreezerMessage::ValidateRequested | FreezerMessage::RevalidateRequested => {
+            if !state.freezer.freeze_name_is_valid() {
+                return Task::none(); // view blocks the button; defensive guard
+            }
+
+            let projects: Vec<_> = state.workspace.as_ref()
+                .map(|ws| ws.projects.clone())
+                .unwrap_or_default();
+            let selection = state.freezer.selected_ids();
+            let freeze_name = state.freezer.freeze_name.clone();
+            let max = state.config.max_concurrent_reads;
+
+            state.freezer.phase = FreezerPhase::Validating;
+
+            Task::perform(
+                async move {
+                    VcsAdapter::validate_freeze(&projects, &selection, &freeze_name, max).await
+                },
+                |v| Message::Background(BackgroundMessage::FreezeValidationDone(v)),
+            )
+        }
+
+        FreezerMessage::ExecuteConfirmed => {
+            let validation = match &state.freezer.phase {
+                FreezerPhase::ValidationReady(v) => v.clone(),
+                _ => return Task::none(),
+            };
+
+            // Final guard: block if any included project has blockers.
+            if !validation.all_ready() {
+                return Task::none();
+            }
+
+            let projects: Vec<_> = state.workspace.as_ref()
+                .map(|ws| ws.projects.clone())
+                .unwrap_or_default();
+
+            state.freezer.phase = FreezerPhase::Executing;
+
+            Task::perform(
+                async move { VcsAdapter::execute_freeze(&projects, &validation).await },
+                |r| Message::Background(BackgroundMessage::FreezeExecutionDone(r)),
+            )
+        }
+
+        FreezerMessage::Cancelled => {
+            state.freezer.phase = FreezerPhase::Idle;
+            Task::none()
+        }
+
+        FreezerMessage::BackToDashboard => {
+            state.screen = Screen::Dashboard;
+            state.freezer.phase = FreezerPhase::Idle;
             Task::none()
         }
     }

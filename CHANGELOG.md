@@ -7,6 +7,30 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.5.0] — 2025-xx-xx
+
+### Added
+- Phase 5: Freezer — atomic cross-repository tag/bookmark creation with rollback.
+- `endringer` domain types: `FreezeValidationEntry`, `FreezeValidation`, `FreezeProjectResult`, `FreezeResult`, `FreezeOutcome`.
+- `endringer/git`: `tag_create`, `tag_delete`, `tag_exists_blocking`, `validate_for_freeze` (dirty + conflict + tag-existence checks).
+- `endringer/jj`: `bookmark_create`, `bookmark_delete`, `bookmark_exists_blocking`, `validate_for_freeze`.
+- `VcsAdapter::validate_freeze` — concurrent validation with semaphore cap; returns `FreezeValidation`.
+- `VcsAdapter::execute_freeze` — sequential tag/bookmark creation; on any failure triggers rollback loop over all previously tagged projects; per-project rollback failures generate `RecoveryHint`.
+- `FreezeOutcome` enum: `Success | RolledBack | RollbackFailed | NothingDone`.
+- `state::freezer::FreezerState` — name field with validation, project selection map, phase FSM.
+- `state::freezer::FreezerPhase`: `Idle | Validating | ValidationReady | Executing | Done`.
+- Freezer view: name input with live validity check, project checkboxes, validation result table (per-project: ready/blocked/excluded, blockers and notes), confirm/re-validate/cancel buttons (execute blocked when any included project has blockers), done screen with full per-project status, rollback state, and recovery hints.
+- `FreezerMessage` fully implemented: `OpenRequested`, `NameChanged`, `ProjectToggled`, `ValidateRequested`, `ExecuteConfirmed`, `Cancelled`, `RevalidateRequested`, `BackToDashboard`.
+- Every freeze attempt persisted to operation log (success, partial failure, rollback, rollback failure).
+- Ctrl+T shortcut now routes through `FreezerMessage::OpenRequested`.
+- 6 new unit tests for `FreezerState` (name validation, selection, stale-entry pruning).
+
+### Changed
+- `AppState.freezer_name` (plain `String`) replaced by `AppState.freezer: FreezerState`.
+- `BackgroundMessage` extended with `FreezeValidationDone(FreezeValidation)` and `FreezeExecutionDone(FreezeResult)`.
+- `FreezerMessage` fully replaced with Phase 5 variants.
+
+
 ## [0.4.0] — 2025-xx-xx
 
 ### Added

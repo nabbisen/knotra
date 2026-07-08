@@ -563,3 +563,89 @@ pub async fn switch_context(
 
     (result, hint)
 }
+
+// ---------------------------------------------------------------------------
+// Freeze (tag) operations
+// ---------------------------------------------------------------------------
+
+/// Check whether a tag with the given name exists locally.
+pub fn tag_exists_blocking(path: &str, tag_name: &str) -> bool {
+    git_stdout(&["tag", "-l", tag_name], path)
+        .map(|out| !out.trim().is_empty())
+        .unwrap_or(false)
+}
+
+/// Create a lightweight tag at HEAD.
+///
+/// We use lightweight tags for now (annotated tags are a future option).
+pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationResult {
+    run_git(project, &["tag", tag_name]).await
+}
+
+/// Delete a local tag (used for rollback).
+pub async fn tag_delete(project: &Project, tag_name: &str) -> ProjectOperationResult {
+    run_git(project, &["tag", "-d", tag_name]).await
+}
+
+/// Validate one project for a freeze.
+///
+/// Returns a `FreezeValidationEntry` with any blockers filled in.
+pub async fn validate_for_freeze(
+    project: &crate::model::project::Project,
+    freeze_name: &str,
+    included: bool,
+) -> crate::model::operation::FreezeValidationEntry {
+    use crate::model::operation::FreezeValidationEntry;
+
+    let path = project.path.clone();
+    let freeze_name = freeze_name.to_owned();
+    let project_id_err   = project.id.clone();
+    let project_name_err = project.name.clone();
+    let project          = project.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let wt       = read_working_tree(&path);
+        let conflict  = read_conflict(&path);
+        let tag_exist = tag_exists_blocking(&path, &freeze_name);
+
+        let is_clean = !wt.is_dirty() && !conflict.has_conflict;
+        let mut blockers = Vec::new();
+        let mut notes    = Vec::new();
+
+        if conflict.has_conflict {
+            blockers.push("repository has an unresolved conflict".to_owned());
+        }
+        if wt.uncommitted_count > 0 {
+            blockers.push(format!(
+                "{} uncommitted change(s) — working tree must be clean",
+                wt.uncommitted_count
+            ));
+        }
+        if wt.untracked_count > 0 {
+            notes.push(format!("{} untracked file(s)", wt.untracked_count));
+        }
+        if tag_exist {
+            blockers.push(format!("tag '{}' already exists", freeze_name));
+        }
+
+        FreezeValidationEntry {
+            project_id:   project.id.clone(),
+            project_name: project.name.clone(),
+            included,
+            is_clean,
+            tag_exists: tag_exist,
+            notes,
+            blockers,
+        }
+    })
+    .await
+    .unwrap_or_else(|e| crate::model::operation::FreezeValidationEntry {
+        project_id:   project_id_err,
+        project_name: project_name_err,
+        included,
+        is_clean: false,
+        tag_exists: false,
+        notes: Vec::new(),
+        blockers: vec![format!("task join error: {e}")],
+    })
+}

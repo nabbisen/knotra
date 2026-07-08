@@ -1,11 +1,12 @@
 //! All `Message` variants for the knotra GUI.
 
 use endringer::{
+    ContextList, ContextSwitchResult, FreezeResult, FreezeValidation,
+    Project, ProjectId,
     model::operation::{OperationId, OperationLog, SmartPullPlan, SmartPullProgress},
-    ContextList, ContextSwitchResult, ProjectId, WorkspaceStatus,
+    model::workspace::WorkspaceId,
+    WorkspaceStatus,
 };
-use endringer::model::workspace::WorkspaceId;
-use endringer::Project;
 
 use crate::state::Screen;
 
@@ -63,29 +64,34 @@ pub enum SyncMessage {
 // --- Context ---
 #[derive(Debug, Clone)]
 pub enum ContextMessage {
-    /// Open the Context Ops screen; optionally pre-select a project.
     OpenRequested(Option<ProjectId>),
-    /// User selected a project to operate on.
     ProjectSelected(ProjectId),
-    /// User typed in the context search box.
     SearchChanged(String),
-    /// User clicked a candidate to switch to (requests confirmation dialog).
     SwitchTargetChosen(ProjectId, String),
-    /// User confirmed the pending switch.
     SwitchConfirmed,
-    /// User cancelled the pending switch dialog.
     SwitchCancelled,
-    /// Navigate back to Dashboard.
     BackToDashboard,
 }
 
 // --- Freezer ---
 #[derive(Debug, Clone)]
 pub enum FreezerMessage {
+    /// User navigated to the Freezer screen.
+    OpenRequested,
+    /// User typed in the freeze-point name field.
     NameChanged(String),
-    ValidationRequested,
-    ExecutionConfirmed,
-    ExecutionCancelled,
+    /// User toggled a project's inclusion.
+    ProjectToggled(ProjectId, bool),
+    /// User requested pre-execution validation.
+    ValidateRequested,
+    /// User confirmed execution after seeing the validation results.
+    ExecuteConfirmed,
+    /// User cancelled (returns to validation or idle).
+    Cancelled,
+    /// User wants to re-run validation after fixing issues.
+    RevalidateRequested,
+    /// Navigate back to Dashboard after completion.
+    BackToDashboard,
 }
 
 // --- History ---
@@ -117,10 +123,12 @@ pub enum BackgroundMessage {
     SingleFetchCompleted(OperationLog),
     SmartPullProjectCompleted(SmartPullProgress),
     SmartPullPlanReady(SmartPullPlan),
-    /// Context list loaded for a project.
     ContextListLoaded(ContextList),
-    /// A context switch finished.
     ContextSwitchDone(ContextSwitchResult),
+    /// Validation phase completed.
+    FreezeValidationDone(FreezeValidation),
+    /// Execution phase completed.
+    FreezeExecutionDone(FreezeResult),
     TaskError { description: String },
 }
 
@@ -153,9 +161,5 @@ impl StatusFilter {
 // --- Shortcuts ---
 #[derive(Debug, Clone)]
 pub enum ShortcutMessage {
-    Refresh,
-    OpenContextOps,
-    OpenFreezer,
-    FocusSearch,
-    Close,
+    Refresh, OpenContextOps, OpenFreezer, FocusSearch, Close,
 }

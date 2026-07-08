@@ -2,6 +2,7 @@
 
 pub mod context;
 pub mod dashboard;
+pub mod freezer;
 pub mod sync;
 
 use std::collections::HashSet;
@@ -115,7 +116,6 @@ pub struct AppState {
     pub filter: FilterState,
     pub operation_logs: Vec<OperationLog>,
     pub history_search: String,
-    pub freezer_name: String,
     pub status_bar: Option<String>,
     pub add_project_dialog: Option<AddProjectDialog>,
     pub confirm_remove_dialog: Option<ConfirmRemoveDialog>,
@@ -125,6 +125,8 @@ pub struct AppState {
     pub sync: sync::SyncCenterState,
     /// Context Operations state.
     pub context_ops: context::ContextOpsState,
+    /// Freezer state.
+    pub freezer: freezer::FreezerState,
 }
 
 impl AppState {
@@ -141,7 +143,6 @@ impl AppState {
             filter: FilterState::default(),
             operation_logs: Vec::new(),
             history_search: String::new(),
-            freezer_name: String::new(),
             status_bar: None,
             add_project_dialog: None,
             confirm_remove_dialog: None,
@@ -149,6 +150,7 @@ impl AppState {
             is_refreshing: false,
             sync: sync::SyncCenterState::default(),
             context_ops: context::ContextOpsState::default(),
+            freezer: freezer::FreezerState::default(),
             config,
         }
     }

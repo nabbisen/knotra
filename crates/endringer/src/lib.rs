@@ -7,8 +7,10 @@ pub mod vcs;
 pub use error::EndringerError;
 pub use model::{
     operation::{
-        ContextSwitchResult, OperationId, OperationLog, OperationPlan, OperationResult,
-        RecoveryHint, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
+        ContextSwitchResult, FreezeOutcome, FreezeProjectResult, FreezeResult,
+        FreezeValidation, FreezeValidationEntry, OperationId, OperationLog, OperationPlan,
+        OperationResult, RecoveryHint, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry,
+        SmartPullProgress,
     },
     project::{Project, ProjectId},
     status::{
