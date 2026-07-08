@@ -221,6 +221,7 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             Task::none()
         }
         ShortcutMessage::Close => {
+            state.active_modal = crate::state::ActiveModal::None;
             state.add_project_dialog = None;
             state.confirm_remove_dialog = None;
             Task::none()

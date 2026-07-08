@@ -151,3 +151,16 @@ from crates.io rather than carrying a fork.
       name collision; theme + i18n catalog stay knotra-owned)
 - [x] `knotra-app` import renames only; app logic unchanged
 - [x] 0 warnings (check + clippy, all targets), 69 tests pass under 1.91
+
+## v0.16.0 — snora layout adoption (RFC-019)
+
+Adopts the snora 0.18 layout framework, replacing knotra's hand-rolled
+overlay z-stack with snora's `render(AppLayout)` engine.
+
+- [x] `snora = "0.18"` added to `knotra-app`
+- [x] `app_view` re-layered: `ActiveModal` variants → `AppLayout::dialog` /
+      `AppLayout::sheet`; on_close_modals wired via `ShortcutMessage::Close`
+- [x] `ShortcutMessage::Close` extended to also clear `active_modal`
+- [x] Workspace tab strip → `snora::widget::app_tab_bar` (direction-aware)
+- [x] Dead `knotra-ui::nav_menu` module removed
+- [x] 0 warnings (check + clippy, all targets), 69 tests pass under 1.91

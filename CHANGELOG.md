@@ -7,6 +7,41 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.16.0] — 2026-06-10
+
+### Changed — Adopt snora 0.18 layout framework (RFC-019)
+
+- **`snora = "0.18"` added to `knotra-app`.** The snora engine (`render`,
+  `AppLayout`, overlay vocabulary) replaces the hand-rolled `stack!`
+  layer-composition in `view/mod.rs::app_view`.
+
+- **Modal overlays re-layered onto snora's `AppLayout`.**  
+  `ActiveModal::{Pull, Tag, Switch, Changelog}` → `AppLayout::dialog(Dialog::new(el))`.  
+  `ActiveModal::Resolve` → `AppLayout::sheet(Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half))`.  
+  The modal dim backdrop, click-outside close sink, and z-order are now
+  managed by snora. `on_close_modals` dispatches
+  `Message::Shortcut(ShortcutMessage::Close)`, which now also clears
+  `active_modal` (previously it did not).  
+  Command palette, shortcuts overlay, and add-project modal retain their
+  own stack layers above `render(layout)` (they have independent state
+  channels).
+
+- **Workspace tab strip migrated to `snora::widget::app_tab_bar`.**
+  `view/workspace_tabs.rs` replaced: the workspace list is now a
+  `TabBar<WorkspaceId>` rendered by `app_tab_bar`, which is direction-aware.
+  Attention-count badges are embedded in the `Tab::label`. The fixed
+  action buttons (`+`, history, settings) remain as a row alongside the
+  tab strip.
+
+- **`knotra-ui::nav_menu` removed.** The dead `nav_bar` / `NavItem` /
+  `NAV_BAR_HEIGHT` module (unused since v0.15.0) is deleted. Its role is
+  superseded by snora's `app_header` / `render_menu` / `app_side_bar`.
+
+- **`knotra-ui` unchanged.** `KnotraTheme`, `StatusColor`, the i18n
+  catalog, and card layout tokens are knotra-specific and are kept.
+
+---
+
 ## [0.15.0] — 2026-06-10
 
 ### Changed — Migrate onto the published `endringer` crates (RFC-018)

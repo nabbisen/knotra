@@ -34,6 +34,12 @@ until the RFC moves to `done/`.
 Implemented and shipped.  These are historical records; the design decisions
 they contain remain authoritative.
 
+### v0.16.0 — snora layout adoption
+
+| ID   | Title                                           | Shipped    |
+|------|-------------------------------------------------|------------|
+| [019](./done/019-snora-layout-adoption.md) | Adopt snora 0.18 layout engine: overlay re-layer, `app_tab_bar`, remove dead `nav_menu` | v0.16.0 |
+
 ### v0.15.0 — Crate migration
 
 | ID   | Title                                           | Shipped    |
