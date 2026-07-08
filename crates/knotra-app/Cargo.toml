@@ -11,6 +11,7 @@ name = "knotra"
 path = "src/main.rs"
 
 [dependencies]
+rfd = { version = "0.15", default-features = false, features = ["tokio", "xdg-portal"] }
 endringer = { path = "../endringer" }
 snora = { path = "../snora" }
 

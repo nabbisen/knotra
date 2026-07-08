@@ -4,8 +4,8 @@
 //! Rendered as a floating centered modal when `state.palette.open == true`.
 
 use iced::{
+    widget::{button, column, container, row, text, text_input, Space},
     Alignment, Element, Length,
-    widget::{Space, button, column, container, row, text, text_input},
 };
 
 use crate::{
@@ -15,13 +15,10 @@ use crate::{
 
 /// Render the palette overlay (call only when `state.palette.open`).
 pub fn view(state: &AppState) -> Element<'_, Message> {
-    let input = text_input(
-        "Search actions, projects, workspaces…",
-        &state.palette.query,
-    )
-    .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
-    .padding([8, 12])
-    .size(14);
+    let input = text_input("Search actions, projects, workspaces…", &state.palette.query)
+        .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
+        .padding([8, 12])
+        .size(14);
 
     let results: Vec<Element<'_, Message>> = state
         .palette
@@ -30,8 +27,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .enumerate()
         .map(|(i, entry)| {
             let prefix = match entry.kind {
-                PaletteEntryKind::Action => "⚡ ",
-                PaletteEntryKind::Project => "⎇  ",
+                PaletteEntryKind::Action    => "⚡ ",
+                PaletteEntryKind::Project   => "⎇  ",
                 PaletteEntryKind::Workspace => "⊞  ",
             };
             let label = format!("{}{}", prefix, entry.label);
@@ -44,8 +41,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         })
         .collect();
 
-    let close_btn =
-        button(text("✕ Esc").size(11)).on_press(Message::Palette(PaletteMessage::Closed));
+    let close_btn = button(text("✕ Esc").size(11))
+        .on_press(Message::Palette(PaletteMessage::Closed));
 
     let header = row![
         text("Command Palette").size(13),

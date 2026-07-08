@@ -7,6 +7,77 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.13.0] — 2026-05-24
+
+### Added — Navigation menu, Add Project modal, archive structure fix
+
+#### Navigation menu (`view/nav_bar.rs`, `snora::nav_menu`)
+
+A horizontal navigation bar is now rendered below the workspace tabs on every
+screen.  It replaces the old sidebar navigation with a leaner, always-visible
+strip:
+
+```
+[Dashboard]  [History]  [Settings]          [+ Add project]
+```
+
+- **Left side**: tab-style nav items from `snora::nav_menu::nav_bar()`.
+  The active screen is indicated by a `•` prefix.  Clicking a non-active
+  item navigates immediately.
+- **Right side**: **Add project** button — moved here from the bottom-left
+  dashboard toolbar where it was easy to miss.
+
+New in `snora`: `nav_menu` module with `NavItem`, `nav_bar()`, and the
+`NAV_BAR_HEIGHT` constant.  Consumers call `nav_bar(items)` passing a
+`Vec<NavItem>` — labels, active flag, and dispatch message — and receive
+a full-width `Element`.
+
+#### Add Project modal (`view/add_project_modal.rs`)
+
+The dialog is now a **centred stack overlay** (same layer as the bulk
+action modals) instead of being appended below the dashboard content.
+
+The path field gains a **Browse…** button that opens a native OS folder
+picker via `rfd::AsyncFileDialog`:
+
+- Folder picker opens without blocking the UI thread (async task).
+- On selection, the path field is populated.
+- If the project name field is still empty, it is auto-filled from the
+  folder's last path component.
+- Dismissing the picker (Cancel) leaves both fields unchanged.
+
+`WorkspaceMessage::BrowsePathRequested` and
+`WorkspaceMessage::BrowsePathSelected(Option<String>)` are the two new
+message variants.
+
+#### Archive structure fix
+
+Release archives now contain `knotra-vX.Y.Z/(files)` directly, without
+an intermediate `knotra/` subdirectory.  The packaging command uses
+`tar --transform` to rename the root directory at archive time.
+
+Before: `knotra-v0.12.1.tar.gz` → `knotra/Cargo.toml`  
+After:  `knotra-v0.13.0.tar.gz` → `knotra-v0.13.0/Cargo.toml`
+
+### Changed
+
+- `snora`: new public `nav_menu` module; `nav_bar`, `NavItem`,
+  `NAV_BAR_HEIGHT` exported from `snora` root.
+- `view/mod.rs`: `app_view` now includes the nav bar in every layout;
+  `add_project_modal` overlay inserted into the stack layers.
+- `view/dashboard.rs`: removed the old inline dialog append; removed the
+  `add_btn` from the dashboard toolbar row (it lives in the nav bar now).
+- `view/add_project_dialog` (old private fn): replaced by
+  `view/add_project_modal.rs` (public module, centered overlay).
+- `i18n`: new key `dialog.add_project.browse` (en + ja).
+
+### Tests
+
+- endringer unit: 17 pass.
+- endringer integration: 19 pass.
+- knotra-app: `cargo check` clean — 0 errors, 0 warnings.
+
+
 ## [0.12.1] — 2026-05-23
 
 ### Changed — RFC directory restructured to follow lifecycle policy
@@ -617,6 +688,77 @@ The three `endringer::vcs::git::*` direct calls in `git_integration.rs` are repl
 - `app::subscription` now batches tick, keyboard, and FS-watch subscriptions.
 - History `LogCopyRequested` now emits `Message::CopyToClipboard` with full formatted log text.
 - Changelog copy now uses real clipboard write, not a status-bar placeholder.
+
+
+## [0.13.0] — 2026-05-24
+
+### Added — Navigation menu, Add Project modal, archive structure fix
+
+#### Navigation menu (`view/nav_bar.rs`, `snora::nav_menu`)
+
+A horizontal navigation bar is now rendered below the workspace tabs on every
+screen.  It replaces the old sidebar navigation with a leaner, always-visible
+strip:
+
+```
+[Dashboard]  [History]  [Settings]          [+ Add project]
+```
+
+- **Left side**: tab-style nav items from `snora::nav_menu::nav_bar()`.
+  The active screen is indicated by a `•` prefix.  Clicking a non-active
+  item navigates immediately.
+- **Right side**: **Add project** button — moved here from the bottom-left
+  dashboard toolbar where it was easy to miss.
+
+New in `snora`: `nav_menu` module with `NavItem`, `nav_bar()`, and the
+`NAV_BAR_HEIGHT` constant.  Consumers call `nav_bar(items)` passing a
+`Vec<NavItem>` — labels, active flag, and dispatch message — and receive
+a full-width `Element`.
+
+#### Add Project modal (`view/add_project_modal.rs`)
+
+The dialog is now a **centred stack overlay** (same layer as the bulk
+action modals) instead of being appended below the dashboard content.
+
+The path field gains a **Browse…** button that opens a native OS folder
+picker via `rfd::AsyncFileDialog`:
+
+- Folder picker opens without blocking the UI thread (async task).
+- On selection, the path field is populated.
+- If the project name field is still empty, it is auto-filled from the
+  folder's last path component.
+- Dismissing the picker (Cancel) leaves both fields unchanged.
+
+`WorkspaceMessage::BrowsePathRequested` and
+`WorkspaceMessage::BrowsePathSelected(Option<String>)` are the two new
+message variants.
+
+#### Archive structure fix
+
+Release archives now contain `knotra-vX.Y.Z/(files)` directly, without
+an intermediate `knotra/` subdirectory.  The packaging command uses
+`tar --transform` to rename the root directory at archive time.
+
+Before: `knotra-v0.12.1.tar.gz` → `knotra/Cargo.toml`  
+After:  `knotra-v0.13.0.tar.gz` → `knotra-v0.13.0/Cargo.toml`
+
+### Changed
+
+- `snora`: new public `nav_menu` module; `nav_bar`, `NavItem`,
+  `NAV_BAR_HEIGHT` exported from `snora` root.
+- `view/mod.rs`: `app_view` now includes the nav bar in every layout;
+  `add_project_modal` overlay inserted into the stack layers.
+- `view/dashboard.rs`: removed the old inline dialog append; removed the
+  `add_btn` from the dashboard toolbar row (it lives in the nav bar now).
+- `view/add_project_dialog` (old private fn): replaced by
+  `view/add_project_modal.rs` (public module, centered overlay).
+- `i18n`: new key `dialog.add_project.browse` (en + ja).
+
+### Tests
+
+- endringer unit: 17 pass.
+- endringer integration: 19 pass.
+- knotra-app: `cargo check` clean — 0 errors, 0 warnings.
 
 
 ## [0.12.1] — 2026-05-23

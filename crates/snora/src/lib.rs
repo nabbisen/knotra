@@ -6,6 +6,8 @@
 
 pub mod i18n;
 pub mod theme;
+pub mod nav_menu;
 pub mod widget;
 
 pub use theme::{KnotraTheme, StatusColor};
+pub use nav_menu::{nav_bar, NavItem, NAV_BAR_HEIGHT};

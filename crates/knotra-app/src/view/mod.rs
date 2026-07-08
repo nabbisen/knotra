@@ -3,9 +3,11 @@
 //! Each sub-module exports a single `view(state) -> Element<Message>` function.
 //! Views are pure — they only read `AppState` and emit `Message`s.
 pub mod activity_strip;
+pub mod add_project_modal;
 pub mod bulk_modals;
 pub mod command_palette;
 pub mod detail_panel;
+pub mod nav_bar;
 pub mod selection_bar;
 pub mod shortcuts_overlay;
 pub mod workspace_tabs;
@@ -33,6 +35,9 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // --- Workspace tabs (RFC-015) ---
     let tabs = workspace_tabs::view(state);
 
+    // --- Navigation bar ---
+    let nav = nav_bar::view(state);
+
     // --- Main screen content ---
     let screen_content: Element<'_, Message> = match state.screen {
         crate::state::Screen::Dashboard => dashboard::view(state),
@@ -52,7 +57,7 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     let activity = activity_strip::view(state);
 
     // --- Main column ---
-    let mut main_col = column![tabs, screen_content].height(Length::Fill);
+    let mut main_col = column![tabs, nav, screen_content].height(Length::Fill);
     if let Some(bar) = sel_bar {
         main_col = main_col.push(bar);
     }
@@ -118,6 +123,10 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
         None
     };
 
+    // --- Add project modal ---
+    let add_project_layer: Option<Element<'_, Message>> =
+        add_project_modal::view(state).map(|m| container(m).center(Length::Fill).into());
+
     // --- Keyboard cheat sheet (RFC-016) ---
     let shortcuts_layer: Option<Element<'_, Message>> = if state.keyboard.cheat_sheet_open {
         Some(
@@ -130,8 +139,15 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     };
 
     // Stack base + any overlay.  iced::widget::stack renders last element on top.
-    if modal_layer.is_some() || palette_layer.is_some() || shortcuts_layer.is_some() {
+    if modal_layer.is_some()
+        || palette_layer.is_some()
+        || shortcuts_layer.is_some()
+        || add_project_layer.is_some()
+    {
         let mut layers: Vec<Element<'_, Message>> = vec![base];
+        if let Some(a) = add_project_layer {
+            layers.push(a);
+        }
         if let Some(m) = modal_layer {
             layers.push(m);
         }

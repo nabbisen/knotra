@@ -51,6 +51,10 @@ pub enum WorkspaceMessage {
     AddProjectPathChanged(String),
     AddProjectConfirmed,
     AddProjectCancelled,
+    /// User clicked the folder browse button.
+    BrowsePathRequested,
+    /// Native folder dialog returned (None = cancelled).
+    BrowsePathSelected(Option<String>),
     RemoveProjectRequested(ProjectId),
     RemoveProjectConfirmed(ProjectId),
     RemoveProjectCancelled,
