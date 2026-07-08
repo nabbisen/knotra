@@ -7,6 +7,26 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.18.0] — 2026-06-11
+
+### Changed — Migrate to endringer 0.33.1 (RFC-020)
+
+`knotra-vcs` dependency bumped from `endringer-* 0.19.2` to `0.33.1`
+(the project's declared stable version: 8/9 stabilisation gates complete,
+317 tests, gix 0.84). No knotra source code changes.
+
+The breaking changes in the 0.19.2 → 0.33.1 range (typed error return,
+`TagAnnotation` field addition, new required `VcsBackend` methods) are all
+transparent to knotra-vcs: every endringer call site uses `.ok()` or
+`.to_string()`, no `TagAnnotation` literals are constructed, and knotra-vcs
+does not implement `VcsBackend`.
+
+Notable new endringer API available for future RFCs: `operation_state()`,
+`conflict_summary()`, `branch_ahead_behind()`, `snapshot()`,
+`rich_worktree_status()`, `query_commits()`.
+
+---
+
 ## [0.17.0] — 2026-06-11
 
 ### Changed — Remove legacy full-screen views (RFC-017)
@@ -721,7 +741,7 @@ The `jj` binary is no longer required for read operations on jj repositories
 `Cargo.toml` workspace gix entry now includes:
 - `blame` and `attributes` (required by endringer-backend-git)
 - `parallel` — **required** for `ThreadSafeRepository` to implement `Send + Sync`.  
-  Without `parallel`, gix 0.83 uses `Rc`-based internal pools which are not
+  Without `parallel`, gix 0.84 uses `Rc`-based internal pools which are not
   thread-safe. With `parallel`, pools switch to `Arc`, making
   `ThreadSafeRepository: Send + Sync`.
 
@@ -1479,7 +1499,7 @@ The `jj` binary is no longer required for read operations on jj repositories
 `Cargo.toml` workspace gix entry now includes:
 - `blame` and `attributes` (required by endringer-backend-git)
 - `parallel` — **required** for `ThreadSafeRepository` to implement `Send + Sync`.  
-  Without `parallel`, gix 0.83 uses `Rc`-based internal pools which are not
+  Without `parallel`, gix 0.84 uses `Rc`-based internal pools which are not
   thread-safe. With `parallel`, pools switch to `Arc`, making
   `ThreadSafeRepository: Send + Sync`.
 

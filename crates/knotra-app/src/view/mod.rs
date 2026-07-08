@@ -15,8 +15,8 @@ pub mod dashboard;
 pub mod history;
 pub mod settings;
 
-use crate::{message::Message, state::AppState};
 use iced::Element;
+use crate::{message::Message, state::AppState};
 
 /// Render the full application layout.
 ///
@@ -36,10 +36,10 @@ use iced::Element;
 /// stack layers above `render(layout)` because they have their own state
 /// channels and are not standard modal-close-sink overlays.
 pub fn app_view(state: &AppState) -> Element<'_, Message> {
-    use crate::message::ShortcutMessage;
-    use crate::state::ActiveModal;
+    use iced::widget::{container, row, column, stack};
     use iced::Length;
-    use iced::widget::{column, container, row, stack};
+    use crate::state::ActiveModal;
+    use crate::message::ShortcutMessage;
     use snora::{AppLayout, Dialog, LayoutDirection, Sheet, SheetEdge, SheetSize, render};
 
     // -----------------------------------------------------------------------
@@ -49,20 +49,16 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
 
     let screen_content: Element<'_, Message> = match state.screen {
         crate::state::Screen::Dashboard => dashboard::view(state),
-        crate::state::Screen::History => history::view(state),
-        crate::state::Screen::Settings => settings::view(state),
+        crate::state::Screen::History   => history::view(state),
+        crate::state::Screen::Settings  => settings::view(state),
     };
 
-    let sel_bar = selection_bar::view(state);
-    let activity = activity_strip::view(state);
+    let sel_bar   = selection_bar::view(state);
+    let activity  = activity_strip::view(state);
 
     let mut main_col = column![tabs, screen_content].height(Length::Fill);
-    if let Some(bar) = sel_bar {
-        main_col = main_col.push(bar);
-    }
-    if let Some(strip) = activity {
-        main_col = main_col.push(strip);
-    }
+    if let Some(bar)   = sel_bar   { main_col = main_col.push(bar);   }
+    if let Some(strip) = activity  { main_col = main_col.push(strip); }
 
     // Detail panel (RFC-014) — horizontally adjacent to main column.
     let body: Element<'_, Message> = if state.detail_panel.open_project_id.is_some() {
@@ -111,7 +107,11 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
         ActiveModal::Resolve(pid) => {
             // Right-docked resolve panel → snora Sheet anchored to the End edge.
             let el: Element<'_, Message> = bulk_modals::resolve_panel(state, pid);
-            layout = layout.sheet(Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half));
+            layout = layout.sheet(
+                Sheet::new(el)
+                    .at(SheetEdge::End)
+                    .with_size(SheetSize::Half),
+            );
         }
     }
 
@@ -123,39 +123,26 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // layer composition).
     // -----------------------------------------------------------------------
     let palette_layer: Option<Element<'_, Message>> = if state.palette.open {
-        Some(
-            container(command_palette::view(state))
-                .center(Length::Fill)
-                .into(),
-        )
+        Some(container(command_palette::view(state)).center(Length::Fill).into())
     } else {
         None
     };
 
     let add_project_layer: Option<Element<'_, Message>> =
-        add_project_modal::view(state).map(|m| container(m).center(Length::Fill).into());
+        add_project_modal::view(state)
+            .map(|m| container(m).center(Length::Fill).into());
 
     let shortcuts_layer: Option<Element<'_, Message>> = if state.keyboard.cheat_sheet_open {
-        Some(
-            container(shortcuts_overlay::view(state))
-                .center(Length::Fill)
-                .into(),
-        )
+        Some(container(shortcuts_overlay::view(state)).center(Length::Fill).into())
     } else {
         None
     };
 
     if palette_layer.is_some() || add_project_layer.is_some() || shortcuts_layer.is_some() {
         let mut layers: Vec<Element<'_, Message>> = vec![snora_layer];
-        if let Some(a) = add_project_layer {
-            layers.push(a);
-        }
-        if let Some(p) = palette_layer {
-            layers.push(p);
-        }
-        if let Some(s) = shortcuts_layer {
-            layers.push(s);
-        }
+        if let Some(a) = add_project_layer { layers.push(a); }
+        if let Some(p) = palette_layer     { layers.push(p); }
+        if let Some(s) = shortcuts_layer   { layers.push(s); }
         stack(layers).into()
     } else {
         snora_layer

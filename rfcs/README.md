@@ -33,6 +33,12 @@ until the RFC moves to `done/`.
 Implemented and shipped.  These are historical records; the design decisions
 they contain remain authoritative.
 
+### v0.18.0 — endringer migration
+
+| ID   | Title                                           | Shipped    |
+|------|-------------------------------------------------|------------|
+| [020](./done/020-endringer-0.33.1-migration.md) | Migrate to endringer 0.33.1 (stable version; zero code changes) | v0.18.0 |
+
 ### v0.17.0 — Screen removal
 
 | ID   | Title                                           | Shipped    |

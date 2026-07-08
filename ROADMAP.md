@@ -177,3 +177,12 @@ full-screen views and trims the `Screen` enum to three variants.
       `ActiveModal` or panel
 - [x] State modules retained (modals use the same state)
 - [x] 0 warnings (check + clippy, all targets), 69 tests pass under 1.91
+
+## v0.18.0 — endringer 0.33.1 migration (RFC-020)
+
+Zero-effort stability upgrade: the version bump is risk-free and the
+stability signal is strong (317 tests, typed errors, audited contracts).
+
+- [x] `endringer-* 0.19.2` → `0.33.1` in `knotra-vcs/Cargo.toml`
+- [x] No source code changes required
+- [x] 0/0 warnings, 36 knotra-vcs tests pass against 0.33.1

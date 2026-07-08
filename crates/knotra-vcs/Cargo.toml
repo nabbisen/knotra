@@ -7,10 +7,10 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-endringer-core  = "0.19.2"
-endringer-git   = "0.19.2"
-endringer-jj    = "0.19.2"
-endringer-async = "0.19.2"
+endringer-core  = "0.33.1"
+endringer-git   = "0.33.1"
+endringer-jj    = "0.33.1"
+endringer-async = "0.33.1"
 toml.workspace = true
 tokio.workspace = true
 serde.workspace = true
