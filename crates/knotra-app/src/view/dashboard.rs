@@ -105,7 +105,8 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
     let add_btn = button(text(state.t("dashboard.add_project")))
         .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened));
 
-    let bulk_btn = button(text(state.t("dashboard.bulk_sync")));
+    let bulk_btn = button(text(state.t("dashboard.bulk_sync")))
+        .on_press(Message::Sync(crate::message::SyncMessage::OpenRequested));
 
     row![
         text(workspace_name).size(20),

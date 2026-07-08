@@ -197,3 +197,55 @@ pub async fn run_jj_command(project: &Project, args: &[&str]) -> ProjectOperatio
         },
     }
 }
+
+// ---------------------------------------------------------------------------
+// Smart Pull for jj: fetch + implicit rebase
+// ---------------------------------------------------------------------------
+
+/// Smart Pull for a jj repository.
+///
+/// `jj git fetch` triggers an implicit rebase. Conflict state is checked after.
+pub async fn smart_pull(
+    project: &Project,
+    _stash_dirty: bool, // jj has no "dirty" concept in the same sense
+) -> (
+    crate::model::operation::ProjectOperationResult,
+    Option<crate::model::operation::RecoveryHint>,
+) {
+    use crate::model::operation::RecoveryHint;
+
+    let fetch_res = fetch(project).await;
+    if !fetch_res.success {
+        let hint = RecoveryHint {
+            project_id: project.id.clone(),
+            situation: "jj git fetch failed".to_owned(),
+            suggested_commands: vec![format!("cd {:?} && jj git fetch", project.path)],
+            see_also: Some("https://jj-vcs.github.io/jj/latest/git-compatibility/".to_owned()),
+        };
+        return (fetch_res, Some(hint));
+    }
+
+    // Check for post-fetch conflicts.
+    let conflict = super::super::model::status::ConflictStatus {
+        has_conflict: run_jj(&["log", "-r", "@", "--no-graph", "-T", "conflict\n"], &project.path)
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "true")
+            .unwrap_or(false),
+        conflict_count: None,
+    };
+
+    let hint = if conflict.has_conflict {
+        Some(RecoveryHint {
+            project_id: project.id.clone(),
+            situation: "jj detected a conflict after fetch — manual resolution needed".to_owned(),
+            suggested_commands: vec![
+                format!("cd {:?} && jj status", project.path),
+                format!("cd {:?} && jj resolve", project.path),
+            ],
+            see_also: Some("https://jj-vcs.github.io/jj/latest/conflicts/".to_owned()),
+        })
+    } else {
+        None
+    };
+
+    (fetch_res, hint)
+}

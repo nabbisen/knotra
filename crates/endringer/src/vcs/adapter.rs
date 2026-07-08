@@ -1,14 +1,11 @@
 //! `VcsAdapter` — the single entry-point used by the GUI layer.
-//!
-//! All read operations are performed without side effects.
-//! All write operations log the commands executed and return structured results.
 
 use std::path::Path;
 
 use crate::{
-    error::Result,
     model::{
-        project::{Project, ProjectId},
+        operation::{ProjectOperationResult, RecoveryHint},
+        project::Project,
         status::{ProjectStatus, VcsKind, WorkspaceStatus},
         workspace::Workspace,
     },
@@ -16,66 +13,49 @@ use crate::{
 
 use super::{git, jj};
 
-/// Detect the VCS kind at `path` by inspecting the directory.
-///
-/// Returns `None` when neither a `.git` entry nor a `.jj` directory is found.
+// ---------------------------------------------------------------------------
+// VCS detection
+// ---------------------------------------------------------------------------
+
 pub async fn detect_vcs_kind(path: &Path) -> Option<VcsKind> {
-    // jj check first: it can overlay a .git inside a .jj workspace
-    let jj_dir = path.join(".jj");
-    if jj_dir.is_dir() {
-        return Some(VcsKind::Jujutsu);
-    }
-
-    let git_dir = path.join(".git");
-    if git_dir.exists() {
-        return Some(VcsKind::Git);
-    }
-
+    if path.join(".jj").is_dir()  { return Some(VcsKind::Jujutsu); }
+    if path.join(".git").exists() { return Some(VcsKind::Git); }
     None
 }
 
-/// The top-level async adapter that dispatches to Git or jj implementations.
+// ---------------------------------------------------------------------------
+// VcsAdapter
+// ---------------------------------------------------------------------------
+
 pub struct VcsAdapter;
 
 impl VcsAdapter {
-    /// Read the current status of a single registered project.
-    ///
-    /// On success, returns a `ProjectStatus` snapshot.
-    /// On any read failure, still returns a `ProjectStatus` with the error
-    /// recorded in `read_error` so the dashboard can show a degraded card.
-    pub async fn read_project_status(project: &Project) -> ProjectStatus {
-        let path = std::path::Path::new(&project.path);
-        let kind = detect_vcs_kind(path).await;
+    // --- Read ---
 
+    pub async fn read_project_status(project: &Project) -> ProjectStatus {
+        let kind = detect_vcs_kind(Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git) => git::read_status(project).await,
+            Some(VcsKind::Git)      => git::read_status(project).await,
             Some(VcsKind::Jujutsu) => jj::read_status(project).await,
             None => ProjectStatus {
                 project_id: project.id.clone(),
                 identity: crate::model::status::RepositoryIdentity {
                     path: project.path.clone(),
-                    vcs_kind: VcsKind::Git, // placeholder
+                    vcs_kind: VcsKind::Git,
                 },
                 context: None,
                 remote: Default::default(),
                 working_tree: Default::default(),
                 conflict: Default::default(),
                 refreshed_at: chrono::Utc::now(),
-                read_error: Some(format!(
-                    "No Git or jj repository found at {}",
-                    project.path
-                )),
+                read_error: Some(format!("no Git or jj repository at {}", project.path)),
             },
         }
     }
 
-    /// Refresh all projects in a workspace concurrently, with a parallelism cap.
-    pub async fn read_workspace_status(
-        workspace: &Workspace,
-        max_concurrent: usize,
-    ) -> WorkspaceStatus {
-        use tokio::sync::Semaphore;
+    pub async fn read_workspace_status(workspace: &Workspace, max_concurrent: usize) -> WorkspaceStatus {
         use std::sync::Arc;
+        use tokio::sync::Semaphore;
 
         let sem = Arc::new(Semaphore::new(max_concurrent));
         let mut handles = Vec::with_capacity(workspace.projects.len());
@@ -84,7 +64,7 @@ impl VcsAdapter {
             let project = project.clone();
             let sem = Arc::clone(&sem);
             handles.push(tokio::spawn(async move {
-                let _permit = sem.acquire().await.expect("semaphore not closed");
+                let _permit = sem.acquire().await.expect("semaphore open");
                 VcsAdapter::read_project_status(&project).await
             }));
         }
@@ -92,36 +72,58 @@ impl VcsAdapter {
         let mut statuses = Vec::with_capacity(handles.len());
         for h in handles {
             match h.await {
-                Ok(status) => statuses.push(status),
+                Ok(s)  => statuses.push(s),
                 Err(e) => tracing::error!("project status task panicked: {e}"),
             }
         }
 
-        WorkspaceStatus {
-            projects: statuses,
-            last_refresh: Some(chrono::Utc::now()),
-        }
+        WorkspaceStatus { projects: statuses, last_refresh: Some(chrono::Utc::now()) }
     }
 
-    /// Execute `git fetch` / `jj git fetch` on a project.
-    ///
-    /// Returns the raw stdout / stderr / exit-code for transparency.
-    pub async fn fetch(project: &Project) -> crate::model::operation::ProjectOperationResult {
-        let path = std::path::Path::new(&project.path);
-        let kind = detect_vcs_kind(path).await;
+    // --- Write: fetch ---
 
+    pub async fn fetch(project: &Project) -> ProjectOperationResult {
+        let kind = detect_vcs_kind(Path::new(&project.path)).await;
         match kind {
-            Some(VcsKind::Git) => git::fetch(project).await,
+            Some(VcsKind::Git)      => git::fetch(project).await,
             Some(VcsKind::Jujutsu) => jj::fetch(project).await,
-            None => crate::model::operation::ProjectOperationResult {
+            None => ProjectOperationResult {
                 project_id: project.id.clone(),
                 success: false,
                 commands_executed: vec![],
                 stdout: String::new(),
                 stderr: String::new(),
                 exit_code: None,
-                error_message: Some(format!("No repository at {}", project.path)),
+                error_message: Some(format!("no repository at {}", project.path)),
             },
+        }
+    }
+
+    // --- Write: smart pull ---
+
+    /// Execute a Smart Pull for one project.
+    ///
+    /// Returns the operation result and an optional recovery hint.
+    pub async fn smart_pull(
+        project: &Project,
+        stash_dirty: bool,
+    ) -> (ProjectOperationResult, Option<RecoveryHint>) {
+        let kind = detect_vcs_kind(Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git)      => git::smart_pull(project, stash_dirty).await,
+            Some(VcsKind::Jujutsu) => jj::smart_pull(project, stash_dirty).await,
+            None => (
+                ProjectOperationResult {
+                    project_id: project.id.clone(),
+                    success: false,
+                    commands_executed: vec![],
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: Some(format!("no repository at {}", project.path)),
+                },
+                None,
+            ),
         }
     }
 }

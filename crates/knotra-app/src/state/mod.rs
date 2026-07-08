@@ -1,6 +1,9 @@
-//! Application state — the single source of truth for the knotra GUI.
+//! Application state — single source of truth.
 
 pub mod dashboard;
+pub mod sync;
+
+use std::collections::HashSet;
 
 use endringer::{
     model::{
@@ -10,7 +13,6 @@ use endringer::{
     },
     WorkspaceStatus,
 };
-
 use snora::i18n::{Catalog, Locale};
 use snora::KnotraTheme;
 
@@ -63,14 +65,13 @@ impl FilterState {
             || self.active_group.is_some()
             || !self.status_filters.is_empty()
     }
-
     pub fn has_status_filter(&self, sf: &StatusFilter) -> bool {
         self.status_filters.contains(sf)
     }
 }
 
 // ---------------------------------------------------------------------------
-// Add-project dialog state
+// Dialog states
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Default)]
@@ -79,10 +80,6 @@ pub struct AddProjectDialog {
     pub path: String,
     pub error: Option<String>,
 }
-
-// ---------------------------------------------------------------------------
-// Confirm-remove dialog state
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
 pub struct ConfirmRemoveDialog {
@@ -103,7 +100,7 @@ pub enum LoadPhase {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level application state
+// AppState
 // ---------------------------------------------------------------------------
 
 pub struct AppState {
@@ -119,14 +116,12 @@ pub struct AppState {
     pub history_search: String,
     pub freezer_name: String,
     pub status_bar: Option<String>,
-    /// Whether the add-project dialog is open.
     pub add_project_dialog: Option<AddProjectDialog>,
-    /// Whether the confirm-remove dialog is open.
     pub confirm_remove_dialog: Option<ConfirmRemoveDialog>,
-    /// Projects currently being individually fetched (for spinner state).
-    pub fetching_projects: std::collections::HashSet<ProjectId>,
-    /// Whether a workspace-wide refresh is currently in flight.
+    pub fetching_projects: HashSet<ProjectId>,
     pub is_refreshing: bool,
+    /// Sync Center state.
+    pub sync: sync::SyncCenterState,
 }
 
 impl AppState {
@@ -147,8 +142,9 @@ impl AppState {
             status_bar: None,
             add_project_dialog: None,
             confirm_remove_dialog: None,
-            fetching_projects: std::collections::HashSet::new(),
+            fetching_projects: HashSet::new(),
             is_refreshing: false,
+            sync: sync::SyncCenterState::default(),
             config,
         }
     }
@@ -159,24 +155,21 @@ impl AppState {
 
     pub fn apply_filter(&mut self, msg: FilterMessage) {
         match msg {
-            FilterMessage::SearchChanged(s) => self.filter.search_text = s,
-            FilterMessage::GroupChanged(g)  => self.filter.active_group = g,
-            FilterMessage::StatusFilterToggled(sf) => {
+            FilterMessage::SearchChanged(s)            => self.filter.search_text = s,
+            FilterMessage::GroupChanged(g)             => self.filter.active_group = g,
+            FilterMessage::StatusFilterToggled(sf)     => {
                 if let Some(pos) = self.filter.status_filters.iter().position(|f| f == &sf) {
                     self.filter.status_filters.remove(pos);
                 } else {
                     self.filter.status_filters.push(sf);
                 }
             }
-            FilterMessage::AllFiltersCleared => {
-                self.filter = FilterState::default();
-            }
+            FilterMessage::AllFiltersCleared => self.filter = FilterState::default(),
         }
     }
 
-    /// Enumerate all distinct group names across registered projects.
     pub fn all_groups(&self) -> Vec<String> {
-        let mut groups: Vec<String> = self.workspace.as_ref()
+        self.workspace.as_ref()
             .map(|ws| {
                 ws.projects.iter()
                     .filter_map(|p| p.group.clone())
@@ -184,7 +177,6 @@ impl AppState {
                     .into_iter()
                     .collect()
             })
-            .unwrap_or_default();
-        groups
+            .unwrap_or_default()
     }
 }

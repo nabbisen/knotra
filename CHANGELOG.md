@@ -7,6 +7,33 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.3.0] — 2025-xx-xx
+
+### Added
+- Phase 3: Bulk Sync — full Sync Center screen.
+- `endringer`: `git::smart_pull` — fetch + ff-merge with optional stash/pop sequence.
+- `endringer`: `jj::smart_pull` — fetch + post-fetch conflict detection.
+- `endringer`: `SmartPullPlan`, `SmartPullPlanEntry`, `SmartPullDisposition`, `SmartPullProgress` domain types.
+- `VcsAdapter::smart_pull` dispatch to Git/jj implementations.
+- `state::sync::SyncCenterState` — selection map, disposition overrides, `build_plan`.
+- `state::sync::SyncPhase` enum: `Idle | Planning | FetchRunning | AwaitingConfirm | PullRunning | Done`.
+- `state::sync::SyncResult` / `ProjectOutcome` for result display.
+- Sync Center view: project list with checkboxes, fetch/pull buttons, plan confirm, streaming progress, result table.
+- Streaming per-project execution via `Task::run` + `iced::futures::stream::iter().then()`.
+- Per-project result and recovery hints display in Done phase.
+- Retry-failed-projects button post-run.
+- Dirty-repo disposition selector (Pull / Stash+Pull / Fetch only / Exclude) in plan confirm step.
+- Conflicted repos automatically excluded from Smart Pull plan.
+- Recovery hints for stash-pop failure and jj conflict post-fetch.
+- Bulk Sync button on Dashboard header navigates to Sync Center.
+- 6 new unit tests for plan-building logic.
+
+### Changed
+- `SyncMessage` expanded with `OpenRequested`, `DispositionChanged`, `SmartPullPlanRequested`, `SmartPullConfirmed`, `SmartPullCancelled`, `RetryFailedRequested`.
+- `BackgroundMessage` extended with `SmartPullProjectCompleted`, `SmartPullPlanReady`.
+- `AppState` now carries `sync: SyncCenterState`.
+
+
 ## [0.2.0] — 2025-xx-xx
 
 ### Added

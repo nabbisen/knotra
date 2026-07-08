@@ -132,3 +132,66 @@ pub struct OperationLog {
     pub result: OperationResult,
     pub recovery_hints: Vec<RecoveryHint>,
 }
+
+// ---------------------------------------------------------------------------
+// Smart Pull plan types
+// ---------------------------------------------------------------------------
+
+/// Disposition for one project in a Smart Pull plan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SmartPullDisposition {
+    /// Clean project: fetch + ff-merge.
+    Pull,
+    /// Dirty project, user chose to stash, merge, then pop.
+    StashAndPull,
+    /// Dirty project, user chose to fetch only (merge skipped).
+    FetchOnly,
+    /// Project excluded from this run entirely.
+    Excluded,
+}
+
+/// Pre-execution plan for a Smart Pull operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmartPullPlan {
+    pub id: OperationId,
+    /// Per-project dispositions, in execution order.
+    pub entries: Vec<SmartPullPlanEntry>,
+}
+
+/// One entry in a `SmartPullPlan`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmartPullPlanEntry {
+    pub project_id: ProjectId,
+    pub project_name: String,
+    pub is_dirty: bool,
+    pub has_conflict: bool,
+    pub disposition: SmartPullDisposition,
+}
+
+impl SmartPullPlan {
+    /// True when no project will undergo a merge (nothing to do).
+    pub fn is_noop(&self) -> bool {
+        self.entries.iter().all(|e| {
+            matches!(e.disposition, SmartPullDisposition::FetchOnly | SmartPullDisposition::Excluded)
+        })
+    }
+
+    pub fn pull_count(&self) -> usize {
+        self.entries.iter().filter(|e| {
+            matches!(e.disposition, SmartPullDisposition::Pull | SmartPullDisposition::StashAndPull)
+        }).count()
+    }
+
+    pub fn excluded_count(&self) -> usize {
+        self.entries.iter().filter(|e| e.disposition == SmartPullDisposition::Excluded).count()
+    }
+}
+
+/// Progress event emitted during Smart Pull execution (one per project).
+#[derive(Debug, Clone)]
+pub struct SmartPullProgress {
+    pub project_id: ProjectId,
+    pub project_name: String,
+    pub result: ProjectOperationResult,
+    pub recovery_hint: Option<RecoveryHint>,
+}

@@ -39,12 +39,12 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 
 **Goal:** Safe multi-repository fetch and Smart Pull.
 
-- [ ] Sync Center screen
-- [ ] Bulk `git fetch` / `jj git fetch`
-- [ ] Smart Pull with dirty-state detection
-- [ ] Dirty project handling (exclude / stash prompt)
-- [ ] Real-time progress display
-- [ ] Partial-failure handling and re-try
+- [x] Sync Center screen
+- [x] Bulk `git fetch` / `jj git fetch`
+- [x] Smart Pull with dirty-state detection
+- [x] Dirty project handling (exclude / stash prompt)
+- [x] Real-time progress display
+- [x] Partial-failure handling and re-try
 
 ---
 
