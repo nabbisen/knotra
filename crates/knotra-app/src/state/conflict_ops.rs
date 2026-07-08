@@ -1,6 +1,6 @@
 //! Conflict resolution UI state.
 
-use endringer::{ProjectConflictDetail, ProjectId};
+use knotra_vcs::{ProjectConflictDetail, ProjectId};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
@@ -34,8 +34,8 @@ pub struct ConflictOpsState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use endringer::{ConflictedFile, ConflictMarker, ProjectConflictDetail, ProjectId};
+    
+    use knotra_vcs::{ConflictedFile, ConflictMarker, ProjectConflictDetail, ProjectId};
 
     #[test]
     fn conflict_detail_resolved_when_no_files() {

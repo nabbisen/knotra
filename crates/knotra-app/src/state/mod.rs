@@ -13,12 +13,12 @@ pub mod workspace_mgr;
 
 use std::collections::HashSet;
 
-use endringer::{
+use knotra_ui::KnotraTheme;
+use knotra_ui::i18n::Catalog;
+use knotra_vcs::{
     WorkspaceStatus,
     model::{operation::OperationLog, project::ProjectId, workspace::Workspace},
 };
-use snora::KnotraTheme;
-use snora::i18n::Catalog;
 
 use crate::{
     config::AppConfig,
@@ -145,7 +145,7 @@ impl SettingsEdit {
 #[derive(Debug, Clone)]
 pub struct PendingTagPush {
     pub freeze_name: String,
-    pub project_ids: Vec<endringer::ProjectId>,
+    pub project_ids: Vec<knotra_vcs::ProjectId>,
     pub is_pushing: bool,
 }
 
@@ -157,13 +157,13 @@ pub struct PendingTagPush {
 /// Drives the selection bar and bulk-action modals.
 #[derive(Debug, Clone, Default)]
 pub struct SelectionState {
-    pub selected_ids: HashSet<endringer::ProjectId>,
+    pub selected_ids: HashSet<knotra_vcs::ProjectId>,
     /// Last card clicked without Shift — for range-select anchor.
-    pub anchor_id: Option<endringer::ProjectId>,
+    pub anchor_id: Option<knotra_vcs::ProjectId>,
 }
 
 impl SelectionState {
-    pub fn toggle(&mut self, id: endringer::ProjectId) {
+    pub fn toggle(&mut self, id: knotra_vcs::ProjectId) {
         if self.selected_ids.contains(&id) {
             self.selected_ids.remove(&id);
         } else {
@@ -172,7 +172,7 @@ impl SelectionState {
         }
     }
 
-    pub fn select_range(&mut self, ordered: &[endringer::ProjectId], to: &endringer::ProjectId) {
+    pub fn select_range(&mut self, ordered: &[knotra_vcs::ProjectId], to: &knotra_vcs::ProjectId) {
         if let Some(anchor) = &self.anchor_id.clone() {
             let ai = ordered.iter().position(|x| x == anchor).unwrap_or(0);
             let bi = ordered.iter().position(|x| x == to).unwrap_or(0);
@@ -197,12 +197,12 @@ impl SelectionState {
     pub fn len(&self) -> usize {
         self.selected_ids.len()
     }
-    pub fn contains(&self, id: &endringer::ProjectId) -> bool {
+    pub fn contains(&self, id: &knotra_vcs::ProjectId) -> bool {
         self.selected_ids.contains(id)
     }
 
     /// Select all projects.
-    pub fn select_all(&mut self, ids: &[endringer::ProjectId]) {
+    pub fn select_all(&mut self, ids: &[knotra_vcs::ProjectId]) {
         for id in ids {
             self.selected_ids.insert(id.clone());
         }
@@ -213,8 +213,9 @@ impl SelectionState {
 // RFC-011 — Activity strip
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum LatestOpState {
+    #[default]
     Idle,
     Running {
         label: String,
@@ -233,12 +234,6 @@ pub enum LatestOpState {
     TotalFailure {
         summary: String,
     },
-}
-
-impl Default for LatestOpState {
-    fn default() -> Self {
-        LatestOpState::Idle
-    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -333,7 +328,7 @@ impl Default for TierCollapseState {
 
 #[derive(Debug, Clone, Default)]
 pub struct DetailPanelState {
-    pub open_project_id: Option<endringer::ProjectId>,
+    pub open_project_id: Option<knotra_vcs::ProjectId>,
 }
 
 // ---------------------------------------------------------------------------
@@ -342,20 +337,15 @@ pub struct DetailPanelState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
+#[derive(Default)]
 pub enum ActiveModal {
+    #[default]
     None,
     Pull,
     Tag,
     Switch,
-    Resolve(endringer::ProjectId),
+    Resolve(knotra_vcs::ProjectId),
     Changelog,
-}
-
-#[allow(dead_code)]
-impl Default for ActiveModal {
-    fn default() -> Self {
-        ActiveModal::None
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +353,7 @@ impl Default for ActiveModal {
 // ---------------------------------------------------------------------------
 
 /// Pending first key of a two-key sequence (e.g. `g` before `h` / `s`).
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum LeaderKeyState {
     #[default]
@@ -399,7 +390,7 @@ pub struct AppState {
     pub fetching_projects: HashSet<ProjectId>,
     pub is_refreshing: bool,
     /// History: which log entry IDs are currently expanded.
-    pub history_expanded: std::collections::HashSet<endringer::OperationId>,
+    pub history_expanded: std::collections::HashSet<knotra_vcs::OperationId>,
     /// Settings: in-progress edit buffer (mirrors config until saved).
     pub settings_edit: SettingsEdit,
     /// Settings: last save result message.
@@ -417,17 +408,17 @@ pub struct AppState {
     /// Dependency topology state.
     pub topology: topology::TopologyState,
     /// All loaded workspaces (active index = active_workspace_idx).
-    pub all_workspaces: Vec<endringer::Workspace>,
+    pub all_workspaces: Vec<knotra_vcs::Workspace>,
     /// Index into `all_workspaces` for the currently active workspace.
     pub active_workspace_idx: usize,
     /// Workspace management dialog state.
     pub workspace_mgr: workspace_mgr::WorkspaceMgrState,
     /// Missing-path projects detected at last refresh.
-    pub missing_projects: std::collections::HashSet<endringer::ProjectId>,
+    pub missing_projects: std::collections::HashSet<knotra_vcs::ProjectId>,
     /// Post-freeze: offer to push tags to remote.
     pub pending_tag_push: Option<PendingTagPush>,
     /// File-system change poller (used by the FS-watch Subscription).
-    pub fs_poller: endringer::FsPoller,
+    pub fs_poller: knotra_vcs::FsPoller,
     // ------------------------------------------------------------------
     // RFC-009 selection model
     // ------------------------------------------------------------------
@@ -499,7 +490,7 @@ impl AppState {
             workspace_mgr: workspace_mgr::WorkspaceMgrState::default(),
             missing_projects: std::collections::HashSet::new(),
             pending_tag_push: None,
-            fs_poller: endringer::FsPoller::default(),
+            fs_poller: knotra_vcs::FsPoller::default(),
             selection: SelectionState::default(),
             activity: ActivityStripState::default(),
             palette: PaletteState::default(),

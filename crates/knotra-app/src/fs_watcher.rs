@@ -23,7 +23,7 @@ use crate::{message::Message, state::AppState};
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct FsChangeMessage {
-    pub changed_project_ids: Vec<endringer::ProjectId>,
+    pub changed_project_ids: Vec<knotra_vcs::ProjectId>,
 }
 
 /// Build the FS-watch subscription from the current app state.

@@ -5,7 +5,7 @@
 //! Operation history lives in `~/.local/share/knotra/history/`.
 
 use serde::{Deserialize, Serialize};
-use snora::i18n::Locale;
+use knotra_ui::i18n::Locale;
 use std::path::PathBuf;
 
 /// Application-level configuration.

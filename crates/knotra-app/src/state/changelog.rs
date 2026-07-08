@@ -1,6 +1,6 @@
 //! Changelog aggregation screen state.
 
-use endringer::{ChangelogDraft, ProjectId};
+use knotra_vcs::{ChangelogDraft, ProjectId};
 
 #[derive(Debug, Clone, Default)]
 pub enum ChangelogPhase {
@@ -53,7 +53,7 @@ impl ChangelogState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use endringer::ProjectId;
+    use knotra_vcs::ProjectId;
 
     #[test]
     fn not_ready_without_since_ref() {
@@ -76,7 +76,7 @@ mod tests {
     fn not_ready_when_all_deselected() {
         let id = ProjectId::new();
         let mut s = ChangelogState::default();
-        s.init_selection(&[id.clone()]);
+        s.init_selection(std::slice::from_ref(&id));
         s.since_ref = "v1.0.0".to_owned();
         s.project_selection.insert(id, false);
         assert!(!s.is_ready_to_collect());

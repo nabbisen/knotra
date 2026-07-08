@@ -12,8 +12,8 @@ path = "src/main.rs"
 
 [dependencies]
 rfd = { version = "0.15", default-features = false, features = ["tokio", "xdg-portal"] }
-endringer = { path = "../endringer" }
-snora = { path = "../snora" }
+knotra-vcs = { path = "../knotra-vcs" }
+knotra-ui = { path = "../knotra-ui" }
 
 tokio.workspace = true
 serde.workspace = true

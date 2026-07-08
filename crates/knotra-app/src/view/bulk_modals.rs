@@ -10,7 +10,7 @@ use iced::{
     Alignment, Element, Length,
 };
 
-use endringer::ProjectId;
+use knotra_vcs::ProjectId;
 
 use crate::{
     message::{

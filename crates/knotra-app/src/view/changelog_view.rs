@@ -1,6 +1,6 @@
 //! Changelog generation view.
 
-use endringer::ChangelogDraft;
+use knotra_vcs::ChangelogDraft;
 use iced::{
     widget::{button, checkbox, column, container, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,

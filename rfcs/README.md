@@ -34,6 +34,12 @@ until the RFC moves to `done/`.
 Implemented and shipped.  These are historical records; the design decisions
 they contain remain authoritative.
 
+### v0.15.0 — Crate migration
+
+| ID   | Title                                           | Shipped    |
+|------|-------------------------------------------------|------------|
+| [018](./done/018-published-crate-migration.md) | Re-layer onto published `endringer` 0.19.2; rename in-tree `snora` → `knotra-ui` | v0.15.0 |
+
 ### v0.12.0 — UI/UX Redesign
 
 | ID   | Title                                           | Shipped    |

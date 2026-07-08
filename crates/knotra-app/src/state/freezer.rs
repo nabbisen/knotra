@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use endringer::{FreezeResult, FreezeValidation, ProjectId};
+use knotra_vcs::{FreezeResult, FreezeValidation, ProjectId};
 
 // ---------------------------------------------------------------------------
 // Phase FSM
@@ -80,7 +80,7 @@ impl FreezerState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use endringer::ProjectId;
+    use knotra_vcs::ProjectId;
 
     fn make_ids(n: usize) -> Vec<ProjectId> {
         (0..n).map(|_| ProjectId::new()).collect()
@@ -106,8 +106,7 @@ mod tests {
 
     #[test]
     fn valid_freeze_name_accepted() {
-        let mut state = FreezerState::default();
-        state.freeze_name = "v1.2.3".to_owned();
+        let state = FreezerState { freeze_name: "v1.2.3".to_owned(), ..Default::default() };
         assert!(state.freeze_name_is_valid());
     }
 
@@ -119,8 +118,7 @@ mod tests {
 
     #[test]
     fn freeze_name_with_space_rejected() {
-        let mut state = FreezerState::default();
-        state.freeze_name = "v1 2 3".to_owned();
+        let state = FreezerState { freeze_name: "v1 2 3".to_owned(), ..Default::default() };
         assert!(!state.freeze_name_is_valid());
     }
 

@@ -1,6 +1,6 @@
 //! History view — searchable, expandable operation log.
 
-use endringer::model::operation::{OperationLog, OperationResult};
+use knotra_vcs::model::operation::{OperationLog, OperationResult};
 use iced::{
     widget::{button, column, container, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,
@@ -267,7 +267,7 @@ fn summarise_status(result: &OperationResult) -> &'static str {
 ///   See also: <url>
 /// ```
 #[allow(dead_code)]
-pub(crate) fn log_to_markdown(log: &endringer::OperationLog) -> String {
+pub(crate) fn log_to_markdown(log: &knotra_vcs::OperationLog) -> String {
     let result = &log.result;
 
     let status = if result.rollback_attempted {

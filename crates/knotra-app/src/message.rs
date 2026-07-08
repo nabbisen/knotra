@@ -1,6 +1,6 @@
 //! All `Message` variants for the knotra GUI.
 
-use endringer::{
+use knotra_vcs::{
     ContextList, ContextSwitchResult, FreezeResult, FreezeValidation, ProjectId, WorkspaceStatus,
     model::operation::{OperationId, OperationLog, SmartPullPlan, SmartPullProgress},
     model::workspace::WorkspaceId,
@@ -86,7 +86,7 @@ pub enum ProjectMessage {
 pub enum SyncMessage {
     OpenRequested,
     ProjectToggled(ProjectId, bool),
-    DispositionChanged(ProjectId, endringer::SmartPullDisposition),
+    DispositionChanged(ProjectId, knotra_vcs::SmartPullDisposition),
     BulkFetchRequested,
     SmartPullPlanRequested,
     SmartPullConfirmed(SmartPullPlan),
@@ -159,7 +159,7 @@ pub enum HistoryMessage {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum SettingsMessage {
-    LocaleChanged(snora::i18n::Locale),
+    LocaleChanged(knotra_ui::i18n::Locale),
     ThemeChanged(bool),
     RefreshIntervalChanged(u32),
     MaxConcurrentChanged(usize),
@@ -188,13 +188,13 @@ pub enum BackgroundMessage {
     ContextListLoaded(ContextList),
     ContextSwitchDone(ContextSwitchResult),
     /// Conflict file list loaded.
-    ConflictFilesLoaded(endringer::ProjectConflictDetail),
+    ConflictFilesLoaded(knotra_vcs::ProjectConflictDetail),
     /// Changelog draft generated.
-    ChangelogDraftReady(endringer::ChangelogDraft),
+    ChangelogDraftReady(knotra_vcs::ChangelogDraft),
     /// Available tags loaded for changelog since-selector.
     TagsLoaded(Vec<String>),
     /// Topology graph scanned.
-    TopologyScanned(endringer::DependencyGraph),
+    TopologyScanned(knotra_vcs::DependencyGraph),
     /// Tag push completed for all offered projects.
     TagPushCompleted {
         success_count: usize,

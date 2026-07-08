@@ -1,6 +1,6 @@
 //! Sync Center UI state.
 
-use endringer::{
+use knotra_vcs::{
     ProjectId, WorkspaceStatus,
     model::operation::{
         RecoveryHint, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
@@ -82,12 +82,12 @@ pub struct SyncCenterState {
     pub disposition_overrides: std::collections::HashMap<ProjectId, SmartPullDisposition>,
     pub phase: SyncPhase,
     /// RFC-009: project ids pre-populated from dashboard selection.
-    pub selected_project_ids: std::collections::HashSet<endringer::ProjectId>,
+    pub selected_project_ids: std::collections::HashSet<knotra_vcs::ProjectId>,
 }
 
 impl SyncCenterState {
     /// Initialise selection from workspace projects (all included by default).
-    pub fn init_selection(&mut self, projects: &[endringer::Project]) {
+    pub fn init_selection(&mut self, projects: &[knotra_vcs::Project]) {
         for p in projects {
             self.project_selection.entry(p.id.clone()).or_insert(true);
         }
@@ -111,10 +111,10 @@ impl SyncCenterState {
     /// Build a Smart Pull plan from the current workspace status + user selections.
     pub fn build_plan(
         &self,
-        projects: &[endringer::Project],
+        projects: &[knotra_vcs::Project],
         workspace_status: Option<&WorkspaceStatus>,
     ) -> SmartPullPlan {
-        use endringer::OperationId;
+        use knotra_vcs::OperationId;
 
         let statuses = workspace_status
             .map(|ws| ws.projects.as_slice())
@@ -166,23 +166,23 @@ impl SyncCenterState {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use endringer::{
+    use knotra_vcs::{
         ProjectId, WorkspaceStatus,
         model::status::{
             ConflictStatus, RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus,
         },
     };
 
-    fn make_project(name: &str) -> endringer::Project {
-        endringer::Project::new(name, "/tmp")
+    fn make_project(name: &str) -> knotra_vcs::Project {
+        knotra_vcs::Project::new(name, "/tmp")
     }
 
     fn make_status(
         project_id: ProjectId,
         uncommitted: u32,
         conflict: bool,
-    ) -> endringer::ProjectStatus {
-        endringer::ProjectStatus {
+    ) -> knotra_vcs::ProjectStatus {
+        knotra_vcs::ProjectStatus {
             project_id,
             identity: RepositoryIdentity {
                 path: "/tmp".into(),
@@ -197,6 +197,7 @@ mod tests {
             conflict: ConflictStatus {
                 has_conflict: conflict,
                 conflict_count: None,
+                detection_unavailable: false,
             },
             refreshed_at: Utc::now(),
             read_error: None,
@@ -213,8 +214,8 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(&[p.clone()]);
-        let plan = sc.build_plan(&[p.clone()], Some(&ws));
+        sc.init_selection(std::slice::from_ref(&p));
+        let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
 
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Pull);
     }
@@ -229,8 +230,8 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(&[p.clone()]);
-        let plan = sc.build_plan(&[p.clone()], Some(&ws));
+        sc.init_selection(std::slice::from_ref(&p));
+        let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
 
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::FetchOnly);
     }
@@ -245,8 +246,8 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(&[p.clone()]);
-        let plan = sc.build_plan(&[p.clone()], Some(&ws));
+        sc.init_selection(std::slice::from_ref(&p));
+        let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
 
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Excluded);
     }
@@ -255,10 +256,10 @@ mod tests {
     fn deselected_project_is_excluded() {
         let p = make_project("svc");
         let mut sc = SyncCenterState::default();
-        sc.init_selection(&[p.clone()]);
+        sc.init_selection(std::slice::from_ref(&p));
         sc.project_selection.insert(p.id.clone(), false);
 
-        let plan = sc.build_plan(&[p.clone()], None);
+        let plan = sc.build_plan(std::slice::from_ref(&p), None);
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Excluded);
     }
 
@@ -272,11 +273,11 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(&[p.clone()]);
+        sc.init_selection(std::slice::from_ref(&p));
         sc.disposition_overrides
             .insert(p.id.clone(), SmartPullDisposition::StashAndPull);
 
-        let plan = sc.build_plan(&[p.clone()], Some(&ws));
+        let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
         assert_eq!(
             plan.entries[0].disposition,
             SmartPullDisposition::StashAndPull

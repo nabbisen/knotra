@@ -1,6 +1,6 @@
 //! Dependency topology screen state.
 
-use endringer::{DependencyGraph, ImpactWarning};
+use knotra_vcs::{DependencyGraph, ImpactWarning};
 
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
@@ -54,7 +54,7 @@ impl TopologyState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use endringer::{DependencyEdge, DependencyGraph, ProjectId};
+    use knotra_vcs::{DependencyEdge, DependencyGraph, ProjectId};
 
     fn edge(from: &str, to: &str) -> DependencyEdge {
         DependencyEdge {

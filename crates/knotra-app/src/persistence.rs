@@ -1,6 +1,6 @@
 //! Workspace definition and operation history persistence.
 
-use endringer::model::{
+use knotra_vcs::model::{
     operation::OperationLog,
     workspace::Workspace,
 };
@@ -92,7 +92,7 @@ pub fn load_recent_logs(paths: &AppPaths, limit: usize) -> Vec<OperationLog> {
     };
 
     // Sort descending by file name (timestamp prefix).
-    entries.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+    entries.sort_by_key(|b| std::cmp::Reverse(b.file_name()));
 
     entries
         .into_iter()

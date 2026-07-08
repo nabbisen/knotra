@@ -1,17 +1,13 @@
 [workspace]
 members = [
-    "crates/endringer",
-    "crates/endringer-backend-core",
-    "crates/endringer-backend-git",
-    "crates/endringer-backend-jj",
-    "crates/endringer-backend-async",
-    "crates/snora",
+    "crates/knotra-vcs",
+    "crates/knotra-ui",
     "crates/knotra-app",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.14.0"
+version = "0.15.0"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"
@@ -36,18 +32,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # GUI
 iced = { version = "0.14", features = ["tokio", "image", "svg", "advanced"] }
-
-# Git
-gix = { version = "0.83", default-features = false, features = [
-    "sha1",
-    "index",
-    "status",
-    "dirwalk",
-    "revision",
-    "blame",
-    "attributes",
-    "parallel",
-] }
 
 # Utilities
 uuid = { version = "1", features = ["v4", "serde"] }

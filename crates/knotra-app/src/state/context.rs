@@ -1,6 +1,6 @@
 //! Context Operations screen state.
 
-use endringer::{ContextCandidate, ContextList, ContextSwitchResult, ProjectId, VcsKind};
+use knotra_vcs::{ContextCandidate, ContextList, ContextSwitchResult, ProjectId, VcsKind};
 
 // ---------------------------------------------------------------------------
 // Phase enum
@@ -75,7 +75,7 @@ impl ContextOpsState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use endringer::{ContextCandidate, ContextList, ProjectId, VcsKind};
+    use knotra_vcs::{ContextCandidate, ContextList, ProjectId, VcsKind};
 
     fn make_list(candidates: Vec<(&str, &str, bool)>) -> ContextList {
         ContextList {
@@ -102,11 +102,13 @@ mod tests {
             ("hotfix",  "hotfix",  false),
         ]);
         let id = list.project_id.clone();
-        let mut state = ContextOpsState::default();
-        state.phase = ContextPhase::BrowsingList {
-            project_id: id,
-            list,
-            search: String::new(),
+        let state = ContextOpsState {
+            phase: ContextPhase::BrowsingList {
+                project_id: id,
+                list,
+                search: String::new(),
+            },
+            ..Default::default()
         };
         assert_eq!(state.filtered_candidates().len(), 3);
     }
@@ -119,11 +121,13 @@ mod tests {
             ("feature/y", "feature/y", false),
         ]);
         let id = list.project_id.clone();
-        let mut state = ContextOpsState::default();
-        state.phase = ContextPhase::BrowsingList {
-            project_id: id,
-            list,
-            search: "feature".to_owned(),
+        let state = ContextOpsState {
+            phase: ContextPhase::BrowsingList {
+                project_id: id,
+                list,
+                search: "feature".to_owned(),
+            },
+            ..Default::default()
         };
         assert_eq!(state.filtered_candidates().len(), 2);
     }
@@ -135,11 +139,13 @@ mod tests {
             ("Feature", "Feature", false),
         ]);
         let id = list.project_id.clone();
-        let mut state = ContextOpsState::default();
-        state.phase = ContextPhase::BrowsingList {
-            project_id: id,
-            list,
-            search: "main".to_owned(),
+        let state = ContextOpsState {
+            phase: ContextPhase::BrowsingList {
+                project_id: id,
+                list,
+                search: "main".to_owned(),
+            },
+            ..Default::default()
         };
         assert_eq!(state.filtered_candidates().len(), 1);
     }

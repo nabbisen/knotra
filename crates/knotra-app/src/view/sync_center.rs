@@ -1,6 +1,6 @@
 //! Sync Center view — bulk fetch and Smart Pull with per-project progress.
 
-use endringer::model::operation::{SmartPullDisposition, SmartPullPlan};
+use knotra_vcs::model::operation::{SmartPullDisposition, SmartPullPlan};
 use iced::{
     widget::{button, checkbox, column, container, row, scrollable, text, Space},
     Alignment, Element, Length, Padding,

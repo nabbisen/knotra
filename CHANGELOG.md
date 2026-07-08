@@ -7,6 +7,42 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.15.0] — 2026-06-10
+
+### Changed — Migrate onto the published `endringer` crates (RFC-018)
+
+The in-tree VCS backend crates were the published `endringer` crates
+vendored at 0.14; knotra now consumes them from crates.io instead.
+
+- Removed the in-tree `endringer-backend-core`/`-git`/`-jj`/`-async`
+  crates; the workspace now depends on published
+  `endringer-core`/`-git`/`-jj`/`-async` **0.19.2**. Read types and the
+  `VcsBackend` trait are identical across the two; the facade's tag writes
+  and async reads needed no signature changes.
+- Renamed the in-tree facade crate `endringer` → **`knotra-vcs`**
+  (`VcsAdapter` + domain model + `FsPoller`; writes stay on the VCS CLI
+  per constraint C-1), now layered over the published reads.
+- Renamed the in-tree `snora` foundation → **`knotra-ui`**
+  (`KnotraTheme`, `StatusColor`, the i18n catalog, layout tokens),
+  resolving the name collision with the published `snora` crate. No
+  dependency on published `snora` is added: knotra consumes none of its
+  surface today, and adopting its layout framework (prefab widgets,
+  `render()`/`AppLayout`, ABDD RTL) is deferred to a future UI RFC.
+- `knotra-app` imports updated (`endringer::` → `knotra_vcs::`,
+  `snora::` → `knotra_ui::`); message/state/view logic unchanged.
+
+### Fixed
+
+- Two test fixtures (`state/sync.rs`, `state/dashboard.rs`) built
+  `ConflictStatus` without the `detection_unavailable` field added in
+  RFC-003; they now compile under the test profile.
+- Cleared pre-existing clippy lints across the workspace to restore the
+  0-warning baseline (`collapsible_if`, `needless_return`,
+  `field_reassign_with_default`, `module_inception` in `tests.rs`,
+  `sort_by_key`, `slice::from_ref`).
+
+---
+
 ## [0.14.0] — 2026-05-24
 
 ### Changed — Less is more: UI simplification

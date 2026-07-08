@@ -544,6 +544,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
+name = "bytesize"
+version = "2.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bd91ee7b2422bcb158d90ef4d14f75ef67f340943fc4149891dcce8f8b972a3"
+
+[[package]]
 name = "calloop"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1051,58 +1057,56 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "endringer"
-version = "0.14.0"
+version = "0.19.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb0cf50375c280c3a7da120c75c643b265e4c72f188a14d47beeece95c3dde8d"
 dependencies = [
  "anyhow",
- "chrono",
- "endringer-backend-async",
- "endringer-backend-core",
- "endringer-backend-git",
- "endringer-backend-jj",
- "filetime",
- "serde",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "toml",
- "tracing",
- "uuid",
+ "endringer-core",
+ "endringer-git",
+ "endringer-jj",
 ]
 
 [[package]]
-name = "endringer-backend-async"
-version = "0.14.0"
+name = "endringer-async"
+version = "0.19.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01bffae3f53ca7983f279175270d0c5495d8b7d37b4af07b567676932625e4fc"
 dependencies = [
  "anyhow",
- "endringer-backend-core",
- "endringer-backend-git",
- "endringer-backend-jj",
+ "endringer",
  "tokio",
 ]
 
 [[package]]
-name = "endringer-backend-core"
-version = "0.14.0"
+name = "endringer-core"
+version = "0.19.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffb6cd49111e1db8c72d2e5f3093ecbedc04187a004e61bba391a16bc1abaffb"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
-name = "endringer-backend-git"
-version = "0.14.0"
+name = "endringer-git"
+version = "0.19.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9c329b7af54770cc6e0a8c7dac9f2007c6d51df634fe3b25e051a4556aff42a"
 dependencies = [
  "anyhow",
- "endringer-backend-core",
+ "endringer-core",
  "gix",
 ]
 
 [[package]]
-name = "endringer-backend-jj"
-version = "0.14.0"
+name = "endringer-jj"
+version = "0.19.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bc8457f9ec9388f54c176d8395be76cc78a75ecbeb303651448305440d35ab9"
 dependencies = [
  "anyhow",
- "endringer-backend-core",
- "endringer-backend-git",
+ "endringer-core",
+ "endringer-git",
 ]
 
 [[package]]
@@ -1572,6 +1576,7 @@ dependencies = [
  "gix-command",
  "gix-commitgraph",
  "gix-config",
+ "gix-credentials",
  "gix-date",
  "gix-diff",
  "gix-dir",
@@ -1586,6 +1591,7 @@ dependencies = [
  "gix-ignore",
  "gix-index",
  "gix-lock",
+ "gix-mailmap",
  "gix-merge",
  "gix-negotiate",
  "gix-object",
@@ -1593,6 +1599,7 @@ dependencies = [
  "gix-pack",
  "gix-path",
  "gix-pathspec",
+ "gix-prompt",
  "gix-protocol",
  "gix-ref",
  "gix-refspec",
@@ -1612,6 +1619,9 @@ dependencies = [
  "gix-worktree-state",
  "gix-worktree-stream",
  "nonempty",
+ "parking_lot",
+ "regex",
+ "signal-hook",
  "smallvec",
  "thiserror 2.0.18",
 ]
@@ -1754,6 +1764,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "gix-credentials"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65ca11598b70811d7b16ff90945a6e57dfe521e85b744e51636965fe39cc8f60"
+dependencies = [
+ "bstr",
+ "gix-command",
+ "gix-config-value",
+ "gix-date",
+ "gix-path",
+ "gix-prompt",
+ "gix-sec",
+ "gix-trace",
+ "gix-url",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "gix-date"
 version = "0.15.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1841,6 +1869,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af375693ad5333d0a2c66b4c5b2cbe9ccc38e34f8e8bf24e4ae42c12307fdc4f"
 dependencies = [
  "bytes",
+ "bytesize",
  "crc32fast",
  "crossbeam-channel",
  "gix-path",
@@ -1988,6 +2017,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gix-mailmap"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "023d3a6561cbebe45b89e0764d48928ad970667076f16fa5889e6f86d8432086"
+dependencies = [
+ "bstr",
+ "gix-actor",
+ "gix-date",
+ "gix-error",
+]
+
+[[package]]
 name = "gix-merge"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2084,6 +2125,7 @@ dependencies = [
  "memmap2",
  "smallvec",
  "thiserror 2.0.18",
+ "uluru",
 ]
 
 [[package]]
@@ -2122,6 +2164,19 @@ dependencies = [
  "gix-config-value",
  "gix-glob",
  "gix-path",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "gix-prompt"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e041a626c64cb69e4117fcdf80da8d0e454fba3b1f420412792d191f52251aee"
+dependencies = [
+ "gix-command",
+ "gix-config-value",
+ "parking_lot",
+ "rustix 1.1.4",
  "thiserror 2.0.18",
 ]
 
@@ -2299,6 +2354,8 @@ dependencies = [
  "gix-fs",
  "libc",
  "parking_lot",
+ "signal-hook",
+ "signal-hook-registry",
  "tempfile",
 ]
 
@@ -2625,6 +2682,12 @@ name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
+
+[[package]]
+name = "human_format"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eaec953f16e5bcf6b8a3cb3aa959b17e5577dbd2693e94554c462c08be22624b"
 
 [[package]]
 name = "iana-time-zone"
@@ -3192,22 +3255,51 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "knotra-app"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "chrono",
  "dirs",
- "endringer",
  "iced",
+ "knotra-ui",
+ "knotra-vcs",
  "rfd",
  "serde",
  "serde_json",
- "snora",
  "thiserror 2.0.18",
  "tokio",
  "toml",
  "tracing",
  "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "knotra-ui"
+version = "0.15.0"
+dependencies = [
+ "iced",
+ "serde",
+ "tracing",
+]
+
+[[package]]
+name = "knotra-vcs"
+version = "0.15.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "endringer-async",
+ "endringer-core",
+ "endringer-git",
+ "endringer-jj",
+ "filetime",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml",
+ "tracing",
  "uuid",
 ]
 
@@ -4322,6 +4414,8 @@ version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "962200e2d7d551451297d9fdce85138374019ada198e30ea9ede38034e27604c"
 dependencies = [
+ "bytesize",
+ "human_format",
  "parking_lot",
 ]
 
@@ -4572,6 +4666,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex"
+version = "1.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1292b7759ae1cb9ec195452d1390a074f0cd8541ab7a5a8c31cd6db45d4a6ba"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
 name = "regex-automata"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4584,9 +4690,9 @@ dependencies = [
 
 [[package]]
 name = "regex-syntax"
-version = "0.8.10"
+version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
+checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "renderdoc-sys"
@@ -4873,6 +4979,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "signal-hook"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2a0c28ca5908dbdbcd52e6fdaa00358ab88637f8ab33e1f188dd510eb44b53d"
+dependencies = [
+ "libc",
+ "signal-hook-registry",
+]
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5039,15 +5155,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd538fb6910ac1099850255cf94a94df6551fbdd602454387d0adb2d1ca6dead"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "snora"
-version = "0.9.0"
-dependencies = [
- "iced",
- "serde",
- "tracing",
 ]
 
 [[package]]
@@ -5514,6 +5621,15 @@ dependencies = [
  "memoffset",
  "tempfile",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "uluru"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c8a2469e56e6e5095c82ccd3afb98dad95f7af7929aab6d8ba8d6e0f73657da"
+dependencies = [
+ "arrayvec",
 ]
 
 [[package]]

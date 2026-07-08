@@ -1,6 +1,6 @@
 //! Settings view — all user-configurable preferences.
 
-use snora::i18n::Locale;
+use knotra_ui::i18n::Locale;
 use iced::{
     widget::{button, column, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,

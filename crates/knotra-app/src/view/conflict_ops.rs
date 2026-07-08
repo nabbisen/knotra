@@ -1,6 +1,6 @@
 //! Conflict Resolution view.
 
-use endringer::ProjectConflictDetail;
+use knotra_vcs::ProjectConflictDetail;
 use iced::{
     widget::{button, column, container, row, scrollable, text, Space},
     Alignment, Element, Length, Padding,
@@ -88,7 +88,7 @@ fn view_project_list_owned(state: &AppState) -> Element<'static, Message> {
 
 fn view_file_list_owned(
     state: &AppState,
-    project_id: endringer::ProjectId,
+    project_id: knotra_vcs::ProjectId,
     detail: ProjectConflictDetail,
 ) -> Element<'static, Message> {
     let project_name = state.workspace.as_ref()
@@ -176,7 +176,7 @@ fn view_done_owned(
     state: &AppState,
     success: bool,
     message: String,
-    project_id: endringer::ProjectId,
+    project_id: knotra_vcs::ProjectId,
 ) -> Element<'static, Message> {
     let icon      = if success { "✓" } else { "✗" };
     let recheck   = state.t("conflicts.recheck").to_owned();

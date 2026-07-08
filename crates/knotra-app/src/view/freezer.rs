@@ -1,6 +1,6 @@
 //! Freezer view — atomic cross-repository tag/bookmark creation.
 
-use endringer::{FreezeOutcome, FreezeResult, FreezeValidation, FreezeValidationEntry};
+use knotra_vcs::{FreezeOutcome, FreezeResult, FreezeValidation, FreezeValidationEntry};
 use iced::{
     widget::{button, checkbox, column, container, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,

@@ -1,10 +1,10 @@
 //! Dashboard-specific state helpers: filtering, grouping, and status colour.
 
-use endringer::{
+use knotra_vcs::{
     model::{project::Project, status::ProjectStatus},
     WorkspaceStatus,
 };
-use snora::theme::StatusColor;
+use knotra_ui::theme::StatusColor;
 
 use crate::{message::StatusFilter, state::FilterState};
 
@@ -25,18 +25,16 @@ pub fn project_matches_filter(
     filter: &FilterState,
 ) -> bool {
     // Text search on name (case-insensitive).
-    if !filter.search_text.is_empty() {
-        if !project.name.to_lowercase().contains(&filter.search_text.to_lowercase()) {
+    if !filter.search_text.is_empty()
+        && !project.name.to_lowercase().contains(&filter.search_text.to_lowercase()) {
             return false;
         }
-    }
 
     // Group filter.
-    if let Some(ref grp) = filter.active_group {
-        if project.group.as_deref() != Some(grp.as_str()) {
+    if let Some(ref grp) = filter.active_group
+        && project.group.as_deref() != Some(grp.as_str()) {
             return false;
         }
-    }
 
     // Status filter chips — if any active, at least one must match.
     if !filter.status_filters.is_empty() {
@@ -47,7 +45,7 @@ pub fn project_matches_filter(
             StatusFilter::Ahead    => color == StatusColor::Ahead,
             StatusFilter::Dirty    => color == StatusColor::Dirty,
             StatusFilter::Conflict => color == StatusColor::Conflict,
-            StatusFilter::Error    => status.map_or(false, |s| s.read_error.is_some()),
+            StatusFilter::Error    => status.is_some_and(|s| s.read_error.is_some()),
         });
         if !passes { return false; }
     }
@@ -111,10 +109,10 @@ pub fn build_display_groups<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use endringer::model::status::{
+    use knotra_vcs::model::status::{
         ConflictStatus, RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus,
     };
-    use endringer::ProjectId;
+    use knotra_vcs::ProjectId;
     use chrono::Utc;
 
     fn make_status(ahead: u32, behind: u32, uncommitted: u32, conflict: bool) -> ProjectStatus {
@@ -124,7 +122,11 @@ mod tests {
             context: None,
             remote: RemoteStatus { ahead, behind, upstream: None },
             working_tree: WorkingTreeStatus { uncommitted_count: uncommitted, untracked_count: 0 },
-            conflict: ConflictStatus { has_conflict: conflict, conflict_count: None },
+            conflict: ConflictStatus {
+                has_conflict: conflict,
+                conflict_count: None,
+                detection_unavailable: false,
+            },
             refreshed_at: Utc::now(),
             read_error: None,
         }
@@ -155,7 +157,7 @@ mod tests {
 
     #[test]
     fn filter_text_search() {
-        let mut p = Project::new("api-server", "/tmp");
+        let p = Project::new("api-server", "/tmp");
         let filter_match = FilterState { search_text: "api".into(), ..Default::default() };
         let filter_miss  = FilterState { search_text: "xyz".into(), ..Default::default() };
         assert!( project_matches_filter(&p, None, &filter_match));

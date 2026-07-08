@@ -4,7 +4,7 @@ use iced::futures::StreamExt;
 use iced::{Element, Subscription, Task, clipboard, keyboard, time};
 use std::time::Duration;
 
-use endringer::{
+use knotra_vcs::{
     VcsAdapter,
     model::{
         operation::{
@@ -16,6 +16,7 @@ use endringer::{
     },
 };
 
+#[allow(unused_imports)]
 use crate::{
     config::{AppPaths, load_config, save_config},
     fs_watcher::fs_watch_subscription,
@@ -39,8 +40,6 @@ use crate::{
     },
     view::app_view,
 };
-#[allow(unused_imports)]
-use rfd;
 
 // ---------------------------------------------------------------------------
 // Init
@@ -301,19 +300,18 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             Message::Workspace(crate::message::WorkspaceMessage::BrowsePathSelected(path))
         }),
         WorkspaceMessage::BrowsePathSelected(path_opt) => {
-            if let Some(path) = path_opt {
-                if let Some(d) = &mut state.add_project_dialog {
-                    if d.name.is_empty() {
-                        if let Some(name) = std::path::Path::new(&path)
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                        {
-                            d.name = name.to_owned();
-                        }
-                    }
-                    d.path = path;
-                    d.error = None;
+            if let Some(path) = path_opt
+                && let Some(d) = &mut state.add_project_dialog
+            {
+                if d.name.is_empty()
+                    && let Some(name) = std::path::Path::new(&path)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                {
+                    d.name = name.to_owned();
                 }
+                d.path = path;
+                d.error = None;
             }
             Task::none()
         }
@@ -372,7 +370,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 }
                 return Task::none();
             }
-            let ws = endringer::Workspace::new(name);
+            let ws = knotra_vcs::Workspace::new(name);
             let paths = AppPaths::resolve();
             if let Err(e) = save_workspace(&ws, &paths) {
                 tracing::warn!("failed to save new workspace: {e}");
@@ -479,7 +477,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 state.active_workspace_idx = idx;
                 state.workspace = state.all_workspaces.get(idx).cloned();
                 // Prune stale FsPoller snapshots from the previous workspace.
-                let active_ids: Vec<endringer::ProjectId> = state
+                let active_ids: Vec<knotra_vcs::ProjectId> = state
                     .workspace
                     .as_ref()
                     .map(|ws| ws.projects.iter().map(|p| p.id.clone()).collect())
@@ -508,7 +506,7 @@ fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
                     async move { VcsAdapter::read_project_status(&p).await },
                     |s| {
                         Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
-                            endringer::WorkspaceStatus {
+                            knotra_vcs::WorkspaceStatus {
                                 projects: vec![s],
                                 last_refresh: Some(chrono::Utc::now()),
                             },
@@ -665,7 +663,7 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
                         return SmartPullProgress {
                             project_id: entry.project_id.clone(),
                             project_name: entry.project_name.clone(),
-                            result: endringer::model::operation::ProjectOperationResult {
+                            result: knotra_vcs::model::operation::ProjectOperationResult {
                                 project_id: entry.project_id,
                                 success: false,
                                 commands_executed: vec![],
@@ -682,7 +680,7 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
                         SmartPullDisposition::Excluded => SmartPullProgress {
                             project_id: project.id.clone(),
                             project_name: entry.project_name.clone(),
-                            result: endringer::model::operation::ProjectOperationResult {
+                            result: knotra_vcs::model::operation::ProjectOperationResult {
                                 project_id: project.id.clone(),
                                 success: true,
                                 commands_executed: vec![],
@@ -775,7 +773,7 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                 let missing: Vec<_> = ws
                     .projects
                     .iter()
-                    .filter(|p| !endringer::VcsAdapter::repo_exists(p))
+                    .filter(|p| !knotra_vcs::VcsAdapter::repo_exists(p))
                     .map(|p| p.id.clone())
                     .collect();
                 if missing != state.missing_projects.iter().cloned().collect::<Vec<_>>() {
@@ -797,10 +795,10 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
 
         BackgroundMessage::SmartPullProjectCompleted(mut progress) => {
             // Fill in the project name if missing.
-            if progress.project_name.is_empty() {
-                if let Some(name) = find_project_name(state, &progress.project_id) {
-                    progress.project_name = name;
-                }
+            if progress.project_name.is_empty()
+                && let Some(name) = find_project_name(state, &progress.project_id)
+            {
+                progress.project_name = name;
             }
 
             match &mut state.sync.phase {
@@ -904,7 +902,7 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                         async move { VcsAdapter::read_project_status(&project).await },
                         |s| {
                             Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
-                                endringer::WorkspaceStatus {
+                                knotra_vcs::WorkspaceStatus {
                                     projects: vec![s],
                                     last_refresh: Some(chrono::Utc::now()),
                                 },
@@ -996,13 +994,13 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
         }
 
         BackgroundMessage::FreezeExecutionDone(result) => {
-            use endringer::model::operation::{OperationKind, OperationLog, OperationResult};
+            use knotra_vcs::model::operation::{OperationKind, OperationLog, OperationResult};
 
             // Build per-project entries for the operation log.
             let per_project: Vec<_> = result
                 .project_results
                 .iter()
-                .map(|r| endringer::model::operation::ProjectOperationResult {
+                .map(|r| knotra_vcs::model::operation::ProjectOperationResult {
                     project_id: r.project_id.clone(),
                     success: r.success,
                     commands_executed: r.commands_executed.clone(),
@@ -1051,20 +1049,20 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             persist_log(&op_log, state);
 
             // If the freeze succeeded fully, offer to push tags to remote.
-            if let FreezerPhase::Done(ref freeze_result) = state.freezer.phase {
-                if freeze_result.outcome == endringer::FreezeOutcome::Success {
-                    let ids: Vec<_> = freeze_result
-                        .project_results
-                        .iter()
-                        .filter(|r| r.success)
-                        .map(|r| r.project_id.clone())
-                        .collect();
-                    if !ids.is_empty() {
-                        let _ = Task::done(Message::TagPush(TagPushMessage::OfferShown {
-                            freeze_name: freeze_result.freeze_name.clone(),
-                            project_ids: ids,
-                        }));
-                    }
+            if let FreezerPhase::Done(ref freeze_result) = state.freezer.phase
+                && freeze_result.outcome == knotra_vcs::FreezeOutcome::Success
+            {
+                let ids: Vec<_> = freeze_result
+                    .project_results
+                    .iter()
+                    .filter(|r| r.success)
+                    .map(|r| r.project_id.clone())
+                    .collect();
+                if !ids.is_empty() {
+                    let _ = Task::done(Message::TagPush(TagPushMessage::OfferShown {
+                        freeze_name: freeze_result.freeze_name.clone(),
+                        project_ids: ids,
+                    }));
                 }
             }
             state.freezer.phase = FreezerPhase::Done(result);
@@ -1090,7 +1088,7 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
         }
 
         BackgroundMessage::ContextSwitchDone(result) => {
-            use endringer::model::operation::{OperationKind, OperationLog, OperationResult};
+            use knotra_vcs::model::operation::{OperationKind, OperationLog, OperationResult};
 
             // Build an operation log entry.
             let op_log = OperationLog {
@@ -1119,7 +1117,7 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                     async move { VcsAdapter::read_project_status(&p).await },
                     |s| {
                         Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
-                            endringer::WorkspaceStatus {
+                            knotra_vcs::WorkspaceStatus {
                                 projects: vec![s],
                                 last_refresh: Some(chrono::Utc::now()),
                             },
@@ -1176,14 +1174,14 @@ fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> 
     match msg {
         SettingsMessage::LocaleChanged(l) => {
             state.config.locale = l;
-            state.catalog = snora::i18n::Catalog::for_locale(l);
+            state.catalog = knotra_ui::i18n::Catalog::for_locale(l);
         }
         SettingsMessage::ThemeChanged(dark) => {
             state.config.dark_theme = dark;
             state.theme = if dark {
-                snora::KnotraTheme::dark()
+                knotra_ui::KnotraTheme::dark()
             } else {
-                snora::KnotraTheme::light()
+                knotra_ui::KnotraTheme::light()
             };
         }
         SettingsMessage::RefreshIntervalChanged(s) => {
@@ -1248,18 +1246,18 @@ fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> 
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn find_project(state: &AppState, id: &endringer::ProjectId) -> Option<endringer::Project> {
+fn find_project(state: &AppState, id: &knotra_vcs::ProjectId) -> Option<knotra_vcs::Project> {
     state
         .workspace
         .as_ref()
         .and_then(|ws| ws.projects.iter().find(|p| &p.id == id).cloned())
 }
 
-fn find_project_name(state: &AppState, id: &endringer::ProjectId) -> Option<String> {
+fn find_project_name(state: &AppState, id: &knotra_vcs::ProjectId) -> Option<String> {
     find_project(state, id).map(|p| p.name)
 }
 
-fn merge_workspace_status(state: &mut AppState, new: endringer::WorkspaceStatus) {
+fn merge_workspace_status(state: &mut AppState, new: knotra_vcs::WorkspaceStatus) {
     if let Some(existing) = &mut state.workspace_status {
         for ps in new.projects {
             if let Some(pos) = existing
@@ -1317,14 +1315,14 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
             state.context_ops.phase = ContextPhase::Idle;
 
             // If a project was pre-selected (e.g. from a dashboard card shortcut), load it.
-            if let Some(id) = preselect_id {
-                if let Some(project) = find_project(state, &id) {
-                    state.context_ops.phase = ContextPhase::LoadingList(id.clone());
-                    return Task::perform(
-                        async move { VcsAdapter::list_contexts(&project).await },
-                        |list| Message::Background(BackgroundMessage::ContextListLoaded(list)),
-                    );
-                }
+            if let Some(id) = preselect_id
+                && let Some(project) = find_project(state, &id)
+            {
+                state.context_ops.phase = ContextPhase::LoadingList(id.clone());
+                return Task::perform(
+                    async move { VcsAdapter::list_contexts(&project).await },
+                    |list| Message::Background(BackgroundMessage::ContextListLoaded(list)),
+                );
             }
             Task::none()
         }
@@ -1371,7 +1369,7 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
                 .as_ref()
                 .and_then(|ws| ws.projects.iter().find(|s| s.project_id == project_id))
                 .map(|s| s.identity.vcs_kind)
-                .unwrap_or(endringer::VcsKind::Git);
+                .unwrap_or(knotra_vcs::VcsKind::Git);
 
             let is_dirty = state
                 .workspace_status
@@ -1434,15 +1432,15 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
                 ContextPhase::ConfirmSwitch { project_id, .. } => Some(project_id.clone()),
                 _ => None,
             };
-            if let Some(id) = prev_id {
-                if let Some(cached) = state.context_ops.cached_lists.get(&id).cloned() {
-                    state.context_ops.phase = ContextPhase::BrowsingList {
-                        project_id: id,
-                        list: cached,
-                        search: String::new(),
-                    };
-                    return Task::none();
-                }
+            if let Some(id) = prev_id
+                && let Some(cached) = state.context_ops.cached_lists.get(&id).cloned()
+            {
+                state.context_ops.phase = ContextPhase::BrowsingList {
+                    project_id: id,
+                    list: cached,
+                    search: String::new(),
+                };
+                return Task::none();
             }
             state.context_ops.phase = ContextPhase::Idle;
             Task::none()
@@ -1508,10 +1506,10 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             Task::none()
         }
         FreezerMessage::ExecuteConfirmed => {
-            return Task::done(Message::Freezer(FreezerMessage::ExecuteRequested));
+            Task::done(Message::Freezer(FreezerMessage::ExecuteRequested))
         }
         FreezerMessage::ExecuteRequested => {
-            return Task::done(Message::Freezer(FreezerMessage::ExecuteConfirmed));
+            Task::done(Message::Freezer(FreezerMessage::ExecuteConfirmed))
         }
         FreezerMessage::BulkOpenRequested => {
             state.active_modal = crate::state::ActiveModal::Tag;
@@ -1676,7 +1674,7 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
                             .unwrap_or_else(|| "mark-resolved failed".to_owned())
                     };
                     Message::Background(BackgroundMessage::ConflictFilesLoaded(
-                        endringer::ProjectConflictDetail {
+                        knotra_vcs::ProjectConflictDetail {
                             project_id: pid.clone(),
                             project_name: String::new(),
                             conflicted_files: vec![],
@@ -1704,7 +1702,7 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
                     let ok = r.success;
                     let pid = r.project_id.clone();
                     Message::Background(BackgroundMessage::ConflictFilesLoaded(
-                        endringer::ProjectConflictDetail {
+                        knotra_vcs::ProjectConflictDetail {
                             project_id: pid,
                             project_name: String::new(),
                             conflicted_files: vec![],
@@ -1826,7 +1824,7 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
             Task::none()
         }
         ChangelogMessage::CollectRequested => {
-            return Task::done(Message::Changelog(ChangelogMessage::GenerateRequested));
+            Task::done(Message::Changelog(ChangelogMessage::GenerateRequested))
         }
         ChangelogMessage::ModalClosed => {
             state.active_modal = crate::state::ActiveModal::None;
@@ -1868,7 +1866,7 @@ fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
     }
 
     // Build project list for the poller.
-    let projects: Vec<(endringer::ProjectId, String)> = state
+    let projects: Vec<(knotra_vcs::ProjectId, String)> = state
         .workspace
         .as_ref()
         .map(|ws| {
@@ -1912,10 +1910,10 @@ fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
             .into_iter()
             .map(|project| {
                 Task::perform(
-                    async move { endringer::VcsAdapter::read_project_status(&project).await },
+                    async move { knotra_vcs::VcsAdapter::read_project_status(&project).await },
                     |s| {
                         Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
-                            endringer::WorkspaceStatus {
+                            knotra_vcs::WorkspaceStatus {
                                 projects: vec![s],
                                 last_refresh: Some(chrono::Utc::now()),
                             },
@@ -1981,7 +1979,7 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
                         let tag = tag_name.clone();
                         handles.push(tokio::spawn(async move {
                             let _permit = sem.acquire().await.expect("open");
-                            endringer::VcsAdapter::push_tag(&project, &tag).await
+                            knotra_vcs::VcsAdapter::push_tag(&project, &tag).await
                         }));
                     }
                     let mut results = Vec::new();
@@ -2015,7 +2013,7 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
 // ---------------------------------------------------------------------------
 
 fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> Task<Message> {
-    let ordered: Vec<endringer::ProjectId> = state
+    let ordered: Vec<knotra_vcs::ProjectId> = state
         .workspace
         .as_ref()
         .map(|ws| ws.projects.iter().map(|p| p.id.clone()).collect())

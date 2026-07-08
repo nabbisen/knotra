@@ -2,8 +2,8 @@
 //! RFC-015 — Workspace tab strip at the top of the window.
 
 use iced::{
-    widget::{button, container, row, text, Space},
     Alignment, Element, Length,
+    widget::{Space, button, container, row, text},
 };
 
 use crate::{
@@ -20,18 +20,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             let is_active = i == state.active_workspace_idx;
 
             // Count "needs attention" projects (RFC-010 badge).
-            let attention = state.workspace_status.as_ref()
+            let attention = state
+                .workspace_status
+                .as_ref()
                 .filter(|_| is_active)
                 .map(|wss| {
                     let missing = &state.missing_projects;
-                    ws.projects.iter()
+                    ws.projects
+                        .iter()
                         .filter(|p| {
-                            if missing.contains(&p.id) { return true; }
-                            let status = wss.projects.iter()
-                                .find(|ps| ps.project_id == p.id);
-                            let (tier, _) = crate::state::tier::compute_tier(
-                                status, true,
-                            );
+                            if missing.contains(&p.id) {
+                                return true;
+                            }
+                            let status = wss.projects.iter().find(|ps| ps.project_id == p.id);
+                            let (tier, _) = crate::state::tier::compute_tier(status, true);
                             tier == crate::state::AttentionTier::NeedsAttention
                         })
                         .count()
@@ -44,27 +46,27 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 ws.name.clone()
             };
 
-            let btn = button(text(badge).size(13))
-                .on_press_maybe(if is_active {
-                    None
-                } else {
-                    Some(Message::Workspace(
-                        WorkspaceMessage::WorkspaceSwitched(ws.id.clone())
-                    ))
-                });
+            let btn = button(text(badge).size(13)).on_press_maybe(if is_active {
+                None
+            } else {
+                Some(Message::Workspace(WorkspaceMessage::WorkspaceSwitched(
+                    ws.id.clone(),
+                )))
+            });
             let _ = is_active; // styling via theming later
             btn.into()
         })
         .collect();
 
-    let new_workspace_btn = button(text("+").size(13))
-        .on_press(Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened));
+    let new_workspace_btn = button(text("+").size(13)).on_press(Message::Workspace(
+        WorkspaceMessage::CreateWorkspaceDialogOpened,
+    ));
 
-    let settings_btn = button(text("⚙").size(13))
-        .on_press(Message::Navigate(crate::state::Screen::Settings));
+    let settings_btn =
+        button(text("⚙").size(13)).on_press(Message::Navigate(crate::state::Screen::Settings));
 
-    let history_btn = button(text("⊟").size(13))
-        .on_press(Message::Navigate(crate::state::Screen::History));
+    let history_btn =
+        button(text("⊟").size(13)).on_press(Message::Navigate(crate::state::Screen::History));
 
     container(
         row(tabs)
@@ -74,7 +76,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .push(settings_btn)
             .spacing(4)
             .align_y(Alignment::Center)
-            .padding([4, 8])
+            .padding([4, 8]),
     )
     .width(Length::Fill)
     .into()

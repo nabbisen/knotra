@@ -1,0 +1,25 @@
+[package]
+name = "knotra-vcs"
+description = "knotra VCS facade: multi-project VcsAdapter + domain model over the published endringer crates"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+endringer-core  = "0.19.2"
+endringer-git   = "0.19.2"
+endringer-jj    = "0.19.2"
+endringer-async = "0.19.2"
+toml.workspace = true
+tokio.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+filetime = "0.2"

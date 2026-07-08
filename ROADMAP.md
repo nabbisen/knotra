@@ -137,3 +137,17 @@ All design issues identified in the v0.10.0 design-note review are resolved.
 - [x] RFC-006 jj `log_since` uses `jj log -r <bookmark>..@`
 - [x] RFC-007 Topology scan Cargo.toml-only scope documented
 - [x] RFC-008 `FsPoller::prune` on workspace switch and delete
+
+## v0.15.0 — Published-crate migration (RFC-018)
+
+Supersedes Phase 10's vendoring: the in-tree `endringer-backend-*` crates
+*were* the published `endringer` crates at 0.14, so knotra now consumes them
+from crates.io rather than carrying a fork.
+
+- [x] Remove in-tree `endringer-backend-{core,git,jj,async}`; depend on
+      published `endringer-{core,git,jj,async}` 0.19.2
+- [x] Rename facade `endringer` → `knotra-vcs` (VcsAdapter + model + CLI writes)
+- [x] Rename foundation `snora` → `knotra-ui` (resolves the published-`snora`
+      name collision; theme + i18n catalog stay knotra-owned)
+- [x] `knotra-app` import renames only; app logic unchanged
+- [x] 0 warnings (check + clippy, all targets), 69 tests pass under 1.91

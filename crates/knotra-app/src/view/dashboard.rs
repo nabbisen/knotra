@@ -1,12 +1,12 @@
 #![allow(unused_imports)]
 //! Dashboard view: card grid with filter chips, grouping, and add-project dialog.
 
-use endringer::model::{project::Project, status::ProjectStatus};
+use knotra_vcs::model::{project::Project, status::ProjectStatus};
 use iced::{
     widget::{button, column, container, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,
 };
-use snora::{theme::StatusColor, widget::CARD_GAP};
+use knotra_ui::{theme::StatusColor, widget::CARD_GAP};
 
 use crate::{
     message::{
@@ -186,7 +186,7 @@ fn view_filter_chips(state: &AppState) -> Element<'_, Message> {
 fn view_tier_grid(state: &AppState) -> Element<'_, Message> {
     use iced::widget::{button, column, container, row, text};
     use iced::Length;
-    use snora::widget::CARD_GAP;
+    use knotra_ui::widget::CARD_GAP;
 
     let projects = state.workspace.as_ref()
         .map(|w| w.projects.as_slice()).unwrap_or(&[]);
@@ -304,7 +304,7 @@ fn view_card_grid(state: &AppState) -> Element<'_, Message> {
         for entry in &group.entries {
             current_row.push(view_project_card(state, entry.project, entry.status));
             if current_row.len() == COLS {
-                let r: Vec<Element<'_, Message>> = current_row.drain(..).collect();
+                let r: Vec<Element<'_, Message>> = std::mem::take(&mut current_row);
                 page.push(row(r).spacing(CARD_GAP).into());
             }
         }
@@ -510,8 +510,8 @@ fn placeholder(msg: &str) -> Element<'_, Message> {
 #[allow(dead_code)]
 fn card_needs_attention<'a>(
     state: &'a AppState,
-    project: &'a endringer::Project,
-    status: Option<&'a endringer::ProjectStatus>,
+    project: &'a knotra_vcs::Project,
+    status: Option<&'a knotra_vcs::ProjectStatus>,
     cause: Option<crate::state::tier::AttentionCause>,
 ) -> Element<'a, Message> {
     use crate::state::tier::AttentionCause;
@@ -587,8 +587,8 @@ fn card_needs_attention<'a>(
 #[allow(dead_code)]
 fn card_active<'a>(
     state: &'a AppState,
-    project: &'a endringer::Project,
-    status: Option<&'a endringer::ProjectStatus>,
+    project: &'a knotra_vcs::Project,
+    status: Option<&'a knotra_vcs::ProjectStatus>,
 ) -> Element<'a, Message> {
     let branch = status
         .and_then(|s| s.context.as_ref())
@@ -625,7 +625,7 @@ fn card_active<'a>(
 #[allow(dead_code)]
 fn card_clean<'a>(
     state: &'a AppState,
-    project: &'a endringer::Project,
+    project: &'a knotra_vcs::Project,
 ) -> Element<'a, Message> {
     let name_btn = button(text(project.name.as_str()).size(13))
         .on_press(Message::DetailPanel(crate::message::DetailPanelMessage::Opened(project.id.clone())));
