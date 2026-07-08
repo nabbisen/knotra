@@ -374,3 +374,192 @@ async fn run_git(project: &Project, args: &[&str]) -> ProjectOperationResult {
         error_message: Some(format!("task join error: {e}")),
     })
 }
+
+// ---------------------------------------------------------------------------
+// Context listing
+// ---------------------------------------------------------------------------
+
+/// List local and remote branches for a Git repository.
+pub async fn list_contexts(project: &Project) -> crate::model::status::ContextList {
+    let path = project.path.clone();
+    let project_id = project.id.clone();
+
+    tokio::task::spawn_blocking(move || list_contexts_blocking(&project_id, &path))
+        .await
+        .unwrap_or_else(|e| crate::model::status::ContextList {
+            project_id: project.id.clone(),
+            vcs_kind: crate::model::status::VcsKind::Git,
+            candidates: Vec::new(),
+            warning: Some(format!("task join error: {e}")),
+        })
+}
+
+fn list_contexts_blocking(
+    project_id: &crate::model::project::ProjectId,
+    path: &str,
+) -> crate::model::status::ContextList {
+    use crate::model::status::{ContextCandidate, ContextList, VcsKind};
+
+    let current = git_stdout(&["symbolic-ref", "--short", "HEAD"], path)
+        .unwrap_or_default();
+
+    // Local branches.
+    let local_out = git_stdout(
+        &["branch", "--format=%(refname:short)"],
+        path,
+    )
+    .unwrap_or_default();
+
+    // Remote branches (stripped of "origin/" prefix for display).
+    let remote_out = git_stdout(
+        &["branch", "-r", "--format=%(refname:short)"],
+        path,
+    )
+    .unwrap_or_default();
+
+    let mut candidates: Vec<ContextCandidate> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for line in local_out.lines() {
+        let label = line.trim().to_owned();
+        if label.is_empty() { continue; }
+        let is_current = label == current;
+        seen.insert(label.clone());
+        candidates.push(ContextCandidate {
+            label: label.clone(),
+            target: label,
+            is_current,
+            is_remote: false,
+        });
+    }
+
+    for line in remote_out.lines() {
+        let full = line.trim();
+        // Skip HEAD symbolic refs.
+        if full.contains("HEAD") { continue; }
+        // Strip remote prefix for the label (e.g. "origin/main" → "main").
+        let label = full
+            .split_once('/')
+            .map(|(_, b)| b.to_owned())
+            .unwrap_or_else(|| full.to_owned());
+        // Skip if a local branch with the same name already listed.
+        if seen.contains(&label) { continue; }
+        candidates.push(ContextCandidate {
+            label: label.clone(),
+            target: full.to_owned(),
+            is_current: false,
+            is_remote: true,
+        });
+    }
+
+    // Sort: current first, then local, then remote.
+    candidates.sort_by(|a, b| {
+        b.is_current.cmp(&a.is_current)
+            .then(a.is_remote.cmp(&b.is_remote))
+            .then(a.label.cmp(&b.label))
+    });
+
+    ContextList {
+        project_id: project_id.clone(),
+        vcs_kind: VcsKind::Git,
+        candidates,
+        warning: if current.is_empty() {
+            Some("Detached HEAD — no current branch".to_owned())
+        } else {
+            None
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Context switch
+// ---------------------------------------------------------------------------
+
+/// Switch to a branch (local or remote-tracking).
+///
+/// For remote targets, creates a local tracking branch if needed
+/// (`git checkout -b <branch> --track <remote>/<branch>`).
+pub async fn switch_context(
+    project: &Project,
+    target: &str,
+) -> (
+    crate::model::operation::ProjectOperationResult,
+    Option<crate::model::operation::RecoveryHint>,
+) {
+    use crate::model::operation::RecoveryHint;
+
+    // Dirty-state check before switching.
+    let wt = tokio::task::spawn_blocking({
+        let path = project.path.clone();
+        move || read_working_tree(&path)
+    })
+    .await
+    .unwrap_or_default();
+
+    if wt.is_dirty() {
+        let hint = RecoveryHint {
+            project_id: project.id.clone(),
+            situation: format!(
+                "working tree is dirty ({} uncommitted, {} untracked) — \
+                 stash or commit changes before switching",
+                wt.uncommitted_count, wt.untracked_count
+            ),
+            suggested_commands: vec![
+                format!("cd {:?} && git stash push -m before-switch", project.path),
+                format!("cd {:?} && git switch {}", project.path, target),
+                format!("cd {:?} && git stash pop", project.path),
+            ],
+            see_also: None,
+        };
+        let result = run_git(
+            project,
+            &["switch", "--dry-run", target],
+        )
+        .await;
+        return (
+            crate::model::operation::ProjectOperationResult {
+                project_id: project.id.clone(),
+                success: false,
+                commands_executed: result.commands_executed,
+                stdout: result.stdout,
+                stderr: format!(
+                    "[knotra] switch blocked: dirty working tree\n{}",
+                    result.stderr
+                ),
+                exit_code: Some(1),
+                error_message: Some(
+                    "dirty working tree — stash or commit before switching".to_owned(),
+                ),
+            },
+            Some(hint),
+        );
+    }
+
+    // Determine whether the target is a remote ref.
+    let is_remote = target.contains('/');
+    let args: Vec<&str> = if is_remote {
+        // `git switch -c <local-branch> --track <remote>/<branch>`
+        let local = target.split_once('/').map(|(_, b)| b).unwrap_or(target);
+        vec!["switch", "-c", local, "--track", target]
+    } else {
+        vec!["switch", target]
+    };
+
+    let result = run_git(project, &args).await;
+
+    let hint = if !result.success {
+        Some(RecoveryHint {
+            project_id: project.id.clone(),
+            situation: format!("switch to '{}' failed", target),
+            suggested_commands: vec![
+                format!("cd {:?} && git switch {}", project.path, target),
+                format!("cd {:?} && git status", project.path),
+            ],
+            see_also: None,
+        })
+    } else {
+        None
+    };
+
+    (result, hint)
+}

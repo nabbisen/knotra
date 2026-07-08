@@ -7,7 +7,7 @@ use std::time::Duration;
 use endringer::{
     model::{
         operation::{
-            OperationId, OperationKind, OperationLog, OperationResult,
+            ContextSwitchResult, OperationId, OperationKind, OperationLog, OperationResult,
             SmartPullDisposition, SmartPullPlan, SmartPullProgress,
         },
         project::Project,
@@ -19,11 +19,12 @@ use endringer::{
 use crate::{
     config::{load_config, save_config, AppPaths},
     message::{
-        BackgroundMessage, FilterMessage, FreezerMessage, HistoryMessage, Message,
+        BackgroundMessage, ContextMessage, FilterMessage, FreezerMessage, HistoryMessage, Message,
         ProjectMessage, SettingsMessage, ShortcutMessage, SyncMessage, WorkspaceMessage,
     },
     persistence::{load_recent_logs, load_workspaces, save_operation_log, save_workspace},
     state::{
+        context::{ContextOpsState, ContextPhase},
         sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
         AddProjectDialog, AppState, ConfirmRemoveDialog, LoadPhase, Screen,
     },
@@ -110,7 +111,7 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         Message::Settings(msg)       => handle_settings(state, msg),
         Message::Background(msg)     => handle_background(state, msg),
         Message::Filter(msg)         => { state.apply_filter(msg); Task::none() }
-        Message::Context(msg)        => { tracing::debug!("{:?}", msg); Task::none() }
+        Message::Context(msg)        => handle_context(state, msg),
     }
 }
 
@@ -139,7 +140,7 @@ fn handle_tick(state: &mut AppState) -> Task<Message> {
 fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> {
     match msg {
         ShortcutMessage::Refresh => handle_tick(state),
-        ShortcutMessage::OpenContextOps => { state.screen = Screen::ContextOps; Task::none() }
+        ShortcutMessage::OpenContextOps => handle_context(state, ContextMessage::OpenRequested(None)),
         ShortcutMessage::OpenFreezer    => { state.screen = Screen::Freezer;    Task::none() }
         ShortcutMessage::FocusSearch    => { state.screen = Screen::Dashboard;  Task::none() }
         ShortcutMessage::Close          => {
@@ -586,6 +587,57 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
+        BackgroundMessage::ContextListLoaded(list) => {
+            let id = list.project_id.clone();
+            state.context_ops.cached_lists.insert(id.clone(), list.clone());
+            // Only update phase if we were waiting for this exact project.
+            if matches!(&state.context_ops.phase, ContextPhase::LoadingList(loading_id) if loading_id == &id) {
+                state.context_ops.phase = ContextPhase::BrowsingList {
+                    project_id: id,
+                    list,
+                    search: String::new(),
+                };
+            }
+            Task::none()
+        }
+
+        BackgroundMessage::ContextSwitchDone(result) => {
+            use endringer::model::operation::{OperationKind, OperationLog, OperationResult};
+
+            // Build an operation log entry.
+            let op_log = OperationLog {
+                result: OperationResult {
+                    operation_id: OperationId::new(),
+                    kind: OperationKind::ContextSwitch,
+                    started_at: chrono::Utc::now(),
+                    finished_at: chrono::Utc::now(),
+                    per_project: vec![result.operation_result.clone()],
+                    rollback_attempted: false,
+                    rollback_succeeded: None,
+                },
+                recovery_hints: result.recovery_hint.clone().into_iter().collect(),
+            };
+            persist_log(&op_log, state);
+
+            state.context_ops.phase = ContextPhase::Done(result);
+
+            // Refresh the project's status card after a switch.
+            let project = match &state.context_ops.phase {
+                ContextPhase::Done(r) => find_project(state, &r.project_id),
+                _ => None,
+            };
+            if let Some(p) = project {
+                Task::perform(
+                    async move { VcsAdapter::read_project_status(&p).await },
+                    |s| Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
+                        endringer::WorkspaceStatus { projects: vec![s], last_refresh: Some(chrono::Utc::now()) },
+                    )),
+                )
+            } else {
+                Task::none()
+            }
+        }
+
         BackgroundMessage::TaskError { description } => {
             state.load_phase = LoadPhase::Error(description.clone());
             state.is_refreshing = false;
@@ -677,4 +729,142 @@ fn refresh_workspace_task(state: &AppState) -> Task<Message> {
         async move { VcsAdapter::read_workspace_status(&workspace, max).await },
         |s| Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(s)),
     )
+}
+
+// ---------------------------------------------------------------------------
+// Context Operations handler
+// ---------------------------------------------------------------------------
+
+fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
+    match msg {
+        ContextMessage::OpenRequested(preselect_id) => {
+            state.screen = Screen::ContextOps;
+            state.context_ops.phase = ContextPhase::Idle;
+
+            // If a project was pre-selected (e.g. from a dashboard card shortcut), load it.
+            if let Some(id) = preselect_id {
+                if let Some(project) = find_project(state, &id) {
+                    state.context_ops.phase = ContextPhase::LoadingList(id.clone());
+                    return Task::perform(
+                        async move { VcsAdapter::list_contexts(&project).await },
+                        |list| Message::Background(BackgroundMessage::ContextListLoaded(list)),
+                    );
+                }
+            }
+            Task::none()
+        }
+
+        ContextMessage::ProjectSelected(id) => {
+            let project = match find_project(state, &id) {
+                Some(p) => p,
+                None    => return Task::none(),
+            };
+
+            // Use cached list if present, otherwise fetch.
+            if let Some(cached) = state.context_ops.cached_lists.get(&id).cloned() {
+                state.context_ops.phase = ContextPhase::BrowsingList {
+                    project_id: id,
+                    list: cached,
+                    search: String::new(),
+                };
+                return Task::none();
+            }
+
+            state.context_ops.phase = ContextPhase::LoadingList(id.clone());
+            Task::perform(
+                async move { VcsAdapter::list_contexts(&project).await },
+                |list| Message::Background(BackgroundMessage::ContextListLoaded(list)),
+            )
+        }
+
+        ContextMessage::SearchChanged(s) => {
+            if let ContextPhase::BrowsingList { search, .. } = &mut state.context_ops.phase {
+                *search = s;
+            }
+            Task::none()
+        }
+
+        ContextMessage::SwitchTargetChosen(project_id, target) => {
+            let project = match find_project(state, &project_id) {
+                Some(p) => p,
+                None    => return Task::none(),
+            };
+
+            // Check current dirty state.
+            let vcs_kind = state
+                .workspace_status.as_ref()
+                .and_then(|ws| ws.projects.iter().find(|s| s.project_id == project_id))
+                .map(|s| s.identity.vcs_kind)
+                .unwrap_or(endringer::VcsKind::Git);
+
+            let is_dirty = state
+                .workspace_status.as_ref()
+                .and_then(|ws| ws.projects.iter().find(|s| s.project_id == project_id))
+                .map(|s| s.working_tree.is_dirty())
+                .unwrap_or(false);
+
+            state.context_ops.phase = ContextPhase::ConfirmSwitch {
+                project_id,
+                project_name: project.name.clone(),
+                target,
+                vcs_kind,
+                is_dirty,
+            };
+            Task::none()
+        }
+
+        ContextMessage::SwitchConfirmed => {
+            let (project_id, target, project_name) = match &state.context_ops.phase {
+                ContextPhase::ConfirmSwitch { project_id, target, project_name, .. } => {
+                    (project_id.clone(), target.clone(), project_name.clone())
+                }
+                _ => return Task::none(),
+            };
+
+            let project = match find_project(state, &project_id) {
+                Some(p) => p,
+                None    => return Task::none(),
+            };
+
+            state.context_ops.phase = ContextPhase::Switching {
+                project_id: project_id.clone(),
+                target: target.clone(),
+            };
+            // Invalidate cached list for this project.
+            state.context_ops.cached_lists.remove(&project_id);
+
+            Task::perform(
+                async move {
+                    let (result, hint) = VcsAdapter::switch_context(&project, &target).await;
+                    ContextSwitchResult { project_id: project.id, project_name, target, operation_result: result, recovery_hint: hint }
+                },
+                |r| Message::Background(BackgroundMessage::ContextSwitchDone(r)),
+            )
+        }
+
+        ContextMessage::SwitchCancelled => {
+            // Return to browsing.
+            let prev_id = match &state.context_ops.phase {
+                ContextPhase::ConfirmSwitch { project_id, .. } => Some(project_id.clone()),
+                _ => None,
+            };
+            if let Some(id) = prev_id {
+                if let Some(cached) = state.context_ops.cached_lists.get(&id).cloned() {
+                    state.context_ops.phase = ContextPhase::BrowsingList {
+                        project_id: id,
+                        list: cached,
+                        search: String::new(),
+                    };
+                    return Task::none();
+                }
+            }
+            state.context_ops.phase = ContextPhase::Idle;
+            Task::none()
+        }
+
+        ContextMessage::BackToDashboard => {
+            state.screen = Screen::Dashboard;
+            Task::none()
+        }
+    }
 }

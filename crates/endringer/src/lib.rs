@@ -7,13 +7,13 @@ pub mod vcs;
 pub use error::EndringerError;
 pub use model::{
     operation::{
-        OperationId, OperationLog, OperationPlan, OperationResult, RecoveryHint,
-        SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
+        ContextSwitchResult, OperationId, OperationLog, OperationPlan, OperationResult,
+        RecoveryHint, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
     },
     project::{Project, ProjectId},
     status::{
-        ConflictStatus, ProjectStatus, RemoteStatus, RepositoryIdentity, VcsContext, VcsKind,
-        WorkingTreeStatus, WorkspaceStatus,
+        ConflictStatus, ContextCandidate, ContextList, ProjectStatus, RemoteStatus,
+        RepositoryIdentity, VcsContext, VcsKind, WorkingTreeStatus, WorkspaceStatus,
     },
     workspace::{Workspace, WorkspaceId},
 };

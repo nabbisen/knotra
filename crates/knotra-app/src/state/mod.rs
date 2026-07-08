@@ -1,5 +1,6 @@
 //! Application state — single source of truth.
 
+pub mod context;
 pub mod dashboard;
 pub mod sync;
 
@@ -122,6 +123,8 @@ pub struct AppState {
     pub is_refreshing: bool,
     /// Sync Center state.
     pub sync: sync::SyncCenterState,
+    /// Context Operations state.
+    pub context_ops: context::ContextOpsState,
 }
 
 impl AppState {
@@ -145,6 +148,7 @@ impl AppState {
             fetching_projects: HashSet::new(),
             is_refreshing: false,
             sync: sync::SyncCenterState::default(),
+            context_ops: context::ContextOpsState::default(),
             config,
         }
     }

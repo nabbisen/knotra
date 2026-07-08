@@ -127,3 +127,41 @@ pub struct WorkspaceStatus {
     /// Timestamp of the most recent workspace-wide refresh.
     pub last_refresh: Option<chrono::DateTime<chrono::Utc>>,
 }
+
+// ---------------------------------------------------------------------------
+// Context listing (branches / change-sets available to switch to)
+// ---------------------------------------------------------------------------
+
+/// One switchable context candidate for a repository.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContextCandidate {
+    /// Short human-readable label (branch name, jj change-id + description).
+    pub label: String,
+    /// Full ref string used as the switch target (e.g. `refs/heads/main`).
+    pub target: String,
+    /// True when this is the currently active context.
+    pub is_current: bool,
+    /// True when the candidate is a remote-tracking ref (not locally checked out).
+    pub is_remote: bool,
+}
+
+/// All context candidates for one repository.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextList {
+    pub project_id: crate::model::project::ProjectId,
+    pub vcs_kind: VcsKind,
+    pub candidates: Vec<ContextCandidate>,
+    /// Non-fatal warning produced during listing (e.g. detached HEAD).
+    pub warning: Option<String>,
+}
+
+impl Default for ContextList {
+    fn default() -> Self {
+        ContextList {
+            project_id: crate::model::project::ProjectId::new(),
+            vcs_kind: VcsKind::Git,
+            candidates: Vec::new(),
+            warning: None,
+        }
+    }
+}

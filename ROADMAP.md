@@ -52,11 +52,11 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 
 **Goal:** Quick context switch across repositories.
 
-- [ ] Context Operations screen
-- [ ] Git branch list and checkout
-- [ ] jj change-set and bookmark switch
-- [ ] Pre-switch confirmation dialog
-- [ ] Failure display with log
+- [x] Context Operations screen
+- [x] Git branch list and checkout
+- [x] jj change-set and bookmark switch
+- [x] Pre-switch confirmation dialog
+- [x] Failure display with log
 
 ---
 

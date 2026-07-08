@@ -1,13 +1,11 @@
 //! All `Message` variants for the knotra GUI.
 
 use endringer::{
-    model::{
-        operation::{OperationId, OperationLog, SmartPullPlan, SmartPullProgress},
-        project::{Project, ProjectId},
-        workspace::WorkspaceId,
-    },
-    WorkspaceStatus,
+    model::operation::{OperationId, OperationLog, SmartPullPlan, SmartPullProgress},
+    ContextList, ContextSwitchResult, ProjectId, WorkspaceStatus,
 };
+use endringer::model::workspace::WorkspaceId;
+use endringer::Project;
 
 use crate::state::Screen;
 
@@ -27,7 +25,7 @@ pub enum Message {
     Tick,
 }
 
-// Workspace
+// --- Workspace ---
 #[derive(Debug, Clone)]
 pub enum WorkspaceMessage {
     RefreshRequested,
@@ -42,44 +40,46 @@ pub enum WorkspaceMessage {
     RemoveProjectCancelled,
 }
 
-// Project
+// --- Project ---
 #[derive(Debug, Clone)]
 pub enum ProjectMessage {
     StatusRefreshRequested(ProjectId),
     FetchRequested(ProjectId),
 }
 
-// Sync
+// --- Sync ---
 #[derive(Debug, Clone)]
 pub enum SyncMessage {
-    /// Open the Sync Center and build the initial plan.
     OpenRequested,
-    /// Toggle whether a project is included in the current operation.
     ProjectToggled(ProjectId, bool),
-    /// Set the dirty-project disposition for one entry.
     DispositionChanged(ProjectId, endringer::SmartPullDisposition),
-    /// User requested bulk fetch of selected projects.
     BulkFetchRequested,
-    /// User requested Smart Pull — begin planning.
     SmartPullPlanRequested,
-    /// User confirmed the Smart Pull plan and execution should begin.
     SmartPullConfirmed(SmartPullPlan),
-    /// User cancelled the Smart Pull plan.
     SmartPullCancelled,
-    /// Retry only the failed projects from the last run.
     RetryFailedRequested,
 }
 
-// Context
+// --- Context ---
 #[derive(Debug, Clone)]
 pub enum ContextMessage {
+    /// Open the Context Ops screen; optionally pre-select a project.
+    OpenRequested(Option<ProjectId>),
+    /// User selected a project to operate on.
     ProjectSelected(ProjectId),
-    SwitchRequested { project_id: ProjectId, target: String },
+    /// User typed in the context search box.
+    SearchChanged(String),
+    /// User clicked a candidate to switch to (requests confirmation dialog).
+    SwitchTargetChosen(ProjectId, String),
+    /// User confirmed the pending switch.
     SwitchConfirmed,
+    /// User cancelled the pending switch dialog.
     SwitchCancelled,
+    /// Navigate back to Dashboard.
+    BackToDashboard,
 }
 
-// Freezer
+// --- Freezer ---
 #[derive(Debug, Clone)]
 pub enum FreezerMessage {
     NameChanged(String),
@@ -88,7 +88,7 @@ pub enum FreezerMessage {
     ExecutionCancelled,
 }
 
-// History
+// --- History ---
 #[derive(Debug, Clone)]
 pub enum HistoryMessage {
     SearchChanged(String),
@@ -96,7 +96,7 @@ pub enum HistoryMessage {
     EntryToggled(OperationId),
 }
 
-// Settings
+// --- Settings ---
 #[derive(Debug, Clone)]
 pub enum SettingsMessage {
     LocaleChanged(snora::i18n::Locale),
@@ -106,7 +106,7 @@ pub enum SettingsMessage {
     SaveRequested,
 }
 
-// Background
+// --- Background ---
 #[derive(Debug, Clone)]
 pub enum BackgroundMessage {
     WorkspaceStatusRefreshed(WorkspaceStatus),
@@ -115,14 +115,16 @@ pub enum BackgroundMessage {
     ContextSwitchCompleted(OperationLog),
     FreezeCompleted(OperationLog),
     SingleFetchCompleted(OperationLog),
-    /// One project finished during a streaming operation.
     SmartPullProjectCompleted(SmartPullProgress),
-    /// Planning step finished — ready for user confirmation.
     SmartPullPlanReady(SmartPullPlan),
+    /// Context list loaded for a project.
+    ContextListLoaded(ContextList),
+    /// A context switch finished.
+    ContextSwitchDone(ContextSwitchResult),
     TaskError { description: String },
 }
 
-// Filter
+// --- Filter ---
 #[derive(Debug, Clone)]
 pub enum FilterMessage {
     SearchChanged(String),
@@ -148,7 +150,7 @@ impl StatusFilter {
     }
 }
 
-// Shortcuts
+// --- Shortcuts ---
 #[derive(Debug, Clone)]
 pub enum ShortcutMessage {
     Refresh,

@@ -249,3 +249,140 @@ pub async fn smart_pull(
 
     (fetch_res, hint)
 }
+
+// ---------------------------------------------------------------------------
+// Context listing
+// ---------------------------------------------------------------------------
+
+/// List bookmarks and recent change-IDs for a jj repository.
+pub async fn list_contexts(project: &Project) -> crate::model::status::ContextList {
+    let path = project.path.clone();
+    let project_id = project.id.clone();
+
+    tokio::task::spawn_blocking(move || list_contexts_blocking(&project_id, &path))
+        .await
+        .unwrap_or_else(|e| crate::model::status::ContextList {
+            project_id: project.id.clone(),
+            vcs_kind: crate::model::status::VcsKind::Jujutsu,
+            candidates: Vec::new(),
+            warning: Some(format!("task join error: {e}")),
+        })
+}
+
+fn list_contexts_blocking(
+    project_id: &crate::model::project::ProjectId,
+    path: &str,
+) -> crate::model::status::ContextList {
+    use crate::model::status::{ContextCandidate, ContextList, VcsKind};
+
+    // Get current change-id.
+    let current_id = run_jj(
+        &["log", "-r", "@", "--no-graph", "-T", "change_id.short(8)\n"],
+        path,
+    )
+    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+    .unwrap_or_default();
+
+    // List bookmarks.
+    let bookmarks_out = run_jj(
+        &["bookmark", "list", "--all"],
+        path,
+    )
+    .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+    .unwrap_or_default();
+
+    // List recent commits (last 20) for change-set switching.
+    let log_out = run_jj(
+        &[
+            "log",
+            "-r", "ancestors(@, 20)",
+            "--no-graph",
+            "-T",
+            r#"change_id.short(8) ++ "|" ++ if(bookmarks, bookmarks.join(",") ++ " ", "") ++ description.first_line() ++ "\n""#,
+        ],
+        path,
+    )
+    .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+    .unwrap_or_default();
+
+    let mut candidates: Vec<ContextCandidate> = Vec::new();
+
+    // Bookmark candidates first.
+    for line in bookmarks_out.lines() {
+        let parts: Vec<&str> = line.splitn(2, ':').collect();
+        if parts.is_empty() { continue; }
+        let name = parts[0].trim().to_owned();
+        if name.is_empty() || name.starts_with("  ") { continue; }
+        candidates.push(ContextCandidate {
+            label: name.clone(),
+            target: name,
+            is_current: false, // resolved below via log
+            is_remote: line.contains("remote"),
+        });
+    }
+
+    // Recent change-set candidates.
+    for line in log_out.lines() {
+        let mut parts = line.splitn(2, '|');
+        let change_id = match parts.next() { Some(s) => s.trim().to_owned(), None => continue };
+        if change_id.is_empty() { continue; }
+        let rest = parts.next().unwrap_or("").trim().to_owned();
+        let is_current = change_id == current_id;
+        let label = if rest.is_empty() {
+            change_id.clone()
+        } else {
+            format!("{} {}", change_id, rest)
+        };
+        candidates.push(ContextCandidate {
+            label,
+            target: change_id,
+            is_current,
+            is_remote: false,
+        });
+    }
+
+    // Sort: current first.
+    candidates.sort_by(|a, b| b.is_current.cmp(&a.is_current).then(a.label.cmp(&b.label)));
+    candidates.dedup_by(|a, b| a.target == b.target);
+
+    ContextList {
+        project_id: project_id.clone(),
+        vcs_kind: VcsKind::Jujutsu,
+        candidates,
+        warning: None,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Context switch
+// ---------------------------------------------------------------------------
+
+/// Switch to a jj change-set or bookmark (`jj edit <target>`).
+pub async fn switch_context(
+    project: &Project,
+    target: &str,
+) -> (
+    crate::model::operation::ProjectOperationResult,
+    Option<crate::model::operation::RecoveryHint>,
+) {
+    use crate::model::operation::RecoveryHint;
+
+    // jj uses `jj edit` to move the working copy to a change.
+    let result = run_jj_command(project, &["edit", target]).await;
+
+    let hint = if !result.success {
+        Some(RecoveryHint {
+            project_id: project.id.clone(),
+            situation: format!("jj edit {} failed", target),
+            suggested_commands: vec![
+                format!("cd {:?} && jj edit {}", project.path, target),
+                format!("cd {:?} && jj status", project.path),
+            ],
+            see_also: Some("https://jj-vcs.github.io/jj/latest/working-copy/".to_owned()),
+        })
+    } else {
+        None
+    };
+
+    (result, hint)
+}

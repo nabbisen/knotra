@@ -7,6 +7,31 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.4.0] — 2025-xx-xx
+
+### Added
+- Phase 4: Context Operations — full branch/changeset switch screen.
+- `endringer`: `ContextCandidate`, `ContextList` types in `status` model.
+- `endringer`: `ContextSwitchResult` in `operation` model.
+- `endringer/git`: `list_contexts` — lists local + remote branches, sorts current-first.
+- `endringer/git`: `switch_context` — dirty-tree pre-check, `git switch` (with local-branch creation for remote targets), `RecoveryHint` on failure.
+- `endringer/jj`: `list_contexts` — bookmarks + recent change-IDs via jj CLI templates.
+- `endringer/jj`: `switch_context` — `jj edit <target>`, post-switch conflict check.
+- `VcsAdapter::list_contexts` and `VcsAdapter::switch_context` dispatchers.
+- `state::context::ContextOpsState` — phase FSM, candidate filter, list cache.
+- `state::context::ContextPhase`: `Idle | LoadingList | BrowsingList | ConfirmSwitch | Switching | Done`.
+- Context Ops view: project selector, branch list with search filter, pre-switch confirmation dialog (with dirty-tree warning), in-progress indicator, result screen with commands executed and recovery hints.
+- Context list cached per project; invalidated on switch.
+- After successful switch, the project's status card is automatically refreshed.
+- `ContextMessage::OpenRequested(Option<ProjectId>)` — `Ctrl+K` shortcut navigates and optionally pre-selects a project.
+- 4 new unit tests for `ContextOpsState` candidate filtering.
+
+### Changed
+- `BackgroundMessage` extended with `ContextListLoaded(ContextList)` and `ContextSwitchDone(ContextSwitchResult)`.
+- `AppState` now carries `context_ops: ContextOpsState`.
+- `ContextMessage` enum fully replaced with Phase 4 variants.
+
+
 ## [0.3.0] — 2025-xx-xx
 
 ### Added

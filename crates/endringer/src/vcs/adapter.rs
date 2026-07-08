@@ -127,3 +127,51 @@ impl VcsAdapter {
         }
     }
 }
+
+impl VcsAdapter {
+    // --- Context listing ---
+
+    /// List all switchable context candidates for a project (branches / change-sets).
+    pub async fn list_contexts(project: &Project) -> crate::model::status::ContextList {
+        let kind = detect_vcs_kind(Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git)      => git::list_contexts(project).await,
+            Some(VcsKind::Jujutsu) => jj::list_contexts(project).await,
+            None => crate::model::status::ContextList {
+                project_id: project.id.clone(),
+                vcs_kind: VcsKind::Git,
+                candidates: Vec::new(),
+                warning: Some(format!("no repository at {}", project.path)),
+            },
+        }
+    }
+
+    // --- Context switch ---
+
+    /// Switch the working context of a repository.
+    pub async fn switch_context(
+        project: &Project,
+        target: &str,
+    ) -> (
+        crate::model::operation::ProjectOperationResult,
+        Option<crate::model::operation::RecoveryHint>,
+    ) {
+        let kind = detect_vcs_kind(Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git)      => git::switch_context(project, target).await,
+            Some(VcsKind::Jujutsu) => jj::switch_context(project, target).await,
+            None => (
+                crate::model::operation::ProjectOperationResult {
+                    project_id: project.id.clone(),
+                    success: false,
+                    commands_executed: vec![],
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: Some(format!("no repository at {}", project.path)),
+                },
+                None,
+            ),
+        }
+    }
+}

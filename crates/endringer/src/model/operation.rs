@@ -195,3 +195,18 @@ pub struct SmartPullProgress {
     pub result: ProjectOperationResult,
     pub recovery_hint: Option<RecoveryHint>,
 }
+
+// ---------------------------------------------------------------------------
+// Context switch result
+// ---------------------------------------------------------------------------
+
+/// Result of a single context-switch operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextSwitchResult {
+    pub project_id: ProjectId,
+    pub project_name: String,
+    /// The target context the switch was attempted to.
+    pub target: String,
+    pub operation_result: ProjectOperationResult,
+    pub recovery_hint: Option<RecoveryHint>,
+}
