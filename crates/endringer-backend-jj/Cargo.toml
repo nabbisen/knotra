@@ -1,0 +1,12 @@
+[package]
+name        = "endringer-backend-jj"
+description = "Jujutsu backend — gix direct read (endringer 0.19.2)"
+version.workspace   = true
+edition.workspace   = true
+authors.workspace   = true
+license.workspace   = true
+
+[dependencies]
+endringer-backend-core = { path = "../endringer-backend-core" }
+endringer-backend-git  = { path = "../endringer-backend-git" }
+anyhow = { workspace = true }

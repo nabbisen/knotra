@@ -550,12 +550,7 @@ impl VcsAdapter {
 
     /// List all tags in a project (for the changelog "since" selector).
     pub async fn list_tags(project: &Project) -> Vec<String> {
-        let path = project.path.clone();
-        tokio::task::spawn_blocking(move || {
-            git::list_tags_blocking(&path)
-        })
-        .await
-        .unwrap_or_default()
+        git::list_tags_blocking(&project.path).await
     }
 }
 
@@ -581,5 +576,114 @@ impl VcsAdapter {
     pub fn repo_exists(project: &Project) -> bool {
         let p = std::path::Path::new(&project.path);
         p.join(".git").exists() || p.join(".jj").is_dir()
+    }
+}
+
+impl VcsAdapter {
+    // --- Tag management ---
+
+    /// Create a tag at HEAD for the given project.
+    ///
+    /// For Git this creates a lightweight tag (`git tag <name>`).
+    /// For jj this creates a bookmark (`jj bookmark create <name> -r @`).
+    pub async fn create_tag(project: &Project, tag_name: &str)
+        -> crate::model::operation::ProjectOperationResult
+    {
+        let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git)      => git::tag_create(project, tag_name).await,
+            Some(VcsKind::Jujutsu) => jj::bookmark_create(project, tag_name).await,
+            None => crate::model::operation::ProjectOperationResult {
+                project_id:        project.id.clone(),
+                success:           false,
+                commands_executed: vec![],
+                stdout:            String::new(),
+                stderr:            String::new(),
+                exit_code:         None,
+                error_message:     Some(format!("no repository at {}", project.path)),
+            },
+        }
+    }
+
+    /// Delete a tag / bookmark for the given project.
+    ///
+    /// For Git: `git tag -d <name>`.
+    /// For jj: `jj bookmark delete <name>`.
+    pub async fn delete_tag(project: &Project, tag_name: &str)
+        -> crate::model::operation::ProjectOperationResult
+    {
+        let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git)      => git::tag_delete(project, tag_name).await,
+            Some(VcsKind::Jujutsu) => jj::bookmark_delete(project, tag_name).await,
+            None => crate::model::operation::ProjectOperationResult {
+                project_id:        project.id.clone(),
+                success:           false,
+                commands_executed: vec![],
+                stdout:            String::new(),
+                stderr:            String::new(),
+                exit_code:         None,
+                error_message:     Some(format!("no repository at {}", project.path)),
+            },
+        }
+    }
+
+    /// Collect commits between `since_ref` and `until_ref` (default HEAD).
+    ///
+    /// This is the public entry-point for changelog generation.
+    /// Use `VcsAdapter::collect_changelog` for bulk multi-project collection.
+    pub async fn log_since(
+        project: &Project,
+        since_ref: &str,
+        until_ref: Option<&str>,
+    ) -> crate::model::changelog::ProjectCommits {
+        let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git)      => git::log_since(project, since_ref, until_ref).await,
+            Some(VcsKind::Jujutsu) => jj::log_since(project, since_ref, until_ref).await,
+            None => crate::model::changelog::ProjectCommits {
+                project_id:   project.id.clone(),
+                project_name: project.name.clone(),
+                since_ref:    since_ref.to_owned(),
+                entries:      vec![],
+                error:        Some(format!("no repository at {}", project.path)),
+            },
+        }
+    }
+}
+
+impl VcsAdapter {
+    /// List stash entries for a Git project.
+    ///
+    /// Returns an empty list for jj (jj uses a different stash model)
+    /// and for non-existent repositories.
+    pub async fn stash_entries(project: &Project) -> Vec<crate::model::status::StashEntry> {
+        let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git) => git::stash_entries(project).await,
+            _ => Vec::new(),
+        }
+    }
+
+    /// Return detailed working-tree status (staged / unstaged / untracked).
+    ///
+    /// Powered by gix via `endringer-backend-git`. Fully replaces the
+    /// `git status --porcelain` CLI fallback for the counts in dashboard cards.
+    pub async fn worktree_status(
+        project: &Project,
+    ) -> Option<endringer_backend_core::types::WorktreeStatus> {
+        use endringer_backend_async::AsyncRepository;
+        let path = std::path::Path::new(&project.path);
+        match detect_vcs_kind(path).await {
+            Some(VcsKind::Git) => {
+                AsyncRepository::open(path).await.ok()?
+                    .worktree_status().await.ok()
+            }
+            Some(VcsKind::Jujutsu) => {
+                AsyncRepository::open_jj(path).await.ok()?
+                    .worktree_status().await.ok()
+            }
+            None => None,
+        }
     }
 }

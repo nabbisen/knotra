@@ -808,6 +808,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1008,12 +1017,15 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "endringer"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "endringer-backend-async",
+ "endringer-backend-core",
+ "endringer-backend-git",
+ "endringer-backend-jj",
  "filetime",
- "gix",
  "serde",
  "tempfile",
  "thiserror 2.0.18",
@@ -1021,6 +1033,42 @@ dependencies = [
  "toml",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "endringer-backend-async"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "endringer-backend-core",
+ "endringer-backend-git",
+ "endringer-backend-jj",
+ "tokio",
+]
+
+[[package]]
+name = "endringer-backend-core"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
+name = "endringer-backend-git"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "endringer-backend-core",
+ "gix",
+]
+
+[[package]]
+name = "endringer-backend-jj"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "endringer-backend-core",
+ "endringer-backend-git",
 ]
 
 [[package]]
@@ -1751,11 +1799,13 @@ checksum = "af375693ad5333d0a2c66b4c5b2cbe9ccc38e34f8e8bf24e4ae42c12307fdc4f"
 dependencies = [
  "bytes",
  "crc32fast",
+ "crossbeam-channel",
  "gix-path",
  "gix-trace",
  "gix-utils",
  "libc",
  "once_cell",
+ "parking_lot",
  "prodash",
  "thiserror 2.0.18",
  "walkdir",
@@ -2996,7 +3046,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "knotra-app"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "chrono",

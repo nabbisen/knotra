@@ -111,3 +111,16 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 - [x] Integration test suite — all §16.4 repository states
 - [x] Compiler warning elimination (0 warnings)
 - [x] gix-based hot-path for HEAD and working-tree reads
+
+## Phase 10 — endringer 0.19.2 migration (`knotra-v0.10`)
+
+**Goal:** Replace the hand-written knotra VCS layer with the upstream
+endringer 0.19.2 library backends.
+
+- [x] endringer-backend-{core,git,jj,async} vendored in workspace
+- [x] gix `parallel` feature added (required for `ThreadSafeRepository: Send+Sync`)
+- [x] vcs/git.rs reads delegated to `AsyncRepository` (gix, no CLI)
+- [x] vcs/jj.rs reads delegated to `JjBackend` (gix, `jj` binary not required)
+- [x] `VcsAdapter::stash_entries` and `worktree_status` added
+- [x] `log_since` uses CLI ref-range (`git log <ref>..HEAD`)
+- [x] 0 warnings, 36 endringer tests pass, knotra-app check clean

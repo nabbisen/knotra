@@ -329,7 +329,7 @@ async fn tag_create_and_delete_roundtrip() {
     let project = make_project(dir.path());
 
     // Create tag.
-    let create_result = endringer::vcs::git::tag_create(&project, "v2.0.0").await;
+    let create_result = VcsAdapter::create_tag(&project, "v2.0.0").await;
     assert!(create_result.success,
         "tag_create failed: {:?}", create_result.error_message);
 
@@ -341,7 +341,7 @@ async fn tag_create_and_delete_roundtrip() {
     assert!(v.entries[0].tag_exists, "tag should be detected after creation");
 
     // Delete tag (rollback).
-    let delete_result = endringer::vcs::git::tag_delete(&project, "v2.0.0").await;
+    let delete_result = VcsAdapter::delete_tag(&project, "v2.0.0").await;
     assert!(delete_result.success,
         "tag_delete failed: {:?}", delete_result.error_message);
 
@@ -430,7 +430,7 @@ async fn log_since_collects_commits_since_tag() {
     git(&["commit", "-m", "fix: fix b"], dir.path());
 
     let project = make_project(dir.path());
-    let commits = endringer::vcs::git::log_since(&project, "v0.1.0", None).await;
+    let commits = VcsAdapter::log_since(&project, "v0.1.0", None).await;
 
     assert!(commits.error.is_none(), "log_since error: {:?}", commits.error);
     assert_eq!(commits.entries.len(), 2,

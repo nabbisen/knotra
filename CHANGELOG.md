@@ -7,6 +7,117 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.10.0] — 2026-05-04
+
+### Changed — endringer 0.19.2 migration
+
+**Background:** endringer 0.19.2 was published to crates.io with gix updated
+from 0.77 to 0.83 — the same version already used by knotra.  
+This release replaces the hand-written knotra-internal VCS implementation layer
+with the upstream endringer 0.19.2 backends, eliminating all gix-version
+compatibility workarounds.
+
+#### New workspace crates
+
+Four upstream crates are now vendored in `crates/` and built as part of the
+knotra workspace:
+
+| Crate | Role |
+|---|---|
+| `endringer-backend-core` | `VcsBackend` trait + all public types |
+| `endringer-backend-git` | `GitBackend` — gix-powered, `ThreadSafeRepository` |
+| `endringer-backend-jj` | `JjBackend` — gix direct read, no `jj` binary required |
+| `endringer-backend-async` | `AsyncRepository` — `spawn_blocking` async façade |
+
+Sources are copied verbatim from endringer 0.19.2 with only crate-name
+identifiers substituted (`endringer_core` → `endringer_backend_core`, etc.).
+
+#### Internal endringer VCS layer rewritten
+
+`crates/endringer/src/vcs/git.rs` and `vcs/jj.rs` now delegate **all reads**
+to `AsyncRepository` (→ `endringer-backend-async` → gix):
+
+| Operation | Before | After |
+|---|---|---|
+| Branch / HEAD | `git symbolic-ref` CLI | `AsyncRepository::status_digest` → gix |
+| Working tree dirty/staged/untracked | `git status --porcelain` CLI | `AsyncRepository::worktree_status` → gix |
+| Branch list | `git branch -a` CLI | `AsyncRepository::local_branches` + `remote_branches` → gix |
+| Tag list | `git tag --sort` CLI | `endringer_backend_git::GitBackend::list_tags_sorted` → gix |
+| Tag create | `git tag` CLI | `GitBackend::create_tag` → gix |
+| Context switch dirty check | `git status` CLI | `AsyncRepository::worktree_status` → gix |
+| Freeze validation dirty check | `git status` CLI | `GitBackend::worktree_status` → gix |
+| jj status / branch / commits | `jj` CLI | `AsyncRepository::open_jj` → `JjBackend` → gix (no `jj` binary) |
+
+Write operations (fetch, merge, stash, push, abort-merge) continue to use the
+`git` / `jj` CLI because gix does not expose write APIs at this level.
+
+#### New public VcsAdapter operations
+
+- `VcsAdapter::stash_entries(project)` → `Vec<StashEntry>` (gix, no CLI)
+- `VcsAdapter::worktree_status(project)` → `Option<BackendWorktreeStatus>` — full
+  per-file staged/unstaged/untracked detail, gitignore-aware
+
+#### jj binary dependency eliminated
+
+`JjBackend::open` reads jj's underlying git object store directly with gix.
+The `jj` binary is no longer required for read operations on jj repositories
+(conflict detection still uses `jj log` CLI).
+
+#### gix features updated
+
+`Cargo.toml` workspace gix entry now includes:
+- `blame` and `attributes` (required by endringer-backend-git)
+- `parallel` — **required** for `ThreadSafeRepository` to implement `Send + Sync`.  
+  Without `parallel`, gix 0.83 uses `Rc`-based internal pools which are not
+  thread-safe. With `parallel`, pools switch to `Arc`, making
+  `ThreadSafeRepository: Send + Sync`.
+
+#### Removed
+
+- `vcs/git.rs`: `gix_read_head`, `gix_read_working_tree` (Phase 9 hot-path
+  stubs) — superseded by the full `endringer-backend-git` implementation.
+- Direct `gix` dependency in `crates/endringer/Cargo.toml`.
+- Mutex/unsafe-Send workarounds that were required during the aborted
+  0.19.1 migration attempt.
+
+### Fixed
+
+- `log_since` uses `git log <ref>..HEAD` CLI range (not timestamp-based).
+  The previous timestamp approach was unreliable when commits are created
+  within the same second (e.g. in tests and CI).
+
+
+## [0.9.1] — 2025-xx-xx
+
+### Changed — Boundary Enforcement (endringer / knotra-app separation)
+
+**Background:** The Phase 9 review identified three places where the VCS implementation details of `endringer` were leaking through its public surface.
+
+**1. `gix_read_head` / `gix_read_working_tree` restricted to `pub(crate)`**
+
+These functions are internal hot-path optimisations. Nothing outside `endringer` should call them directly. Callers always go through `VcsAdapter::read_project_status`.
+
+**2. `vcs::git` and `vcs::jj` modules restricted to `pub(crate)`**
+
+Previously `pub`, meaning any downstream crate could call `endringer::vcs::git::tag_create(...)` directly. Now only `VcsAdapter` (within the same crate) can access these modules.
+
+**3. `VcsAdapter::create_tag`, `VcsAdapter::delete_tag`, `VcsAdapter::log_since` added**
+
+These operations existed in `vcs::git` but had no `VcsAdapter` entry-point, forcing callers (including integration tests) to bypass the public API. They are now first-class operations on `VcsAdapter`, dispatching to Git or jj as appropriate.
+
+| New method | Git | jj |
+|---|---|---|
+| `VcsAdapter::create_tag(project, name)` | `git tag <name>` | `jj bookmark create <name> -r @` |
+| `VcsAdapter::delete_tag(project, name)` | `git tag -d <name>` | `jj bookmark delete <name>` |
+| `VcsAdapter::log_since(project, since, until)` | `git log <since>..<until>` | `jj log -r <since>..@` |
+
+**4. Integration tests updated to use `VcsAdapter` exclusively**
+
+The three `endringer::vcs::git::*` direct calls in `git_integration.rs` are replaced with the new `VcsAdapter` methods. The integration test file now has zero imports of `endringer::vcs`.
+
+**Result:** The public surface of `endringer` is now exactly: `VcsAdapter`, the `model::*` types, `FsPoller`, and `EndringerError`. No VCS-specific internals (`git`, `jj`, `gix`) are reachable from outside the crate.
+
+
 ## [0.9.0] — 2025-xx-xx
 
 ### Added
@@ -92,6 +203,117 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `app::subscription` now batches tick, keyboard, and FS-watch subscriptions.
 - History `LogCopyRequested` now emits `Message::CopyToClipboard` with full formatted log text.
 - Changelog copy now uses real clipboard write, not a status-bar placeholder.
+
+
+## [0.10.0] — 2026-05-04
+
+### Changed — endringer 0.19.2 migration
+
+**Background:** endringer 0.19.2 was published to crates.io with gix updated
+from 0.77 to 0.83 — the same version already used by knotra.  
+This release replaces the hand-written knotra-internal VCS implementation layer
+with the upstream endringer 0.19.2 backends, eliminating all gix-version
+compatibility workarounds.
+
+#### New workspace crates
+
+Four upstream crates are now vendored in `crates/` and built as part of the
+knotra workspace:
+
+| Crate | Role |
+|---|---|
+| `endringer-backend-core` | `VcsBackend` trait + all public types |
+| `endringer-backend-git` | `GitBackend` — gix-powered, `ThreadSafeRepository` |
+| `endringer-backend-jj` | `JjBackend` — gix direct read, no `jj` binary required |
+| `endringer-backend-async` | `AsyncRepository` — `spawn_blocking` async façade |
+
+Sources are copied verbatim from endringer 0.19.2 with only crate-name
+identifiers substituted (`endringer_core` → `endringer_backend_core`, etc.).
+
+#### Internal endringer VCS layer rewritten
+
+`crates/endringer/src/vcs/git.rs` and `vcs/jj.rs` now delegate **all reads**
+to `AsyncRepository` (→ `endringer-backend-async` → gix):
+
+| Operation | Before | After |
+|---|---|---|
+| Branch / HEAD | `git symbolic-ref` CLI | `AsyncRepository::status_digest` → gix |
+| Working tree dirty/staged/untracked | `git status --porcelain` CLI | `AsyncRepository::worktree_status` → gix |
+| Branch list | `git branch -a` CLI | `AsyncRepository::local_branches` + `remote_branches` → gix |
+| Tag list | `git tag --sort` CLI | `endringer_backend_git::GitBackend::list_tags_sorted` → gix |
+| Tag create | `git tag` CLI | `GitBackend::create_tag` → gix |
+| Context switch dirty check | `git status` CLI | `AsyncRepository::worktree_status` → gix |
+| Freeze validation dirty check | `git status` CLI | `GitBackend::worktree_status` → gix |
+| jj status / branch / commits | `jj` CLI | `AsyncRepository::open_jj` → `JjBackend` → gix (no `jj` binary) |
+
+Write operations (fetch, merge, stash, push, abort-merge) continue to use the
+`git` / `jj` CLI because gix does not expose write APIs at this level.
+
+#### New public VcsAdapter operations
+
+- `VcsAdapter::stash_entries(project)` → `Vec<StashEntry>` (gix, no CLI)
+- `VcsAdapter::worktree_status(project)` → `Option<BackendWorktreeStatus>` — full
+  per-file staged/unstaged/untracked detail, gitignore-aware
+
+#### jj binary dependency eliminated
+
+`JjBackend::open` reads jj's underlying git object store directly with gix.
+The `jj` binary is no longer required for read operations on jj repositories
+(conflict detection still uses `jj log` CLI).
+
+#### gix features updated
+
+`Cargo.toml` workspace gix entry now includes:
+- `blame` and `attributes` (required by endringer-backend-git)
+- `parallel` — **required** for `ThreadSafeRepository` to implement `Send + Sync`.  
+  Without `parallel`, gix 0.83 uses `Rc`-based internal pools which are not
+  thread-safe. With `parallel`, pools switch to `Arc`, making
+  `ThreadSafeRepository: Send + Sync`.
+
+#### Removed
+
+- `vcs/git.rs`: `gix_read_head`, `gix_read_working_tree` (Phase 9 hot-path
+  stubs) — superseded by the full `endringer-backend-git` implementation.
+- Direct `gix` dependency in `crates/endringer/Cargo.toml`.
+- Mutex/unsafe-Send workarounds that were required during the aborted
+  0.19.1 migration attempt.
+
+### Fixed
+
+- `log_since` uses `git log <ref>..HEAD` CLI range (not timestamp-based).
+  The previous timestamp approach was unreliable when commits are created
+  within the same second (e.g. in tests and CI).
+
+
+## [0.9.1] — 2025-xx-xx
+
+### Changed — Boundary Enforcement (endringer / knotra-app separation)
+
+**Background:** The Phase 9 review identified three places where the VCS implementation details of `endringer` were leaking through its public surface.
+
+**1. `gix_read_head` / `gix_read_working_tree` restricted to `pub(crate)`**
+
+These functions are internal hot-path optimisations. Nothing outside `endringer` should call them directly. Callers always go through `VcsAdapter::read_project_status`.
+
+**2. `vcs::git` and `vcs::jj` modules restricted to `pub(crate)`**
+
+Previously `pub`, meaning any downstream crate could call `endringer::vcs::git::tag_create(...)` directly. Now only `VcsAdapter` (within the same crate) can access these modules.
+
+**3. `VcsAdapter::create_tag`, `VcsAdapter::delete_tag`, `VcsAdapter::log_since` added**
+
+These operations existed in `vcs::git` but had no `VcsAdapter` entry-point, forcing callers (including integration tests) to bypass the public API. They are now first-class operations on `VcsAdapter`, dispatching to Git or jj as appropriate.
+
+| New method | Git | jj |
+|---|---|---|
+| `VcsAdapter::create_tag(project, name)` | `git tag <name>` | `jj bookmark create <name> -r @` |
+| `VcsAdapter::delete_tag(project, name)` | `git tag -d <name>` | `jj bookmark delete <name>` |
+| `VcsAdapter::log_since(project, since, until)` | `git log <since>..<until>` | `jj log -r <since>..@` |
+
+**4. Integration tests updated to use `VcsAdapter` exclusively**
+
+The three `endringer::vcs::git::*` direct calls in `git_integration.rs` are replaced with the new `VcsAdapter` methods. The integration test file now has zero imports of `endringer::vcs`.
+
+**Result:** The public surface of `endringer` is now exactly: `VcsAdapter`, the `model::*` types, `FsPoller`, and `EndringerError`. No VCS-specific internals (`git`, `jj`, `gix`) are reachable from outside the crate.
 
 
 ## [0.9.0] — 2025-xx-xx

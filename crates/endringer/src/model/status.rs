@@ -165,3 +165,14 @@ impl Default for ContextList {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Stash and worktree detail types (new in Phase migration)
+// ---------------------------------------------------------------------------
+
+/// A single stash entry (maps to endringer-backend StashEntry).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StashEntry {
+    pub index:   usize,
+    pub message: String,
+}

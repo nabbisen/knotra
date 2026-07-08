@@ -7,13 +7,16 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+endringer-backend-core  = { path = "../endringer-backend-core" }
+endringer-backend-git   = { path = "../endringer-backend-git" }
+endringer-backend-jj    = { path = "../endringer-backend-jj" }
+endringer-backend-async = { path = "../endringer-backend-async" }
 toml.workspace = true
 tokio.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
-gix.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 
