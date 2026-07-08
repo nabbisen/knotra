@@ -7,6 +7,29 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.10.1] — 2026-05-05
+
+### Added — `rfcs/` directory
+
+Added a top-level `rfcs/` directory containing implementation specifications
+for all open design questions identified in the v0.10.0 design-note review.
+
+| RFC  | Title | Priority |
+|------|-------|----------|
+| [001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
+| [002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
+| [003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
+| [004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
+| [005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
+| [006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
+| [007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
+| [008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
+
+Each RFC follows a lightweight template (Summary / Problem / Design / Test Plan /
+Security Considerations) and is extended with Requirements, External/Internal
+Design, and Alternatives sections where scope warrants it.
+
+
 ## [0.10.0] — 2026-05-04
 
 ### Changed — endringer 0.19.2 migration
@@ -203,6 +226,29 @@ The three `endringer::vcs::git::*` direct calls in `git_integration.rs` are repl
 - `app::subscription` now batches tick, keyboard, and FS-watch subscriptions.
 - History `LogCopyRequested` now emits `Message::CopyToClipboard` with full formatted log text.
 - Changelog copy now uses real clipboard write, not a status-bar placeholder.
+
+
+## [0.10.1] — 2026-05-05
+
+### Added — `rfcs/` directory
+
+Added a top-level `rfcs/` directory containing implementation specifications
+for all open design questions identified in the v0.10.0 design-note review.
+
+| RFC  | Title | Priority |
+|------|-------|----------|
+| [001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
+| [002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
+| [003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
+| [004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
+| [005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
+| [006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
+| [007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
+| [008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
+
+Each RFC follows a lightweight template (Summary / Problem / Design / Test Plan /
+Security Considerations) and is extended with Requirements, External/Internal
+Design, and Alternatives sections where scope warrants it.
 
 
 ## [0.10.0] — 2026-05-04
