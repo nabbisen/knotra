@@ -2,10 +2,10 @@
 
 use endringer::{
     model::operation::{
-        ProjectOperationResult, RecoveryHint, SmartPullDisposition, SmartPullPlan,
+        RecoveryHint, SmartPullDisposition, SmartPullPlan,
         SmartPullPlanEntry, SmartPullProgress,
     },
-    ProjectId, ProjectStatus, WorkspaceStatus,
+    ProjectId, WorkspaceStatus,
 };
 
 
@@ -50,6 +50,7 @@ pub enum SyncKind {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ProjectOutcome {
     pub project_id: ProjectId,
     pub project_name: String,

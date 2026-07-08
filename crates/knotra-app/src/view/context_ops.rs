@@ -1,6 +1,6 @@
 //! Context Operations view — browse branches/changesets and switch context.
 
-use endringer::{ContextSwitchResult, ProjectId, VcsKind};
+use endringer::{ContextSwitchResult, VcsKind};
 use iced::{
     widget::{button, column, container, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,

@@ -94,3 +94,20 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 - [x] Dependency topology visualisation (`Cargo.toml` static analysis)
 - [x] Changelog auto-aggregation from multiple repositories
 - [x] File-system event monitoring (optional, off by default)
+
+## Phase 8 — Performance & Observability (`knotra-v0.8`)
+
+**Goal:** Complete the ROADMAP and harden the runtime.
+
+- [x] File-system event monitoring (polling-based, configurable interval)
+- [x] Multi-workspace management (create / rename / delete / switch)
+- [x] Remote tag push after successful freeze
+- [x] Missing repository path detection on cards
+
+## Phase 9 — Code Quality, Integration Tests & gix Hot-path (`knotra-v0.9`)
+
+**Goal:** Zero warnings, spec-mandated test coverage, faster reads.
+
+- [x] Integration test suite — all §16.4 repository states
+- [x] Compiler warning elimination (0 warnings)
+- [x] gix-based hot-path for HEAD and working-tree reads

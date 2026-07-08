@@ -140,6 +140,11 @@ impl FsPoller {
     pub fn prune(&mut self, active_ids: &[ProjectId]) {
         self.snapshots.retain(|id, _| active_ids.contains(id));
     }
+
+    /// Force-invalidate the snapshot for one project (call after write ops).
+    pub fn invalidate(&mut self, id: &ProjectId) {
+        self.snapshots.remove(id);
+    }
 }
 
 // ---------------------------------------------------------------------------

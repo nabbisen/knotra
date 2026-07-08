@@ -2,6 +2,7 @@
 
 pub mod changelog;
 pub mod conflict_ops;
+pub mod workspace_mgr;
 pub mod context;
 pub mod dashboard;
 pub mod freezer;
@@ -18,7 +19,7 @@ use endringer::{
     },
     WorkspaceStatus,
 };
-use snora::i18n::{Catalog, Locale};
+use snora::i18n::Catalog;
 use snora::KnotraTheme;
 
 use crate::{
@@ -43,6 +44,7 @@ pub enum Screen {
 }
 
 impl Screen {
+    #[allow(dead_code)]
     pub fn nav_key(&self) -> &'static str {
         match self {
             Screen::Dashboard  => "nav.dashboard",
@@ -138,6 +140,18 @@ impl SettingsEdit {
 }
 
 // ---------------------------------------------------------------------------
+// Tag push pending state
+// ---------------------------------------------------------------------------
+
+/// Tracks a pending offer to push freeze tags to the remote after success.
+#[derive(Debug, Clone)]
+pub struct PendingTagPush {
+    pub freeze_name: String,
+    pub project_ids: Vec<endringer::ProjectId>,
+    pub is_pushing: bool,
+}
+
+// ---------------------------------------------------------------------------
 // AppState
 // ---------------------------------------------------------------------------
 
@@ -175,6 +189,16 @@ pub struct AppState {
     pub changelog: changelog::ChangelogState,
     /// Dependency topology state.
     pub topology: topology::TopologyState,
+    /// All loaded workspaces (active index = active_workspace_idx).
+    pub all_workspaces: Vec<endringer::Workspace>,
+    /// Index into `all_workspaces` for the currently active workspace.
+    pub active_workspace_idx: usize,
+    /// Workspace management dialog state.
+    pub workspace_mgr: workspace_mgr::WorkspaceMgrState,
+    /// Missing-path projects detected at last refresh.
+    pub missing_projects: std::collections::HashSet<endringer::ProjectId>,
+    /// Post-freeze: offer to push tags to remote.
+    pub pending_tag_push: Option<PendingTagPush>,
     /// File-system change poller (used by the FS-watch Subscription).
     pub fs_poller: endringer::FsPoller,
 }
@@ -207,6 +231,11 @@ impl AppState {
             conflict_ops: conflict_ops::ConflictOpsState::default(),
             changelog: changelog::ChangelogState::default(),
             topology: topology::TopologyState::default(),
+            all_workspaces: Vec::new(),
+            active_workspace_idx: 0,
+            workspace_mgr: workspace_mgr::WorkspaceMgrState::default(),
+            missing_projects: std::collections::HashSet::new(),
+            pending_tag_push: None,
             fs_poller: endringer::FsPoller::default(),
             config,
         }
@@ -231,6 +260,7 @@ impl AppState {
         }
     }
 
+    #[allow(dead_code)]
     pub fn all_groups(&self) -> Vec<String> {
         self.workspace.as_ref()
             .map(|ws| {

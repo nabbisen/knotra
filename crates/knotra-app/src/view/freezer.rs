@@ -145,7 +145,7 @@ fn view_validation(state: &AppState, validation: FreezeValidation) -> Element<'_
 
     let header_text = format!("{} — {}", state.t("freezer.title"), freeze_name);
 
-    let mut topo_col = column(impact_warnings).spacing(2);
+    let topo_col = column(impact_warnings).spacing(2);
 
     column![
         text(header_text).size(16),
@@ -181,49 +181,6 @@ fn view_validation_entry_owned(
     items.append(&mut notes);
     column(items).spacing(2).into()
 }
-
-fn view_validation_entry<'a>(
-    state: &'a AppState,
-    entry: &'a FreezeValidationEntry,
-) -> Element<'a, Message> {
-    let status_icon = if !entry.included {
-        "○"
-    } else if entry.is_blocked() {
-        "✗"
-    } else {
-        "✓"
-    };
-
-    let status_label = if !entry.included {
-        "excluded"
-    } else if entry.is_blocked() {
-        "blocked"
-    } else {
-        "ready"
-    };
-
-    let mut col = column![
-        text(format!("{status_icon} {} — {status_label}", entry.project_name)).size(13),
-    ]
-    .spacing(2);
-
-    for blocker in &entry.blockers {
-        col = col.push(
-            text(format!("  {} {}", state.t("freezer.blocker_label"), blocker)).size(11),
-        );
-    }
-    for note in &entry.notes {
-        col = col.push(
-            text(format!("  {} {}", state.t("freezer.note_label"), note)).size(11),
-        );
-    }
-
-    col.into()
-}
-
-// ---------------------------------------------------------------------------
-// Done — result summary
-// ---------------------------------------------------------------------------
 
 fn view_done(state: &AppState, result: FreezeResult) -> Element<'_, Message> {
     let outcome_label = match result.outcome {

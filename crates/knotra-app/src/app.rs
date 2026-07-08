@@ -7,33 +7,34 @@ use std::time::Duration;
 use endringer::{
     model::{
         operation::{
-            ContextSwitchResult, FreezeOutcome, FreezeResult, OperationId, OperationKind,
-            OperationLog, OperationResult, SmartPullDisposition, SmartPullPlan, SmartPullProgress,
+            ContextSwitchResult, OperationId, OperationKind,
+            OperationLog, OperationResult, SmartPullDisposition, SmartPullProgress,
         },
         project::Project,
         workspace::Workspace,
     },
     VcsAdapter,
-    DependencyGraph,
 };
 
 use crate::{
     config::{load_config, save_config, AppPaths},
     fs_watcher::fs_watch_subscription,
     message::{
-        BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage, FilterMessage,
+        BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage,
         FreezerMessage, HistoryMessage, LaunchMessage, Message, ProjectMessage,
-        SettingsMessage, ShortcutMessage, SyncMessage, TopologyMessage, WorkspaceMessage,
+        SettingsMessage, ShortcutMessage, SyncMessage, TagPushMessage, TopologyMessage,
+        WorkspaceMessage,
     },
     persistence::{load_recent_logs, load_workspaces, save_operation_log, save_workspace},
     state::{
         changelog::ChangelogPhase,
         conflict_ops::ConflictPhase,
-        context::{ContextOpsState, ContextPhase},
+        context::ContextPhase,
         freezer::FreezerPhase,
         sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
         topology::TopologyPhase,
-        AddProjectDialog, AppState, ConfirmRemoveDialog, LoadPhase, Screen,
+        workspace_mgr::{CreateWorkspaceDialog, RenameWorkspaceDialog},
+        AddProjectDialog, AppState, ConfirmRemoveDialog, LoadPhase, PendingTagPush, Screen,
     },
     view::app_view,
 };
@@ -54,9 +55,13 @@ pub fn init() -> (AppState, Task<Message>) {
     let (workspaces, ws_errors) = load_workspaces(&paths);
     for e in &ws_errors { tracing::warn!("workspace load error: {e}"); }
 
-    let workspace = workspaces.into_iter().next()
-        .unwrap_or_else(|| Workspace::new("My Workspace"));
-    state.workspace = Some(workspace);
+    let mut ws_list = workspaces;
+    if ws_list.is_empty() {
+        ws_list.push(Workspace::new("My Workspace"));
+    }
+    state.all_workspaces = ws_list;
+    state.active_workspace_idx = 0;
+    state.workspace = state.all_workspaces.first().cloned();
     state.load_phase = LoadPhase::Refreshing;
     state.is_refreshing = true;
     state.operation_logs = load_recent_logs(&paths, config.max_log_entries);
@@ -122,6 +127,7 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         Message::ConflictOps(msg)    => handle_conflict_ops(state, msg),
         Message::Changelog(msg)      => handle_changelog(state, msg),
         Message::Topology(msg)       => handle_topology(state, msg),
+        Message::TagPush(msg)        => handle_tag_push(state, msg),
         Message::FsWatchTick          => handle_fs_watch_tick(state),
         Message::CopyToClipboard(text) => clipboard::write(text),
         Message::Context(msg)        => handle_context(state, msg),
@@ -179,9 +185,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 refresh_workspace_task(state)
             } else { Task::none() }
         }
-        WorkspaceMessage::WorkspaceSwitched(id) => {
-            tracing::info!("workspace switched: {id}"); Task::none()
-        }
+
         WorkspaceMessage::AddProjectDialogOpened => {
             state.add_project_dialog = Some(AddProjectDialog::default()); Task::none()
         }
@@ -237,6 +241,116 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
         }
         WorkspaceMessage::RemoveProjectCancelled => {
             state.confirm_remove_dialog = None; Task::none()
+        }
+
+        // --- Multi-workspace management ---
+
+        WorkspaceMessage::CreateWorkspaceDialogOpened => {
+            state.workspace_mgr.create_dialog = Some(CreateWorkspaceDialog::default());
+            Task::none()
+        }
+        WorkspaceMessage::CreateWorkspaceNameChanged(s) => {
+            if let Some(d) = &mut state.workspace_mgr.create_dialog { d.name = s; d.error = None; }
+            Task::none()
+        }
+        WorkspaceMessage::CreateWorkspaceConfirmed => {
+            let name = state.workspace_mgr.create_dialog
+                .as_ref()
+                .map(|d| d.name.trim().to_owned())
+                .unwrap_or_default();
+            if name.is_empty() {
+                if let Some(d) = &mut state.workspace_mgr.create_dialog {
+                    d.error = Some("Workspace name cannot be empty.".to_owned());
+                }
+                return Task::none();
+            }
+            let ws = endringer::Workspace::new(name);
+            let paths = AppPaths::resolve();
+            if let Err(e) = save_workspace(&ws, &paths) {
+                tracing::warn!("failed to save new workspace: {e}");
+            }
+            state.all_workspaces.push(ws);
+            state.active_workspace_idx = state.all_workspaces.len().saturating_sub(1);
+            state.workspace = state.all_workspaces.last().cloned();
+            state.workspace_status = None;
+            state.load_phase = LoadPhase::Refreshing;
+            state.workspace_mgr.create_dialog = None;
+            refresh_workspace_task(state)
+        }
+        WorkspaceMessage::CreateWorkspaceCancelled => {
+            state.workspace_mgr.create_dialog = None; Task::none()
+        }
+
+        WorkspaceMessage::RenameWorkspaceDialogOpened => {
+            let current = state.workspace.as_ref().map(|ws| ws.name.clone()).unwrap_or_default();
+            state.workspace_mgr.rename_dialog = Some(RenameWorkspaceDialog { new_name: current, error: None });
+            Task::none()
+        }
+        WorkspaceMessage::RenameWorkspaceNameChanged(s) => {
+            if let Some(d) = &mut state.workspace_mgr.rename_dialog { d.new_name = s; d.error = None; }
+            Task::none()
+        }
+        WorkspaceMessage::RenameWorkspaceConfirmed => {
+            let name = state.workspace_mgr.rename_dialog
+                .as_ref()
+                .map(|d| d.new_name.trim().to_owned())
+                .unwrap_or_default();
+            if name.is_empty() {
+                if let Some(d) = &mut state.workspace_mgr.rename_dialog {
+                    d.error = Some("Workspace name cannot be empty.".to_owned());
+                }
+                return Task::none();
+            }
+            if let Some(ws) = &mut state.workspace {
+                ws.name = name;
+                persist_workspace(ws);
+                if let Some(entry) = state.all_workspaces.get_mut(state.active_workspace_idx) {
+                    entry.name = ws.name.clone();
+                }
+            }
+            state.workspace_mgr.rename_dialog = None;
+            Task::none()
+        }
+        WorkspaceMessage::RenameWorkspaceCancelled => {
+            state.workspace_mgr.rename_dialog = None; Task::none()
+        }
+
+        WorkspaceMessage::DeleteWorkspaceRequested => {
+            state.workspace_mgr.confirm_delete = true; Task::none()
+        }
+        WorkspaceMessage::DeleteWorkspaceConfirmed => {
+            state.workspace_mgr.confirm_delete = false;
+            if state.all_workspaces.len() <= 1 {
+                // Don't delete the last workspace.
+                return Task::none();
+            }
+            let deleted_idx = state.active_workspace_idx;
+            let paths = AppPaths::resolve();
+            if let Some(ws) = state.all_workspaces.get(deleted_idx) {
+                let file_name = format!("{}.toml", ws.id);
+                let _ = std::fs::remove_file(paths.workspaces_dir.join(file_name));
+            }
+            state.all_workspaces.remove(deleted_idx);
+            state.active_workspace_idx = 0.min(state.all_workspaces.len().saturating_sub(1));
+            state.workspace = state.all_workspaces.get(state.active_workspace_idx).cloned();
+            state.workspace_status = None;
+            state.load_phase = LoadPhase::Refreshing;
+            refresh_workspace_task(state)
+        }
+        WorkspaceMessage::DeleteWorkspaceCancelled => {
+            state.workspace_mgr.confirm_delete = false; Task::none()
+        }
+
+        WorkspaceMessage::WorkspaceSwitched(id) => {
+            if let Some(idx) = state.all_workspaces.iter().position(|ws| ws.id == id) {
+                state.active_workspace_idx = idx;
+                state.workspace = state.all_workspaces.get(idx).cloned();
+                state.workspace_status = None;
+                state.load_phase = LoadPhase::Refreshing;
+                state.is_refreshing = true;
+                return refresh_workspace_task(state);
+            }
+            Task::none()
         }
     }
 }
@@ -325,7 +439,7 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             let total = projects.len();
             state.sync.phase = SyncPhase::FetchRunning { total, done: 0 };
 
-            let max = state.config.max_concurrent_reads;
+            let _max = state.config.max_concurrent_reads;
 
             // Stream results per-project using Task::run.
             use iced::futures::stream;
@@ -460,6 +574,16 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
 fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Message> {
     match msg {
         BackgroundMessage::WorkspaceStatusRefreshed(new_status) => {
+            // Detect missing-path projects.
+            if let Some(ws) = &state.workspace {
+                let missing: Vec<_> = ws.projects.iter()
+                    .filter(|p| !endringer::VcsAdapter::repo_exists(p))
+                    .map(|p| p.id.clone())
+                    .collect();
+                if missing != state.missing_projects.iter().cloned().collect::<Vec<_>>() {
+                    state.missing_projects = missing.into_iter().collect();
+                }
+            }
             merge_workspace_status(state, new_status);
             state.load_phase = LoadPhase::Ready;
             state.is_refreshing = false;
@@ -601,6 +725,21 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
+        BackgroundMessage::TagPushCompleted { success_count, fail_count } => {
+            state.pending_tag_push = None;
+            state.status_bar = Some(if fail_count == 0 {
+                format!("✓ Tags pushed to remote — {} project(s).", success_count)
+            } else {
+                format!("⚠ Tag push: {} succeeded, {} failed.", success_count, fail_count)
+            });
+            Task::none()
+        }
+
+        BackgroundMessage::MissingProjectsDetected(ids) => {
+            state.missing_projects = ids.into_iter().collect();
+            Task::none()
+        }
+
         BackgroundMessage::ConflictFilesLoaded(detail) => {
             let id = detail.project_id.clone();
             state.conflict_ops.cached.insert(id.clone(), detail.clone());
@@ -678,6 +817,21 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             };
             persist_log(&op_log, state);
 
+            // If the freeze succeeded fully, offer to push tags to remote.
+            if let FreezerPhase::Done(ref freeze_result) = state.freezer.phase {
+                if freeze_result.outcome == endringer::FreezeOutcome::Success {
+                    let ids: Vec<_> = freeze_result.project_results.iter()
+                        .filter(|r| r.success)
+                        .map(|r| r.project_id.clone())
+                        .collect();
+                    if !ids.is_empty() {
+                        let _ = Task::done(Message::TagPush(TagPushMessage::OfferShown {
+                            freeze_name: freeze_result.freeze_name.clone(),
+                            project_ids: ids,
+                        }));
+                    }
+                }
+            }
             state.freezer.phase = FreezerPhase::Done(result);
             Task::none()
         }
@@ -773,7 +927,6 @@ fn handle_history(state: &mut AppState, msg: HistoryMessage) -> Task<Message> {
 }
 
 fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> {
-    use crate::state::SettingsEdit;
     match msg {
         SettingsMessage::LocaleChanged(l) => {
             state.config.locale = l;
@@ -1320,11 +1473,11 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
                     .collect())
                 .unwrap_or_default();
             let since   = state.changelog.since_ref.clone();
-            let max     = state.config.max_concurrent_reads;
+            let max_cl  = state.config.max_concurrent_reads;
             state.changelog.phase = ChangelogPhase::Collecting;
 
             Task::perform(
-                async move { VcsAdapter::collect_changelog(&projects, &since, max).await },
+                async move { VcsAdapter::collect_changelog(&projects, &since, max_cl).await },
                 |draft| Message::Background(BackgroundMessage::ChangelogDraftReady(draft)),
             )
         }
@@ -1404,7 +1557,7 @@ fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
 
     // If only a few projects changed, refresh them individually.
     // Otherwise fall back to a full workspace refresh.
-    let max = state.config.max_concurrent_reads;
+    let _max = state.config.max_concurrent_reads;
 
     if changed.len() <= 3 {
         let changed_projects: Vec<_> = changed
@@ -1435,5 +1588,69 @@ fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
         state.is_refreshing = true;
         state.load_phase = LoadPhase::Refreshing;
         refresh_workspace_task(state)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tag push handler
+// ---------------------------------------------------------------------------
+
+fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
+    match msg {
+        TagPushMessage::OfferShown { freeze_name, project_ids } => {
+            state.pending_tag_push = Some(PendingTagPush {
+                freeze_name,
+                project_ids,
+                is_pushing: false,
+            });
+            Task::none()
+        }
+
+        TagPushMessage::PushConfirmed => {
+            let push = match &state.pending_tag_push {
+                Some(p) => p.clone(),
+                None    => return Task::none(),
+            };
+            if let Some(ref mut p) = state.pending_tag_push { p.is_pushing = true; }
+
+            let projects: Vec<_> = push.project_ids.iter()
+                .filter_map(|id| find_project(state, id))
+                .collect();
+            let tag_name = push.freeze_name.clone();
+            let max = state.config.max_concurrent_reads;
+
+            Task::perform(
+                async move {
+                    use std::sync::Arc;
+                    use tokio::sync::Semaphore;
+
+                    let sem = Arc::new(Semaphore::new(max));
+                    let mut handles = Vec::new();
+                    for project in projects {
+                        let sem     = Arc::clone(&sem);
+                        let tag     = tag_name.clone();
+                        handles.push(tokio::spawn(async move {
+                            let _permit = sem.acquire().await.expect("open");
+                            endringer::VcsAdapter::push_tag(&project, &tag).await
+                        }));
+                    }
+                    let mut results = Vec::new();
+                    for h in handles {
+                        if let Ok(r) = h.await { results.push(r); }
+                    }
+                    let success = results.iter().filter(|r| r.success).count();
+                    let failed  = results.iter().filter(|r| !r.success).count();
+                    (success, failed)
+                },
+                |(success_count, fail_count)| {
+                    Message::Background(BackgroundMessage::TagPushCompleted { success_count, fail_count })
+                },
+            )
+        }
+
+        TagPushMessage::PushDeclined => {
+            state.pending_tag_push = None;
+            Task::none()
+        }
     }
 }

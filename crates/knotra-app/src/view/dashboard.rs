@@ -339,6 +339,11 @@ fn view_project_card<'a>(
         card_col = card_col.push(text(format!("⚠ {}", err)).size(11));
     }
 
+    // Missing-path warning (repo directory not found).
+    if state.missing_projects.contains(&project.id) {
+        card_col = card_col.push(text("✗ Repository path not found").size(11));
+    }
+
     container(card_col).width(Length::FillPortion(1)).into()
 }
 
@@ -422,7 +427,7 @@ fn view_confirm_remove_dialog(state: &AppState) -> Element<'_, Message> {
     };
 
     let id = dialog.project_id.clone();
-    let id2 = id.clone();
+    let _id2 = id.clone();
 
     container(
         column![

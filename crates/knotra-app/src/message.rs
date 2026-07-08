@@ -2,7 +2,7 @@
 
 use endringer::{
     ContextList, ContextSwitchResult, FreezeResult, FreezeValidation,
-    Project, ProjectId,
+    ProjectId,
     model::operation::{OperationId, OperationLog, SmartPullPlan, SmartPullProgress},
     model::workspace::WorkspaceId,
     WorkspaceStatus,
@@ -23,6 +23,7 @@ pub enum Message {
     Background(BackgroundMessage),
     Filter(FilterMessage),
     Launch(LaunchMessage),
+    TagPush(TagPushMessage),
     ConflictOps(ConflictOpsMessage),
     Changelog(ChangelogMessage),
     Topology(TopologyMessage),
@@ -36,9 +37,11 @@ pub enum Message {
 
 // --- Workspace ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum WorkspaceMessage {
     RefreshRequested,
     WorkspaceSwitched(WorkspaceId),
+    // Project management
     AddProjectDialogOpened,
     AddProjectNameChanged(String),
     AddProjectPathChanged(String),
@@ -47,10 +50,23 @@ pub enum WorkspaceMessage {
     RemoveProjectRequested(ProjectId),
     RemoveProjectConfirmed(ProjectId),
     RemoveProjectCancelled,
+    // Multi-workspace management
+    CreateWorkspaceDialogOpened,
+    CreateWorkspaceNameChanged(String),
+    CreateWorkspaceConfirmed,
+    CreateWorkspaceCancelled,
+    RenameWorkspaceDialogOpened,
+    RenameWorkspaceNameChanged(String),
+    RenameWorkspaceConfirmed,
+    RenameWorkspaceCancelled,
+    DeleteWorkspaceRequested,
+    DeleteWorkspaceConfirmed,
+    DeleteWorkspaceCancelled,
 }
 
 // --- Project ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ProjectMessage {
     StatusRefreshRequested(ProjectId),
     FetchRequested(ProjectId),
@@ -58,6 +74,7 @@ pub enum ProjectMessage {
 
 // --- Sync ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum SyncMessage {
     OpenRequested,
     ProjectToggled(ProjectId, bool),
@@ -71,6 +88,7 @@ pub enum SyncMessage {
 
 // --- Context ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ContextMessage {
     OpenRequested(Option<ProjectId>),
     ProjectSelected(ProjectId),
@@ -83,6 +101,7 @@ pub enum ContextMessage {
 
 // --- Freezer ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum FreezerMessage {
     /// User navigated to the Freezer screen.
     OpenRequested,
@@ -104,6 +123,7 @@ pub enum FreezerMessage {
 
 // --- History ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum HistoryMessage {
     SearchChanged(String),
     LogCopyRequested(OperationId),
@@ -113,6 +133,7 @@ pub enum HistoryMessage {
 
 // --- Settings ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum SettingsMessage {
     LocaleChanged(snora::i18n::Locale),
     ThemeChanged(bool),
@@ -130,6 +151,7 @@ pub enum SettingsMessage {
 
 // --- Background ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum BackgroundMessage {
     WorkspaceStatusRefreshed(WorkspaceStatus),
     BulkFetchCompleted(OperationLog),
@@ -149,6 +171,10 @@ pub enum BackgroundMessage {
     TagsLoaded(Vec<String>),
     /// Topology graph scanned.
     TopologyScanned(endringer::DependencyGraph),
+    /// Tag push completed for all offered projects.
+    TagPushCompleted { success_count: usize, fail_count: usize },
+    /// Missing repository paths detected at refresh.
+    MissingProjectsDetected(Vec<ProjectId>),
     /// Validation phase completed.
     FreezeValidationDone(FreezeValidation),
     /// Execution phase completed.
@@ -158,6 +184,7 @@ pub enum BackgroundMessage {
 
 // --- Filter ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum FilterMessage {
     SearchChanged(String),
     GroupChanged(Option<String>),
@@ -166,9 +193,11 @@ pub enum FilterMessage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum StatusFilter {
     Healthy, Behind, Ahead, Dirty, Conflict, Error,
 }
+#[allow(dead_code)]
 impl StatusFilter {
     pub fn label_key(&self) -> &'static str {
         match self {
@@ -184,6 +213,7 @@ impl StatusFilter {
 
 // --- Conflict resolution ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ConflictOpsMessage {
     OpenRequested(Option<ProjectId>),
     ProjectSelected(ProjectId),
@@ -196,6 +226,7 @@ pub enum ConflictOpsMessage {
 
 // --- Changelog ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ChangelogMessage {
     OpenRequested,
     SinceRefChanged(String),
@@ -208,12 +239,26 @@ pub enum ChangelogMessage {
 
 // --- Topology ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum TopologyMessage {
     ScanRequested,
 }
 
+// --- Tag push (post-freeze) ---
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum TagPushMessage {
+    /// Offer to push after successful freeze.
+    OfferShown { freeze_name: String, project_ids: Vec<ProjectId> },
+    /// User accepted the push.
+    PushConfirmed,
+    /// User declined.
+    PushDeclined,
+}
+
 // --- External tool launch ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum LaunchMessage {
     /// Open a file path in the configured external editor.
     OpenInEditor(String),
@@ -223,6 +268,7 @@ pub enum LaunchMessage {
 
 // --- Shortcuts ---
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ShortcutMessage {
     Refresh, OpenContextOps, OpenFreezer, FocusSearch, Close,
 }

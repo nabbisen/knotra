@@ -2,7 +2,7 @@
 
 use snora::i18n::Locale;
 use iced::{
-    widget::{button, column, container, row, scrollable, text, text_input, Space},
+    widget::{button, column, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,
 };
 

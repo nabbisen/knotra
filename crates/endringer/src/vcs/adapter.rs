@@ -558,3 +558,28 @@ impl VcsAdapter {
         .unwrap_or_default()
     }
 }
+
+impl VcsAdapter {
+    /// Push a tag to the remote (`git push origin <tag>`).
+    pub async fn push_tag(project: &Project, tag_name: &str) -> crate::model::operation::ProjectOperationResult {
+        let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git) => git::push_tags(project, tag_name).await,
+            _ => crate::model::operation::ProjectOperationResult {
+                project_id:        project.id.clone(),
+                success:           false,
+                commands_executed: vec![],
+                stdout:            String::new(),
+                stderr:            String::new(),
+                exit_code:         None,
+                error_message:     Some("push_tag only supported for Git".to_owned()),
+            },
+        }
+    }
+
+    /// Check whether the repository path still exists on disk.
+    pub fn repo_exists(project: &Project) -> bool {
+        let p = std::path::Path::new(&project.path);
+        p.join(".git").exists() || p.join(".jj").is_dir()
+    }
+}

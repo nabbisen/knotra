@@ -117,7 +117,7 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     };
 
     let op_id_toggle = result.operation_id.clone();
-    let op_id_copy   = result.operation_id.clone();
+    let _op_id_copy  = result.operation_id.clone();
 
     let summary_row = row![
         text(result.kind.to_string()).size(13),

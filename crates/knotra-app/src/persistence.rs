@@ -5,7 +5,6 @@ use endringer::model::{
     workspace::Workspace,
 };
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 use crate::config::AppPaths;
 

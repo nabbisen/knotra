@@ -14,8 +14,6 @@
 use iced::{Subscription, time};
 use std::time::Duration;
 
-use endringer::FsPoller;
-
 use crate::{message::Message, state::AppState};
 
 /// The message emitted when a FS change is detected in one or more projects.
@@ -23,6 +21,7 @@ use crate::{message::Message, state::AppState};
 /// Carries the project IDs that changed so the update handler can refresh
 /// only the affected projects rather than the whole workspace.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct FsChangeMessage {
     pub changed_project_ids: Vec<endringer::ProjectId>,
 }

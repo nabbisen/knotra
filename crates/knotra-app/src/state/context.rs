@@ -8,6 +8,7 @@ use endringer::{ContextCandidate, ContextList, ContextSwitchResult, ProjectId, V
 
 /// The active phase of the Context Operations workflow.
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub enum ContextPhase {
     /// No project selected; waiting for the user to pick one.
     #[default]

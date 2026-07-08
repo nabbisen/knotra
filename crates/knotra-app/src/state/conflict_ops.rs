@@ -4,6 +4,7 @@ use endringer::{ProjectConflictDetail, ProjectId};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub enum ConflictPhase {
     #[default]
     Idle,

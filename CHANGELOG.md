@@ -7,6 +7,52 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.9.0] — 2025-xx-xx
+
+### Added
+- Phase 9: Code Quality, Integration Tests & gix Hot-path.
+
+**Integration test suite (`crates/endringer/tests/git_integration.rs`) — all §16.4 states:**
+
+| State | Test | What is verified |
+|---|---|---|
+| Clean | `clean_repo_reports_synced` | No error, no dirty, no conflict, context present |
+| Uncommitted | `repo_with_uncommitted_file_is_dirty` | `uncommitted_count > 0` |
+| Untracked | `repo_with_untracked_file_shows_untracked_count` | `untracked_count > 0` |
+| Ahead | `ahead_repo_shows_nonzero_ahead_count` | `remote.ahead == 1` |
+| Behind | `behind_repo_shows_nonzero_behind_count` | `remote.behind > 0` |
+| Ahead + Behind | `ahead_and_behind_repo` | Both ahead and behind > 0 |
+| Conflict | `conflict_repo_shows_has_conflict` | `conflict.has_conflict == true` |
+| Tag created | `tag_created_blocks_freeze_validation` + `tag_create_and_delete_roundtrip` | Tag existence blocking, create/delete cycle |
+| Permission-error | `nonexistent_path_returns_read_error` | `read_error` set for missing path |
+| jj project | `jj_repo_uses_jujutsu_vcs_kind` | VcsKind::Jujutsu detected (skipped if jj absent) |
+| Repo exists | `repo_exists_returns_true/false` | `VcsAdapter::repo_exists` works correctly |
+| List contexts | `list_contexts_returns_current_branch`, `includes_second_branch` | Branch list and current detection |
+| Changelog | `log_since_collects_commits_since_tag` | 2 commits collected, subjects match |
+| Freeze: clean | `clean_repo_passes_freeze_validation` | `all_ready()` true, no blockers |
+| Freeze: dirty | `dirty_repo_blocks_freeze_validation` | Blockers non-empty |
+| Context switch | `switch_context_changes_branch` | Branch changed, confirmed via `symbolic-ref` |
+| Missing path | `repo_exists_returns_false_for_missing_path` | Returns false |
+| (+ 2 more) | `ahead_and_behind_repo`, `tag_create_and_delete_roundtrip` | — |
+
+19 integration tests. All use real `git` processes in tempdir sandboxes.
+
+**Compiler warning elimination (0 warnings):**
+- Added `#[allow(dead_code)]` to all message enums, state FSM enums, and impl blocks with intentionally forward-facing variants.
+- Removed 12 unused import statements across 10 files.
+- Prefixed 8 unused variable bindings with `_`.
+- Removed duplicate `WorkspaceSwitched` match arm (unreachable pattern).
+- Removed dead `view_validation_entry` function (superseded by `view_validation_entry_owned`).
+- Removed dead `FsChangeMessage` warn by annotating with `#[allow(dead_code)]`.
+- Fixed `mut` / `unused_mut` in freezer view.
+
+**gix hot-path reads (Phase 1 deferred work):**
+- `endringer/vcs/git.rs`: `gix_read_head(repo_path)` — opens repository with `gix::open`, reads `head.kind` for branch name and detached-HEAD state. Zero process spawns.
+- `endringer/vcs/git.rs`: `gix_read_working_tree(repo_path)` — uses `gix` status iterator to count `Modification` (uncommitted) and `Untracked` entries. Zero process spawns.
+- `read_blocking` now tries gix first for both reads, falls back to CLI on any gix error.
+- Net effect: status reads for Git repositories now avoid two `std::process::Command` spawns for the most common path (clean or lightly dirty repositories).
+
+
 ## [0.8.0] — 2025-xx-xx
 
 ### Added
@@ -46,6 +92,95 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `app::subscription` now batches tick, keyboard, and FS-watch subscriptions.
 - History `LogCopyRequested` now emits `Message::CopyToClipboard` with full formatted log text.
 - Changelog copy now uses real clipboard write, not a status-bar placeholder.
+
+
+## [0.9.0] — 2025-xx-xx
+
+### Added
+- Phase 9: Code Quality, Integration Tests & gix Hot-path.
+
+**Integration test suite (`crates/endringer/tests/git_integration.rs`) — all §16.4 states:**
+
+| State | Test | What is verified |
+|---|---|---|
+| Clean | `clean_repo_reports_synced` | No error, no dirty, no conflict, context present |
+| Uncommitted | `repo_with_uncommitted_file_is_dirty` | `uncommitted_count > 0` |
+| Untracked | `repo_with_untracked_file_shows_untracked_count` | `untracked_count > 0` |
+| Ahead | `ahead_repo_shows_nonzero_ahead_count` | `remote.ahead == 1` |
+| Behind | `behind_repo_shows_nonzero_behind_count` | `remote.behind > 0` |
+| Ahead + Behind | `ahead_and_behind_repo` | Both ahead and behind > 0 |
+| Conflict | `conflict_repo_shows_has_conflict` | `conflict.has_conflict == true` |
+| Tag created | `tag_created_blocks_freeze_validation` + `tag_create_and_delete_roundtrip` | Tag existence blocking, create/delete cycle |
+| Permission-error | `nonexistent_path_returns_read_error` | `read_error` set for missing path |
+| jj project | `jj_repo_uses_jujutsu_vcs_kind` | VcsKind::Jujutsu detected (skipped if jj absent) |
+| Repo exists | `repo_exists_returns_true/false` | `VcsAdapter::repo_exists` works correctly |
+| List contexts | `list_contexts_returns_current_branch`, `includes_second_branch` | Branch list and current detection |
+| Changelog | `log_since_collects_commits_since_tag` | 2 commits collected, subjects match |
+| Freeze: clean | `clean_repo_passes_freeze_validation` | `all_ready()` true, no blockers |
+| Freeze: dirty | `dirty_repo_blocks_freeze_validation` | Blockers non-empty |
+| Context switch | `switch_context_changes_branch` | Branch changed, confirmed via `symbolic-ref` |
+| Missing path | `repo_exists_returns_false_for_missing_path` | Returns false |
+| (+ 2 more) | `ahead_and_behind_repo`, `tag_create_and_delete_roundtrip` | — |
+
+19 integration tests. All use real `git` processes in tempdir sandboxes.
+
+**Compiler warning elimination (0 warnings):**
+- Added `#[allow(dead_code)]` to all message enums, state FSM enums, and impl blocks with intentionally forward-facing variants.
+- Removed 12 unused import statements across 10 files.
+- Prefixed 8 unused variable bindings with `_`.
+- Removed duplicate `WorkspaceSwitched` match arm (unreachable pattern).
+- Removed dead `view_validation_entry` function (superseded by `view_validation_entry_owned`).
+- Removed dead `FsChangeMessage` warn by annotating with `#[allow(dead_code)]`.
+- Fixed `mut` / `unused_mut` in freezer view.
+
+**gix hot-path reads (Phase 1 deferred work):**
+- `endringer/vcs/git.rs`: `gix_read_head(repo_path)` — opens repository with `gix::open`, reads `head.kind` for branch name and detached-HEAD state. Zero process spawns.
+- `endringer/vcs/git.rs`: `gix_read_working_tree(repo_path)` — uses `gix` status iterator to count `Modification` (uncommitted) and `Untracked` entries. Zero process spawns.
+- `read_blocking` now tries gix first for both reads, falls back to CLI on any gix error.
+- Net effect: status reads for Git repositories now avoid two `std::process::Command` spawns for the most common path (clean or lightly dirty repositories).
+
+
+## [0.8.0] — 2025-xx-xx
+
+### Added
+- Phase 8: Performance & Observability — FS monitoring, multi-workspace management, remote tag push, missing repository detection.
+
+**File-system event monitoring (ROADMAP completion):**
+- `endringer/watcher.rs`: `FsPoller` polls sentinel files (`.git/index`, `.git/HEAD`, `.git/refs/`, `.jj/working_copy/`) per registered project.
+- `FsPoller::invalidate(id)` — force-resets one project's snapshot after a write operation.
+- `FsPoller::prune(active_ids)` — removes stale snapshots for deleted projects.
+- `fs_watcher::fs_watch_subscription` — iced `Subscription` active when `config.fs_watch_enabled = true`; fires `Message::FsWatchTick` at `fs_debounce_secs` intervals.
+- `handle_fs_watch_tick` — on tick: polls the `FsPoller`, triggers targeted single-project refresh for ≤3 changed repos, falls back to full workspace refresh for larger change sets.
+- Settings: FS watch toggle (Enabled/Disabled) and debounce interval.
+- 4 existing watcher tests confirmed passing.
+
+**Multi-workspace management:**
+- `AppState.all_workspaces: Vec<Workspace>` — all loaded workspaces initialised at startup.
+- `AppState.active_workspace_idx` — index of the active workspace.
+- `state::workspace_mgr::WorkspaceMgrState` — dialogs for create/rename/delete.
+- `WorkspaceMessage` extended: `CreateWorkspaceDialogOpened/NameChanged/Confirmed/Cancelled`, `RenameWorkspace*`, `DeleteWorkspace*`, `WorkspaceSwitched(WorkspaceId)` now actually switches the active workspace.
+- Sidebar: workspace name shown under the app title; `+ WS` (create) and `✎` (rename) buttons; workspace switcher list when >1 workspace exists.
+- Create/rename: dialog with name validation. Delete: confirmation guard; last workspace cannot be deleted.
+- Workspaces persist as individual TOML files; deleted workspace files are removed from disk.
+- 1 new unit test for `CreateWorkspaceDialog`.
+
+**Remote tag push (post-freeze):**
+- `endringer/git.rs`: `push_tags(project, tag_name)` — `git push origin <tag>`.
+- `VcsAdapter::push_tag` dispatcher.
+- `TagPushMessage::OfferShown/PushConfirmed/PushDeclined` — offered after a fully successful freeze.
+- `BackgroundMessage::TagPushCompleted` — shows success/failure count in status bar.
+- Sidebar: tag-push banner appears after a successful freeze with Confirm / ✕ dismiss.
+- Concurrent push with semaphore cap.
+
+**Missing repository detection:**
+- `VcsAdapter::repo_exists(project)` — checks `.git` or `.jj` exists at the project path (synchronous, O(1)).
+- On each workspace status refresh, missing projects are collected into `AppState.missing_projects`.
+- Dashboard card: "✗ Repository path not found" row shown for missing projects.
+
+### Changed
+- `AppState.workspace` (single workspace) is now derived from `all_workspaces[active_workspace_idx]` at startup.
+- `init()` initialises `all_workspaces` from all persisted workspace files (not just the first).
+- `WorkspaceMessage::WorkspaceSwitched` now performs the actual switch and triggers a refresh.
 
 
 ## [0.7.0] — 2025-xx-xx

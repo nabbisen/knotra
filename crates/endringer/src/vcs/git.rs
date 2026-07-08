@@ -15,6 +15,72 @@ use crate::model::{
     },
 };
 
+
+// ---------------------------------------------------------------------------
+// gix-based fast reads  (Phase 9 hot-path optimisation)
+// ---------------------------------------------------------------------------
+
+/// Read the current branch name and HEAD commit using `gix`.
+///
+/// Falls back to `None` on any error (the CLI path handles the fallback).
+pub fn gix_read_head(repo_path: &str) -> Option<(String, bool)> {
+    let repo = gix::open(repo_path).ok()?;
+    let head = repo.head().ok()?;
+    match head.kind {
+        gix::head::Kind::Symbolic(ref r) => {
+            let name = r.name.to_path().display().to_string();
+            let branch = name.strip_prefix("refs/heads/")
+                .unwrap_or(&name)
+                .to_owned();
+            Some((branch, false))
+        }
+        gix::head::Kind::Detached { target, .. } => {
+            let hash = target.to_hex_with_len(8).to_string();
+            Some((format!("(detached: {hash})"), true))
+        }
+        gix::head::Kind::Unborn(_) => {
+            Some(("(unborn)".to_owned(), false))
+        }
+    }
+}
+
+/// Count uncommitted and untracked files using `gix` index comparison.
+///
+/// Returns `(uncommitted, untracked)` or `None` on error.
+pub fn gix_read_working_tree(repo_path: &str) -> Option<(u32, u32)> {
+    let repo = gix::open(repo_path).ok()?;
+    // Use porcelain-style git status via gix status iterator.
+    let _index  = repo.index().ok()?; // kept for API symmetry
+    let mut uncommitted = 0u32;
+    let mut untracked   = 0u32;
+
+    let items = repo
+        .status(gix::progress::Discard)
+        .ok()?
+        .into_iter(None)
+        .ok()?;
+
+    for item in items.flatten() {
+        use gix::status::Item;
+        match item {
+            Item::IndexWorktree(ref iw) => {
+                use gix::status::index_worktree::Item;
+                match iw {
+                    Item::Modification { .. } => uncommitted += 1,
+                    Item::DirectoryContents { entry, .. } => {
+                        if entry.status == gix::dir::entry::Status::Untracked {
+                            untracked += 1;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Item::TreeIndex(_) => uncommitted += 1,
+        }
+    }
+    Some((uncommitted, untracked))
+}
+
 // ---------------------------------------------------------------------------
 // Read
 // ---------------------------------------------------------------------------
@@ -54,12 +120,31 @@ fn read_blocking(project_id: &crate::model::project::ProjectId, path: &str) -> P
         return err_status(format!("not a git repository: {path}"));
     }
 
+    // Use gix for the hot-path reads (branch name + working-tree state).
+    // Fall back to CLI on any gix error.
+    let context = gix_read_head(path)
+        .map(|(label, is_detached)| VcsContext {
+            branch: if is_detached { None } else { Some(label.clone()) },
+            label,
+            jj_change_id: None,
+            jj_bookmark: None,
+            is_detached,
+        })
+        .or_else(|| read_context(path));
+
+    let working_tree = gix_read_working_tree(path)
+        .map(|(uncommitted, untracked)| WorkingTreeStatus {
+            uncommitted_count: uncommitted,
+            untracked_count:   untracked,
+        })
+        .unwrap_or_else(|| read_working_tree(path));
+
     ProjectStatus {
         project_id: project_id.clone(),
         identity: RepositoryIdentity { path: path.to_owned(), vcs_kind: VcsKind::Git },
-        context: read_context(path),
+        context,
         remote: read_remote(path),
-        working_tree: read_working_tree(path),
+        working_tree,
         conflict: read_conflict(path),
         refreshed_at: Utc::now(),
         read_error: None,
@@ -823,4 +908,12 @@ pub fn list_tags_blocking(path: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+// Tag push operation
+pub async fn push_tags(project: &Project, tag_name: &str) -> ProjectOperationResult {
+    run_git(project, &["push", "origin", tag_name]).await
+}
+
+pub async fn push_tag_delete(project: &Project, tag_name: &str) -> ProjectOperationResult {
+    run_git(project, &["push", "origin", &format!(":refs/tags/{}", tag_name)]).await
 }

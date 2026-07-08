@@ -1,8 +1,9 @@
 //! Dependency topology screen state.
 
-use endringer::{DependencyGraph, ImpactWarning, ProjectId};
+use endringer::{DependencyGraph, ImpactWarning};
 
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub enum TopologyPhase {
     #[default]
     Idle,

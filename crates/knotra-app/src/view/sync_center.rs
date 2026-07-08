@@ -132,7 +132,7 @@ fn view_idle(state: &AppState) -> Element<'_, Message> {
 // Planning spinner
 // ---------------------------------------------------------------------------
 
-fn view_planning(state: &AppState) -> Element<'_, Message> {
+fn view_planning(_state: &AppState) -> Element<'_, Message> {
     container(text("Building plan…").size(14))
         .padding(24)
         .into()
@@ -142,7 +142,7 @@ fn view_planning(state: &AppState) -> Element<'_, Message> {
 // Fetch running — progress bar equivalent
 // ---------------------------------------------------------------------------
 
-fn view_fetch_running(state: &AppState, total: usize, done: usize) -> Element<'_, Message> {
+fn view_fetch_running(_state: &AppState, total: usize, done: usize) -> Element<'_, Message> {
     column![
         text(format!("Fetching… ({done} / {total})")).size(14),
         text("Please wait — operations are running concurrently.").size(12),
@@ -156,7 +156,7 @@ fn view_fetch_running(state: &AppState, total: usize, done: usize) -> Element<'_
 // Confirm plan — user reviews before execution
 // ---------------------------------------------------------------------------
 
-fn view_confirm_plan<'a>(state: &'a AppState, plan: &'a SmartPullPlan) -> Element<'a, Message> {
+fn view_confirm_plan<'a>(_state: &'a AppState, plan: &'a SmartPullPlan) -> Element<'a, Message> {
     let pull_count     = plan.pull_count();
     let excluded_count = plan.excluded_count();
 
@@ -255,7 +255,7 @@ fn view_pull_running(_state: &AppState, total: usize, done: usize) -> Element<'_
 // Done — result summary
 // ---------------------------------------------------------------------------
 
-fn view_done<'a>(state: &'a AppState, result: &'a SyncResult) -> Element<'a, Message> {
+fn view_done<'a>(_state: &'a AppState, result: &'a SyncResult) -> Element<'a, Message> {
     let title = match result.kind {
         SyncKind::Fetch     => "Fetch Complete",
         SyncKind::SmartPull => "Smart Pull Complete",
