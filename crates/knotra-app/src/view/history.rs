@@ -237,3 +237,88 @@ fn summarise_status(result: &OperationResult) -> &'static str {
         "✗ Failed"
     }
 }
+
+// ---------------------------------------------------------------------------
+// Log-to-Markdown rendering (used by LogCopyRequested handler)
+// ---------------------------------------------------------------------------
+
+/// Render one [`OperationLog`] as a Markdown string suitable for the clipboard.
+///
+/// Format:
+/// ```
+/// # Operation: <kind>
+/// Started:  <RFC-3339>
+/// Finished: <RFC-3339>
+/// Status:   Success | Partial | Failed | Rolled back
+///
+/// ## Projects
+///
+/// ### <project_id> — ✓ / ✗
+/// Commands:
+///   $ <cmd>
+/// Stdout:
+///   <first 20 lines>
+/// Stderr:
+///   <first 10 lines>
+///
+/// ## Recovery Hints
+/// ### <situation>
+///   $ <cmd>
+///   See also: <url>
+/// ```
+#[allow(dead_code)]
+pub(crate) fn log_to_markdown(log: &endringer::OperationLog) -> String {
+    let result = &log.result;
+
+    let status = if result.rollback_attempted {
+        if result.rollback_succeeded == Some(true) { "Rolled back" } else { "Rollback failed" }
+    } else if result.all_succeeded() { "Success" }
+      else if result.any_failed()    { "Partial"  }
+      else                           { "Failed"   };
+
+    let mut md = format!(
+        "# Operation: {}\nStarted:  {}\nFinished: {}\nStatus:   {}\n\n## Projects\n\n",
+        result.kind,
+        result.started_at.to_rfc3339(),
+        result.finished_at.to_rfc3339(),
+        status,
+    );
+
+    for pr in &result.per_project {
+        let icon = if pr.success { "✓ Success" } else { "✗ Failed" };
+        md.push_str(&format!("### {} — {}\n", pr.project_id, icon));
+
+        if !pr.commands_executed.is_empty() {
+            md.push_str("Commands:\n");
+            for cmd in &pr.commands_executed {
+                md.push_str(&format!("  $ {cmd}\n"));
+            }
+        }
+        if !pr.stdout.is_empty() {
+            let preview: String = pr.stdout.lines().take(20)
+                .map(|l| format!("  {l}\n")).collect();
+            md.push_str(&format!("Stdout:\n{preview}"));
+        }
+        if !pr.stderr.is_empty() {
+            let preview: String = pr.stderr.lines().take(10)
+                .map(|l| format!("  {l}\n")).collect();
+            md.push_str(&format!("Stderr:\n{preview}"));
+        }
+        md.push('\n');
+    }
+
+    if !log.recovery_hints.is_empty() {
+        md.push_str("## Recovery Hints\n\n");
+        for hint in &log.recovery_hints {
+            md.push_str(&format!("### {}\n", hint.situation));
+            for cmd in &hint.suggested_commands {
+                md.push_str(&format!("  $ {cmd}\n"));
+            }
+            if let Some(ref url) = hint.see_also {
+                md.push_str(&format!("  See also: {url}\n"));
+            }
+            md.push('\n');
+        }
+    }
+    md
+}

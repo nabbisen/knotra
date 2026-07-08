@@ -32,3 +32,11 @@ UI thread: never blocked — all I/O via `Task`/`Subscription`.
 ## Failure architecture
 
 Every bulk operation: plan → validate → confirm → execute → rollback (if needed) → log → recovery hints.
+
+**Exception — jj conflict detection:**  
+Conflict detection for jj repositories uses `jj log -r @ -T conflict` (CLI).  
+The jj conflict flag is stored in a protobuf-encoded file (`.jj/working_copy/tree_state`)  
+whose format is not part of jj's public API. Until the format is stable and  
+documented, the CLI is the safe approach. When `jj` is absent, the conflict  
+status is reported as `detection_unavailable: true` and the UI shows "Unknown"  
+rather than a false "No conflict."

@@ -107,6 +107,8 @@ pub enum FreezerMessage {
     OpenRequested,
     /// User typed in the freeze-point name field.
     NameChanged(String),
+    /// User typed in the optional tag annotation message field.
+    TagMessageChanged(String),
     /// User toggled a project's inclusion.
     ProjectToggled(ProjectId, bool),
     /// User requested pre-execution validation.

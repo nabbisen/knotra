@@ -2,7 +2,7 @@
 
 | Field    | Value                                                         |
 |----------|---------------------------------------------------------------|
-| Status   | Proposed — decision required                                  |
+| Status      | Implemented (Option A — documentation)                      |
 | Priority | Low — current Rust-only scope is acceptable for v0.10         |
 | Effort   | Medium (new parser per manifest type)                         |
 | Related  | `crates/endringer/src/model/topology.rs`, `vcs/adapter.rs`    |

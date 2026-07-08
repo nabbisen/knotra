@@ -2,7 +2,7 @@
 
 | Field       | Value                                      |
 |-------------|--------------------------------------------|
-| Status      | Proposed                                   |
+| Status      | Implemented                      |
 | Priority    | High — user-visible regression             |
 | Effort      | Small (≈ 1 function, ≈ 20 lines)           |
 | Related     | `crates/knotra-app/src/app.rs`, `view/history.rs` |

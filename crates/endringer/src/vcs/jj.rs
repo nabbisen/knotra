@@ -13,7 +13,7 @@ use crate::model::{
     operation::{ProjectOperationResult, RecoveryHint},
     project::Project,
     status::{
-        ConflictStatus, ProjectStatus, RemoteStatus, RepositoryIdentity, VcsContext, VcsKind,
+        ProjectStatus, RemoteStatus, RepositoryIdentity, VcsContext, VcsKind,
         WorkingTreeStatus,
     },
 };
@@ -67,6 +67,34 @@ async fn run_jj_command(project: &Project, args: &[&str]) -> ProjectOperationRes
     })
 }
 
+
+/// Detect jj conflict status for the working copy.
+///
+/// Requires the `jj` binary.  When absent, returns
+/// `detection_unavailable: true` so the UI shows "Unknown"
+/// rather than a false "No conflict."
+fn detect_jj_conflict(path: &str) -> crate::model::status::ConflictStatus {
+    match std::process::Command::new("jj")
+        .args(["log", "-r", "@", "--no-graph", "-T", "conflict\n"])
+        .current_dir(path)
+        .output()
+    {
+        Err(_) => crate::model::status::ConflictStatus {
+            has_conflict:          false,
+            conflict_count:        None,
+            detection_unavailable: true,
+        },
+        Ok(o) => {
+            let flag = String::from_utf8_lossy(&o.stdout).trim() == "true";
+            crate::model::status::ConflictStatus {
+                has_conflict:          flag,
+                conflict_count:        None,
+                detection_unavailable: false,
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Read — via endringer-backend-async (JjBackend → gix, no jj binary)
 // ---------------------------------------------------------------------------
@@ -100,12 +128,7 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
                 untracked_count:   ws.untracked.len() as u32,
             }).unwrap_or_default();
 
-            // Conflict detection via jj CLI (gix doesn't model jj conflicts)
-            let has_conflict = run_jj(
-                &["log", "-r", "@", "--no-graph", "-T", "conflict\n"],
-                &project.path,
-            ).map(|o| String::from_utf8_lossy(&o.stdout).trim() == "true")
-             .unwrap_or(false);
+            let conflict = detect_jj_conflict(&project.path);
 
             ProjectStatus {
                 project_id: project.id.clone(),
@@ -113,7 +136,7 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
                 context,
                 remote: RemoteStatus::default(),
                 working_tree,
-                conflict: ConflictStatus { has_conflict, conflict_count: None },
+                conflict,
                 refreshed_at: Utc::now(),
                 read_error: None,
             }
@@ -186,40 +209,70 @@ pub async fn log_since(
 ) -> crate::model::changelog::ProjectCommits {
     use crate::model::changelog::{CommitEntry, ProjectCommits};
 
-    let path = std::path::Path::new(&project.path);
-    match AsyncRepository::open_jj(path).await {
-        Err(e) => ProjectCommits {
-            project_id: project.id.clone(), project_name: project.name.clone(),
-            since_ref: since_ref.to_owned(), entries: vec![],
-            error: Some(e.to_string()),
-        },
-        Ok(repo) => {
-            let until = std::time::SystemTime::now();
-            // For jj, "since" is relative; we approximate with recent commits
-            match repo.list_commits().await {
-                Err(e) => ProjectCommits {
-                    project_id: project.id.clone(), project_name: project.name.clone(),
-                    since_ref: since_ref.to_owned(), entries: vec![],
-                    error: Some(e.to_string()),
-                },
-                Ok(commits) => {
-                    let entries = commits.into_iter()
-                        .filter(|c| c.timestamp <= until)
-                        .map(|c| CommitEntry {
-                            hash:    c.commit_id.short(),
-                            subject: c.summary,
-                            author:  c.author,
-                            date:    chrono::DateTime::from(c.timestamp),
-                        })
-                        .collect();
-                    ProjectCommits {
-                        project_id: project.id.clone(), project_name: project.name.clone(),
-                        since_ref: since_ref.to_owned(), entries, error: None,
-                    }
+    let path  = project.path.clone();
+    let since = since_ref.to_owned();
+    let pid   = project.id.clone();
+    let pname = project.name.clone();
+
+    tokio::task::spawn_blocking(move || {
+        // Use `jj log -r <bookmark>..@` — ref-based, no timestamp ambiguity.
+        let rev  = format!("{since}..@");
+        let tmpl = concat!(
+            "change_id.short(8)",
+            r#" ++ "|" ++ description.first_line()"#,
+            r#" ++ "|" ++ author.name()"#,
+            r#" ++ "|" ++ committer.timestamp().format("%Y-%m-%dT%H:%M:%S+00:00")"#,
+            r#" ++ "
+""#,
+        );
+        let out = std::process::Command::new("jj")
+            .args(["log", "-r", &rev, "--no-graph", "-T", tmpl])
+            .current_dir(&path)
+            .output();
+
+        match out {
+            Err(e) => ProjectCommits {
+                project_id: pid, project_name: pname, since_ref: since,
+                entries: vec![],
+                error: Some(format!("jj not available: {e}")),
+            },
+            Ok(o) if !o.status.success() => {
+                let stderr = String::from_utf8_lossy(&o.stderr).trim().to_owned();
+                ProjectCommits {
+                    project_id: pid, project_name: pname, since_ref: since,
+                    entries: vec![],
+                    error: Some(if stderr.is_empty() {
+                        format!("jj log exited with code {:?}", o.status.code())
+                    } else { stderr }),
+                }
+            }
+            Ok(o) => {
+                let text = String::from_utf8_lossy(&o.stdout);
+                let entries = text.lines()
+                    .filter(|l| !l.trim().is_empty())
+                    .filter_map(|l| {
+                        let mut p = l.splitn(4, '|');
+                        let hash    = p.next()?.to_owned();
+                        let subject = p.next()?.to_owned();
+                        let author  = p.next()?.to_owned();
+                        let date    = p.next()?.trim()
+                            .parse::<chrono::DateTime<chrono::Utc>>().ok()?;
+                        Some(CommitEntry { hash, subject, author, date })
+                    })
+                    .collect();
+                ProjectCommits {
+                    project_id: pid, project_name: pname, since_ref: since,
+                    entries, error: None,
                 }
             }
         }
-    }
+    }).await.unwrap_or_else(|e| ProjectCommits {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        since_ref: since_ref.to_owned(),
+        entries: vec![],
+        error: Some(format!("task join: {e}")),
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -245,11 +298,8 @@ pub async fn smart_pull(
         return (fetch_res, Some(hint));
     }
 
-    let has_conflict = run_jj(
-        &["log", "-r", "@", "--no-graph", "-T", "conflict\n"],
-        &project.path,
-    ).map(|o| String::from_utf8_lossy(&o.stdout).trim() == "true")
-     .unwrap_or(false);
+    let conflict_st = detect_jj_conflict(&project.path);
+    let has_conflict = conflict_st.has_conflict;
 
     let hint = if has_conflict {
         Some(RecoveryHint {
@@ -345,11 +395,8 @@ pub async fn validate_for_freeze(
             .and_then(|b| b.is_dirty().ok())
             .unwrap_or(false);
 
-        let conflict = run_jj(
-            &["log", "-r", "@", "--no-graph", "-T", "conflict\n"],
-            path.to_str().unwrap_or(""),
-        ).map(|o| String::from_utf8_lossy(&o.stdout).trim() == "true")
-         .unwrap_or(false);
+        let conflict_status = detect_jj_conflict(path.to_str().unwrap_or(""));
+        let conflict = conflict_status.has_conflict || conflict_status.detection_unavailable;
 
         let bm_exists = run_jj(&["bookmark", "list"], path.to_str().unwrap_or(""))
             .map(|o| String::from_utf8_lossy(&o.stdout).lines().any(|l| l.trim().starts_with(name.as_str())))

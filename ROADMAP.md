@@ -124,3 +124,16 @@ endringer 0.19.2 library backends.
 - [x] `VcsAdapter::stash_entries` and `worktree_status` added
 - [x] `log_since` uses CLI ref-range (`git log <ref>..HEAD`)
 - [x] 0 warnings, 36 endringer tests pass, knotra-app check clean
+
+## v0.11.0 — RFC 001–0008 Implementation
+
+All design issues identified in the v0.10.0 design-note review are resolved.
+
+- [x] RFC-001 `LogCopyRequested` → `log_to_markdown` + `CopyToClipboard`
+- [x] RFC-002 `StashEntry.commit_id: String`
+- [x] RFC-003 `ConflictStatus::detection_unavailable` + jj CLI exception documented
+- [x] RFC-004 `gix_ahead_behind()` — gix-based upstream resolution
+- [x] RFC-005 Annotated tag support in Freezer (`create_tag_with_message`)
+- [x] RFC-006 jj `log_since` uses `jj log -r <bookmark>..@`
+- [x] RFC-007 Topology scan Cargo.toml-only scope documented
+- [x] RFC-008 `FsPoller::prune` on workspace switch and delete

@@ -320,6 +320,12 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
         }
         WorkspaceMessage::DeleteWorkspaceConfirmed => {
             state.workspace_mgr.confirm_delete = false;
+            // Prune snapshots for the workspace being removed.
+            if let Some(ws) = state.all_workspaces.get(state.active_workspace_idx) {
+                let ids: Vec<_> = ws.projects.iter().map(|p| p.id.clone()).collect();
+                // After deletion the active workspace changes; prune all stale entries.
+                state.fs_poller.prune(&ids);
+            }
             if state.all_workspaces.len() <= 1 {
                 // Don't delete the last workspace.
                 return Task::none();
@@ -345,6 +351,11 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             if let Some(idx) = state.all_workspaces.iter().position(|ws| ws.id == id) {
                 state.active_workspace_idx = idx;
                 state.workspace = state.all_workspaces.get(idx).cloned();
+                // Prune stale FsPoller snapshots from the previous workspace.
+                let active_ids: Vec<endringer::ProjectId> = state.workspace.as_ref()
+                    .map(|ws| ws.projects.iter().map(|p| p.id.clone()).collect())
+                    .unwrap_or_default();
+                state.fs_poller.prune(&active_ids);
                 state.workspace_status = None;
                 state.load_phase = LoadPhase::Refreshing;
                 state.is_refreshing = true;
@@ -1197,6 +1208,11 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             if matches!(state.freezer.phase, FreezerPhase::ValidationReady(_)) {
                 state.freezer.phase = FreezerPhase::Idle;
             }
+            Task::none()
+        }
+
+        FreezerMessage::TagMessageChanged(s) => {
+            state.freezer.tag_message = s;
             Task::none()
         }
 

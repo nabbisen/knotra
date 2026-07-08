@@ -2,7 +2,7 @@
 
 | Field    | Value                                                         |
 |----------|---------------------------------------------------------------|
-| Status   | Proposed — spike required before implementation               |
+| Status      | Implemented                      |
 | Priority | Low — current CLI path is functional; gix path is an optimisation |
 | Effort   | Spike (0.5 days) + implementation (1 day)                     |
 | Related  | `crates/endringer/src/vcs/git.rs` (`read_remote_cli`)         |

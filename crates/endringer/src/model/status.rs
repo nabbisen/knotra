@@ -81,6 +81,11 @@ pub struct ConflictStatus {
     pub has_conflict: bool,
     /// Approximate number of conflicted files, if determinable.
     pub conflict_count: Option<u32>,
+    /// True when the conflict-detection mechanism was unavailable
+    /// (e.g. the `jj` binary is absent for a jj repository).
+    /// The UI should show "Unknown" rather than "No conflict."
+    #[serde(default)]
+    pub detection_unavailable: bool,
 }
 
 /// Aggregate health of one repository, as displayed in a dashboard card.
@@ -173,6 +178,8 @@ impl Default for ContextList {
 /// A single stash entry (maps to endringer-backend StashEntry).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StashEntry {
-    pub index:   usize,
-    pub message: String,
+    pub index:     usize,
+    /// Short (8-char) hex hash of the stash commit.
+    pub commit_id: String,
+    pub message:   String,
 }

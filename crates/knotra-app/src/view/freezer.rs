@@ -64,6 +64,13 @@ fn view_idle(state: &AppState) -> Element<'_, Message> {
     .on_input(|s| Message::Freezer(FreezerMessage::NameChanged(s)))
     .width(300);
 
+    let tag_msg_input = text_input(
+        state.t("freezer.tag_message_hint"),
+        &state.freezer.tag_message,
+    )
+    .on_input(|s| Message::Freezer(FreezerMessage::TagMessageChanged(s)))
+    .width(350);
+
     let name_error: Element<'_, Message> = if !name_valid && !state.freezer.freeze_name.is_empty() {
         text(state.t("freezer.name_invalid")).size(11).into()
     } else {
@@ -96,6 +103,8 @@ fn view_idle(state: &AppState) -> Element<'_, Message> {
     column![
         text(state.t("freezer.name_label")).size(13),
         name_input,
+        text(state.t("freezer.tag_message_label")).size(13),
+        tag_msg_input,
         name_error,
         text(state.t("freezer.projects_label")).size(13),
         column(project_rows).spacing(2),

@@ -33,6 +33,8 @@ pub struct FreezerState {
     pub phase: FreezerPhase,
     /// The name of the freeze point (tag / bookmark name).
     pub freeze_name: String,
+    /// Optional annotation message. Empty = lightweight tag.
+    pub tag_message: String,
     /// Per-project inclusion: true = include in freeze.
     pub project_selection: std::collections::HashMap<ProjectId, bool>,
 }

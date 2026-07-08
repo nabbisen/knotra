@@ -2,7 +2,7 @@
 
 | Field    | Value                                                      |
 |----------|------------------------------------------------------------|
-| Status   | Proposed                                                   |
+| Status      | Implemented                      |
 | Priority | Medium — type alignment, no user-visible regression today  |
 | Effort   | Small (1 struct field, 1 mapping line)                     |
 | Related  | `crates/endringer/src/model/status.rs`, `vcs/git.rs`       |

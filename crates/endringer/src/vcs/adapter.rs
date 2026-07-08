@@ -582,6 +582,34 @@ impl VcsAdapter {
 impl VcsAdapter {
     // --- Tag management ---
 
+
+    /// Create a tag or jj bookmark, with an optional annotation message.
+    ///
+    /// `message = None` → lightweight tag (same as [`VcsAdapter::create_tag`]).  
+    /// `message = Some(s)` → annotated tag with message `s` (Git only;
+    ///   ignored silently for jj bookmarks).
+    pub async fn create_tag_with_message(
+        project: &Project,
+        tag_name: &str,
+        message: Option<&str>,
+    ) -> crate::model::operation::ProjectOperationResult {
+        let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+        match (kind, message) {
+            (Some(VcsKind::Git), Some(msg)) =>
+                git::tag_create_annotated(project, tag_name, msg).await,
+            (Some(VcsKind::Git), None) =>
+                git::tag_create(project, tag_name).await,
+            (Some(VcsKind::Jujutsu), _) =>
+                jj::bookmark_create(project, tag_name).await,
+            (None, _) => crate::model::operation::ProjectOperationResult {
+                project_id: project.id.clone(), success: false,
+                commands_executed: vec![], stdout: String::new(), stderr: String::new(),
+                exit_code: None,
+                error_message: Some(format!("no repository at {}", project.path)),
+            },
+        }
+    }
+
     /// Create a tag at HEAD for the given project.
     ///
     /// For Git this creates a lightweight tag (`git tag <name>`).

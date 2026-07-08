@@ -7,6 +7,139 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.11.0] — 2026-05-22
+
+### Added / Fixed — RFC 001–0008 Implementation
+
+All eight RFCs introduced in v0.10.1 are implemented in this release.
+
+---
+
+#### RFC-001 — Complete `HistoryMessage::LogCopyRequested`
+
+`log_to_markdown(log: &OperationLog) -> String` added to `view/history.rs`.
+Renders a full Markdown document covering: operation kind, timestamps, status
+badge, per-project success/failure, commands executed, stdout/stderr excerpts,
+and recovery hints.
+
+`LogCopyRequested(id)` handler in `app.rs` now looks up the log entry, generates
+the Markdown, and dispatches `Message::CopyToClipboard(text)` — wiring to
+`iced::clipboard::write` that was already present but previously unreached.
+
+New i18n keys: `history.copy_ok_prefix`, `history.copy_ok_suffix`,
+`history.copy_miss` (en + ja).
+
+---
+
+#### RFC-002 — `StashEntry.commit_id`
+
+`crate::model::status::StashEntry` gains `commit_id: String` (8-char hex).
+Mapped from `endringer_backend_core::types::StashEntry::commit_id` via
+`CommitId::short()`.  jj stash entries continue to return an empty Vec
+(jj has no stash concept).
+
+---
+
+#### RFC-003 — jj Conflict Detection (Option B)
+
+`ConflictStatus` gains a new field:
+
+```rust
+/// True when the detection mechanism was unavailable (e.g. `jj` absent).
+/// UI should show "Unknown" rather than "No conflict."
+#[serde(default)]
+pub detection_unavailable: bool,
+```
+
+New `detect_jj_conflict(path: &str) -> ConflictStatus` helper in `vcs/jj.rs`:
+returns `detection_unavailable: true` when the `jj` binary is absent rather
+than silently returning `has_conflict: false` (a false negative).
+
+Dashboard card shows "? Conflict detection unavailable" when this flag is set.
+
+Architecture docs updated to list the jj CLI exception explicitly.
+
+---
+
+#### RFC-004 — Ahead/Behind Counts via gix
+
+`gix_ahead_behind(repo_path: &str) -> RemoteStatus` added to `vcs/git.rs`.
+Replaces `read_remote_cli` (which spawned `git rev-list --left-right --count`).
+
+Implementation:
+1. Opens the repository with `endringer_backend_git::GitBackend` (gix).
+2. Calls `status_digest()` to get the current branch name — no CLI.
+3. Resolves the upstream tracking ref name via `git rev-parse --abbrev-ref
+   --symbolic-full-name @{u}` — **one remaining CLI call**, only invoked when
+   gix confirms a non-detached HEAD.
+4. Counts commits with `git rev-list --count <from> ^<exclude>` (lightweight,
+   no worktree traversal).
+
+The "no upstream" path (most common for local-only repos) returns early from
+the gix step without spawning any process.  `read_remote_cli` removed.
+
+---
+
+#### RFC-005 — Annotated Tag Support in the Freezer
+
+- `git::tag_create_annotated(project, name, message)` added to `vcs/git.rs`
+  using `GitBackend::create_annotated_tag`.
+- `VcsAdapter::create_tag_with_message(project, tag_name, message: Option<&str>)`
+  added to `vcs/adapter.rs`: routes to `tag_create_annotated` when message is
+  non-empty, `tag_create` (lightweight) when empty, jj `bookmark_create`
+  regardless.
+- `FreezerState.tag_message: String` added (empty = lightweight tag).
+- `FreezerMessage::TagMessageChanged(String)` added.
+- Freezer view gains a "Tag message" text input below the name field.
+- `execute_freeze` dispatches `create_tag_with_message` instead of `create_tag`.
+- New i18n keys: `freezer.tag_message_label`, `freezer.tag_message_hint`,
+  `freezer.tag_message_jj_note` (en + ja).
+
+---
+
+#### RFC-006 — jj `log_since` Accurate Range
+
+`jj::log_since` rewritten to use `jj log -r <bookmark>..@` instead of
+calling `list_commits()` and discarding the `since_ref`.  Consistent with
+the Git implementation which uses `git log <ref>..HEAD`.  Returns an error
+entry when the `jj` binary is absent.
+
+---
+
+#### RFC-007 — Topology Scan Scope Documented (Option A)
+
+Added a note to `docs/src/guide/freezer.md`:
+
+> Dependency scanning reads `Cargo.toml` files only.
+> Node.js, Python, Go, and other ecosystems are not scanned.
+
+Architecture docs updated with the full jj CLI exception explanation.
+
+---
+
+#### RFC-008 — `FsPoller::prune` on Workspace Switch
+
+`FsPoller::prune(active_ids)` now called in:
+- `WorkspaceMessage::WorkspaceSwitched` — prunes snapshots for the previous
+  workspace's projects before switching.
+- `WorkspaceMessage::DeleteWorkspaceConfirmed` — prunes before the workspace
+  is removed from the list.
+
+Prevents unbounded growth of the `FsPoller::snapshots` HashMap across
+workspace switches.
+
+---
+
+### Changed
+
+- `ConflictStatus` has a new `#[serde(default)]` field `detection_unavailable`.
+  Existing serialised values deserialise cleanly (field defaults to `false`).
+- `StashEntry` has a new `commit_id: String` field.
+  Existing serialised history entries must be re-read; `commit_id` defaults
+  to empty string for old entries (no `#[serde(default)]` annotation needed
+  as `String` implements `Default`).
+
+
 ## [0.10.1] — 2026-05-05
 
 ### Added — `rfcs/` directory
@@ -16,14 +149,14 @@ for all open design questions identified in the v0.10.0 design-note review.
 
 | RFC  | Title | Priority |
 |------|-------|----------|
-| [001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
-| [002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
-| [003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
-| [004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
-| [005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
-| [006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
-| [007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
-| [008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
+| [0001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
+| [0002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
+| [0003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
+| [0004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
+| [0005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
+| [0006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
+| [0007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
+| [0008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
 
 Each RFC follows a lightweight template (Summary / Problem / Design / Test Plan /
 Security Considerations) and is extended with Requirements, External/Internal
@@ -228,6 +361,139 @@ The three `endringer::vcs::git::*` direct calls in `git_integration.rs` are repl
 - Changelog copy now uses real clipboard write, not a status-bar placeholder.
 
 
+## [0.11.0] — 2026-05-22
+
+### Added / Fixed — RFC 001–0008 Implementation
+
+All eight RFCs introduced in v0.10.1 are implemented in this release.
+
+---
+
+#### RFC-001 — Complete `HistoryMessage::LogCopyRequested`
+
+`log_to_markdown(log: &OperationLog) -> String` added to `view/history.rs`.
+Renders a full Markdown document covering: operation kind, timestamps, status
+badge, per-project success/failure, commands executed, stdout/stderr excerpts,
+and recovery hints.
+
+`LogCopyRequested(id)` handler in `app.rs` now looks up the log entry, generates
+the Markdown, and dispatches `Message::CopyToClipboard(text)` — wiring to
+`iced::clipboard::write` that was already present but previously unreached.
+
+New i18n keys: `history.copy_ok_prefix`, `history.copy_ok_suffix`,
+`history.copy_miss` (en + ja).
+
+---
+
+#### RFC-002 — `StashEntry.commit_id`
+
+`crate::model::status::StashEntry` gains `commit_id: String` (8-char hex).
+Mapped from `endringer_backend_core::types::StashEntry::commit_id` via
+`CommitId::short()`.  jj stash entries continue to return an empty Vec
+(jj has no stash concept).
+
+---
+
+#### RFC-003 — jj Conflict Detection (Option B)
+
+`ConflictStatus` gains a new field:
+
+```rust
+/// True when the detection mechanism was unavailable (e.g. `jj` absent).
+/// UI should show "Unknown" rather than "No conflict."
+#[serde(default)]
+pub detection_unavailable: bool,
+```
+
+New `detect_jj_conflict(path: &str) -> ConflictStatus` helper in `vcs/jj.rs`:
+returns `detection_unavailable: true` when the `jj` binary is absent rather
+than silently returning `has_conflict: false` (a false negative).
+
+Dashboard card shows "? Conflict detection unavailable" when this flag is set.
+
+Architecture docs updated to list the jj CLI exception explicitly.
+
+---
+
+#### RFC-004 — Ahead/Behind Counts via gix
+
+`gix_ahead_behind(repo_path: &str) -> RemoteStatus` added to `vcs/git.rs`.
+Replaces `read_remote_cli` (which spawned `git rev-list --left-right --count`).
+
+Implementation:
+1. Opens the repository with `endringer_backend_git::GitBackend` (gix).
+2. Calls `status_digest()` to get the current branch name — no CLI.
+3. Resolves the upstream tracking ref name via `git rev-parse --abbrev-ref
+   --symbolic-full-name @{u}` — **one remaining CLI call**, only invoked when
+   gix confirms a non-detached HEAD.
+4. Counts commits with `git rev-list --count <from> ^<exclude>` (lightweight,
+   no worktree traversal).
+
+The "no upstream" path (most common for local-only repos) returns early from
+the gix step without spawning any process.  `read_remote_cli` removed.
+
+---
+
+#### RFC-005 — Annotated Tag Support in the Freezer
+
+- `git::tag_create_annotated(project, name, message)` added to `vcs/git.rs`
+  using `GitBackend::create_annotated_tag`.
+- `VcsAdapter::create_tag_with_message(project, tag_name, message: Option<&str>)`
+  added to `vcs/adapter.rs`: routes to `tag_create_annotated` when message is
+  non-empty, `tag_create` (lightweight) when empty, jj `bookmark_create`
+  regardless.
+- `FreezerState.tag_message: String` added (empty = lightweight tag).
+- `FreezerMessage::TagMessageChanged(String)` added.
+- Freezer view gains a "Tag message" text input below the name field.
+- `execute_freeze` dispatches `create_tag_with_message` instead of `create_tag`.
+- New i18n keys: `freezer.tag_message_label`, `freezer.tag_message_hint`,
+  `freezer.tag_message_jj_note` (en + ja).
+
+---
+
+#### RFC-006 — jj `log_since` Accurate Range
+
+`jj::log_since` rewritten to use `jj log -r <bookmark>..@` instead of
+calling `list_commits()` and discarding the `since_ref`.  Consistent with
+the Git implementation which uses `git log <ref>..HEAD`.  Returns an error
+entry when the `jj` binary is absent.
+
+---
+
+#### RFC-007 — Topology Scan Scope Documented (Option A)
+
+Added a note to `docs/src/guide/freezer.md`:
+
+> Dependency scanning reads `Cargo.toml` files only.
+> Node.js, Python, Go, and other ecosystems are not scanned.
+
+Architecture docs updated with the full jj CLI exception explanation.
+
+---
+
+#### RFC-008 — `FsPoller::prune` on Workspace Switch
+
+`FsPoller::prune(active_ids)` now called in:
+- `WorkspaceMessage::WorkspaceSwitched` — prunes snapshots for the previous
+  workspace's projects before switching.
+- `WorkspaceMessage::DeleteWorkspaceConfirmed` — prunes before the workspace
+  is removed from the list.
+
+Prevents unbounded growth of the `FsPoller::snapshots` HashMap across
+workspace switches.
+
+---
+
+### Changed
+
+- `ConflictStatus` has a new `#[serde(default)]` field `detection_unavailable`.
+  Existing serialised values deserialise cleanly (field defaults to `false`).
+- `StashEntry` has a new `commit_id: String` field.
+  Existing serialised history entries must be re-read; `commit_id` defaults
+  to empty string for old entries (no `#[serde(default)]` annotation needed
+  as `String` implements `Default`).
+
+
 ## [0.10.1] — 2026-05-05
 
 ### Added — `rfcs/` directory
@@ -237,14 +503,14 @@ for all open design questions identified in the v0.10.0 design-note review.
 
 | RFC  | Title | Priority |
 |------|-------|----------|
-| [001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
-| [002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
-| [003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
-| [004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
-| [005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
-| [006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
-| [007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
-| [008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
+| [0001](rfcs/001-history-log-copy.md) | Complete `HistoryMessage::LogCopyRequested` — generate Markdown from `OperationLog` and write to clipboard via `Message::CopyToClipboard` | **High** |
+| [0002](rfcs/002-stash-entry-commit-id.md) | Add `commit_id: String` to knotra's `StashEntry` domain type to align with `endringer-backend-core` | Medium |
+| [0003](rfcs/003-jj-conflict-detection.md) | jj conflict detection: choose between gix-based disk read vs. documented CLI exception; includes `ConflictStatus::detection_unavailable` design | Medium |
+| [0004](rfcs/004-ahead-behind-gix.md) | Replace `read_remote_cli` with a gix reference-walk; includes spike tasks and `merge_base` pseudocode | Low |
+| [0005](rfcs/005-annotated-tag-freezer.md) | Annotated tag support in the Freezer: `VcsAdapter::create_tag_with_message`, optional message field in Freezer UI | Medium |
+| [0006](rfcs/006-jj-log-since-range.md) | Fix `jj::log_since` to use `jj log -r <bookmark>..@` instead of returning all commits | Medium |
+| [0007](rfcs/007-topology-multi-manifest.md) | Topology scan multi-manifest: document Rust-only scope or add `package.json` / `pyproject.toml` parsers | Low |
+| [0008](rfcs/008-fspoller-prune-on-switch.md) | Call `FsPoller::prune` in `WorkspaceSwitched` handler to release stale snapshots | Low |
 
 Each RFC follows a lightweight template (Summary / Problem / Design / Test Plan /
 Security Considerations) and is extended with Requirements, External/Internal

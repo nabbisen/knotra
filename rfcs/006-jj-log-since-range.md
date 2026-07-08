@@ -2,7 +2,7 @@
 
 | Field    | Value                                                          |
 |----------|----------------------------------------------------------------|
-| Status   | Proposed                                                       |
+| Status      | Implemented                      |
 | Priority | Medium — changelog output is incorrect for jj repositories     |
 | Effort   | Small (replace `list_commits()` call with `jj log` CLI call)   |
 | Related  | `crates/endringer/src/vcs/jj.rs` (`log_since`)                 |

@@ -2,7 +2,7 @@
 
 | Field    | Value                                                         |
 |----------|---------------------------------------------------------------|
-| Status   | Proposed                                                      |
+| Status      | Implemented                      |
 | Priority | Low — memory issue only; no incorrect behaviour               |
 | Effort   | Trivial (3 lines)                                             |
 | Related  | `crates/knotra-app/src/app.rs` (`WorkspaceMessage::WorkspaceSwitched`) |

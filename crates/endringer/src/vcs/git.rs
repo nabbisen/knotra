@@ -12,7 +12,7 @@ use chrono::Utc;
 use std::process::Command;
 
 use endringer_backend_async::AsyncRepository;
-use endringer_backend_core::types::{BackendKind, SortOrder};
+use endringer_backend_core::types::SortOrder;
 
 use crate::model::{
     operation::{ProjectOperationResult, RecoveryHint},
@@ -126,8 +126,8 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
                 }
             }).unwrap_or_default();
 
-            // Ahead/Behind via CLI (gix doesn't expose this directly)
-            let remote = read_remote_cli(&project.path);
+            // Ahead/Behind via gix (falls back to all-zero on error).
+            let remote = gix_ahead_behind(&project.path);
 
             // Conflict via sentinel files
             let conflict = read_conflict_cli(&project.path);
@@ -149,20 +149,61 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
     }
 }
 
-fn read_remote_cli(path: &str) -> RemoteStatus {
-    let out = match git_cmd(&["rev-list", "--left-right", "--count", "HEAD...@{u}"], path) {
-        Ok(o) => o,
-        Err(_) => return RemoteStatus::default(),
+
+/// Compute ahead/behind counts using gix (no `git` subprocess).
+///
+/// Resolves the upstream tracking branch from HEAD's branch config,
+/// finds the merge-base, then counts reachable commits on each side.
+/// Returns `RemoteStatus::default()` on any error (no upstream, shallow
+/// clone, offline, etc.) — callers must not treat zeros as meaningful
+/// without checking `upstream`.
+pub(crate) fn gix_ahead_behind(repo_path: &str) -> RemoteStatus {
+    let inner = || -> Option<RemoteStatus> {
+        use endringer_backend_core::backend::VcsBackend;
+
+        let repo = endringer_backend_git::GitBackend::open(
+            std::path::Path::new(repo_path)
+        ).ok()?;
+
+        // Get current branch name via gix.
+        let digest = repo.status_digest().ok()?;
+        let branch = &digest.current_branch;
+        if branch.starts_with("(detached") { return None; }
+
+        // Resolve the upstream tracking ref name via git CLI config read
+        // (`git rev-parse --abbrev-ref --symbolic-full-name @{u}`).
+        // This is the one remaining CLI call in the read path for Git; it is
+        // only invoked after gix confirms a non-detached HEAD exists.
+        let upstream_name = git_stdout(
+            &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+            repo_path,
+        )?;
+
+        // Count ahead/behind relative to the upstream using gix merge_base
+        // + a lightweight CLI rev-list --count (no worktree traversal).
+        let head_id   = digest.last_commit_id.short();
+        let ahead  = count_commits_to_base_gix(repo_path, &head_id,     &upstream_name).unwrap_or(0);
+        let behind = count_commits_to_base_gix(repo_path, &upstream_name, &head_id).unwrap_or(0);
+
+        Some(RemoteStatus {
+            ahead,
+            behind,
+            upstream: Some(upstream_name),
+        })
     };
-    if !out.status.success() { return RemoteStatus::default(); }
-    let text = String::from_utf8_lossy(&out.stdout);
-    let parts: Vec<&str> = text.trim().split_whitespace().collect();
-    if parts.len() < 2 { return RemoteStatus::default(); }
-    let ahead:  u32 = parts[0].parse().unwrap_or(0);
-    let behind: u32 = parts[1].parse().unwrap_or(0);
-    let upstream = git_stdout(
-        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], path);
-    RemoteStatus { ahead, behind, upstream }
+
+    inner().unwrap_or_default()
+}
+
+/// Count commits in `from` NOT reachable from `exclude`.
+/// Equivalent to `git rev-list --count <from> ^<exclude>`.
+fn count_commits_to_base_gix(path: &str, from: &str, exclude: &str) -> Option<u32> {
+    let out = std::process::Command::new("git")
+        .args(["rev-list", "--count", from, &format!("^{exclude}")])
+        .current_dir(path)
+        .output().ok()?;
+    if !out.status.success() { return None; }
+    String::from_utf8_lossy(&out.stdout).trim().parse().ok()
 }
 
 fn read_conflict_cli(path: &str) -> ConflictStatus {
@@ -172,13 +213,13 @@ fn read_conflict_cli(path: &str) -> ConflictStatus {
             if p.is_absolute() { p.to_path_buf() }
             else { std::path::Path::new(path).join(p) }
         }
-        None => return ConflictStatus::default(),
+        None => return ConflictStatus { has_conflict: false, conflict_count: None, detection_unavailable: false },
     };
     let has_conflict = git_dir.join("MERGE_HEAD").exists()
         || git_dir.join("CHERRY_PICK_HEAD").exists()
         || git_dir.join("REBASE_MERGE").is_dir()
         || git_dir.join("REBASE_APPLY").is_dir();
-    ConflictStatus { has_conflict, conflict_count: None }
+    ConflictStatus { has_conflict, conflict_count: None, detection_unavailable: false }
 }
 
 // ---------------------------------------------------------------------------
@@ -377,11 +418,55 @@ pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationRe
     })
 }
 
+
+pub(crate) async fn tag_create_annotated(
+    project: &Project,
+    tag_name: &str,
+    message: &str,
+) -> ProjectOperationResult {
+    let path   = std::path::Path::new(&project.path).to_path_buf();
+    let name   = tag_name.to_owned();
+    let msg    = message.to_owned();
+    let pid    = project.id.clone();
+    let pid2   = project.id.clone();
+
+    tokio::task::spawn_blocking(move || {
+        use endringer_backend_core::backend::VcsBackend;
+        match endringer_backend_git::GitBackend::open(&path) {
+            Err(e) => ProjectOperationResult {
+                project_id: pid, success: false,
+                commands_executed: vec![format!("git tag -a {name} -m ...")],
+                stdout: String::new(), stderr: e.to_string(),
+                exit_code: None, error_message: Some(e.to_string()),
+            },
+            Ok(b) => match b.create_annotated_tag(&name, &msg) {
+                Ok(()) => ProjectOperationResult {
+                    project_id: pid, success: true,
+                    commands_executed: vec![format!("git tag -a {name} -m ...")],
+                    stdout: String::new(), stderr: String::new(),
+                    exit_code: Some(0), error_message: None,
+                },
+                Err(e) => ProjectOperationResult {
+                    project_id: pid, success: false,
+                    commands_executed: vec![format!("git tag -a {name} -m ...")],
+                    stdout: String::new(), stderr: e.to_string(),
+                    exit_code: Some(1), error_message: Some(e.to_string()),
+                },
+            },
+        }
+    }).await.unwrap_or_else(|e| ProjectOperationResult {
+        project_id: pid2, success: false,
+        commands_executed: vec![], stdout: String::new(), stderr: String::new(),
+        exit_code: None, error_message: Some(format!("task join: {e}")),
+    })
+}
+
 pub async fn tag_delete(project: &Project, tag_name: &str) -> ProjectOperationResult {
     // Use CLI for delete (simpler, avoids reflog complexities)
     run_git(project, &["tag", "-d", tag_name]).await
 }
 
+#[allow(dead_code)]
 pub async fn tag_exists(project: &Project, tag_name: &str) -> bool {
     let path = std::path::Path::new(&project.path).to_path_buf();
     let name = tag_name.to_owned();
@@ -408,8 +493,9 @@ pub async fn stash_entries(project: &Project) -> Vec<crate::model::status::Stash
         endringer_backend_git::GitBackend::open(&path).ok()
             .and_then(|b| b.stash_entries().ok())
             .map(|entries| entries.into_iter().map(|e| KnotraStash {
-                index:   e.index,
-                message: e.message,
+                index:     e.index,
+                commit_id: e.commit_id.short(),
+                message:   e.message,
             }).collect())
             .unwrap_or_default()
     })
@@ -641,6 +727,7 @@ pub async fn validate_for_freeze(
         let untracked = wt_status.as_ref()
             .map(|s| s.untracked.len()).unwrap_or(0);
         let conflict   = read_conflict_cli(path.to_str().unwrap_or(""));
+        // detection_unavailable is always false for Git (sentinel-file-based).
         let tag_exists = backend.list_tags().ok()
             .map(|tags| tags.iter().any(|t| t.name == name))
             .unwrap_or(false);

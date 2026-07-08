@@ -2,7 +2,7 @@
 
 | Field    | Value                                                            |
 |----------|------------------------------------------------------------------|
-| Status   | Proposed — decision required                                     |
+| Status      | Implemented (Option B)                      |
 | Priority | Medium — correctness claim vs. implementation reality            |
 | Effort   | Investigation spike (1–2 days) + implementation or doc change    |
 | Related  | `crates/endringer/src/vcs/jj.rs`, `docs/src/contributing/architecture.md` |
