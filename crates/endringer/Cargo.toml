@@ -1,0 +1,17 @@
+[package]
+name = "endringer"
+description = "VCS abstraction layer for knotra: unified Git/jj read and write operations"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+gix.workspace = true
+uuid.workspace = true
+chrono.workspace = true

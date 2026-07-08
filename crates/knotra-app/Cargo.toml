@@ -11,8 +11,8 @@ name = "knotra"
 path = "src/main.rs"
 
 [dependencies]
-endringer.workspace = true
-snora.workspace = true
+endringer = { path = "../endringer" }
+snora = { path = "../snora" }
 
 tokio.workspace = true
 serde.workspace = true

@@ -38,7 +38,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.1.0] — 2025-xx-xx
 
 ### Added
-- Cargo workspace with `knotra-app` crates.
+- Cargo workspace with `endringer`, `snora 0.9`, and `knotra-app` crates.
+- `endringer`: domain model types (`ProjectStatus`, `WorkspaceStatus`, `OperationLog`, `RecoveryHint`, …).
+- `endringer`: async `VcsAdapter` dispatching to `gix`-based Git and jj CLI implementations.
+- `snora`: colour palette, WCAG-AA status colours, i18n catalog (English / Japanese).
 - `knotra-app`: Elm-architecture skeleton (`State` / `Message` / `Update` / `View`).
 - Dashboard: card-grid layout for up to N projects, empty-state and refreshing-state display.
 - Configuration: TOML config at `~/.config/knotra/config.toml` with safe fallback.

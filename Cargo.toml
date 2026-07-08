@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "crates/endringer",
+    "crates/snora",
     "crates/knotra-app",
 ]
 resolver = "2"
@@ -30,10 +32,15 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # GUI
 iced = { version = "0.14", features = ["tokio", "image", "svg", "advanced"] }
-snora = "*"
 
 # Git
-endringer = "*"
+gix = { version = "0.83", default-features = false, features = [
+    "sha1",
+    "index",
+    "status",
+    "dirwalk",
+    "revision",
+] }
 
 # Utilities
 uuid = { version = "1", features = ["v4", "serde"] }

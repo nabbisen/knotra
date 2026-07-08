@@ -8,8 +8,11 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 
 **Goal:** A compilable, runnable application skeleton with a working dashboard that displays an empty state.
 
-- [x] Cargo workspace setup (`knotra-app`)
+- [x] Cargo workspace setup (`endringer`, `snora`, `knotra-app`)
 - [x] Domain model types (`ProjectStatus`, `WorkspaceStatus`, `OperationLog`, …)
+- [x] VCS adapter: `gix`-based Git status reading
+- [x] VCS adapter: jj CLI-based status reading
+- [x] `snora`: theme, i18n (en / ja), widget constants
 - [x] Elm-architecture: `State` / `Message` / `Update` / `View`
 - [x] Dashboard: empty state, card grid layout
 - [x] Configuration loading (TOML)
