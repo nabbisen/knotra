@@ -2,7 +2,7 @@
 
 | Field          | Value                                                                |
 |----------------|----------------------------------------------------------------------|
-| Status      | **Implemented** (v0.12.0)         |
+| Status      | Implemented (v0.12.0) |
 | Priority       | **High** — the structural change that removes most screens           |
 | Effort         | Large — five modals, plan/confirm/execute flows, result rendering    |
 | Target version | v0.14                                                                |

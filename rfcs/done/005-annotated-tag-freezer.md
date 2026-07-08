@@ -2,7 +2,7 @@
 
 | Field    | Value                                                             |
 |----------|-------------------------------------------------------------------|
-| Status      | Implemented                      |
+| Status      | Implemented (v0.11.0) |
 | Priority | Medium — improves release workflow utility                        |
 | Effort   | Small–Medium (VcsAdapter change + UI toggle + i18n)               |
 | Related  | `crates/endringer/src/vcs/adapter.rs`, `view/freezer.rs`          |

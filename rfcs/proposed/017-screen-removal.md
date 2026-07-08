@@ -2,7 +2,7 @@
 
 | Field          | Value                                                                     |
 |----------------|---------------------------------------------------------------------------|
-| Status         | Proposed                                                                  |
+| Status      | Proposed |
 | Priority       | Low — cleanup phase; deletes code rather than adding behaviour            |
 | Effort         | Medium — careful removal across many files; deprecation messaging         |
 | Target version | v0.16                                                                     |

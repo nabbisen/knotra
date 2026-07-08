@@ -7,6 +7,39 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.12.1] — 2026-05-23
+
+### Changed — RFC directory restructured to follow lifecycle policy
+
+Documentation-only release.  No code changes.
+
+`rfcs/` has been reorganised from a flat directory into a four-folder
+layout following [RFC 00 — RFC lifecycle policy](rfcs/done/00-rfc-lifecycle-policy.md).
+
+#### New structure
+
+```
+rfcs/
+  README.md           ← state-grouped index (rebuilt)
+  proposed/           ← RFCs open for review (do not implement yet)
+  done/               ← implemented RFCs; historical record
+  archive/            ← withdrawn or superseded RFCs
+```
+
+#### Moves
+
+| File | From | To | Reason |
+|------|------|----|--------|
+| `00-rfc-lifecycle-policy.md` | (project docs) | `done/` | Policy is in effect; self-placed per §Self-application |
+| `001`–`016` | flat `rfcs/` | `done/` | All implemented (v0.11.0 / v0.12.0) |
+| `017-screen-removal.md` | flat `rfcs/` | `proposed/` | Not yet shipped; targeted at v0.16 |
+
+#### Status field updates
+
+All RFC files in `done/` now carry `Implemented (vX.Y.Z)` in their
+Status field, matching their folder.  `017` retains `Proposed`.
+
+
 ## [0.12.0] — 2026-05-23
 
 ### Added — UI/UX Redesign: RFC 009–016
@@ -584,6 +617,39 @@ The three `endringer::vcs::git::*` direct calls in `git_integration.rs` are repl
 - `app::subscription` now batches tick, keyboard, and FS-watch subscriptions.
 - History `LogCopyRequested` now emits `Message::CopyToClipboard` with full formatted log text.
 - Changelog copy now uses real clipboard write, not a status-bar placeholder.
+
+
+## [0.12.1] — 2026-05-23
+
+### Changed — RFC directory restructured to follow lifecycle policy
+
+Documentation-only release.  No code changes.
+
+`rfcs/` has been reorganised from a flat directory into a four-folder
+layout following [RFC 00 — RFC lifecycle policy](rfcs/done/00-rfc-lifecycle-policy.md).
+
+#### New structure
+
+```
+rfcs/
+  README.md           ← state-grouped index (rebuilt)
+  proposed/           ← RFCs open for review (do not implement yet)
+  done/               ← implemented RFCs; historical record
+  archive/            ← withdrawn or superseded RFCs
+```
+
+#### Moves
+
+| File | From | To | Reason |
+|------|------|----|--------|
+| `00-rfc-lifecycle-policy.md` | (project docs) | `done/` | Policy is in effect; self-placed per §Self-application |
+| `001`–`016` | flat `rfcs/` | `done/` | All implemented (v0.11.0 / v0.12.0) |
+| `017-screen-removal.md` | flat `rfcs/` | `proposed/` | Not yet shipped; targeted at v0.16 |
+
+#### Status field updates
+
+All RFC files in `done/` now carry `Implemented (vX.Y.Z)` in their
+Status field, matching their folder.  `017` retains `Proposed`.
 
 
 ## [0.12.0] — 2026-05-23

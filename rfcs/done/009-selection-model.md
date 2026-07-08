@@ -2,7 +2,7 @@
 
 | Field          | Value                                                          |
 |----------------|----------------------------------------------------------------|
-| Status      | **Implemented** (v0.12.0)         |
+| Status      | Implemented (v0.12.0) |
 | Priority       | **High** — foundational for the UI/UX redesign                 |
 | Effort         | Medium — new state field, new widget, integration with handlers |
 | Target version | v0.12                                                          |

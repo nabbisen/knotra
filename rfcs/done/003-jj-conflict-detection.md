@@ -2,7 +2,7 @@
 
 | Field    | Value                                                            |
 |----------|------------------------------------------------------------------|
-| Status      | Implemented (Option B)                      |
+| Status      | Implemented (v0.11.0) |
 | Priority | Medium — correctness claim vs. implementation reality            |
 | Effort   | Investigation spike (1–2 days) + implementation or doc change    |
 | Related  | `crates/endringer/src/vcs/jj.rs`, `docs/src/contributing/architecture.md` |
