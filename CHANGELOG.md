@@ -7,6 +7,47 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.8.0] — 2025-xx-xx
+
+### Added
+- Phase 8: File-system Event Monitoring + Clipboard Integration.
+
+**File-system Event Monitoring (`endringer::watcher`):**
+- `endringer::watcher::FsPoller` — polling-based sentinel-file watcher.
+  - Watches `.git/HEAD`, `.git/index`, `.git/refs/` for Git; `.jj/working_copy/`, `.jj/op_heads/` for jj.
+  - `poll(projects)` → `Vec<FsChangeEvent>`: first call establishes baseline (no events); subsequent calls emit one `FsChangeEvent` per changed repository.
+  - `prune(active_ids)` removes snapshots for deregistered projects.
+  - Handles worktree repos (`gitdir:` file pointer).
+- `AppState.fs_poller: FsPoller` — persists across ticks in application state.
+- `Message::FsWatchTick` — emitted by `fs_watch_subscription` at the configured interval.
+- `fs_watcher::fs_watch_subscription(state)` — returns `Subscription::none()` when disabled, otherwise `time::every(debounce_secs)`.
+- `handle_fs_watch_tick` — on change: refreshes affected projects individually (≤3 changes) or triggers a full workspace refresh (>3 changes).
+- Config fields: `fs_watch_enabled: bool` (default `false`), `fs_debounce_secs: u32` (default 2).
+- Settings screen: toggle button and debounce-interval input under new "File-system Monitoring" section.
+- 4 new unit tests: baseline-no-event, no-change-no-event, modified-sentinel-triggers-event, prune.
+
+**Clipboard Integration:**
+- `Message::CopyToClipboard(String)` — routes directly to `iced::clipboard::write`, providing true system clipboard access.
+- History screen: **Copy** button now builds a formatted text block (kind, timestamp, status, commands, stderr) and writes it to the clipboard.
+- Changelog screen: **Copy Markdown** button writes the full generated Markdown to the clipboard.
+- `ChangelogMessage::CopyRequested` handler returns `clipboard::write(md)` as a `Task`.
+- Settings: **Topology Scan** button added for convenience (same as the Freezer button).
+
+**Settings screen additions:**
+- File-system Monitoring section: enable/disable toggle + debounce interval input.
+- Dependency Topology section: Scan Dependencies button + scan-phase status label.
+- `SettingsMessage::FsWatchEnabledChanged(bool)`, `SettingsMessage::FsDebounceSecs(u32)`.
+- `SettingsEdit.fs_debounce_secs` field.
+
+**i18n additions (minimal):** FS watch section labels are inline in the settings view (English only; i18n pass in a future phase).
+
+### Changed
+- `AppConfig` extended with `fs_watch_enabled` and `fs_debounce_secs`.
+- `app::subscription` now batches tick, keyboard, and FS-watch subscriptions.
+- History `LogCopyRequested` now emits `Message::CopyToClipboard` with full formatted log text.
+- Changelog copy now uses real clipboard write, not a status-bar placeholder.
+
+
 ## [0.7.0] — 2025-xx-xx
 
 ### Added

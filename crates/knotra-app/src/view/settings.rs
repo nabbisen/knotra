@@ -7,7 +7,7 @@ use iced::{
 };
 
 use crate::{
-    message::{Message, SettingsMessage},
+    message::{Message, SettingsMessage, TopologyMessage},
     state::AppState,
 };
 
@@ -168,8 +168,41 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         section_header(state.t("settings.section.logs")),
         labeled_row(state.t("settings.max_logs_label"), max_logs_input.into()),
 
+        // FS Watch section
+        section_header("File-system Monitoring"),
+        labeled_row(
+            "Enable automatic FS change detection (experimental)",
+            button(text(if state.config.fs_watch_enabled { "Enabled ✓" } else { "Disabled" }))
+                .on_press(Message::Settings(SettingsMessage::FsWatchEnabledChanged(
+                    !state.config.fs_watch_enabled
+                )))
+                .into(),
+        ),
+        text("When enabled, knotra watches .git/HEAD and index for changes and refreshes automatically.").size(11),
+        labeled_row(
+            "Change detection interval (seconds)",
+            text_input("2", &state.settings_edit.fs_debounce_secs)
+                .on_input(|s| {
+                    let n = s.parse::<u32>().unwrap_or(2);
+                    Message::Settings(SettingsMessage::FsDebounceSecs(n))
+                })
+                .width(80)
+                .into(),
+        ),
+        // Topology scan button
+        section_header("Dependency Topology"),
+        row![
+            button(text(state.t("topology.scan")).size(12))
+                .on_press(Message::Topology(TopologyMessage::ScanRequested)),
+            text(match &state.topology.phase {
+                crate::state::topology::TopologyPhase::Idle    => "Not scanned.",
+                crate::state::topology::TopologyPhase::Scanning=> "Scanning…",
+                crate::state::topology::TopologyPhase::Ready(_)=> "Scan complete.",
+                crate::state::topology::TopologyPhase::Error(_)=> "Scan error.",
+            }).size(12),
+        ].spacing(8).align_y(iced::Alignment::Center),
         // Save row
-        row![save_btn, save_msg].spacing(12).align_y(Alignment::Center).padding([8, 0]),
+        row![save_btn, save_msg].spacing(12).align_y(iced::Alignment::Center).padding([8, 0]),
         text(state.t("settings.restart_hint")).size(11),
     ]
     .spacing(8)

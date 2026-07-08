@@ -107,7 +107,7 @@ fn view_draft(state: &AppState, draft: ChangelogDraft) -> Element<'_, Message> {
             text(summary).size(13),
             Space::new().width(Length::Fill),
             button(text(state.t("changelog.copy")))
-                .on_press(Message::Changelog(ChangelogMessage::CopyRequested)),
+                .on_press(Message::CopyToClipboard(md.clone())),
             button(text("← Back / Regenerate"))
                 .on_press(Message::Changelog(ChangelogMessage::BackToDashboard)),
         ]

@@ -1,6 +1,7 @@
 //! `endringer` — VCS abstraction layer for knotra.
 
 pub mod error;
+pub mod watcher;
 pub mod model;
 pub mod vcs;
 
@@ -23,6 +24,7 @@ pub use model::{
     workspace::{Workspace, WorkspaceId},
 };
 pub use vcs::adapter::VcsAdapter;
+pub use watcher::{FsChangeEvent, FsPoller};
 
 #[cfg(test)]
 mod tests;

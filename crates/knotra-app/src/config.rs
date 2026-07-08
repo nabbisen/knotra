@@ -26,6 +26,10 @@ pub struct AppConfig {
     pub external_merge_tool: Option<String>,
     /// Maximum number of operation log entries to keep in memory.
     pub max_log_entries: usize,
+    /// Enable file-system event monitoring (off by default).
+    pub fs_watch_enabled: bool,
+    /// Debounce interval in seconds before a FS event triggers a refresh.
+    pub fs_debounce_secs: u32,
 }
 
 impl Default for AppConfig {
@@ -38,6 +42,8 @@ impl Default for AppConfig {
             external_editor: None,
             external_merge_tool: None,
             max_log_entries: 200,
+            fs_watch_enabled: false,
+            fs_debounce_secs: 2,
         }
     }
 }

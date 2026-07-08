@@ -2,6 +2,7 @@
 
 mod app;
 mod config;
+mod fs_watcher;
 mod message;
 mod persistence;
 mod state;

@@ -128,7 +128,28 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         button(text(toggle_label).size(11))
             .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle))),
         button(text(state.t("history.copy_log")).size(11))
-            .on_press(Message::History(HistoryMessage::LogCopyRequested(op_id_copy))),
+            .on_press({
+                // Build a text representation of the log entry for clipboard.
+                let kind   = result.kind.to_string();
+                let ts     = result.started_at.format("%Y-%m-%d %H:%M:%S UTC").to_string();
+                let status = summarise_status(result);
+                let mut text_parts = vec![
+                    format!("# {} — {} — {}", kind, ts, status),
+                ];
+                for pr in &result.per_project {
+                    let ok = if pr.success { "ok" } else { "FAILED" };
+                    text_parts.push(format!("  {} [{}]", pr.project_id, ok));
+                    for cmd in &pr.commands_executed {
+                        text_parts.push(format!("    $ {}", cmd));
+                    }
+                    if !pr.stderr.is_empty() {
+                        for line in pr.stderr.lines().take(5) {
+                            text_parts.push(format!("    {}", line));
+                        }
+                    }
+                }
+                Message::CopyToClipboard(text_parts.join("\n"))
+            }),
     ]
     .spacing(6)
     .align_y(Alignment::Center);

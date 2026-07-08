@@ -1,6 +1,6 @@
 //! Top-level Elm-architecture implementation for knotra.
 
-use iced::{keyboard, time, Element, Subscription, Task};
+use iced::{clipboard, keyboard, time, Element, Subscription, Task};
 use iced::futures::StreamExt;
 use std::time::Duration;
 
@@ -19,6 +19,7 @@ use endringer::{
 
 use crate::{
     config::{load_config, save_config, AppPaths},
+    fs_watcher::fs_watch_subscription,
     message::{
         BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage, FilterMessage,
         FreezerMessage, HistoryMessage, LaunchMessage, Message, ProjectMessage,
@@ -97,7 +98,8 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
         Message::Tick
     });
 
-    Subscription::batch([tick_sub, keyboard_sub])
+    let fs_sub = fs_watch_subscription(state);
+    Subscription::batch([tick_sub, keyboard_sub, fs_sub])
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +122,8 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         Message::ConflictOps(msg)    => handle_conflict_ops(state, msg),
         Message::Changelog(msg)      => handle_changelog(state, msg),
         Message::Topology(msg)       => handle_topology(state, msg),
+        Message::FsWatchTick          => handle_fs_watch_tick(state),
+        Message::CopyToClipboard(text) => clipboard::write(text),
         Message::Context(msg)        => handle_context(state, msg),
         Message::Launch(msg)         => handle_launch(state, msg),
     }
@@ -757,7 +761,9 @@ fn handle_history(state: &mut AppState, msg: HistoryMessage) -> Task<Message> {
         HistoryMessage::LogCopyRequested(_id) => {
             // Clipboard access is platform-dependent; Phase 7 can wire iced's clipboard API.
             // For now we record the intent and show a status-bar note.
-            state.status_bar = Some("Log copied to clipboard (clipboard API: Phase 7).".to_owned());
+            // Real clipboard write is handled by Message::CopyToClipboard.
+            // This is a fallback status note in case no text was available.
+            state.status_bar = Some("Copy command sent.".to_owned());
         }
         HistoryMessage::BackToDashboard => {
             state.screen = Screen::Dashboard;
@@ -796,6 +802,14 @@ fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> 
         SettingsMessage::MaxLogEntriesChanged(n) => {
             state.settings_edit.max_log_entries = n.to_string();
             state.config.max_log_entries = n;
+        }
+        SettingsMessage::FsWatchEnabledChanged(v) => {
+            state.config.fs_watch_enabled = v;
+            if !v { state.settings_save_msg = Some("FS watching disabled.".to_owned()); }
+        }
+        SettingsMessage::FsDebounceSecs(n) => {
+            state.settings_edit.refresh_interval_secs = n.to_string();
+            state.config.fs_debounce_secs = n;
         }
         SettingsMessage::SaveRequested => {
             let paths = AppPaths::resolve();
@@ -1318,7 +1332,8 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
         ChangelogMessage::CopyRequested => {
             if let ChangelogPhase::Ready(ref draft) = state.changelog.phase {
                 let md = draft.to_markdown();
-                state.status_bar = Some(format!("Changelog ({} chars) — copy via clipboard API (Phase 8).", md.len()));
+                state.status_bar = Some(format!("Changelog ({} chars) — copied to clipboard.", md.len()));
+            return clipboard::write(md);
             }
             Task::none()
         }
@@ -1348,5 +1363,77 @@ fn handle_topology(state: &mut AppState, msg: TopologyMessage) -> Task<Message> 
                 |graph| Message::Background(BackgroundMessage::TopologyScanned(graph)),
             )
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FS watch tick handler
+// ---------------------------------------------------------------------------
+
+fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
+    // Skip if already refreshing or FS watching is disabled.
+    if state.is_refreshing || !state.config.fs_watch_enabled {
+        return Task::none();
+    }
+
+    // Build project list for the poller.
+    let projects: Vec<(endringer::ProjectId, String)> = state
+        .workspace
+        .as_ref()
+        .map(|ws| ws.projects.iter().map(|p| (p.id.clone(), p.path.clone())).collect())
+        .unwrap_or_default();
+
+    if projects.is_empty() {
+        return Task::none();
+    }
+
+    // Prune stale snapshots.
+    let ids: Vec<_> = projects.iter().map(|(id, _)| id.clone()).collect();
+    state.fs_poller.prune(&ids);
+
+    // Poll for changes.
+    let changed = state.fs_poller.poll(&projects);
+    if changed.is_empty() {
+        return Task::none();
+    }
+
+    tracing::debug!(
+        "FS change detected in {} project(s) — triggering status refresh",
+        changed.len()
+    );
+
+    // If only a few projects changed, refresh them individually.
+    // Otherwise fall back to a full workspace refresh.
+    let max = state.config.max_concurrent_reads;
+
+    if changed.len() <= 3 {
+        let changed_projects: Vec<_> = changed
+            .iter()
+            .filter_map(|e| find_project(state, &e.project_id))
+            .collect();
+
+        let tasks: Vec<Task<Message>> = changed_projects
+            .into_iter()
+            .map(|project| {
+                Task::perform(
+                    async move { endringer::VcsAdapter::read_project_status(&project).await },
+                    |s| {
+                        Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
+                            endringer::WorkspaceStatus {
+                                projects: vec![s],
+                                last_refresh: Some(chrono::Utc::now()),
+                            },
+                        ))
+                    },
+                )
+            })
+            .collect();
+
+        Task::batch(tasks)
+    } else {
+        // Full refresh for large change sets.
+        state.is_refreshing = true;
+        state.load_phase = LoadPhase::Refreshing;
+        refresh_workspace_task(state)
     }
 }

@@ -121,6 +121,7 @@ pub struct SettingsEdit {
     pub external_editor: String,
     pub external_merge_tool: String,
     pub max_log_entries: String,
+    pub fs_debounce_secs: String,
 }
 
 impl SettingsEdit {
@@ -131,6 +132,7 @@ impl SettingsEdit {
             external_editor:       cfg.external_editor.clone().unwrap_or_default(),
             external_merge_tool:   cfg.external_merge_tool.clone().unwrap_or_default(),
             max_log_entries:       cfg.max_log_entries.to_string(),
+            fs_debounce_secs:      cfg.fs_debounce_secs.to_string(),
         }
     }
 }
@@ -173,6 +175,8 @@ pub struct AppState {
     pub changelog: changelog::ChangelogState,
     /// Dependency topology state.
     pub topology: topology::TopologyState,
+    /// File-system change poller (used by the FS-watch Subscription).
+    pub fs_poller: endringer::FsPoller,
 }
 
 impl AppState {
@@ -203,6 +207,7 @@ impl AppState {
             conflict_ops: conflict_ops::ConflictOpsState::default(),
             changelog: changelog::ChangelogState::default(),
             topology: topology::TopologyState::default(),
+            fs_poller: endringer::FsPoller::default(),
             config,
         }
     }

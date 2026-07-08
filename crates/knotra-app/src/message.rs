@@ -27,6 +27,10 @@ pub enum Message {
     Changelog(ChangelogMessage),
     Topology(TopologyMessage),
     Shortcut(ShortcutMessage),
+    /// Periodic tick from the FS-watch subscription.
+    FsWatchTick,
+    /// Request to write text to the system clipboard.
+    CopyToClipboard(String),
     Tick,
 }
 
@@ -117,6 +121,8 @@ pub enum SettingsMessage {
     ExternalEditorChanged(String),
     ExternalMergeToolChanged(String),
     MaxLogEntriesChanged(usize),
+    FsWatchEnabledChanged(bool),
+    FsDebounceSecs(u32),
     SaveRequested,
     /// Navigate back to Dashboard.
     BackToDashboard,
