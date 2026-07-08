@@ -336,6 +336,10 @@ pub enum SelectionMessage {
     SelectAll,
     Clear,
     FocusMoved(ProjectId),
+    /// Enter selection mode (show checkboxes).
+    ModeEntered,
+    /// Exit selection mode and clear selection.
+    ModeExited,
 }
 
 // ---------------------------------------------------------------------------

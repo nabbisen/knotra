@@ -39,6 +39,7 @@ use crate::{
     },
     view::app_view,
 };
+#[allow(unused_imports)]
 use rfd;
 
 // ---------------------------------------------------------------------------
@@ -289,6 +290,31 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
         }
         WorkspaceMessage::AddProjectCancelled => {
             state.add_project_dialog = None;
+            Task::none()
+        }
+        WorkspaceMessage::BrowsePathRequested => Task::future(async {
+            let folder = rfd::AsyncFileDialog::new()
+                .set_title("Select project folder")
+                .pick_folder()
+                .await;
+            let path = folder.map(|f| f.path().to_string_lossy().into_owned());
+            Message::Workspace(crate::message::WorkspaceMessage::BrowsePathSelected(path))
+        }),
+        WorkspaceMessage::BrowsePathSelected(path_opt) => {
+            if let Some(path) = path_opt {
+                if let Some(d) = &mut state.add_project_dialog {
+                    if d.name.is_empty() {
+                        if let Some(name) = std::path::Path::new(&path)
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                        {
+                            d.name = name.to_owned();
+                        }
+                    }
+                    d.path = path;
+                    d.error = None;
+                }
+            }
             Task::none()
         }
         WorkspaceMessage::RemoveProjectRequested(id) => {
@@ -1996,10 +2022,24 @@ fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> Task<Message
         .unwrap_or_default();
 
     match msg {
-        SelectionMessage::Toggled(id) => state.selection.toggle(id),
+        SelectionMessage::ModeEntered => state.selection_mode = true,
+        SelectionMessage::ModeExited => {
+            state.selection_mode = false;
+            state.selection.clear();
+        }
+        SelectionMessage::Toggled(id) => {
+            state.selection_mode = true; // selecting anything enters mode
+            state.selection.toggle(id);
+        }
         SelectionMessage::RangeTo(id) => state.selection.select_range(&ordered, &id),
-        SelectionMessage::SelectAll => state.selection.select_all(&ordered),
-        SelectionMessage::Clear => state.selection.clear(),
+        SelectionMessage::SelectAll => {
+            state.selection_mode = true;
+            state.selection.select_all(&ordered);
+        }
+        SelectionMessage::Clear => {
+            state.selection.clear();
+            state.selection_mode = false; // clearing exits mode
+        }
         SelectionMessage::FocusMoved(_) => {} // focus tracking only
     }
     Task::none()

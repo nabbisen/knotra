@@ -199,7 +199,7 @@ Two reasons to keep this redundancy with the folder:
 
 ## Naming and numbering
 
-RFCs are numbered sequentially from `01`. Numbers are assigned
+RFCs are numbered sequentially from `001`. Numbers are assigned
 when the file is first created — not when it ships, not when
 it's accepted. **Numbers are stable forever**: a file does not
 get renumbered when it moves between folders, even if its
@@ -377,7 +377,7 @@ minimum viable adoption of this policy is:
 
 1. Create `rfcs/proposed/`, `rfcs/done/`, `rfcs/archive/`.
 2. Add `rfcs/README.md` with a state-grouped index.
-3. Adopt the `NNN-slug.md` naming and start at `01`.
+3. Adopt the `NNN-slug.md` naming and start at `001`.
 4. Write the first RFC. Put it in `proposed/`.
 5. When the work ships, move it to `done/` with a Status
    field carrying the release tag.

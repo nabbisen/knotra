@@ -7,7 +7,6 @@ pub mod add_project_modal;
 pub mod bulk_modals;
 pub mod command_palette;
 pub mod detail_panel;
-pub mod nav_bar;
 pub mod selection_bar;
 pub mod shortcuts_overlay;
 pub mod workspace_tabs;
@@ -35,9 +34,6 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // --- Workspace tabs (RFC-015) ---
     let tabs = workspace_tabs::view(state);
 
-    // --- Navigation bar ---
-    let nav = nav_bar::view(state);
-
     // --- Main screen content ---
     let screen_content: Element<'_, Message> = match state.screen {
         crate::state::Screen::Dashboard => dashboard::view(state),
@@ -57,7 +53,7 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     let activity = activity_strip::view(state);
 
     // --- Main column ---
-    let mut main_col = column![tabs, nav, screen_content].height(Length::Fill);
+    let mut main_col = column![tabs, screen_content].height(Length::Fill);
     if let Some(bar) = sel_bar {
         main_col = main_col.push(bar);
     }

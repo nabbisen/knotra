@@ -6,7 +6,7 @@
 
 use iced::{
     widget::{button, container, row, text},
-    Alignment, Border, Color, Element, Length, Padding,
+    Alignment, Element, Length, Padding,
 };
 
 /// Height of the navigation bar in pixels.

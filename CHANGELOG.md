@@ -7,6 +7,81 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.14.0] — 2026-05-24
+
+### Changed — Less is more: UI simplification
+
+Applied the "less is more" design principle across the entire UI.  No features
+were removed; information was moved to the right level of the information
+hierarchy.
+
+#### Cards: 15 data points → 2–3
+
+Cards now use tier-based density rather than showing everything on every card.
+
+| Tier | Before | After |
+|------|--------|-------|
+| Needs Attention | name · VCS badge · status label · branch · ↑↓●? counters · timestamp · Fetch · Remove | name — problem · **one action** |
+| Active | same 15 items | name · branch |
+| Clean | same 15 items | name only |
+
+`vcs_label`, `status_label` (beyond problem text), `stat_cell` counters, the
+`last_updated` timestamp, and the per-card **Fetch** / **Remove** buttons are
+no longer on cards.  All this information remains available in the detail panel
+(click the project name).
+
+#### Dashboard header: 5 items → 2
+
+Before: workspace name · last-updated time · Add project · Refresh · Bulk sync  
+After: workspace name · ⟳ refresh icon
+
+Add project lives in the empty state only.  Bulk sync is accessible via the
+selection bar.  Last-updated moves to the detail panel.
+
+#### Selection: always-on checkboxes → explicit mode
+
+Checkboxes are now hidden by default.  Selecting any project (keyboard or
+click inside selection mode) enters **selection mode**, which shows checkboxes
+and the selection bar.  Exiting via "Exit selection" hides them again.
+
+This keeps clean cards truly clean.  A new user never sees a checkbox until
+they need to bulk-select.
+
+#### Navigation: 2 rows → 1
+
+The nav bar added in v0.13.0 (Dashboard / History / Settings row) has been
+**removed** — it was adding chrome without removing friction.
+
+Navigation is now:
+- **Workspace tab strip** (top): workspace tabs + `+` new workspace + `⊟` History + `⚙` Settings
+- **Command palette** (⌘K): every action by name
+
+#### Empty state: clear call to action
+
+When a workspace has no projects, the dashboard shows a centred prompt:
+
+```
+No projects yet.
+Add a project folder to get started.
+
+    [ + Add project ]
+```
+
+The add button is prominent when it matters and invisible otherwise.
+
+#### snora: nav_menu module added
+
+`snora::nav_menu` provides `nav_bar()` and `NavItem` for horizontal
+navigation menus.  Not used in the main layout (which no longer has a nav
+bar) but available for future use in settings screens or onboarding flows.
+
+### Tests
+
+- endringer unit: 17 pass.
+- endringer integration: 19 pass.
+- knotra-app: `cargo check` clean — 0 errors, 0 warnings.
+
+
 ## [0.13.0] — 2026-05-24
 
 ### Added — Navigation menu, Add Project modal, archive structure fix
@@ -688,6 +763,81 @@ The three `endringer::vcs::git::*` direct calls in `git_integration.rs` are repl
 - `app::subscription` now batches tick, keyboard, and FS-watch subscriptions.
 - History `LogCopyRequested` now emits `Message::CopyToClipboard` with full formatted log text.
 - Changelog copy now uses real clipboard write, not a status-bar placeholder.
+
+
+## [0.14.0] — 2026-05-24
+
+### Changed — Less is more: UI simplification
+
+Applied the "less is more" design principle across the entire UI.  No features
+were removed; information was moved to the right level of the information
+hierarchy.
+
+#### Cards: 15 data points → 2–3
+
+Cards now use tier-based density rather than showing everything on every card.
+
+| Tier | Before | After |
+|------|--------|-------|
+| Needs Attention | name · VCS badge · status label · branch · ↑↓●? counters · timestamp · Fetch · Remove | name — problem · **one action** |
+| Active | same 15 items | name · branch |
+| Clean | same 15 items | name only |
+
+`vcs_label`, `status_label` (beyond problem text), `stat_cell` counters, the
+`last_updated` timestamp, and the per-card **Fetch** / **Remove** buttons are
+no longer on cards.  All this information remains available in the detail panel
+(click the project name).
+
+#### Dashboard header: 5 items → 2
+
+Before: workspace name · last-updated time · Add project · Refresh · Bulk sync  
+After: workspace name · ⟳ refresh icon
+
+Add project lives in the empty state only.  Bulk sync is accessible via the
+selection bar.  Last-updated moves to the detail panel.
+
+#### Selection: always-on checkboxes → explicit mode
+
+Checkboxes are now hidden by default.  Selecting any project (keyboard or
+click inside selection mode) enters **selection mode**, which shows checkboxes
+and the selection bar.  Exiting via "Exit selection" hides them again.
+
+This keeps clean cards truly clean.  A new user never sees a checkbox until
+they need to bulk-select.
+
+#### Navigation: 2 rows → 1
+
+The nav bar added in v0.13.0 (Dashboard / History / Settings row) has been
+**removed** — it was adding chrome without removing friction.
+
+Navigation is now:
+- **Workspace tab strip** (top): workspace tabs + `+` new workspace + `⊟` History + `⚙` Settings
+- **Command palette** (⌘K): every action by name
+
+#### Empty state: clear call to action
+
+When a workspace has no projects, the dashboard shows a centred prompt:
+
+```
+No projects yet.
+Add a project folder to get started.
+
+    [ + Add project ]
+```
+
+The add button is prominent when it matters and invisible otherwise.
+
+#### snora: nav_menu module added
+
+`snora::nav_menu` provides `nav_bar()` and `NavItem` for horizontal
+navigation menus.  Not used in the main layout (which no longer has a nav
+bar) but available for future use in settings screens or onboarding flows.
+
+### Tests
+
+- endringer unit: 17 pass.
+- endringer integration: 19 pass.
+- knotra-app: `cargo check` clean — 0 errors, 0 warnings.
 
 
 ## [0.13.0] — 2026-05-24

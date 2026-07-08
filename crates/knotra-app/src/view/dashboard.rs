@@ -3,20 +3,21 @@
 
 use endringer::model::{project::Project, status::ProjectStatus};
 use iced::{
+    widget::{button, column, container, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,
-    widget::{Space, button, column, container, row, scrollable, text, text_input},
 };
 use snora::{theme::StatusColor, widget::CARD_GAP};
 
 use crate::{
     message::{
-        DetailPanelMessage, FilterMessage, Message, ProjectMessage, SelectionMessage, StatusFilter,
-        SyncMessage, TierMessage, WorkspaceMessage,
+        DetailPanelMessage, FilterMessage, Message, ProjectMessage,
+        SelectionMessage, StatusFilter, SyncMessage, TierMessage, WorkspaceMessage,
     },
     state::{
-        AppState, AttentionTier, GroupingMode, LoadPhase,
+        AttentionTier, GroupingMode,
         dashboard::{build_display_groups, project_status_color},
         tier::compute_tier,
+        AppState, LoadPhase,
     },
 };
 
@@ -25,12 +26,12 @@ use crate::{
 // ---------------------------------------------------------------------------
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
-    let header = view_header(state);
+    let header  = view_header(state);
     let toolbar = view_toolbar(state);
 
     let body: Element<'_, Message> = match &state.load_phase {
-        LoadPhase::Startup => placeholder(state.t("status.refreshing")),
-        LoadPhase::Refreshing => {
+        LoadPhase::Startup     => placeholder(state.t("status.refreshing")),
+        LoadPhase::Refreshing  => {
             // Show stale cards (if any) with a "refreshing" notice overlaid.
             if state.workspace_status.is_some() {
                 column![
@@ -43,8 +44,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 placeholder(state.t("status.refreshing"))
             }
         }
-        LoadPhase::Error(_) => view_error(state),
-        LoadPhase::Ready => {
+        LoadPhase::Error(_)    => view_error(state),
+        LoadPhase::Ready       => {
             if state.grouping_mode == GroupingMode::Auto {
                 view_tier_grid(state)
             } else {
@@ -54,8 +55,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
 
     // Layer dialogs on top when open.
-    let mut root =
-        column![header, toolbar, scrollable(body).height(Length::Fill)].height(Length::Fill);
+    let mut root = column![header, toolbar, scrollable(body).height(Length::Fill)]
+        .height(Length::Fill);
 
     // Persistent status bar.
     if let Some(ref msg) = state.status_bar {
@@ -85,56 +86,29 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
     let workspace_name = state
         .workspace
         .as_ref()
-        .map(|w| w.name.as_str())
+        .map(|ws| ws.name.as_str())
         .unwrap_or("—");
 
-    let last_updated = state
-        .workspace_status
-        .as_ref()
-        .and_then(|ws| ws.last_refresh)
-        .map(|t| t.format("%H:%M:%S").to_string())
-        .unwrap_or_else(|| "—".to_owned());
-
-    let refresh_label = if state.is_refreshing {
-        state.t("status.refreshing")
+    // Minimal header: workspace name + refresh indicator.
+    // Add project / bulk sync are accessible via ⌘K or the selection bar.
+    let right: Element<'_, Message> = if state.is_refreshing {
+        text("⟳").size(14).into()
     } else {
-        state.t("dashboard.refresh")
+        button(text("⟳").size(14))
+            .on_press(Message::Workspace(WorkspaceMessage::RefreshRequested))
+            .into()
     };
 
-    let refresh_btn = button(text(refresh_label)).on_press_maybe(if state.is_refreshing {
-        None
-    } else {
-        Some(Message::Workspace(WorkspaceMessage::RefreshRequested))
-    });
-
-    let add_btn = button(text(state.t("dashboard.add_project")))
-        .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened));
-
-    let bulk_btn = button(text(state.t("dashboard.bulk_sync")))
-        .on_press(Message::Sync(crate::message::SyncMessage::OpenRequested));
-
     row![
-        text(workspace_name).size(20),
-        text(format!(
-            "  {} {}",
-            state.t("dashboard.last_updated"),
-            last_updated
-        ))
-        .size(12),
+        text(workspace_name).size(18),
         Space::new().width(Length::Fill),
-        add_btn,
-        refresh_btn,
-        bulk_btn,
+        right,
     ]
-    .spacing(6)
     .align_y(Alignment::Center)
-    .padding(Padding::new(12.0))
+    .padding([8, 14])
     .into()
 }
 
-// ---------------------------------------------------------------------------
-// Toolbar: filter chips + search box
-// ---------------------------------------------------------------------------
 
 fn view_toolbar(state: &AppState) -> Element<'_, Message> {
     // Filter chips row.
@@ -173,23 +147,18 @@ fn view_toolbar(state: &AppState) -> Element<'_, Message> {
 
     container(toolbar_row)
         .width(Length::Fill)
-        .padding(Padding {
-            top: 0.0,
-            bottom: 8.0,
-            left: 12.0,
-            right: 12.0,
-        })
+        .padding(Padding { top: 0.0, bottom: 8.0, left: 12.0, right: 12.0 })
         .into()
 }
 
 fn view_filter_chips(state: &AppState) -> Element<'_, Message> {
     let filters: &[(StatusFilter, &'static str)] = &[
-        (StatusFilter::Healthy, "filter.healthy"),
-        (StatusFilter::Behind, "filter.behind"),
-        (StatusFilter::Ahead, "filter.ahead"),
-        (StatusFilter::Dirty, "filter.dirty"),
+        (StatusFilter::Healthy,  "filter.healthy"),
+        (StatusFilter::Behind,   "filter.behind"),
+        (StatusFilter::Ahead,    "filter.ahead"),
+        (StatusFilter::Dirty,    "filter.dirty"),
         (StatusFilter::Conflict, "filter.conflict"),
-        (StatusFilter::Error, "filter.error"),
+        (StatusFilter::Error,    "filter.error"),
     ];
 
     let mut chips: Vec<Element<'_, Message>> = Vec::new();
@@ -197,9 +166,8 @@ fn view_filter_chips(state: &AppState) -> Element<'_, Message> {
     for (sf, key) in filters {
         let active = state.filter.has_status_filter(sf);
         let label = format!("{}{}", state.t(key), if active { " ✓" } else { "" });
-        let btn = button(text(label).size(12)).on_press(Message::Filter(
-            FilterMessage::StatusFilterToggled(sf.clone()),
-        ));
+        let btn = button(text(label).size(12))
+            .on_press(Message::Filter(FilterMessage::StatusFilterToggled(sf.clone())));
         chips.push(btn.into());
     }
 
@@ -210,35 +178,33 @@ fn view_filter_chips(state: &AppState) -> Element<'_, Message> {
 // Card grid with grouping
 // ---------------------------------------------------------------------------
 
+
 // ---------------------------------------------------------------------------
 // Tier-based card grid (RFC-010)
 // ---------------------------------------------------------------------------
 
 fn view_tier_grid(state: &AppState) -> Element<'_, Message> {
-    use iced::Length;
     use iced::widget::{button, column, container, row, text};
+    use iced::Length;
     use snora::widget::CARD_GAP;
 
-    let projects = state
-        .workspace
-        .as_ref()
-        .map(|w| w.projects.as_slice())
-        .unwrap_or(&[]);
+    let projects = state.workspace.as_ref()
+        .map(|w| w.projects.as_slice()).unwrap_or(&[]);
     let wss = state.workspace_status.as_ref();
 
     // Classify all projects into tiers.
     let mut needs_att: Vec<_> = Vec::new();
-    let mut active: Vec<_> = Vec::new();
-    let mut clean: Vec<_> = Vec::new();
+    let mut active:    Vec<_> = Vec::new();
+    let mut clean:     Vec<_> = Vec::new();
 
     for p in projects {
-        let status = wss.and_then(|w| w.projects.iter().find(|ps| ps.project_id == p.id));
-        let missing = state.missing_projects.contains(&p.id);
+        let status   = wss.and_then(|w| w.projects.iter().find(|ps| ps.project_id == p.id));
+        let missing  = state.missing_projects.contains(&p.id);
         let (tier, cause) = compute_tier(status, !missing);
         match tier {
             AttentionTier::NeedsAttention => needs_att.push((p, status, cause)),
-            AttentionTier::Active => active.push((p, status, cause)),
-            AttentionTier::Clean => clean.push((p, status, cause)),
+            AttentionTier::Active         => active.push((p, status, cause)),
+            AttentionTier::Clean          => clean.push((p, status, cause)),
         }
     }
 
@@ -249,21 +215,17 @@ fn view_tier_grid(state: &AppState) -> Element<'_, Message> {
         ($entries:expr, $label:expr, $icon:expr, $tier:expr, $collapsed:expr) => {{
             if !$entries.is_empty() {
                 let toggle_btn = button(
-                    text(format!(
-                        "{} {} ({})  {}",
-                        $icon,
-                        $label,
-                        $entries.len(),
+                    text(format!("{} {} ({})  {}",
+                        $icon, $label, $entries.len(),
                         if $collapsed { "▶" } else { "▼" }
-                    ))
-                    .size(13),
+                    )).size(13)
                 )
                 .on_press(Message::Tier(TierMessage::Toggled($tier)));
                 page.push(
                     container(toggle_btn)
                         .width(Length::Fill)
                         .padding([4, 0])
-                        .into(),
+                        .into()
                 );
                 if !$collapsed {
                     for (proj, status, _cause) in &$entries {
@@ -274,27 +236,12 @@ fn view_tier_grid(state: &AppState) -> Element<'_, Message> {
         }};
     }
 
-    tier_section!(
-        needs_att,
-        "Needs attention",
-        "🔴",
-        AttentionTier::NeedsAttention,
-        state.tier_collapse.needs_attention
-    );
-    tier_section!(
-        active,
-        "Active",
-        "🟡",
-        AttentionTier::Active,
-        state.tier_collapse.active
-    );
-    tier_section!(
-        clean,
-        "Clean",
-        "⚪",
-        AttentionTier::Clean,
-        state.tier_collapse.clean
-    );
+    tier_section!(needs_att, "Needs attention", "🔴",
+        AttentionTier::NeedsAttention, state.tier_collapse.needs_attention);
+    tier_section!(active, "Active", "🟡",
+        AttentionTier::Active, state.tier_collapse.active);
+    tier_section!(clean, "Clean", "⚪",
+        AttentionTier::Clean, state.tier_collapse.clean);
 
     if page.is_empty() {
         return placeholder("No projects match the current filter.");
@@ -310,17 +257,29 @@ fn view_card_grid(state: &AppState) -> Element<'_, Message> {
         .unwrap_or(&[]);
 
     if projects.is_empty() {
-        return column![
-            placeholder(state.t("dashboard.no_projects")),
-            button(text(state.t("dashboard.add_project")))
-                .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened)),
-        ]
-        .spacing(12)
-        .padding(24)
+        // Empty state — clear call to action, no clutter.
+        return container(
+            column![
+                text(state.t("dashboard.no_projects")).size(16),
+                text(state.t("dashboard.no_projects_hint")).size(13),
+                button(text(state.t("dashboard.add_project")).size(14))
+                    .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened))
+                    .padding([10, 20]),
+            ]
+            .spacing(16)
+            .align_x(iced::Alignment::Center)
+        )
+        .width(iced::Length::Fill)
+        .height(iced::Length::Fill)
+        .center(iced::Length::Fill)
         .into();
     }
 
-    let groups = build_display_groups(projects, state.workspace_status.as_ref(), &state.filter);
+    let groups = build_display_groups(
+        projects,
+        state.workspace_status.as_ref(),
+        &state.filter,
+    );
 
     if groups.iter().all(|g| g.entries.is_empty()) {
         return placeholder("No projects match the current filter.");
@@ -375,18 +334,14 @@ fn view_project_card<'a>(
         .map(|c| c.label.clone())
         .unwrap_or_else(|| "—".to_owned());
 
-    let status_color = status
-        .map(project_status_color)
-        .unwrap_or(StatusColor::Unknown);
+    let status_color = status.map(project_status_color).unwrap_or(StatusColor::Unknown);
     let status_label = status_color_label(state, status_color);
 
-    let ahead = status.map(|s| s.remote.ahead).unwrap_or(0);
-    let behind = status.map(|s| s.remote.behind).unwrap_or(0);
-    let uncommitted = status
-        .map(|s| s.working_tree.uncommitted_count)
-        .unwrap_or(0);
-    let untracked = status.map(|s| s.working_tree.untracked_count).unwrap_or(0);
-    let updated = status
+    let ahead       = status.map(|s| s.remote.ahead).unwrap_or(0);
+    let behind      = status.map(|s| s.remote.behind).unwrap_or(0);
+    let uncommitted = status.map(|s| s.working_tree.uncommitted_count).unwrap_or(0);
+    let untracked   = status.map(|s| s.working_tree.untracked_count).unwrap_or(0);
+    let updated     = status
         .map(|s| s.refreshed_at.format("%H:%M:%S").to_string())
         .unwrap_or_else(|| "—".to_owned());
 
@@ -395,14 +350,12 @@ fn view_project_card<'a>(
     // Header row: checkbox | name  |  VCS badge
     let is_selected = state.selection.contains(&project.id);
     let checkbox_label = if is_selected { "☑" } else { "☐" };
-    let select_btn = button(text(checkbox_label).size(13)).on_press(Message::Selection(
-        SelectionMessage::Toggled(project.id.clone()),
-    ));
+    let select_btn = button(text(checkbox_label).size(13))
+        .on_press(Message::Selection(SelectionMessage::Toggled(project.id.clone())));
 
     // Clicking the name opens the detail panel (RFC-014)
-    let name_btn = button(text(project.name.clone()).size(14)).on_press(Message::DetailPanel(
-        DetailPanelMessage::Opened(project.id.clone()),
-    ));
+    let name_btn = button(text(project.name.clone()).size(14))
+        .on_press(Message::DetailPanel(DetailPanelMessage::Opened(project.id.clone())));
 
     let header_row = row![
         select_btn,
@@ -422,30 +375,23 @@ fn view_project_card<'a>(
 
     // Stat cells
     let stats_row = row![
-        stat_cell("↑", state.t("card.ahead"), ahead),
-        stat_cell("↓", state.t("card.behind"), behind),
-        stat_cell("●", state.t("card.uncommitted"), uncommitted),
-        stat_cell("?", state.t("card.untracked"), untracked),
+        stat_cell("↑", state.t("card.ahead"),       ahead),
+        stat_cell("↓", state.t("card.behind"),      behind),
+        stat_cell("●", state.t("card.uncommitted"),  uncommitted),
+        stat_cell("?", state.t("card.untracked"),    untracked),
     ]
     .spacing(10);
 
     // Action buttons
-    let fetch_label = if is_fetching {
-        "Fetching…"
-    } else {
-        state.t("card.action.fetch")
-    };
-    let fetch_btn = button(text(fetch_label).size(11)).on_press_maybe(if is_fetching {
-        None
-    } else {
-        Some(Message::Project(ProjectMessage::FetchRequested(
-            project.id.clone(),
-        )))
-    });
+    let fetch_label = if is_fetching { "Fetching…" } else { state.t("card.action.fetch") };
+    let fetch_btn = button(text(fetch_label).size(11))
+        .on_press_maybe(
+            if is_fetching { None }
+            else { Some(Message::Project(ProjectMessage::FetchRequested(project.id.clone()))) }
+        );
 
-    let remove_btn = button(text(state.t("card.action.remove")).size(11)).on_press(
-        Message::Workspace(WorkspaceMessage::RemoveProjectRequested(project.id.clone())),
-    );
+    let remove_btn = button(text(state.t("card.action.remove")).size(11))
+        .on_press(Message::Workspace(WorkspaceMessage::RemoveProjectRequested(project.id.clone())));
 
     let actions_row = row![fetch_btn, remove_btn]
         .spacing(4)
@@ -487,12 +433,12 @@ fn stat_cell<'a>(icon: &'a str, label: &'a str, value: u32) -> Element<'a, Messa
 
 fn status_color_label(state: &AppState, color: StatusColor) -> &'static str {
     match color {
-        StatusColor::Healthy => state.t("status.healthy"),
-        StatusColor::Behind => state.t("status.behind"),
-        StatusColor::Ahead => state.t("status.ahead"),
-        StatusColor::Dirty => state.t("status.dirty"),
+        StatusColor::Healthy  => state.t("status.healthy"),
+        StatusColor::Behind   => state.t("status.behind"),
+        StatusColor::Ahead    => state.t("status.ahead"),
+        StatusColor::Dirty    => state.t("status.dirty"),
         StatusColor::Conflict => state.t("status.conflict"),
-        StatusColor::Unknown => state.t("status.unknown"),
+        StatusColor::Unknown  => state.t("status.unknown"),
     }
 }
 
@@ -500,37 +446,6 @@ fn status_color_label(state: &AppState, color: StatusColor) -> &'static str {
 // Add-project dialog
 // ---------------------------------------------------------------------------
 
-fn view_add_project_dialog(state: &AppState) -> Element<'_, Message> {
-    let dialog = match &state.add_project_dialog {
-        Some(d) => d,
-        None => return Space::new().into(),
-    };
-
-    let mut col = column![
-        text(state.t("dialog.add_project.title")).size(18),
-        text(state.t("dialog.add_project.name_label")).size(13),
-        text_input(state.t("dialog.add_project.name_hint"), &dialog.name,)
-            .on_input(|s| Message::Workspace(WorkspaceMessage::AddProjectNameChanged(s))),
-        text(state.t("dialog.add_project.path_label")).size(13),
-        text_input(state.t("dialog.add_project.path_hint"), &dialog.path,)
-            .on_input(|s| Message::Workspace(WorkspaceMessage::AddProjectPathChanged(s))),
-        row![
-            button(text(state.t("dialog.add_project.confirm")))
-                .on_press(Message::Workspace(WorkspaceMessage::AddProjectConfirmed)),
-            button(text(state.t("dialog.add_project.cancel")))
-                .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
-        ]
-        .spacing(8),
-    ]
-    .spacing(8)
-    .padding(24);
-
-    if let Some(ref err) = dialog.error {
-        col = col.push(text(err.as_str()).size(12));
-    }
-
-    container(col).width(400).into()
-}
 
 // ---------------------------------------------------------------------------
 // Confirm-remove dialog
@@ -539,7 +454,7 @@ fn view_add_project_dialog(state: &AppState) -> Element<'_, Message> {
 fn view_confirm_remove_dialog(state: &AppState) -> Element<'_, Message> {
     let dialog = match &state.confirm_remove_dialog {
         Some(d) => d,
-        None => return Space::new().into(),
+        None    => return Space::new().into(),
     };
 
     let id = dialog.project_id.clone();
@@ -550,9 +465,8 @@ fn view_confirm_remove_dialog(state: &AppState) -> Element<'_, Message> {
             text(state.t("confirm.remove_project")).size(15),
             text(dialog.project_name.as_str()).size(14),
             row![
-                button(text(state.t("confirm.remove_yes"))).on_press(Message::Workspace(
-                    WorkspaceMessage::RemoveProjectConfirmed(id)
-                )),
+                button(text(state.t("confirm.remove_yes")))
+                    .on_press(Message::Workspace(WorkspaceMessage::RemoveProjectConfirmed(id))),
                 button(text(state.t("confirm.remove_no")))
                     .on_press(Message::Workspace(WorkspaceMessage::RemoveProjectCancelled)),
             ]
@@ -593,3 +507,139 @@ fn placeholder(msg: &str) -> Element<'_, Message> {
         .center_y(250)
         .into()
 }
+#[allow(dead_code)]
+fn card_needs_attention<'a>(
+    state: &'a AppState,
+    project: &'a endringer::Project,
+    status: Option<&'a endringer::ProjectStatus>,
+    cause: Option<crate::state::tier::AttentionCause>,
+) -> Element<'a, Message> {
+    use crate::state::tier::AttentionCause;
+
+    // One-line problem description — no technical jargon.
+    let problem = match &cause {
+        Some(AttentionCause::PathNotFound)                 => "folder not found".to_owned(),
+        Some(AttentionCause::Conflict)                     => "merge conflict".to_owned(),
+        Some(AttentionCause::ConflictDetectionUnavailable) => "conflict status unknown".to_owned(),
+        Some(AttentionCause::DetachedHead)                 => "detached HEAD".to_owned(),
+        Some(AttentionCause::OperationFailed)              => "last operation failed".to_owned(),
+        Some(AttentionCause::DirtyForLong)                 => "uncommitted for a long time".to_owned(),
+        None => status.and_then(|s| s.read_error.as_deref())
+                      .map(|e| e.to_owned())
+                      .unwrap_or_else(|| "needs attention".to_owned()),
+    };
+
+    // One focused action button.
+    let action: Element<'_, Message> = match &cause {
+        Some(AttentionCause::Conflict) => {
+            button(text("Resolve").size(12))
+                .on_press(Message::ConflictOps(
+                    crate::message::ConflictOpsMessage::OpenRequested(Some(project.id.clone()))
+                ))
+                .into()
+        }
+        Some(AttentionCause::PathNotFound) => {
+            button(text("Remove").size(12))
+                .on_press(Message::Workspace(
+                    crate::message::WorkspaceMessage::RemoveProjectRequested(project.id.clone())
+                ))
+                .into()
+        }
+        _ => {
+            button(text("Refresh").size(12))
+                .on_press(Message::Project(
+                    crate::message::ProjectMessage::StatusRefreshRequested(project.id.clone())
+                ))
+                .into()
+        }
+    };
+
+    let name_btn = button(text(project.name.as_str()).size(13))
+        .on_press(Message::DetailPanel(crate::message::DetailPanelMessage::Opened(project.id.clone())));
+
+    let inner = row![
+        name_btn,
+        text("  —  ").size(12),
+        text(problem).size(12),
+        Space::new().width(Length::Fill),
+        action,
+    ]
+    .align_y(iced::Alignment::Center)
+    .padding([8, 12]);
+
+    // Selection mode: show checkbox on the left
+    let inner: Element<'_, Message> = if state.selection_mode {
+        let is_sel = state.selection.contains(&project.id);
+        let cb = button(text(if is_sel { "☑" } else { "☐" }).size(12))
+            .on_press(Message::Selection(crate::message::SelectionMessage::Toggled(project.id.clone())));
+        row![cb, inner].align_y(iced::Alignment::Center).into()
+    } else {
+        inner.into()
+    };
+
+    container(inner).width(iced::Length::Fill).into()
+}
+
+// ---------------------------------------------------------------------------
+// Active card: name  branch
+// ---------------------------------------------------------------------------
+
+#[allow(dead_code)]
+fn card_active<'a>(
+    state: &'a AppState,
+    project: &'a endringer::Project,
+    status: Option<&'a endringer::ProjectStatus>,
+) -> Element<'a, Message> {
+    let branch = status
+        .and_then(|s| s.context.as_ref())
+        .map(|ctx| ctx.label.as_str())
+        .unwrap_or("");
+
+    let name_btn = button(text(project.name.as_str()).size(13))
+        .on_press(Message::DetailPanel(crate::message::DetailPanelMessage::Opened(project.id.clone())));
+
+    let inner = row![
+        name_btn,
+        text(branch).size(11),
+    ]
+    .spacing(8)
+    .align_y(iced::Alignment::Center)
+    .padding([6, 12]);
+
+    let inner: Element<'_, Message> = if state.selection_mode {
+        let is_sel = state.selection.contains(&project.id);
+        let cb = button(text(if is_sel { "☑" } else { "☐" }).size(12))
+            .on_press(Message::Selection(crate::message::SelectionMessage::Toggled(project.id.clone())));
+        row![cb, inner].align_y(iced::Alignment::Center).into()
+    } else {
+        inner.into()
+    };
+
+    iced::widget::container(inner).width(iced::Length::Fill).into()
+}
+
+// ---------------------------------------------------------------------------
+// Clean card: name only (single line, subdued)
+// ---------------------------------------------------------------------------
+
+#[allow(dead_code)]
+fn card_clean<'a>(
+    state: &'a AppState,
+    project: &'a endringer::Project,
+) -> Element<'a, Message> {
+    let name_btn = button(text(project.name.as_str()).size(13))
+        .on_press(Message::DetailPanel(crate::message::DetailPanelMessage::Opened(project.id.clone())));
+
+    let inner: Element<'_, Message> = if state.selection_mode {
+        let is_sel = state.selection.contains(&project.id);
+        let cb = button(text(if is_sel { "☑" } else { "☐" }).size(12))
+            .on_press(Message::Selection(crate::message::SelectionMessage::Toggled(project.id.clone())));
+        row![cb, name_btn].align_y(iced::Alignment::Center).padding([4, 12]).into()
+    } else {
+        iced::widget::container(name_btn.padding([4, 12])).width(iced::Length::Fill).into()
+    };
+
+    inner
+}
+
+

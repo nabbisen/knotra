@@ -190,6 +190,7 @@ impl SelectionState {
         self.selected_ids.clear();
         self.anchor_id = None;
     }
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.selected_ids.is_empty()
     }
@@ -456,6 +457,9 @@ pub struct AppState {
     // RFC-013 active modal
     // ------------------------------------------------------------------
     pub active_modal: ActiveModal,
+    /// True = selection mode active (checkboxes visible, selection bar shown).
+    /// Off by default — cards are clean until the user explicitly selects.
+    pub selection_mode: bool,
 }
 
 impl AppState {
@@ -504,6 +508,7 @@ impl AppState {
             keyboard: KeyboardState::default(),
             detail_panel: DetailPanelState::default(),
             active_modal: ActiveModal::default(),
+            selection_mode: false,
             config,
         }
     }

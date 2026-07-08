@@ -17,7 +17,8 @@ use crate::{
 };
 
 pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
-    if state.selection.is_empty() {
+    // Selection bar only shown while in selection mode.
+    if !state.selection_mode {
         return None;
     }
 
@@ -50,8 +51,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     let switch_btn = button(text("⇄  Switch…").size(12))
         .on_press(Message::Context(ContextMessage::BulkOpenRequested));
 
-    let clear_btn =
-        button(text("✕").size(12)).on_press(Message::Selection(SelectionMessage::Clear));
+    let clear_btn = button(text("Exit selection").size(12))
+        .on_press(Message::Selection(SelectionMessage::ModeExited));
 
     let bar = container(
         row![
