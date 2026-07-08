@@ -560,7 +560,7 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             if let Some(ws) = &state.workspace {
                 state.sync.init_selection(&ws.projects);
             }
-            state.screen = Screen::SyncCenter;
+            state.active_modal = crate::state::ActiveModal::Pull;
             Task::none()
         }
 
@@ -1312,7 +1312,6 @@ fn refresh_workspace_task(state: &AppState) -> Task<Message> {
 fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
     match msg {
         ContextMessage::OpenRequested(preselect_id) => {
-            state.screen = Screen::ContextOps;
             state.context_ops.phase = ContextPhase::Idle;
 
             // If a project was pre-selected (e.g. from a dashboard card shortcut), load it.
@@ -1483,13 +1482,13 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
     #[allow(unreachable_patterns)]
     match msg {
         FreezerMessage::OpenRequested => {
-            state.screen = Screen::Freezer;
             // Reinitialise project selection from workspace.
             if let Some(ws) = &state.workspace {
                 let ids: Vec<_> = ws.projects.iter().map(|p| p.id.clone()).collect();
                 state.freezer.init_selection(&ids);
             }
             state.freezer.phase = FreezerPhase::Idle;
+            state.active_modal = crate::state::ActiveModal::Tag;
             Task::none()
         }
 
@@ -1607,9 +1606,9 @@ fn handle_launch(state: &mut AppState, msg: LaunchMessage) -> Task<Message> {
 fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Message> {
     match msg {
         ConflictOpsMessage::OpenRequested(preselect) => {
-            state.screen = Screen::ConflictResolution;
             state.conflict_ops.phase = ConflictPhase::Idle;
             if let Some(id) = preselect {
+                state.active_modal = crate::state::ActiveModal::Resolve(id.clone());
                 return Task::done(Message::ConflictOps(ConflictOpsMessage::ProjectSelected(
                     id,
                 )));
@@ -1747,12 +1746,12 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
 fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message> {
     match msg {
         ChangelogMessage::OpenRequested => {
-            state.screen = Screen::Changelog;
             if let Some(ws) = &state.workspace {
                 let ids: Vec<_> = ws.projects.iter().map(|p| p.id.clone()).collect();
                 state.changelog.init_selection(&ids);
             }
             state.changelog.phase = ChangelogPhase::Idle;
+            state.active_modal = crate::state::ActiveModal::Changelog;
             Task::none()
         }
 

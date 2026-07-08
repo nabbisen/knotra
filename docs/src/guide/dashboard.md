@@ -14,4 +14,7 @@ All indicators use both colour and text (WCAG AA compliant): **Synced** / **Behi
 
 Click status chips to filter cards. Use the search box to filter by project name. Projects with a `group` field are separated by header rows (alphabetically; ungrouped last).
 
-## Keyboard shortcuts: `Ctrl+R` refresh, `Ctrl+K` context, `Ctrl+T` freezer, `Ctrl+/` search, `Esc` close dialog.
+## Keyboard shortcuts
+
+`Ctrl+R` refresh · `Ctrl+K` context switch · `Ctrl+T` tag/freeze · `Ctrl+/` search · `Esc` close modal  
+Selection mode: `f` fetch · `p` pull · `t` tag · `b` switch · `Space` toggle selection

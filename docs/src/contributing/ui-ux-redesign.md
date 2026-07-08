@@ -612,6 +612,8 @@ Existing screens remain accessible via the sidebar (deprecated badge).
 
 ### v0.16 — Removal
 
+> **Note (v0.16.0):** Screen removal is tracked in RFC-017 (still proposed as of v0.16). The v0.16 release completed the snora layout-engine adoption (RFC-019) instead. The removal steps below remain the intended next step.
+
 - Drop the deprecated full-screen versions of Sync Center / Freezer /
   ContextOps / Conflict Resolution / Changelog
 - Sidebar becomes minimal: just Settings and Help links (or removed

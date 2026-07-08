@@ -7,6 +7,28 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.17.0] — 2026-06-11
+
+### Changed — Remove legacy full-screen views (RFC-017)
+
+The five screens replaced by modals in RFC-013 are now deleted.
+`Screen` is trimmed from eight variants to three: `Dashboard`, `History`,
+`Settings`. All navigation that previously went to a legacy screen now
+opens the corresponding modal or panel instead.
+
+- `SyncMessage::OpenRequested` → `ActiveModal::Pull`
+- `FreezerMessage::OpenRequested` → `ActiveModal::Tag`
+- `ContextMessage::OpenRequested` → `ActiveModal::Switch`
+- `ConflictOpsMessage::OpenRequested(id)` → `ActiveModal::Resolve(id)`
+- `ChangelogMessage::OpenRequested` → `ActiveModal::Changelog`
+
+Removed view modules (1,262 lines): `view/sync_center.rs`,
+`view/freezer.rs`, `view/context_ops.rs`, `view/conflict_ops.rs`,
+`view/changelog_view.rs`. State modules for all five features are
+retained — the modals and panels consume the same state.
+
+---
+
 ## [0.16.0] — 2026-06-10
 
 ### Changed — Adopt snora 0.18 layout framework (RFC-019)

@@ -51,6 +51,7 @@ impl FreezerState {
         self.project_selection.retain(|id, _| id_set.contains(id));
     }
 
+    #[allow(dead_code)]
     pub fn is_selected(&self, id: &ProjectId) -> bool {
         *self.project_selection.get(id).unwrap_or(&true)
     }

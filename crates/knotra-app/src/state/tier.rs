@@ -3,8 +3,8 @@
 //! `compute_tier` maps a `ProjectStatus` to one of three attention buckets
 //! so the dashboard can group projects without requiring user-defined filters.
 
-use knotra_vcs::model::status::ProjectStatus;
 use crate::state::AttentionTier;
+use knotra_vcs::model::status::ProjectStatus;
 
 /// Causes for a project being in the NeedsAttention tier.
 /// Used for inline recovery hints on cards.
@@ -32,11 +32,14 @@ pub enum AttentionCause {
 /// 8. Behind upstream → Active
 /// 9. Otherwise → Clean
 pub fn compute_tier(
-    status:          Option<&ProjectStatus>,
-    path_exists:     bool,
+    status: Option<&ProjectStatus>,
+    path_exists: bool,
 ) -> (AttentionTier, Option<AttentionCause>) {
     if !path_exists {
-        return (AttentionTier::NeedsAttention, Some(AttentionCause::PathNotFound));
+        return (
+            AttentionTier::NeedsAttention,
+            Some(AttentionCause::PathNotFound),
+        );
     }
 
     let Some(s) = status else {
@@ -45,18 +48,30 @@ pub fn compute_tier(
     };
 
     if s.conflict.has_conflict {
-        return (AttentionTier::NeedsAttention, Some(AttentionCause::Conflict));
+        return (
+            AttentionTier::NeedsAttention,
+            Some(AttentionCause::Conflict),
+        );
     }
     if s.conflict.detection_unavailable {
-        return (AttentionTier::NeedsAttention, Some(AttentionCause::ConflictDetectionUnavailable));
+        return (
+            AttentionTier::NeedsAttention,
+            Some(AttentionCause::ConflictDetectionUnavailable),
+        );
     }
     if s.read_error.is_some() {
-        return (AttentionTier::NeedsAttention, Some(AttentionCause::OperationFailed));
+        return (
+            AttentionTier::NeedsAttention,
+            Some(AttentionCause::OperationFailed),
+        );
     }
     let ctx = s.context.as_ref().map(|c| c.label.as_str()).unwrap_or("");
     if ctx.starts_with('(') {
         // jj "(no branch)" or git "(HEAD detached at …)"
-        return (AttentionTier::NeedsAttention, Some(AttentionCause::DetachedHead));
+        return (
+            AttentionTier::NeedsAttention,
+            Some(AttentionCause::DetachedHead),
+        );
     }
 
     // Active conditions

@@ -7,7 +7,7 @@ A: The repository path is unreachable. Check the path in Settings.
 A: Sequential execution prevents stacked conflict states.
 
 **Q: Freezer blocked "tag already exists" — how to force-overwrite?**  
-A: Delete the tag manually (`git tag -d <name>`) and re-validate. knotra never overwrites automatically.
+A: Delete the tag manually (`git tag -d <name>`) and re-validate in the Tag modal. knotra never overwrites automatically.
 
 **Q: Where are settings stored?**  
 A: `~/.config/knotra/config.toml`. See [Configuration File](config.md).

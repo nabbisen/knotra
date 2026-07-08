@@ -8,9 +8,9 @@
 # User Guide
 
 - [Dashboard](guide/dashboard.md)
-- [Sync Center](guide/sync_center.md)
-- [Context Operations](guide/context_ops.md)
-- [Freezer](guide/freezer.md)
+- [Sync & Pull](guide/sync_center.md)
+- [Freezer (Tag / Bookmark)](guide/freezer.md)
+- [Context Switch](guide/context_ops.md)
 - [History](guide/history.md)
 - [Settings](guide/settings.md)
 

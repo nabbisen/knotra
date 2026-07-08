@@ -20,6 +20,8 @@ pub enum Message {
     Settings(SettingsMessage),
     Background(BackgroundMessage),
     Filter(FilterMessage),
+    /// Open an external tool (editor or merge tool).
+    #[allow(dead_code)]
     Launch(LaunchMessage),
     TagPush(TagPushMessage),
     ConflictOps(ConflictOpsMessage),

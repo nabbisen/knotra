@@ -164,3 +164,16 @@ overlay z-stack with snora's `render(AppLayout)` engine.
 - [x] Workspace tab strip → `snora::widget::app_tab_bar` (direction-aware)
 - [x] Dead `knotra-ui::nav_menu` module removed
 - [x] 0 warnings (check + clippy, all targets), 69 tests pass under 1.91
+
+## v0.17.0 — Screen removal (RFC-017)
+
+Final cleanup of the v0.11–v0.16 redesign: deletes 1,262 lines of legacy
+full-screen views and trims the `Screen` enum to three variants.
+
+- [x] Remove `view/sync_center.rs`, `view/freezer.rs`, `view/context_ops.rs`,
+      `view/conflict_ops.rs`, `view/changelog_view.rs`
+- [x] `Screen` enum: Dashboard / History / Settings only
+- [x] All legacy `state.screen = Screen::Legacy` → open corresponding
+      `ActiveModal` or panel
+- [x] State modules retained (modals use the same state)
+- [x] 0 warnings (check + clippy, all targets), 69 tests pass under 1.91

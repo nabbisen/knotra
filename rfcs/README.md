@@ -25,7 +25,6 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [017](./proposed/017-screen-removal.md) | Remove deprecated screens (Sync Center, Freezer, ContextOps, ConflictResolution, Changelog) | v0.16 | Medium |
 
 ---
 
@@ -33,6 +32,12 @@ until the RFC moves to `done/`.
 
 Implemented and shipped.  These are historical records; the design decisions
 they contain remain authoritative.
+
+### v0.17.0 — Screen removal
+
+| ID   | Title                                           | Shipped    |
+|------|-------------------------------------------------|------------|
+| [017](./done/017-screen-removal.md) | Remove five legacy full-screen views; `Screen` enum trimmed to Dashboard/History/Settings | v0.17.0 |
 
 ### v0.16.0 — snora layout adoption
 

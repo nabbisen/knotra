@@ -43,10 +43,10 @@ cargo build --release -p knotra-app
 
 ## Features / Design Notes
 
-- **Dashboard**: card-grid view of all registered projects — status, context, ahead/behind, uncommitted, untracked, conflict at a glance.
-- **Sync Center**: bulk fetch and Smart Pull with dirty-repo detection.
-- **Context Ops**: switch branch / change-set across projects from a single UI.
-- **Freezer**: transactional cross-repo tag/bookmark creation with automatic rollback.
+- **Dashboard**: card-grid view of all registered projects — auto-grouped by attention tier (Needs Attention / Active / Clean).
+- **Sync & Pull**: bulk fetch and Smart Pull with dirty-repo detection — opens as a modal from the selection bar.
+- **Context Switch**: switch branch / change-set across projects from a single modal (`Ctrl+K` or **Switch…** button).
+- **Freezer**: transactional cross-repo tag/bookmark creation with automatic rollback — opens as a modal from the selection bar.
 - **History**: searchable operation log with copy-paste-friendly command output.
 - **Accessible by Default**: keyboard navigation, sufficient contrast, labels on all status indicators.
 - **Transparent**: every operation logs the VCS commands it executed and their output.
@@ -61,5 +61,5 @@ cargo build --release -p knotra-app
 Key chapters:
 - [Introduction & Features](docs/src/introduction.md)
 - [Quick Start Tutorial](docs/src/quickstart.md)
-- [Architecture](docs/src/architecture.md)
-- [Contributing](\.github/CONTRIBUTING.md)
+- [Architecture](docs/src/contributing/architecture.md)
+- [Contributing](.github/CONTRIBUTING.md)

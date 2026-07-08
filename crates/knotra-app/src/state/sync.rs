@@ -22,7 +22,7 @@ pub enum SyncPhase {
     /// Computing the Smart Pull plan (checking dirty states).
     Planning,
     /// Plan ready — awaiting user confirmation.
-    AwaitingConfirm(SmartPullPlan),
+    AwaitingConfirm(#[allow(dead_code)] SmartPullPlan),
     /// Smart Pull in progress — collecting streaming results.
     PullRunning {
         plan: SmartPullPlan,
@@ -34,6 +34,7 @@ pub enum SyncPhase {
 
 /// Aggregate result shown after an operation completes.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct SyncResult {
     pub kind: SyncKind,
     pub per_project: Vec<ProjectOutcome>,
@@ -58,6 +59,7 @@ pub struct ProjectOutcome {
     pub log_expanded: bool,
 }
 
+#[allow(dead_code)]
 impl SyncResult {
     pub fn success_count(&self) -> usize {
         self.per_project.iter().filter(|p| p.success).count()

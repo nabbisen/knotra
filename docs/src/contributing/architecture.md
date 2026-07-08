@@ -1,17 +1,17 @@
 # Architecture
 
 ```
-GUI Layer (knotra-app / iced)
+GUI Layer (knotra-app / iced / snora)
   State / Message / Update / View / Subscription
 
 Application Layer (knotra-app)
   AppState, routing, task orchestration, persistence
 
-Domain Layer (endringer / model)
+Domain Layer (knotra-vcs / model)
   ProjectStatus, OperationLog, FreezeValidation, SmartPullPlan, …
 
-VCS Adapter Layer (endringer / vcs)
-  VcsAdapter → git.rs + jj.rs (CLI-based read/write)
+VCS Adapter Layer (knotra-vcs / vcs)
+  VcsAdapter → git.rs + jj.rs (reads via endringer, writes via CLI)
 
 Local Persistence Layer (knotra-app)
   config.rs, persistence.rs
@@ -19,9 +19,9 @@ Local Persistence Layer (knotra-app)
 
 ## Crates
 
-- **`endringer`** — VCS abstraction + domain models
-- **`snora`** — theme, i18n, widget constants  
-- **`knotra-app`** — GUI binary (iced Elm architecture)
+- **`knotra-vcs`** — VCS facade: `VcsAdapter`, domain models, `FsPoller`. Reads delegate to `endringer-{core,git,jj,async}` 0.19.2 (crates.io); writes use the VCS CLI.
+- **`knotra-ui`** — knotra UI foundation: `KnotraTheme`, `StatusColor`, i18n catalog, layout tokens.
+- **`knotra-app`** — GUI binary (iced Elm architecture, snora layout engine).
 
 ## Concurrency
 

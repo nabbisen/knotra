@@ -32,29 +32,8 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Screen {
     Dashboard,
-    SyncCenter,
-    ContextOps,
-    Freezer,
     History,
     Settings,
-    ConflictResolution,
-    Changelog,
-}
-
-impl Screen {
-    #[allow(dead_code)]
-    pub fn nav_key(&self) -> &'static str {
-        match self {
-            Screen::Dashboard => "nav.dashboard",
-            Screen::SyncCenter => "nav.sync",
-            Screen::ContextOps => "nav.context",
-            Screen::Freezer => "nav.freezer",
-            Screen::History => "nav.history",
-            Screen::Settings => "nav.settings",
-            Screen::ConflictResolution => "nav.conflicts",
-            Screen::Changelog => "nav.changelog",
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------

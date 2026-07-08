@@ -16,13 +16,20 @@ cargo build --release -p knotra-app && ./target/release/knotra
 
 ## Adding i18n strings
 
-Add key-value pairs to both `en_strings()` and `ja_strings()` in `crates/snora/src/i18n.rs`, then use `state.t("my.key")` in views. Never hardcode user-visible strings outside i18n.
+Add key-value pairs to both `en_strings()` and `ja_strings()` in `crates/knotra-ui/src/i18n.rs`, then use `state.t("my.key")` in views. Never hardcode user-visible strings outside i18n.
 
 ## Release
 
-Bump version in `Cargo.toml` (workspace + crates), update `CHANGELOG.md`, then:
+Bump `version` in the workspace `Cargo.toml`, update `CHANGELOG.md`, then:
 
 ```sh
 cargo test
-tar --exclude='target' --exclude='.git' -czf knotra-v<X.Y.Z>.tar.gz knotra/
+tar --exclude='./target' -czf knotra-v<X.Y.Z>.tar.gz -C /path/to/knotra .
+```
+
+The `-C <dir> .` form extracts files to the root of the archive with no intermediate parent directory, matching the release spec. Verify with:
+
+```sh
+tar tzf knotra-v<X.Y.Z>.tar.gz | head -5
+# should start with ./Cargo.toml, ./crates/, etc. — not knotra/Cargo.toml
 ```

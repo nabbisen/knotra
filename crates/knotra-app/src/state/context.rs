@@ -55,6 +55,7 @@ pub struct ContextOpsState {
 
 impl ContextOpsState {
     /// Return filtered candidates for the currently browsed project.
+    #[allow(dead_code)]
     pub fn filtered_candidates(&self) -> Vec<&ContextCandidate> {
         if let ContextPhase::BrowsingList { list, search, .. } = &self.phase {
             let q = search.to_lowercase();

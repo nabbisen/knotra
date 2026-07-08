@@ -40,6 +40,7 @@ impl ChangelogState {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn is_ready_to_collect(&self) -> bool {
         !self.since_ref.trim().is_empty()
             && self.project_selection.values().any(|&v| v)
