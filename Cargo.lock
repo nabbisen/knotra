@@ -3240,7 +3240,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "knotra"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3262,7 +3262,7 @@ dependencies = [
 
 [[package]]
 name = "knotra-ui"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "iced",
  "serde",
@@ -3271,7 +3271,7 @@ dependencies = [
 
 [[package]]
 name = "knotra-vcs"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5197,9 +5197,9 @@ dependencies = [
 
 [[package]]
 name = "snora"
-version = "0.18.1"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df34d250b28345b163490b6e00f19ab3235d58d38bdb028b1a48941e1a047e96"
+checksum = "1f47d50efb07f533144ef4824121a31f7a02c56539eb5ab83cafdcef69836450"
 dependencies = [
  "iced",
  "snora-core",
@@ -5208,15 +5208,15 @@ dependencies = [
 
 [[package]]
 name = "snora-core"
-version = "0.18.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64453d588da2d2bacea47841228493ddc4d4c8ef6d452793a198d4d80ac72c02"
+checksum = "b814c3b433fb45f9803ab83ee0baebfaa7813fcf0aca54a5e1251289ea565bee"
 
 [[package]]
 name = "snora-widgets"
-version = "0.18.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7137501cc3e7cdd73ea535291beb737d76e56e2108b5d1df7e8d3579cd1d461"
+checksum = "80d5a64cc6c03a010954efc9df0f99faf30a68aefc57731a48a5a0527d5c52c8"
 dependencies = [
  "iced",
  "snora-core",

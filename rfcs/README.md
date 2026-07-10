@@ -33,6 +33,12 @@ until the RFC moves to `done/`.
 Implemented and shipped.  These are historical records; the design decisions
 they contain remain authoritative.
 
+### v0.23.0 — snora 0.25.0 migration
+
+| ID   | Title                                           | Shipped    |
+|------|-------------------------------------------------|------------|
+| [0022](./done/022-snora-0.25.0-migration.md) | Migrate to snora 0.25.0; evaluate + defer the Snora Design System | v0.23.0 |
+
 ### v0.22.0 — RFC-0021 Phase 6 (complete)
 
 | ID   | Title                                           | Shipped    |

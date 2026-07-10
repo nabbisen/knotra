@@ -1,6 +1,6 @@
 [package]
 name        = "knotra"
-description = "knotra: multi-project VCS dashboard and bulk-operation tool"
+description = "knotra: multi-project VCS dashboard and bulk-operation tool."
 readme      = "../../README.md"
 version.workspace       = true
 edition.workspace       = true

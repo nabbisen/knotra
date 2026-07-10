@@ -237,3 +237,12 @@ plain language; expert terms move behind "Show details".
 - [x] 33 pre-existing catalog gaps closed (history.*, settings.*, plain.remove.*, etc)
 - [x] 0/0 warnings, 71 tests under 1.91
 - RFC-0021 complete (all 6 phases)
+
+## v0.23.0 — snora 0.25.0 migration (RFC-0022)
+
+- [x] snora 0.18.1 → 0.25.0 in knotra-app/Cargo.toml
+- [x] No source changes; iced stays 0.14; layout-engine API unchanged
+- [x] Two breaking changes in range (Palette::roles, chip visual) — both in
+      the design surface knotra doesn't use; no impact
+- [x] Snora Design System evaluated: deferred (knotra-ui already covers it)
+- [x] 0/0 warnings, 71 tests under 1.91

@@ -7,6 +7,30 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.23.0] — 2026-06-11
+
+### Changed — Migrate to snora 0.25.0 (RFC-0022)
+
+`snora` dependency bumped from `0.18.1` to `0.25.0`. No knotra source changes.
+
+snora 0.25.0 introduces the opt-in Snora Design System (`design` feature:
+iced-free token crate, semantic palette, automated contrast tests, button/
+card/notice/chip/progress helpers). The two breaking changes in the
+0.18 → 0.25 range — `Palette::roles()` removed (v0.24) and the chip
+selected-state visual change (v0.24) — affect only snora's `design` surface,
+which knotra does not use. knotra consumes snora purely as a layout engine
+(`AppLayout`, `Dialog`, `Sheet`, `render`, `app_tab_bar`), all unchanged.
+iced stays at 0.14.
+
+**The `design` feature is evaluated and deferred, not adopted.** knotra
+already has a complete, WCAG-AA-verified design layer in `knotra-ui`
+(`KnotraTheme`, `StatusColor`, `guided_button`/`guided_field`, focus tokens).
+Enabling snora's `design` would duplicate it; the lean choice is to stay on
+knotra-ui's own layer. RFC-0022 records when this decision should be
+revisited.
+
+---
+
 ## [0.22.0] — 2026-06-11
 
 ### Changed — RFC-0021 Phase 6: accessibility hardening
