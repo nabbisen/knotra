@@ -1,4 +1,4 @@
-# RFC-009 — Selection Model and Selection Bar
+# RFC-0009 — Selection Model and Selection Bar
 
 | Field          | Value                                                          |
 |----------------|----------------------------------------------------------------|
@@ -42,7 +42,7 @@ connect specific actions to it.
 | R9  | The selection persists across status refreshes within the same workspace |
 | R10 | Selection clears when the user switches workspaces |
 | R11 | Removing a project from the workspace also removes it from the selection |
-| R12 | Bulk action progress and result is reported via the activity strip (RFC-011); not via the selection bar itself |
+| R12 | Bulk action progress and result is reported via the activity strip (RFC-0011); not via the selection bar itself |
 
 ## External Design
 
@@ -101,7 +101,7 @@ Cards become focusable elements.  `tab` cycles through focusable controls
 on the page (sidebar, search box, then each project card, then the
 selection bar buttons).  `arrow up`/`arrow down` moves focus between cards
 within the focused tier.  This is in addition to the existing `j`/`k`
-shortcuts proposed in RFC-016.
+shortcuts proposed in RFC-0016.
 
 ### Edge case — selecting across tiers
 
@@ -126,7 +126,7 @@ pub struct AppState {
     // ... existing fields ...
 
     /// Currently selected project IDs within the active workspace.
-    /// Cleared on workspace switch (see RFC-008 prune symmetry).
+    /// Cleared on workspace switch (see RFC-0008 prune symmetry).
     pub selection: std::collections::HashSet<ProjectId>,
 
     /// Last project ID toggled in the selection — used as the anchor
@@ -293,7 +293,7 @@ fn card_checkbox<'a>(state: &AppState, project_id: &ProjectId) -> Element<'a, Me
 ### Subscription — keyboard
 
 The existing keyboard subscription gains new bindings (full keyboard layout
-detailed in RFC-016):
+detailed in RFC-0016):
 
 ```rust
 keyboard::on_key_press(|key, modifiers| match (key, modifiers) {
@@ -340,15 +340,15 @@ SelectionMessage::ApplyAction(BulkAction::Tag) => {
 }
 ```
 
-In v0.14 (RFC-013), the action opens a modal instead of switching screens.
+In v0.14 (RFC-0013), the action opens a modal instead of switching screens.
 
 ## Migration Plan
 
 | Phase | Version | Scope |
 |-------|---------|-------|
 | 1     | v0.12   | Selection state, checkboxes on cards, selection bar UI, action routing to existing screens |
-| 2     | v0.13   | Tier-aware range select (RFC-010 prerequisite) |
-| 3     | v0.14   | Actions open modals instead of routing to screens (RFC-013) |
+| 2     | v0.13   | Tier-aware range select (RFC-0010 prerequisite) |
+| 3     | v0.14   | Actions open modals instead of routing to screens (RFC-0013) |
 
 ## Test Plan
 

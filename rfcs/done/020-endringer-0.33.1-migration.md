@@ -1,4 +1,4 @@
-# RFC-020 — Migrate to endringer 0.33.1
+# RFC-0020 — Migrate to endringer 0.33.1
 
 | Field          | Value                                                                 |
 |----------------|-----------------------------------------------------------------------|
@@ -6,7 +6,7 @@
 | Priority       | Low — no code changes; pure version bump                              |
 | Effort         | Minimal                                                               |
 | Target version | v0.18.0                                                               |
-| Related        | RFC-018 (endringer migration to 0.19.2)                              |
+| Related        | RFC-0018 (endringer migration to 0.19.2)                              |
 
 ## Summary
 
@@ -22,7 +22,7 @@ significantly, and contained three breaking changes in the range:
 
 ### Breaking changes — impact on knotra-vcs
 
-**RFC-006 (v0.23.0) — typed errors: `anyhow::Result<T>` → `endringer::Result<T>`**
+**RFC-0006 (v0.23.0) — typed errors: `anyhow::Result<T>` → `endringer::Result<T>`**
 
 Every public async and sync method now returns
 `Result<T, endringer::Error>` instead of `anyhow::Result<T>`.
@@ -35,13 +35,13 @@ knotra-vcs impact: **none in practice.**
 - `GitBackend::open` still returns `anyhow::Result<Self>` (internal detail
   of `endringer-git`; not the public API boundary). Unchanged.
 
-**RFC-022 (v0.28.0) — `TagAnnotation` gains `tagger_email: Option<String>`**
+**RFC-0022 (v0.28.0) — `TagAnnotation` gains `tagger_email: Option<String>`**
 
 Breaking only for code that constructs `TagAnnotation` literals directly.
 knotra-vcs never constructs `TagAnnotation`; it reads `TagInfo` via
 `list_tags_sorted()` and maps to its own model. **No impact.**
 
-**RFC-009 / RFC-005 (v0.25.0) — `VcsBackend` gains required methods
+**RFC-0009 / RFC-0005 (v0.25.0) — `VcsBackend` gains required methods
 (`repository_info`, `ahead_behind`)**
 
 Breaking only for crates that *implement* `VcsBackend` (custom backends).

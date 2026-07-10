@@ -1,4 +1,4 @@
-# RFC-001 — Complete `HistoryMessage::LogCopyRequested`
+# RFC-0001 — Complete `HistoryMessage::LogCopyRequested`
 
 | Field       | Value                                      |
 |-------------|--------------------------------------------|

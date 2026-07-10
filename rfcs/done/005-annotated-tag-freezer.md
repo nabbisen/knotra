@@ -1,4 +1,4 @@
-# RFC-005 — Annotated Tag Support in the Freezer
+# RFC-0005 — Annotated Tag Support in the Freezer
 
 | Field    | Value                                                             |
 |----------|-------------------------------------------------------------------|

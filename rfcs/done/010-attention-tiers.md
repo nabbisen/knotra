@@ -1,4 +1,4 @@
-# RFC-010 — Attention Tiers and Tiered Card Density
+# RFC-0010 — Attention Tiers and Tiered Card Density
 
 | Field          | Value                                                                |
 |----------------|----------------------------------------------------------------------|
@@ -6,7 +6,7 @@
 | Priority       | **High** — defines the new mental model of the dashboard             |
 | Effort         | Medium — tier classification, layout changes, settings toggle        |
 | Target version | v0.13                                                                |
-| Related        | `view/dashboard.rs`, `state/dashboard.rs`, RFC-009 (selection bar)  |
+| Related        | `view/dashboard.rs`, `state/dashboard.rs`, RFC-0009 (selection bar)  |
 
 ## Summary
 
@@ -175,7 +175,7 @@ on non-default branch → branch name shown without counter
 ```
 
 Active tier cards reveal all counters on hover (compact tooltip) or in the
-side panel (RFC-014).
+side panel (RFC-0014).
 
 ### Problem statement language
 
@@ -428,7 +428,7 @@ but preserving the tier structure.
 | Phase | Version | Scope |
 |-------|---------|-------|
 | 1     | v0.13   | Classification logic, tier headers, tier-specific card layouts.  Both Auto and Legacy modes available; default = Auto |
-| 2     | v0.14   | Inline recovery buttons wire to RFC-013 modals |
+| 2     | v0.14   | Inline recovery buttons wire to RFC-0013 modals |
 | 3     | v0.16   | Legacy mode deprecated (still available but hidden behind a Settings toggle) |
 | 4     | v0.17 (future) | Legacy mode removed |
 

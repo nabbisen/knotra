@@ -1,4 +1,4 @@
-# RFC-013 — Bulk Action Modals
+# RFC-0013 — Bulk Action Modals
 
 | Field          | Value                                                                |
 |----------------|----------------------------------------------------------------------|
@@ -6,13 +6,13 @@
 | Priority       | **High** — the structural change that removes most screens           |
 | Effort         | Large — five modals, plan/confirm/execute flows, result rendering    |
 | Target version | v0.14                                                                |
-| Related        | RFC-009 (selection), RFC-010 (tiers), RFC-011 (activity strip)    |
+| Related        | RFC-0009 (selection), RFC-0010 (tiers), RFC-0011 (activity strip)    |
 
 ## Summary
 
 Replace the Sync Center, Freezer, Context Operations, Conflict Resolution,
 and Changelog screens with **modal dialogs** opened from the selection bar
-(RFC-009).  Each modal handles one workflow (Pull / Tag / Switch /
+(RFC-0009).  Each modal handles one workflow (Pull / Tag / Switch /
 Resolve / Generate Changelog) from plan to confirmation to execution to
 result.  When the modal closes, the user is back on the Dashboard with
 updated state visible.
@@ -50,8 +50,8 @@ in the redesign and is a single RFC because:
 | R4  | Plan modals show what will happen before execution |
 | R5  | Result modals show what happened, including per-project success / failure and any recovery hints |
 | R6  | Execution runs asynchronously; UI shows progress without blocking |
-| R7  | All five modals are reachable from the selection bar (RFC-009) AND from the command palette (RFC-012) |
-| R8  | All five modals are reachable from the inline buttons on Needs Attention cards (RFC-010) for relevant actions |
+| R7  | All five modals are reachable from the selection bar (RFC-0009) AND from the command palette (RFC-0012) |
+| R8  | All five modals are reachable from the inline buttons on Needs Attention cards (RFC-0010) for relevant actions |
 | R9  | Modal state survives accidental window unfocus and refocus |
 | R10 | Closing a result modal does NOT undo the operation |
 
@@ -180,10 +180,10 @@ links to documentation.
 ```
 
 - The name field validates inline (no `..`, no spaces, no leading `-`).
-- The message field is optional; non-empty → annotated tag (RFC-005).
+- The message field is optional; non-empty → annotated tag (RFC-0005).
 - Per-project blockers disable the corresponding row and reduce the count
   in the primary button.
-- Topology warnings (RFC-007) appear inline.
+- Topology warnings (RFC-0007) appear inline.
 
 #### Execution → result phase
 
@@ -449,7 +449,7 @@ copied from `view/freezer.rs` with the layout adjusted to a modal.
 
 During the v0.14 migration period, the existing screens remain reachable
 via the command palette ("Open Sync Center", etc.) for users who prefer
-them.  In v0.16 (RFC-017), they are removed.
+them.  In v0.16 (RFC-0017), they are removed.
 
 ### Card inline action wiring
 
@@ -467,7 +467,7 @@ button(text(state.t("attention.action.resolve")))
 | Phase | Version | Scope |
 |-------|---------|-------|
 | 1     | v0.14   | All five modals implemented; selection bar routes to them; old screens still reachable via palette / sidebar |
-| 2     | v0.15   | Sidebar entries removed (RFC-017 dependency); palette is the only way to reach the old screens |
+| 2     | v0.15   | Sidebar entries removed (RFC-0017 dependency); palette is the only way to reach the old screens |
 | 3     | v0.16   | Old screens removed entirely; modals are the only path |
 
 ## Test Plan

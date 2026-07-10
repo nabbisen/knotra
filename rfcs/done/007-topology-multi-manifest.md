@@ -1,4 +1,4 @@
-# RFC-007 — Topology Scan: Multi-Manifest Support
+# RFC-0007 — Topology Scan: Multi-Manifest Support
 
 | Field    | Value                                                         |
 |----------|---------------------------------------------------------------|

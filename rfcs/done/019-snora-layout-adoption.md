@@ -1,21 +1,21 @@
-# RFC-019 — Adopt snora layout framework (v0.18.0)
+# RFC-0019 — Adopt snora layout framework (v0.18.0)
 
 | Field          | Value                                                                 |
 |----------------|-----------------------------------------------------------------------|
 | Status         | Implemented (v0.16.0)                                                              |
 | Priority       | Medium                                                                |
 | Effort         | Medium                                                                |
-| Target version | v0.16 (or later, pending RFC-017)                                    |
-| Related        | RFC-017 (screen removal), RFC-018 (crate migration)                 |
+| Target version | v0.16 (or later, pending RFC-0017)                                    |
+| Related        | RFC-0017 (screen removal), RFC-0018 (crate migration)                 |
 
 ## Summary
 
 snora 0.18.0 is available and it is a **confirmed fit** for knotra. This
 RFC defines what to adopt, what to keep, how the two layers divide
 responsibility, and what the adoption entails in concrete code terms. It
-is the "snora layout-framework adoption" deferred from RFC-018 and now
+is the "snora layout-framework adoption" deferred from RFC-0018 and now
 more precisely specified thanks to the upstream author's clarification
-(recorded in RFC-018's resolved open question #5).
+(recorded in RFC-0018's resolved open question #5).
 
 ## What snora 0.18.0 provides
 
@@ -76,7 +76,7 @@ sheet → toasts) plus graceful degradation for absent close sinks.
 
 ### Workspace tabs (`view/workspace_tabs.rs`)
 
-knotra already has a hand-rolled workspace tab strip (RFC-015). This is
+knotra already has a hand-rolled workspace tab strip (RFC-0015). This is
 a peer-level view switcher exactly matching snora's `TabBar<TabId>` /
 `app_tab_bar` model. The `TabBar` vocabulary is direction-aware; the
 hand-rolled version is not.
@@ -89,7 +89,7 @@ can be removed.
 
 ## What knotra correctly keeps in `knotra-ui`
 
-Per the authoritative theme/i18n split from RFC-018's resolved open
+Per the authoritative theme/i18n split from RFC-0018's resolved open
 question #5:
 
 - **`KnotraTheme` + `StatusColor`** — knotra's iced theme/palette. snora
@@ -201,15 +201,15 @@ with the existing workspace).
 ## Open questions
 
 None. The snora author's design stance is authoritatively documented in
-RFC-018's resolved open question #5. The adoption scope above follows
+RFC-0018's resolved open question #5. The adoption scope above follows
 directly from that answer.
 
 ## Sequencing
 
-This RFC may be ordered relative to RFC-017 (screen removal):
+This RFC may be ordered relative to RFC-0017 (screen removal):
 
-- RFC-017 first makes `app_view` simpler before re-layering it.
-- RFC-019 can proceed independently if RFC-017 is deferred.
+- RFC-0017 first makes `app_view` simpler before re-layering it.
+- RFC-0019 can proceed independently if RFC-0017 is deferred.
 
 The implementation phases above can ship in one version or split across
 two (Phase 1 + 4 first; Phase 2 + 3 when relevant).

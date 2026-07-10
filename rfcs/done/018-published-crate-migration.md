@@ -1,4 +1,4 @@
-# RFC-018 — Migrate onto published `endringer` and `snora`
+# RFC-0018 — Migrate onto published `endringer` and `snora`
 
 | Field          | Value                                                                          |
 |----------------|--------------------------------------------------------------------------------|
@@ -6,7 +6,7 @@
 | Priority       | High — unblocks consuming the official crates; current in-tree copies are a fork |
 | Effort         | Medium — re-layering + read-path adaptation; app logic largely unchanged       |
 | Target version | v0.15                                                                          |
-| Related        | RFC-003 (jj conflict detection), RFC-004 (ahead/behind), development-instructions §2 |
+| Related        | RFC-0003 (jj conflict detection), RFC-0004 (ahead/behind), development-instructions §2 |
 
 ## Summary
 
@@ -76,8 +76,8 @@ the published crate does not contain:
 The read model also differs: published `StatusDigest` carries branch +
 last-commit only. `ProjectStatus` additionally needs **ahead/behind**
 (derivable from `merge_base` + commit walk, or computed knotra-side per
-RFC-004) and **conflict state** (no published method; stays knotra-side —
-jj-via-CLI per RFC-003, git via index/merge state). Dirty/untracked
+RFC-0004) and **conflict state** (no published method; stays knotra-side —
+jj-via-CLI per RFC-0003, git via index/merge state). Dirty/untracked
 counts come from `worktree_status()`; upstream identity from `remote_url()`.
 
 ### snora
@@ -85,7 +85,7 @@ counts come from `worktree_status()`; upstream identity from `remote_url()`.
 All five symbols `knotra-app` imports are absent from published `snora`:
 `KnotraTheme`, `theme::StatusColor`, `i18n::Catalog`, `i18n::Locale`,
 `widget::CARD_GAP` (plus `nav_menu::{nav_bar, NavItem, NAV_BAR_HEIGHT}`
-from RFC-013). These are **knotra-specific application concerns** (a
+from RFC-0013). These are **knotra-specific application concerns** (a
 product theme palette, the knotra UI string catalog, attention-tier color
 semantics) — they do not belong in a general-purpose GUI crate. Published
 `snora` instead offers the rendering engine and a widget kit knotra can
@@ -182,7 +182,7 @@ clean-compile baseline.
 2. **Ahead/behind.** Will `endringer-async` expose ahead/behind relative to
    upstream, or should knotra compute it from `merge_base` + commit walk?
 3. **Conflict status.** Any planned `conflict_status()` (esp. jj)? If not,
-   knotra keeps jj-via-CLI detection (RFC-003) and the "unknown, never
+   knotra keeps jj-via-CLI detection (RFC-0003) and the "unknown, never
    clean" rule (C-2 / R-5).
 4. **Multi-repo helper.** Confirm multi-repo orchestration with bounded
    concurrency is intended to be the consumer's job (knotra builds it over

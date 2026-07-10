@@ -28,5 +28,6 @@
 # For Contributors
 
 - [Architecture](contributing/architecture.md)
+- [UI/UX Handoff](contributing/ui-ux-handoff.md)
 - [Local Development](contributing/local_dev.md)
 - [Design Philosophy](contributing/philosophy.md)

@@ -1,4 +1,4 @@
-# RFC-006 — Accurate `log_since` Range for jj
+# RFC-0006 — Accurate `log_since` Range for jj
 
 | Field    | Value                                                          |
 |----------|----------------------------------------------------------------|

@@ -1057,9 +1057,9 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "endringer"
-version = "0.33.1"
+version = "0.33.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a02c41e8bf70ab71b5fec257d4869f6ffe3ab561c939b25561e36fdd91afc53"
+checksum = "e9752cf4bf1f2e8900918e347c6a7735c7e0234fb19826fcee0d15e10262efe5"
 dependencies = [
  "anyhow",
  "endringer-core",
@@ -1069,9 +1069,9 @@ dependencies = [
 
 [[package]]
 name = "endringer-async"
-version = "0.33.1"
+version = "0.33.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0dfa9c1d0ad3f6632de38e5576510716cda545e22bacd22df292da2b2dc0067"
+checksum = "d9a2f9c90a2af4c524f566b8d761504cf11d3cf71fbb3f6dbe6ee346643875f3"
 dependencies = [
  "anyhow",
  "endringer",
@@ -1080,18 +1080,18 @@ dependencies = [
 
 [[package]]
 name = "endringer-core"
-version = "0.33.1"
+version = "0.33.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07f39332b5a243a515120fcc79a198721ab61585860836384ae14ca1b5757057"
+checksum = "2e9d854daa4f122652acce8e74c0038c426d54c3030eb399a28c00c5a692146d"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
 name = "endringer-git"
-version = "0.33.1"
+version = "0.33.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3fdcb1ee24f5268ebba431e4545da36ad1c397d53d4de9304a842ea1bd9708f"
+checksum = "971001296f8eb0be960c407dfcc58a0727bc3fc9949f3a274c37e4cd07f12207"
 dependencies = [
  "anyhow",
  "endringer-core",
@@ -1100,9 +1100,9 @@ dependencies = [
 
 [[package]]
 name = "endringer-jj"
-version = "0.33.1"
+version = "0.33.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bac58a69b5209ab4edea95be0e4672d07bfe066f979bfde7e8bf594c0164d4c6"
+checksum = "0261dd257c5bfa84e7ad5d57e3f7deec04a31ae9ebd571bc3eea7df26defdcfa"
 dependencies = [
  "anyhow",
  "endringer-core",
@@ -3240,7 +3240,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "knotra"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3262,7 +3262,7 @@ dependencies = [
 
 [[package]]
 name = "knotra-ui"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "iced",
  "serde",
@@ -3271,7 +3271,7 @@ dependencies = [
 
 [[package]]
 name = "knotra-vcs"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5197,9 +5197,9 @@ dependencies = [
 
 [[package]]
 name = "snora"
-version = "0.18.0"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb45c88364a113af093c1841acefb6915f6dd5a771d7f1c1a43f69d7c0615d69"
+checksum = "df34d250b28345b163490b6e00f19ab3235d58d38bdb028b1a48941e1a047e96"
 dependencies = [
  "iced",
  "snora-core",

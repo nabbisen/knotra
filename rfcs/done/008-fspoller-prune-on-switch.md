@@ -1,4 +1,4 @@
-# RFC-008 — Prune `FsPoller` Snapshots on Workspace Switch
+# RFC-0008 — Prune `FsPoller` Snapshots on Workspace Switch
 
 | Field    | Value                                                         |
 |----------|---------------------------------------------------------------|

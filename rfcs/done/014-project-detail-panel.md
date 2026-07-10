@@ -1,4 +1,4 @@
-# RFC-014 — Project Detail Side Panel
+# RFC-0014 — Project Detail Side Panel
 
 | Field          | Value                                                                  |
 |----------------|------------------------------------------------------------------------|
@@ -6,7 +6,7 @@
 | Priority       | Medium — drill-down replacement for ContextOps screen single-project case |
 | Effort         | Medium — new panel widget, content layout, animation                   |
 | Target version | v0.15                                                                  |
-| Related        | RFC-010 (cards intentionally show less; panel shows more)             |
+| Related        | RFC-0010 (cards intentionally show less; panel shows more)             |
 
 ## Summary
 
@@ -18,7 +18,7 @@ when working with a single project.
 
 ## Background
 
-RFC-010 reduced card density by moving most information off the card.
+RFC-0010 reduced card density by moving most information off the card.
 The user still needs a way to see that information.  A side panel is the
 correct affordance: focused on one project at a time, doesn't require
 navigating away from the dashboard, scales well as the amount of detail
@@ -40,7 +40,7 @@ itself.
 | R5  | The panel has a close button (`✕`) and `Esc` closes it |
 | R6  | The panel shows: full status, recent ops, identity (path/URL), per-project actions |
 | R7  | Only one detail panel can be open at a time |
-| R8  | The detail panel and the Resolve panel (RFC-013) cannot both be open; opening one closes the other |
+| R8  | The detail panel and the Resolve panel (RFC-0013) cannot both be open; opening one closes the other |
 | R9  | The panel state is ephemeral — does not persist across restarts |
 | R10 | The "Open in terminal" action launches the configured shell at the project path |
 
@@ -170,7 +170,7 @@ pub enum ProjectAction {
     OpenInTerminal,
     OpenInFileManager,
     StashAll,
-    SwitchBranch,   // routes to RFC-013 Switch modal with single-project selection
+    SwitchBranch,   // routes to RFC-0013 Switch modal with single-project selection
     RemoveFromWorkspace,
 }
 ```
@@ -230,7 +230,7 @@ pub fn panel<'a>(state: &AppState) -> Option<Element<'a, Message>> {
 ```
 
 The view function returns `Option<Element>`; the global view dispatcher
-(RFC-013) renders it as a right-aligned layer on the stack.
+(RFC-0013) renders it as a right-aligned layer on the stack.
 
 ### Open in terminal — platform handling
 
@@ -275,7 +275,7 @@ specific URL/path opening (xdg-open / open / start).
 | Phase | Version | Scope |
 |-------|---------|-------|
 | 1     | v0.15   | Panel with all sections, single-project actions (editor, terminal, file manager, stash) |
-| 2     | v0.16   | Switch branch action routes to RFC-013 Switch modal with single-project selection |
+| 2     | v0.16   | Switch branch action routes to RFC-0013 Switch modal with single-project selection |
 | 3     | v0.16   | Recent ops link routes to filtered History view |
 
 ## Test Plan

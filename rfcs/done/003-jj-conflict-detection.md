@@ -1,4 +1,4 @@
-# RFC-003 — jj Conflict Detection: gix Path or Documented Exception
+# RFC-0003 — jj Conflict Detection: gix Path or Documented Exception
 
 | Field    | Value                                                            |
 |----------|------------------------------------------------------------------|

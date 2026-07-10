@@ -1,5 +1,5 @@
-//! RFC-015 — Workspace tab strip at the top of the window.
-//! RFC-019 — Migrated to snora `app_tab_bar` / `TabBar`.
+//! RFC-0015 — Workspace tab strip at the top of the window.
+//! RFC-0019 — Migrated to snora `app_tab_bar` / `TabBar`.
 
 use iced::{
     Alignment, Element, Length,
@@ -24,19 +24,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .map(|(i, ws)| {
             let is_active = i == state.active_workspace_idx;
 
-            let attention = state
-                .workspace_status
-                .as_ref()
+            let attention = state.workspace_status.as_ref()
                 .filter(|_| is_active)
                 .map(|wss| {
                     let missing = &state.missing_projects;
-                    ws.projects
-                        .iter()
+                    ws.projects.iter()
                         .filter(|p| {
-                            if missing.contains(&p.id) {
-                                return true;
-                            }
-                            let status = wss.projects.iter().find(|ps| ps.project_id == p.id);
+                            if missing.contains(&p.id) { return true; }
+                            let status = wss.projects.iter()
+                                .find(|ps| ps.project_id == p.id);
                             let (tier, _) = crate::state::tier::compute_tier(status, true);
                             tier == crate::state::AttentionTier::NeedsAttention
                         })
@@ -50,17 +46,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 ws.name.clone()
             };
 
-            Tab {
-                id: ws.id.clone(),
-                label,
-                icon: None,
-            }
+            Tab { id: ws.id.clone(), label, icon: None }
         })
         .collect();
 
     // Active workspace id (None → empty workspace list, use a sentinel).
-    let active_id = state
-        .all_workspaces
+    let active_id = state.all_workspaces
         .get(state.active_workspace_idx)
         .map(|ws| ws.id.clone());
 
@@ -68,9 +59,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         app_tab_bar(
             TabBar { tabs, active },
             &|action: TabAction<WorkspaceId>| match action {
-                TabAction::Pressed(id) => {
-                    Message::Workspace(WorkspaceMessage::WorkspaceSwitched(id))
-                }
+                TabAction::Pressed(id) => Message::Workspace(
+                    WorkspaceMessage::WorkspaceSwitched(id)
+                ),
             },
             LayoutDirection::Ltr,
         )
@@ -80,13 +71,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
 
     // Fixed action buttons: new workspace, history, settings.
-    let new_btn = button(text("+").size(13)).on_press(Message::Workspace(
-        WorkspaceMessage::CreateWorkspaceDialogOpened,
-    ));
-    let history_btn =
-        button(text("⊟").size(13)).on_press(Message::Navigate(crate::state::Screen::History));
-    let settings_btn =
-        button(text("⚙").size(13)).on_press(Message::Navigate(crate::state::Screen::Settings));
+    let new_btn = button(text("+").size(13))
+        .on_press(Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened));
+    let history_btn = button(text("⊟").size(13))
+        .on_press(Message::Navigate(crate::state::Screen::History));
+    let settings_btn = button(text("⚙").size(13))
+        .on_press(Message::Navigate(crate::state::Screen::Settings));
 
     container(
         row![

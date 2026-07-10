@@ -33,8 +33,10 @@ impl TopologyState {
                 if direct.is_empty() {
                     return None;
                 }
-                let deps: Vec<String> =
-                    direct.iter().map(|e| e.from_project_name.clone()).collect();
+                let deps: Vec<String> = direct
+                    .iter()
+                    .map(|e| e.from_project_name.clone())
+                    .collect();
                 Some(ImpactWarning {
                     frozen_project_name: name.clone(),
                     dependent_projects: deps,

@@ -1,30 +1,20 @@
 //! Dashboard-specific state helpers: filtering, grouping, and status colour.
 
-use knotra_ui::theme::StatusColor;
 use knotra_vcs::{
-    WorkspaceStatus,
     model::{project::Project, status::ProjectStatus},
+    WorkspaceStatus,
 };
+use knotra_ui::theme::StatusColor;
 
 use crate::{message::StatusFilter, state::FilterState};
 
 /// Compute the semantic `StatusColor` for a project's status snapshot.
 pub fn project_status_color(status: &ProjectStatus) -> StatusColor {
-    if status.read_error.is_some() {
-        return StatusColor::Unknown;
-    }
-    if status.conflict.has_conflict {
-        return StatusColor::Conflict;
-    }
-    if status.working_tree.is_dirty() {
-        return StatusColor::Dirty;
-    }
-    if status.remote.behind > 0 {
-        return StatusColor::Behind;
-    }
-    if status.remote.ahead > 0 {
-        return StatusColor::Ahead;
-    }
+    if status.read_error.is_some()  { return StatusColor::Unknown; }
+    if status.conflict.has_conflict { return StatusColor::Conflict; }
+    if status.working_tree.is_dirty(){ return StatusColor::Dirty; }
+    if status.remote.behind > 0     { return StatusColor::Behind;  }
+    if status.remote.ahead  > 0     { return StatusColor::Ahead;   }
     StatusColor::Healthy
 }
 
@@ -36,37 +26,28 @@ pub fn project_matches_filter(
 ) -> bool {
     // Text search on name (case-insensitive).
     if !filter.search_text.is_empty()
-        && !project
-            .name
-            .to_lowercase()
-            .contains(&filter.search_text.to_lowercase())
-    {
-        return false;
-    }
+        && !project.name.to_lowercase().contains(&filter.search_text.to_lowercase()) {
+            return false;
+        }
 
     // Group filter.
     if let Some(ref grp) = filter.active_group
-        && project.group.as_deref() != Some(grp.as_str())
-    {
-        return false;
-    }
+        && project.group.as_deref() != Some(grp.as_str()) {
+            return false;
+        }
 
     // Status filter chips — if any active, at least one must match.
     if !filter.status_filters.is_empty() {
-        let color = status
-            .map(project_status_color)
-            .unwrap_or(StatusColor::Unknown);
+        let color = status.map(project_status_color).unwrap_or(StatusColor::Unknown);
         let passes = filter.status_filters.iter().any(|sf| match sf {
-            StatusFilter::Healthy => color == StatusColor::Healthy,
-            StatusFilter::Behind => color == StatusColor::Behind,
-            StatusFilter::Ahead => color == StatusColor::Ahead,
-            StatusFilter::Dirty => color == StatusColor::Dirty,
+            StatusFilter::Healthy  => color == StatusColor::Healthy,
+            StatusFilter::Behind   => color == StatusColor::Behind,
+            StatusFilter::Ahead    => color == StatusColor::Ahead,
+            StatusFilter::Dirty    => color == StatusColor::Dirty,
             StatusFilter::Conflict => color == StatusColor::Conflict,
-            StatusFilter::Error => status.is_some_and(|s| s.read_error.is_some()),
+            StatusFilter::Error    => status.is_some_and(|s| s.read_error.is_some()),
         });
-        if !passes {
-            return false;
-        }
+        if !passes { return false; }
     }
 
     true
@@ -91,9 +72,7 @@ pub fn build_display_groups<'a>(
     workspace_status: Option<&'a WorkspaceStatus>,
     filter: &FilterState,
 ) -> Vec<ProjectGroup<'a>> {
-    let statuses = workspace_status
-        .map(|ws| ws.projects.as_slice())
-        .unwrap_or(&[]);
+    let statuses = workspace_status.map(|ws| ws.projects.as_slice()).unwrap_or(&[]);
 
     // Collect (group_key, project, status) tuples that pass the filter.
     let mut named: std::collections::BTreeMap<&str, Vec<GroupEntry<'a>>> =
@@ -102,30 +81,22 @@ pub fn build_display_groups<'a>(
 
     for project in workspace_projects {
         let status = statuses.iter().find(|s| s.project_id == project.id);
-        if !project_matches_filter(project, status, filter) {
-            continue;
-        }
+        if !project_matches_filter(project, status, filter) { continue; }
 
         let entry = GroupEntry { project, status };
         match project.group.as_deref() {
             Some(g) => named.entry(g).or_default().push(entry),
-            None => ungrouped.push(entry),
+            None    => ungrouped.push(entry),
         }
     }
 
     let mut groups: Vec<ProjectGroup<'a>> = named
         .into_iter()
-        .map(|(name, entries)| ProjectGroup {
-            name: Some(name),
-            entries,
-        })
+        .map(|(name, entries)| ProjectGroup { name: Some(name), entries })
         .collect();
 
     if !ungrouped.is_empty() {
-        groups.push(ProjectGroup {
-            name: None,
-            entries: ungrouped,
-        });
+        groups.push(ProjectGroup { name: None, entries: ungrouped });
     }
 
     groups
@@ -138,29 +109,19 @@ pub fn build_display_groups<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
-    use knotra_vcs::ProjectId;
     use knotra_vcs::model::status::{
         ConflictStatus, RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus,
     };
+    use knotra_vcs::ProjectId;
+    use chrono::Utc;
 
     fn make_status(ahead: u32, behind: u32, uncommitted: u32, conflict: bool) -> ProjectStatus {
         ProjectStatus {
             project_id: ProjectId::new(),
-            identity: RepositoryIdentity {
-                path: "/tmp".into(),
-                vcs_kind: VcsKind::Git,
-            },
+            identity: RepositoryIdentity { path: "/tmp".into(), vcs_kind: VcsKind::Git },
             context: None,
-            remote: RemoteStatus {
-                ahead,
-                behind,
-                upstream: None,
-            },
-            working_tree: WorkingTreeStatus {
-                uncommitted_count: uncommitted,
-                untracked_count: 0,
-            },
+            remote: RemoteStatus { ahead, behind, upstream: None },
+            working_tree: WorkingTreeStatus { uncommitted_count: uncommitted, untracked_count: 0 },
             conflict: ConflictStatus {
                 has_conflict: conflict,
                 conflict_count: None,
@@ -197,15 +158,9 @@ mod tests {
     #[test]
     fn filter_text_search() {
         let p = Project::new("api-server", "/tmp");
-        let filter_match = FilterState {
-            search_text: "api".into(),
-            ..Default::default()
-        };
-        let filter_miss = FilterState {
-            search_text: "xyz".into(),
-            ..Default::default()
-        };
-        assert!(project_matches_filter(&p, None, &filter_match));
+        let filter_match = FilterState { search_text: "api".into(), ..Default::default() };
+        let filter_miss  = FilterState { search_text: "xyz".into(), ..Default::default() };
+        assert!( project_matches_filter(&p, None, &filter_match));
         assert!(!project_matches_filter(&p, None, &filter_miss));
     }
 
@@ -218,7 +173,7 @@ mod tests {
             status_filters: vec![StatusFilter::Behind],
             ..Default::default()
         };
-        assert!(project_matches_filter(&p, Some(&s_behind), &behind_filter));
+        assert!( project_matches_filter(&p, Some(&s_behind), &behind_filter));
 
         let ahead_filter = FilterState {
             status_filters: vec![StatusFilter::Ahead],

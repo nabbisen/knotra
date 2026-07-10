@@ -1,4 +1,4 @@
-# RFC-004 — Ahead/Behind Counts via gix
+# RFC-0004 — Ahead/Behind Counts via gix
 
 | Field    | Value                                                         |
 |----------|---------------------------------------------------------------|

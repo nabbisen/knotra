@@ -1,4 +1,4 @@
-# RFC 00 — RFC lifecycle policy
+# RFC 000 — RFC lifecycle policy
 
 **Status.** Implemented
 **Tracks.** Cross-cutting documentation policy. Not tied to any
@@ -211,7 +211,7 @@ description. The slug is for human readers; the number is for
 unambiguous reference.
 
 ```
-01-feature-flags.md
+001-feature-flags.md
 015-deprecate-old-api.md
 142-storage-backend-abstraction.md
 ```

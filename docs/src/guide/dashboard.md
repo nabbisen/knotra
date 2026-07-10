@@ -8,7 +8,17 @@ Each card shows: project name, VCS badge (Git / jj), current context (branch or 
 
 ## Status indicators
 
-All indicators use both colour and text (WCAG AA compliant): **Synced** / **Behind** / **Ahead** / **Uncommitted** / **Conflict** / **Unknown**.
+Cards are grouped into three tiers by how much attention they need:
+**Needs help** (action required), **In progress** (work or changes waiting),
+and **All set** (nothing to do). The Needs help tier is shown first; All set
+is collapsed by default.
+
+Each status indicator uses both colour and text (WCAG AA compliant). The
+first-level labels are plain-language: **All set** / **Updates available** /
+**Unshared changes** / **Unsaved work** / **Needs your choice** / **Not sure
+yet**. The exact technical state (Synced / Behind / Ahead / Uncommitted /
+Conflict / Unknown) is shown in the project detail panel and operation
+history under "Show details".
 
 ## Filter chips, search, and grouping
 

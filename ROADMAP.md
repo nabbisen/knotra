@@ -125,20 +125,20 @@ endringer 0.19.2 library backends.
 - [x] `log_since` uses CLI ref-range (`git log <ref>..HEAD`)
 - [x] 0 warnings, 36 endringer tests pass, knotra-app check clean
 
-## v0.11.0 — RFC 001–008 Implementation
+## v0.11.0 — RFC 0001–0008 Implementation
 
 All design issues identified in the v0.10.0 design-note review are resolved.
 
-- [x] RFC-001 `LogCopyRequested` → `log_to_markdown` + `CopyToClipboard`
-- [x] RFC-002 `StashEntry.commit_id: String`
-- [x] RFC-003 `ConflictStatus::detection_unavailable` + jj CLI exception documented
-- [x] RFC-004 `gix_ahead_behind()` — gix-based upstream resolution
-- [x] RFC-005 Annotated tag support in Freezer (`create_tag_with_message`)
-- [x] RFC-006 jj `log_since` uses `jj log -r <bookmark>..@`
-- [x] RFC-007 Topology scan Cargo.toml-only scope documented
-- [x] RFC-008 `FsPoller::prune` on workspace switch and delete
+- [x] RFC-0001 `LogCopyRequested` → `log_to_markdown` + `CopyToClipboard`
+- [x] RFC-0002 `StashEntry.commit_id: String`
+- [x] RFC-0003 `ConflictStatus::detection_unavailable` + jj CLI exception documented
+- [x] RFC-0004 `gix_ahead_behind()` — gix-based upstream resolution
+- [x] RFC-0005 Annotated tag support in Freezer (`create_tag_with_message`)
+- [x] RFC-0006 jj `log_since` uses `jj log -r <bookmark>..@`
+- [x] RFC-0007 Topology scan Cargo.toml-only scope documented
+- [x] RFC-0008 `FsPoller::prune` on workspace switch and delete
 
-## v0.15.0 — Published-crate migration (RFC-018)
+## v0.15.0 — Published-crate migration (RFC-0018)
 
 Supersedes Phase 10's vendoring: the in-tree `endringer-backend-*` crates
 *were* the published `endringer` crates at 0.14, so knotra now consumes them
@@ -152,7 +152,7 @@ from crates.io rather than carrying a fork.
 - [x] `knotra-app` import renames only; app logic unchanged
 - [x] 0 warnings (check + clippy, all targets), 69 tests pass under 1.91
 
-## v0.16.0 — snora layout adoption (RFC-019)
+## v0.16.0 — snora layout adoption (RFC-0019)
 
 Adopts the snora 0.18 layout framework, replacing knotra's hand-rolled
 overlay z-stack with snora's `render(AppLayout)` engine.
@@ -165,7 +165,7 @@ overlay z-stack with snora's `render(AppLayout)` engine.
 - [x] Dead `knotra-ui::nav_menu` module removed
 - [x] 0 warnings (check + clippy, all targets), 69 tests pass under 1.91
 
-## v0.17.0 — Screen removal (RFC-017)
+## v0.17.0 — Screen removal (RFC-0017)
 
 Final cleanup of the v0.11–v0.16 redesign: deletes 1,262 lines of legacy
 full-screen views and trims the `Screen` enum to three variants.
@@ -178,7 +178,7 @@ full-screen views and trims the `Screen` enum to three variants.
 - [x] State modules retained (modals use the same state)
 - [x] 0 warnings (check + clippy, all targets), 69 tests pass under 1.91
 
-## v0.18.0 — endringer 0.33.1 migration (RFC-020)
+## v0.18.0 — endringer 0.33.1 migration (RFC-0020)
 
 Zero-effort stability upgrade: the version bump is risk-free and the
 stability signal is strong (317 tests, typed errors, audited contracts).
@@ -187,7 +187,14 @@ stability signal is strong (317 tests, typed errors, audited contracts).
 - [x] No source code changes required
 - [x] 0/0 warnings, 36 knotra-vcs tests pass against 0.33.1
 
-## v0.18.1 — Codebase housekeeping
+## v0.19.0 — Plain-language layer, Phase 1 (RFC-0021)
 
-- [x] `cargo fmt`
-- [x] `Cargo.toml`
+Adopts the external UX review: first-level wording becomes goal-oriented
+plain language; expert terms move behind "Show details".
+
+- [x] Plain wording for tiers, card status, and selection-bar actions
+- [x] Routed through the i18n catalog (en + ja) — no parallel string system
+- [x] 44px touch targets + 15px body token
+- [x] Regression guard: forbidden-jargon + localisation-coverage tests
+- [ ] Phase 2–6 (safe components, guided flows, setup, a11y) — deferred
+- [x] 0/0 warnings, 71 tests pass under 1.91

@@ -1,4 +1,4 @@
-# RFC-012 — Command Palette (⌘K / Ctrl+K)
+# RFC-0012 — Command Palette (⌘K / Ctrl+K)
 
 | Field          | Value                                                                  |
 |----------------|------------------------------------------------------------------------|
@@ -20,7 +20,7 @@ every feature.
 ## Background
 
 The redesign removes sidebar entries for Sync Center, Freezer, ContextOps,
-Conflict Resolution, and Changelog (RFC-017).  Without those entries,
+Conflict Resolution, and Changelog (RFC-0017).  Without those entries,
 users need another way to discover what knotra can do.  A command palette
 serves three purposes:
 

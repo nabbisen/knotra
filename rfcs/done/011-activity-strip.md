@@ -1,4 +1,4 @@
-# RFC-011 — Activity Strip
+# RFC-0011 — Activity Strip
 
 | Field          | Value                                                              |
 |----------------|--------------------------------------------------------------------|
@@ -6,7 +6,7 @@
 | Priority       | Medium — improves outcome visibility                               |
 | Effort         | Small–Medium — new bottom widget, minor state additions            |
 | Target version | v0.12                                                              |
-| Related        | RFC-009 (selection bar), `state/mod.rs`, `view/mod.rs`            |
+| Related        | RFC-0009 (selection bar), `state/mod.rs`, `view/mod.rs`            |
 
 ## Summary
 
@@ -37,7 +37,7 @@ bottom of the dashboard.  History becomes the strip's expanded popover.
 | R6  | A "Retry failed" inline button appears when the latest operation had any failed projects |
 | R7  | The strip auto-collapses (fades to muted color) after 30 seconds |
 | R8  | The strip is hidden entirely when no operations have ever run in the current session |
-| R9  | The popover supports the same actions as today's History screen: copy log to clipboard (RFC-001), expand entry, see commands executed |
+| R9  | The popover supports the same actions as today's History screen: copy log to clipboard (RFC-0001), expand entry, see commands executed |
 | R10 | The History screen remains accessible via the command palette for users who prefer a full-screen view |
 
 ## External Design
@@ -129,7 +129,7 @@ Triggered by clicking `[›]` or the strip itself:
 | Click `[✕]` in popover                 | Close popover                                            |
 | Click outside popover                  | Close popover                                            |
 | `Esc` while popover open               | Close popover                                            |
-| `h` (no modifier, with focus on body)  | Toggle popover (see RFC-016)                            |
+| `h` (no modifier, with focus on body)  | Toggle popover (see RFC-0016)                            |
 
 ### Progress display details
 
@@ -311,7 +311,7 @@ retried (e.g., a rollback that failed) hide the Retry button.
 History screen is **not** removed.  It is reachable via:
 - The activity popover's `[Open full history]` link.
 - Command palette: "Open history."
-- Direct shortcut: `g h` (RFC-016).
+- Direct shortcut: `g h` (RFC-0016).
 
 ## Test Plan
 

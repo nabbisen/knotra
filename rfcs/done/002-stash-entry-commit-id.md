@@ -1,4 +1,4 @@
-# RFC-002 — Add `commit_id` to knotra's `StashEntry`
+# RFC-0002 — Add `commit_id` to knotra's `StashEntry`
 
 | Field    | Value                                                      |
 |----------|------------------------------------------------------------|

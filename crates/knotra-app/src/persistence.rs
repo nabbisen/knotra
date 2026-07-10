@@ -1,6 +1,9 @@
 //! Workspace definition and operation history persistence.
 
-use knotra_vcs::model::{operation::OperationLog, workspace::Workspace};
+use knotra_vcs::model::{
+    operation::OperationLog,
+    workspace::Workspace,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::config::AppPaths;
@@ -76,8 +79,7 @@ pub fn save_operation_log(log: &OperationLog, paths: &AppPaths) -> Result<(), St
     let file_name = format!("{}_{}.json", ts, log.result.operation_id);
     let path = paths.history_dir.join(file_name);
 
-    let text =
-        serde_json::to_string_pretty(log).map_err(|e| format!("serialization error: {e}"))?;
+    let text = serde_json::to_string_pretty(log).map_err(|e| format!("serialization error: {e}"))?;
     std::fs::write(&path, text).map_err(|e| format!("write error: {e}"))
 }
 

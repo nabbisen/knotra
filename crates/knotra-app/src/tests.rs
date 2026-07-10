@@ -1,8 +1,8 @@
 //! Integration-level tests for knotra-app.
 
 use crate::config::AppConfig;
-use crate::message::FilterMessage;
 use crate::state::{AppState, Screen};
+use crate::message::FilterMessage;
 
 fn make_state() -> AppState {
     AppState::new(AppConfig::default())

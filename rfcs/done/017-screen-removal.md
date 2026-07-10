@@ -1,4 +1,4 @@
-# RFC-017 — Screen Removal and Sidebar Cleanup
+# RFC-0017 — Screen Removal and Sidebar Cleanup
 
 | Field          | Value                                                                     |
 |----------------|---------------------------------------------------------------------------|
@@ -6,11 +6,11 @@
 | Priority       | Low — cleanup phase; deletes code rather than adding behaviour            |
 | Effort         | Medium — careful removal across many files; deprecation messaging         |
 | Target version | v0.16                                                                     |
-| Related        | RFC-009 through RFC-016 (all redesign RFCs)                             |
+| Related        | RFC-0009 through RFC-0016 (all redesign RFCs)                             |
 
 ## Summary
 
-Remove the five screens replaced by modals in RFC-013 (Sync Center,
+Remove the five screens replaced by modals in RFC-0013 (Sync Center,
 Freezer, Context Ops, Conflict Resolution, Changelog), and reduce the
 sidebar to just Settings and Help (or eliminate it entirely if those
 become accessible via the global command palette).  This is the final
@@ -19,8 +19,8 @@ dividend.
 
 ## Background
 
-Once all bulk actions live in modals (RFC-013) and all global navigation
-goes through the command palette (RFC-012) or workspace tabs (RFC-015),
+Once all bulk actions live in modals (RFC-0013) and all global navigation
+goes through the command palette (RFC-0012) or workspace tabs (RFC-0015),
 the original sidebar navigation has very few entries left.  Each screen
 still in place costs:
 
@@ -77,13 +77,13 @@ migration cleanly.
 | Settings             | Full-screen, reached via `⚙` icon or palette        |
 | History              | Full-screen, reached via popover or palette         |
 | Help                 | Full-screen, reached via `?` icon (NOT same as cheat sheet `?` key) |
-| Command palette      | Overlay (RFC-012)                                  |
-| Cheat sheet          | Overlay (RFC-016)                                  |
-| Workspace tabs       | Top bar (RFC-015)                                  |
-| Detail panel         | Right dock (RFC-014)                               |
-| Resolve panel        | Right dock (RFC-013)                               |
-| Selection bar        | Bottom (RFC-009)                                   |
-| Activity strip       | Bottom (RFC-011)                                   |
+| Command palette      | Overlay (RFC-0012)                                  |
+| Cheat sheet          | Overlay (RFC-0016)                                  |
+| Workspace tabs       | Top bar (RFC-0015)                                  |
+| Detail panel         | Right dock (RFC-0014)                               |
+| Resolve panel        | Right dock (RFC-0013)                               |
+| Selection bar        | Bottom (RFC-0009)                                   |
+| Activity strip       | Bottom (RFC-0011)                                   |
 
 ### One-time migration banner
 
@@ -124,16 +124,16 @@ crates/knotra-app/src/
     history.rs        ← keep
     settings.rs       ← keep
     modal/
-      pull.rs         ← new in RFC-013
-      tag.rs          ← new in RFC-013
-      switch.rs       ← new in RFC-013
-      changelog.rs    ← new in RFC-013
-      resolve.rs      ← new in RFC-013 (docked panel, not centered modal)
-    detail.rs         ← new in RFC-014
-    activity.rs       ← new in RFC-011
-    shortcuts.rs      ← new in RFC-016
-    palette.rs        ← new in RFC-012
-    workspace_tabs.rs ← new in RFC-015
+      pull.rs         ← new in RFC-0013
+      tag.rs          ← new in RFC-0013
+      switch.rs       ← new in RFC-0013
+      changelog.rs    ← new in RFC-0013
+      resolve.rs      ← new in RFC-0013 (docked panel, not centered modal)
+    detail.rs         ← new in RFC-0014
+    activity.rs       ← new in RFC-0011
+    shortcuts.rs      ← new in RFC-0016
+    palette.rs        ← new in RFC-0012
+    workspace_tabs.rs ← new in RFC-0015
 ```
 
 ### Screen enum cleanup

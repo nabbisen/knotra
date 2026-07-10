@@ -1,9 +1,11 @@
 //! All `Message` variants for the knotra GUI.
 
 use knotra_vcs::{
-    ContextList, ContextSwitchResult, FreezeResult, FreezeValidation, ProjectId, WorkspaceStatus,
+    ContextList, ContextSwitchResult, FreezeResult, FreezeValidation,
+    ProjectId,
     model::operation::{OperationId, OperationLog, SmartPullPlan, SmartPullProgress},
     model::workspace::WorkspaceId,
+    WorkspaceStatus,
 };
 
 use crate::state::Screen;
@@ -198,19 +200,14 @@ pub enum BackgroundMessage {
     /// Topology graph scanned.
     TopologyScanned(knotra_vcs::DependencyGraph),
     /// Tag push completed for all offered projects.
-    TagPushCompleted {
-        success_count: usize,
-        fail_count: usize,
-    },
+    TagPushCompleted { success_count: usize, fail_count: usize },
     /// Missing repository paths detected at refresh.
     MissingProjectsDetected(Vec<ProjectId>),
     /// Validation phase completed.
     FreezeValidationDone(FreezeValidation),
     /// Execution phase completed.
     FreezeExecutionDone(FreezeResult),
-    TaskError {
-        description: String,
-    },
+    TaskError { description: String },
 }
 
 // --- Filter ---
@@ -226,23 +223,18 @@ pub enum FilterMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum StatusFilter {
-    Healthy,
-    Behind,
-    Ahead,
-    Dirty,
-    Conflict,
-    Error,
+    Healthy, Behind, Ahead, Dirty, Conflict, Error,
 }
 #[allow(dead_code)]
 impl StatusFilter {
     pub fn label_key(&self) -> &'static str {
         match self {
-            StatusFilter::Healthy => "filter.healthy",
-            StatusFilter::Behind => "filter.behind",
-            StatusFilter::Ahead => "filter.ahead",
-            StatusFilter::Dirty => "filter.dirty",
+            StatusFilter::Healthy  => "filter.healthy",
+            StatusFilter::Behind   => "filter.behind",
+            StatusFilter::Ahead    => "filter.ahead",
+            StatusFilter::Dirty    => "filter.dirty",
             StatusFilter::Conflict => "filter.conflict",
-            StatusFilter::Error => "filter.error",
+            StatusFilter::Error    => "filter.error",
         }
     }
 }
@@ -254,18 +246,15 @@ pub enum ConflictOpsMessage {
     OpenRequested(Option<ProjectId>),
     ProjectSelected(ProjectId),
     RecheckRequested(ProjectId),
-    MarkResolvedRequested {
-        project_id: ProjectId,
-        file_path: String,
-    },
+    MarkResolvedRequested { project_id: ProjectId, file_path: String },
     AbortMergeRequested(ProjectId),
     AbortMergeConfirmed(ProjectId),
     BackToDashboard,
-    /// RFC-013: mark a file resolved in the resolve panel.
+    /// RFC-0013: mark a file resolved in the resolve panel.
     FileMarkedResolved(String),
-    /// RFC-013: abort merge in the resolve panel.
+    /// RFC-0013: abort merge in the resolve panel.
     AbortRequested,
-    /// RFC-013: close the resolve panel.
+    /// RFC-0013: close the resolve panel.
     PanelClosed,
 }
 
@@ -296,10 +285,7 @@ pub enum TopologyMessage {
 #[allow(dead_code)]
 pub enum TagPushMessage {
     /// Offer to push after successful freeze.
-    OfferShown {
-        freeze_name: String,
-        project_ids: Vec<ProjectId>,
-    },
+    OfferShown { freeze_name: String, project_ids: Vec<ProjectId> },
     /// User accepted the push.
     PushConfirmed,
     /// User declined.
@@ -320,15 +306,11 @@ pub enum LaunchMessage {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum ShortcutMessage {
-    Refresh,
-    OpenContextOps,
-    OpenFreezer,
-    FocusSearch,
-    Close,
+    Refresh, OpenContextOps, OpenFreezer, FocusSearch, Close,
 }
 
 // ---------------------------------------------------------------------------
-// RFC-009 — Selection messages
+// RFC-0009 — Selection messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -345,7 +327,7 @@ pub enum SelectionMessage {
 }
 
 // ---------------------------------------------------------------------------
-// RFC-011 — Activity strip messages
+// RFC-0011 — Activity strip messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -359,7 +341,7 @@ pub enum ActivityMessage {
 }
 
 // ---------------------------------------------------------------------------
-// RFC-012 — Command palette messages
+// RFC-0012 — Command palette messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -374,7 +356,7 @@ pub enum PaletteMessage {
 }
 
 // ---------------------------------------------------------------------------
-// RFC-010 — Attention tier messages
+// RFC-0010 — Attention tier messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -384,7 +366,7 @@ pub enum TierMessage {
 }
 
 // ---------------------------------------------------------------------------
-// RFC-016 — Keyboard messages
+// RFC-0016 — Keyboard messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -395,7 +377,7 @@ pub enum KeyboardMessage {
 }
 
 // ---------------------------------------------------------------------------
-// RFC-014 — Detail panel messages
+// RFC-0014 — Detail panel messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 pub enum DetailPanelMessage {

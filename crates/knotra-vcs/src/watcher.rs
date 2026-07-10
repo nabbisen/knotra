@@ -35,7 +35,7 @@ use crate::model::project::ProjectId;
 /// A file-system change detected in one repository.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FsChangeEvent {
-    pub project_id: ProjectId,
+    pub project_id:   ProjectId,
     pub project_path: String,
 }
 
@@ -49,10 +49,12 @@ struct RepoSnapshot {
 impl RepoSnapshot {
     fn for_repo(repo_path: &Path) -> Self {
         let candidates = sentinel_paths(repo_path);
-        let sentinels = candidates
+        let sentinels  = candidates
             .into_iter()
             .map(|p| {
-                let mtime = std::fs::metadata(&p).ok().and_then(|m| m.modified().ok());
+                let mtime = std::fs::metadata(&p)
+                    .ok()
+                    .and_then(|m| m.modified().ok());
                 (p, mtime)
             })
             .collect();
@@ -72,11 +74,14 @@ impl RepoSnapshot {
 
 fn sentinel_paths(repo_path: &Path) -> Vec<PathBuf> {
     let git_dir = repo_path.join(".git");
-    let jj_dir = repo_path.join(".jj");
+    let jj_dir  = repo_path.join(".jj");
 
     if jj_dir.is_dir() {
         // jj repository.
-        vec![jj_dir.join("working_copy"), jj_dir.join("op_heads")]
+        vec![
+            jj_dir.join("working_copy"),
+            jj_dir.join("op_heads"),
+        ]
     } else if git_dir.is_dir() || git_dir.is_file() {
         // Git repository (git_dir can be a file for worktrees).
         let real_git = if git_dir.is_file() {
@@ -117,13 +122,12 @@ impl FsPoller {
         for (id, path) in projects {
             let current = RepoSnapshot::for_repo(Path::new(path));
             if let Some(prev) = self.snapshots.get(id)
-                && current.changed_vs(prev)
-            {
-                changed.push(FsChangeEvent {
-                    project_id: id.clone(),
-                    project_path: path.clone(),
-                });
-            }
+                && current.changed_vs(prev) {
+                    changed.push(FsChangeEvent {
+                        project_id:   id.clone(),
+                        project_path: path.clone(),
+                    });
+                }
             // Update snapshot (first call establishes baseline, no event).
             self.snapshots.insert(id.clone(), current);
         }
@@ -154,7 +158,7 @@ mod tests {
 
     fn make_temp_git_repo() -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
-        let git = dir.path().join(".git");
+        let git  = dir.path().join(".git");
         std::fs::create_dir(&git).unwrap();
         // Create HEAD sentinel.
         let mut head = std::fs::File::create(git.join("HEAD")).unwrap();
@@ -169,20 +173,20 @@ mod tests {
     #[test]
     fn first_poll_establishes_baseline_no_events() {
         let dir = make_temp_git_repo();
-        let id = ProjectId::new();
+        let id  = ProjectId::new();
         let mut poller = FsPoller::default();
-        let projects = vec![(id, dir.path().to_string_lossy().to_string())];
-        let events = poller.poll(&projects);
+        let projects   = vec![(id, dir.path().to_string_lossy().to_string())];
+        let events     = poller.poll(&projects);
         assert!(events.is_empty(), "first poll must not emit events");
     }
 
     #[test]
     fn second_poll_no_change_no_events() {
         let dir = make_temp_git_repo();
-        let id = ProjectId::new();
+        let id  = ProjectId::new();
         let path = dir.path().to_string_lossy().to_string();
         let mut poller = FsPoller::default();
-        let projects = vec![(id.clone(), path.clone())];
+        let projects   = vec![(id.clone(), path.clone())];
         poller.poll(&projects); // baseline
         let events = poller.poll(&projects);
         assert!(events.is_empty(), "no change → no events");
@@ -191,10 +195,10 @@ mod tests {
     #[test]
     fn modified_sentinel_triggers_event() {
         let dir = make_temp_git_repo();
-        let id = ProjectId::new();
+        let id  = ProjectId::new();
         let path = dir.path().to_string_lossy().to_string();
         let mut poller = FsPoller::default();
-        let projects = vec![(id.clone(), path.clone())];
+        let projects   = vec![(id.clone(), path.clone())];
         poller.poll(&projects); // baseline
 
         // Touch HEAD (simulate a commit or branch switch).
@@ -203,10 +207,7 @@ mod tests {
         let head_path = dir.path().join(".git").join("HEAD");
         {
             let mut f = std::fs::OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .open(&head_path)
-                .unwrap();
+                .write(true).truncate(true).open(&head_path).unwrap();
             writeln!(f, "ref: refs/heads/feature/x").unwrap();
         }
         // Force mtime update via touch.
@@ -220,10 +221,10 @@ mod tests {
     #[test]
     fn prune_removes_stale_snapshots() {
         let dir = make_temp_git_repo();
-        let id = ProjectId::new();
+        let id  = ProjectId::new();
         let path = dir.path().to_string_lossy().to_string();
         let mut poller = FsPoller::default();
-        let projects = vec![(id.clone(), path)];
+        let projects   = vec![(id.clone(), path)];
         poller.poll(&projects); // establishes snapshot
         assert!(poller.snapshots.contains_key(&id));
 

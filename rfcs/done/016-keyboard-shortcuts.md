@@ -1,4 +1,4 @@
-# RFC-016 — Keyboard Shortcut System and Cheat-Sheet Overlay
+# RFC-0016 — Keyboard Shortcut System and Cheat-Sheet Overlay
 
 | Field          | Value                                                                |
 |----------------|----------------------------------------------------------------------|
@@ -6,7 +6,7 @@
 | Priority       | Medium — completes the keyboard-first interaction model              |
 | Effort         | Medium — central key-binding table, overlay, conflict resolution     |
 | Target version | v0.13                                                                |
-| Related        | RFC-009 (selection keys), RFC-012 (palette key), RFC-015 (tabs)   |
+| Related        | RFC-0009 (selection keys), RFC-0012 (palette key), RFC-0015 (tabs)   |
 
 ## Summary
 
@@ -56,15 +56,15 @@ in-app cheat sheet that makes the scheme learnable.
 
 | Shortcut             | Action                                  | Notes                                |
 |----------------------|-----------------------------------------|--------------------------------------|
-| `⌘K` / `Ctrl+K`      | Open command palette                    | RFC-012                             |
+| `⌘K` / `Ctrl+K`      | Open command palette                    | RFC-0012                             |
 | `?`                  | Open cheat-sheet overlay                | This RFC                             |
 | `⌘,` / `Ctrl+,`      | Open Settings                           |                                      |
 | `⌘R` / `Ctrl+R`      | Refresh active workspace                | Existing                             |
-| `⌘1` … `⌘9`          | Switch to workspace N                   | RFC-015                             |
-| `⌘Shift+]`           | Next workspace                          | RFC-015                             |
-| `⌘Shift+[`           | Previous workspace                      | RFC-015                             |
+| `⌘1` … `⌘9`          | Switch to workspace N                   | RFC-0015                             |
+| `⌘Shift+]`           | Next workspace                          | RFC-0015                             |
+| `⌘Shift+[`           | Previous workspace                      | RFC-0015                             |
 | `⌘N` / `Ctrl+N`      | New workspace                           | (was `Ctrl+T`)                       |
-| `⌘W` / `Ctrl+W`      | Close current modal (or no-op if none)  | RFC-013                             |
+| `⌘W` / `Ctrl+W`      | Close current modal (or no-op if none)  | RFC-0013                             |
 | `Esc`                | Close palette → modal → selection → focus | Cascading priority (see below)     |
 
 #### Dashboard navigation

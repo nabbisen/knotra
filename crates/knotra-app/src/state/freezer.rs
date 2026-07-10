@@ -107,10 +107,7 @@ mod tests {
 
     #[test]
     fn valid_freeze_name_accepted() {
-        let state = FreezerState {
-            freeze_name: "v1.2.3".to_owned(),
-            ..Default::default()
-        };
+        let state = FreezerState { freeze_name: "v1.2.3".to_owned(), ..Default::default() };
         assert!(state.freeze_name_is_valid());
     }
 
@@ -122,10 +119,7 @@ mod tests {
 
     #[test]
     fn freeze_name_with_space_rejected() {
-        let state = FreezerState {
-            freeze_name: "v1 2 3".to_owned(),
-            ..Default::default()
-        };
+        let state = FreezerState { freeze_name: "v1 2 3".to_owned(), ..Default::default() };
         assert!(!state.freeze_name_is_valid());
     }
 

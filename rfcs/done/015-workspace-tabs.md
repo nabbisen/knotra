@@ -1,4 +1,4 @@
-# RFC-015 — Workspace Tabs
+# RFC-0015 — Workspace Tabs
 
 | Field          | Value                                                          |
 |----------------|----------------------------------------------------------------|
@@ -6,7 +6,7 @@
 | Priority       | Low — quality-of-life improvement for multi-workspace users    |
 | Effort         | Small — new top-bar widget, replace sidebar workspace list     |
 | Target version | v0.15                                                          |
-| Related        | RFC-008 (FsPoller prune); `state/workspace_mgr.rs`            |
+| Related        | RFC-0008 (FsPoller prune); `state/workspace_mgr.rs`            |
 
 ## Summary
 
@@ -134,7 +134,7 @@ A confirmation dialog (existing behaviour preserved):
 |----------------|----------------------------------------------|
 | `⌘1` … `⌘9`    | Switch to the 1st … 9th workspace tab        |
 | `⌘T`           | Create new workspace (opens the [+] dialog)  |
-| `⌘W`           | Reserved — does NOT close the window; mapped to "close current modal" (RFC-013) |
+| `⌘W`           | Reserved — does NOT close the window; mapped to "close current modal" (RFC-0013) |
 | `⌘Shift+]`     | Switch to next workspace tab                 |
 | `⌘Shift+[`     | Switch to previous workspace tab             |
 
@@ -157,7 +157,7 @@ The sidebar after this RFC:
 └─────────────────┘
 ```
 
-Most users will find the sidebar nearly empty.  RFC-017 considers
+Most users will find the sidebar nearly empty.  RFC-0017 considers
 removing it entirely.
 
 ## Internal Design
@@ -303,7 +303,7 @@ keyboard::on_key_press(|key, modifiers| match (key, modifiers) {
 |-------|---------|-------|
 | 1     | v0.15   | Tab strip at top; sidebar workspace list hidden when ≥2 workspaces |
 | 2     | v0.15   | Background polling of inactive workspaces (Option B) |
-| 3     | v0.16   | Sidebar removed entirely if it becomes near-empty (per RFC-017) |
+| 3     | v0.16   | Sidebar removed entirely if it becomes near-empty (per RFC-0017) |
 
 ## Test Plan
 
@@ -354,9 +354,9 @@ based on existing count.  User can edit before pressing Create.
 
 ### Q4 — Sidebar entirely removed?
 
-After this RFC + RFC-017, the sidebar contains just Settings and Help.
+After this RFC + RFC-0017, the sidebar contains just Settings and Help.
 Worth keeping?  **Tentative answer**: yes — settings and help benefit
-from a clear left-rail home that's never modal.  RFC-017 decides.
+from a clear left-rail home that's never modal.  RFC-0017 decides.
 
 ## Security Considerations
 

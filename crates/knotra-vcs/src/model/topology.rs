@@ -4,8 +4,8 @@
 //! dependency graph. Used to warn users in the Freezer when a project they are
 //! tagging has reverse dependencies that may be affected by the change.
 
-use crate::model::project::ProjectId;
 use serde::{Deserialize, Serialize};
+use crate::model::project::ProjectId;
 
 /// A directed dependency edge: `from` depends on `to`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,7 +104,8 @@ pub struct ParsedDep {
 ///
 /// Returns a `CargoManifest` on success or a brief error string.
 pub fn parse_cargo_toml(path: &str) -> Result<CargoManifest, String> {
-    let content = std::fs::read_to_string(path).map_err(|e| format!("read error: {e}"))?;
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| format!("read error: {e}"))?;
     parse_cargo_toml_str(&content)
 }
 
@@ -118,21 +119,19 @@ pub fn parse_cargo_toml_str(content: &str) -> Result<CargoManifest, String> {
 
     // [package] name
     if let Some(toml::Value::Table(pkg)) = table.get("package")
-        && let Some(toml::Value::String(name)) = pkg.get("name")
-    {
-        manifest.package_name = Some(name.clone());
-    }
+        && let Some(toml::Value::String(name)) = pkg.get("name") {
+            manifest.package_name = Some(name.clone());
+        }
 
     // [workspace] members
     if let Some(toml::Value::Table(ws)) = table.get("workspace")
-        && let Some(toml::Value::Array(members)) = ws.get("members")
-    {
-        for m in members {
-            if let toml::Value::String(s) = m {
-                manifest.workspace_members.push(s.clone());
+        && let Some(toml::Value::Array(members)) = ws.get("members") {
+            for m in members {
+                if let toml::Value::String(s) = m {
+                    manifest.workspace_members.push(s.clone());
+                }
             }
         }
-    }
 
     // [dependencies] + [dev-dependencies]
     for section in &["dependencies", "dev-dependencies"] {
@@ -141,15 +140,8 @@ pub fn parse_cargo_toml_str(content: &str) -> Result<CargoManifest, String> {
                 let (version_req, is_path) = match spec {
                     toml::Value::String(v) => (v.clone(), false),
                     toml::Value::Table(t) => {
-                        let ver = t
-                            .get("version")
-                            .and_then(|v| {
-                                if let toml::Value::String(s) = v {
-                                    Some(s.clone())
-                                } else {
-                                    None
-                                }
-                            })
+                        let ver = t.get("version")
+                            .and_then(|v| if let toml::Value::String(s) = v { Some(s.clone()) } else { None })
                             .unwrap_or_else(|| "*".to_owned());
                         let path = t.contains_key("path");
                         (ver, path)
@@ -191,9 +183,9 @@ mod tests {
     fn direct_dependents_found() {
         let g = DependencyGraph {
             edges: vec![
-                edge("api", "shared-lib"),
+                edge("api",    "shared-lib"),
                 edge("worker", "shared-lib"),
-                edge("api", "other-lib"),
+                edge("api",    "other-lib"),
             ],
         };
         let deps = g.direct_dependents("shared-lib");
@@ -207,7 +199,10 @@ mod tests {
     fn transitive_dependents_bfs() {
         // api → shared-lib → core-lib
         let g = DependencyGraph {
-            edges: vec![edge("api", "shared-lib"), edge("shared-lib", "core-lib")],
+            edges: vec![
+                edge("api",        "shared-lib"),
+                edge("shared-lib", "core-lib"),
+            ],
         };
         let mut trans = g.transitive_dependents("core-lib");
         trans.sort();
@@ -229,11 +224,7 @@ local-lib = { path = "../local-lib", version = "0.2" }
         let manifest = parse_cargo_toml_str(toml).unwrap();
         assert_eq!(manifest.package_name.as_deref(), Some("my-crate"));
         assert_eq!(manifest.dependencies.len(), 3);
-        let local = manifest
-            .dependencies
-            .iter()
-            .find(|d| d.name == "local-lib")
-            .unwrap();
+        let local = manifest.dependencies.iter().find(|d| d.name == "local-lib").unwrap();
         assert!(local.is_path);
     }
 

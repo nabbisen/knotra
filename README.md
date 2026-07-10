@@ -1,9 +1,6 @@
 # knotra
 
-[![License](https://img.shields.io/github/license/nabbisen/knotra)](LICENSE)
-[![crates.io](https://img.shields.io/crates/v/knotra?label=rust)](https://crates.io/crates/knotra)
-[![Documentation](https://docs.rs/knotra/badge.svg?version=latest)](https://docs.rs/knotra)
-[![Dependency Status](https://deps.rs/crate/knotra/latest/status.svg)](https://deps.rs/crate/knotra)
+[![License](https://img.shields.io/github/license/nabbisen/knotra)](https://github.com/nabbisen/knotra/blob/main/LICENSE)
 
 A VCS-agnostic tool for inspecting, organizing, and visualizing changes. Git and jj supported.
 

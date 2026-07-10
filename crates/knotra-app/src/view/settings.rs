@@ -1,10 +1,10 @@
 //! Settings view — all user-configurable preferences.
 
-use iced::{
-    Alignment, Element, Length, Padding,
-    widget::{Space, button, column, row, scrollable, text, text_input},
-};
 use knotra_ui::i18n::Locale;
+use iced::{
+    widget::{button, column, row, scrollable, text, text_input, Space},
+    Alignment, Element, Length, Padding,
+};
 
 use crate::{
     message::{Message, SettingsMessage, TopologyMessage},
@@ -13,7 +13,7 @@ use crate::{
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let header = view_header(state);
-    let body = view_body(state);
+    let body   = view_body(state);
 
     column![header, scrollable(body).height(Length::Fill)]
         .height(Length::Fill)
@@ -22,7 +22,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
 fn view_header(state: &AppState) -> Element<'_, Message> {
     row![
-        button(text("← Dashboard")).on_press(Message::Settings(SettingsMessage::BackToDashboard)),
+        button(text("← Dashboard"))
+            .on_press(Message::Settings(SettingsMessage::BackToDashboard)),
         text(state.t("settings.title")).size(20),
     ]
     .spacing(12)
@@ -41,20 +42,18 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
     let locale_row = row![
         text(state.t("settings.locale_label")).size(13),
         Space::new().width(Length::Fill),
-        button(text("English")).on_press_maybe(if state.config.locale != Locale::En {
-            Some(Message::Settings(SettingsMessage::LocaleChanged(
-                Locale::En,
-            )))
-        } else {
-            None
-        }),
-        button(text("日本語")).on_press_maybe(if state.config.locale != Locale::Ja {
-            Some(Message::Settings(SettingsMessage::LocaleChanged(
-                Locale::Ja,
-            )))
-        } else {
-            None
-        }),
+        button(text("English"))
+            .on_press_maybe(
+                if state.config.locale != Locale::En {
+                    Some(Message::Settings(SettingsMessage::LocaleChanged(Locale::En)))
+                } else { None }
+            ),
+        button(text("日本語"))
+            .on_press_maybe(
+                if state.config.locale != Locale::Ja {
+                    Some(Message::Settings(SettingsMessage::LocaleChanged(Locale::Ja)))
+                } else { None }
+            ),
     ]
     .spacing(8)
     .align_y(Alignment::Center);
@@ -62,16 +61,18 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
     let theme_row = row![
         text(state.t("settings.theme_label")).size(13),
         Space::new().width(Length::Fill),
-        button(text(state.t("settings.theme_dark"))).on_press_maybe(if !state.config.dark_theme {
-            Some(Message::Settings(SettingsMessage::ThemeChanged(true)))
-        } else {
-            None
-        }),
-        button(text(state.t("settings.theme_light"))).on_press_maybe(if state.config.dark_theme {
-            Some(Message::Settings(SettingsMessage::ThemeChanged(false)))
-        } else {
-            None
-        }),
+        button(text(state.t("settings.theme_dark")))
+            .on_press_maybe(
+                if !state.config.dark_theme {
+                    Some(Message::Settings(SettingsMessage::ThemeChanged(true)))
+                } else { None }
+            ),
+        button(text(state.t("settings.theme_light")))
+            .on_press_maybe(
+                if state.config.dark_theme {
+                    Some(Message::Settings(SettingsMessage::ThemeChanged(false)))
+                } else { None }
+            ),
     ]
     .spacing(8)
     .align_y(Alignment::Center);
@@ -80,11 +81,7 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         Locale::En => "Active: English",
         Locale::Ja => "Active: 日本語",
     };
-    let active_theme_note = if state.config.dark_theme {
-        "Active: Dark"
-    } else {
-        "Active: Light"
-    };
+    let active_theme_note = if state.config.dark_theme { "Active: Dark" } else { "Active: Light" };
 
     // ------------------------------------------------------------------ //
     // Refresh & Performance
@@ -126,12 +123,9 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         .on_input(|s| Message::Settings(SettingsMessage::ExternalEditorChanged(s)))
         .width(350);
 
-    let merge_input = text_input(
-        state.t("settings.merge_tool_hint"),
-        &edit.external_merge_tool,
-    )
-    .on_input(|s| Message::Settings(SettingsMessage::ExternalMergeToolChanged(s)))
-    .width(350);
+    let merge_input = text_input(state.t("settings.merge_tool_hint"), &edit.external_merge_tool)
+        .on_input(|s| Message::Settings(SettingsMessage::ExternalMergeToolChanged(s)))
+        .width(350);
 
     // ------------------------------------------------------------------ //
     // Save
