@@ -19,7 +19,7 @@ use iced::{
     Alignment, Element, Length,
 };
 
-use knotra_ui::widget::{guided_button, guided_field, BUTTON_HEIGHT, FONT_BODY, FONT_SMALL};
+use knotra_ui::widget::{guided_button, guided_field, guided_field_focused, BUTTON_HEIGHT, FONT_BODY, FONT_SMALL};
 use knotra_vcs::{
     model::operation::{FreezeOutcome, SmartPullDisposition},
     ProjectId,
@@ -60,7 +60,8 @@ fn modal_shell<'a>(
             .spacing(16)
             .padding(24),
     )
-    .width(Length::Fixed(600.0))
+    .width(Length::Fill)
+    .max_width(580.0)
     .into()
 }
 
@@ -388,12 +389,13 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 None
             };
 
-            let name_field = guided_field(
+            let name_field = guided_field_focused(
                 state.t("plain.release.name_label"),
                 state.t("plain.release.name_hint"),
                 &freezer.freeze_name,
                 |s| Message::Freezer(FreezerMessage::NameChanged(s)),
                 name_error,
+                knotra_ui::widget::focus_id::RELEASE_NAME.clone(),
             );
 
             let msg_field = guided_field(
@@ -598,12 +600,13 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
     let inner: Element<'_, Message> = match &ctx.phase {
         ContextPhase::Idle => {
-            let field = guided_field(
+            let field = guided_field_focused(
                 state.t("plain.switch.target_label"),
                 state.t("plain.switch.target_hint"),
                 &ctx.target_context,
                 |s| Message::Context(ContextMessage::TargetChanged(s)),
                 None, // validated at switch attempt, not while typing
+                knotra_ui::widget::focus_id::SWITCH_TARGET.clone(),
             );
 
             let switch_reason: Option<&str> = if ctx.target_context.trim().is_empty() {

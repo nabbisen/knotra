@@ -38,11 +38,11 @@ impl StatusColor {
         } else {
             match self {
                 StatusColor::Healthy => Color::from_rgb8(0x2e, 0x7d, 0x32), // green-800
-                StatusColor::Behind => Color::from_rgb8(0xe6, 0x51, 0x00), // orange-900
-                StatusColor::Ahead => Color::from_rgb8(0x15, 0x65, 0xc0), // blue-800
-                StatusColor::Dirty => Color::from_rgb8(0xe6, 0x51, 0x00), // orange-900
+                StatusColor::Behind  => Color::from_rgb8(0xbf, 0x46, 0x00), // orange-900++ (WCAG AA 4.7:1 on #F5F5F5)
+                StatusColor::Ahead   => Color::from_rgb8(0x15, 0x65, 0xc0), // blue-800
+                StatusColor::Dirty   => Color::from_rgb8(0xbf, 0x46, 0x00), // orange-900++ (WCAG AA 4.7:1 on #F5F5F5)
                 StatusColor::Conflict => Color::from_rgb8(0xc6, 0x28, 0x28), // red-800
-                StatusColor::Unknown => Color::from_rgb8(0x61, 0x61, 0x61), // grey-700
+                StatusColor::Unknown  => Color::from_rgb8(0x61, 0x61, 0x61), // grey-700
             }
         }
     }

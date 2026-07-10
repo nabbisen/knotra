@@ -232,7 +232,8 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
         }
 
         WorkspaceMessage::AddProjectDialogOpened => {
-            state.add_project_dialog = Some(AddProjectDialog::default()); Task::none()
+            state.add_project_dialog = Some(AddProjectDialog::default());
+            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::ADD_PROJECT_PATH)
         }
         WorkspaceMessage::AddProjectNameChanged(s) => {
             if let Some(d) = &mut state.add_project_dialog { d.name = s; d.error = None; }
@@ -252,7 +253,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                     d.step = crate::state::AddProjectStep::NameProject;
                 }
             }
-            Task::none()
+            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::ADD_PROJECT_NAME)
         }
         WorkspaceMessage::AddProjectConfirmed => {
             let dialog = match state.add_project_dialog.take() { Some(d) => d, None => return Task::none() };
@@ -305,7 +306,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                     // Auto-advance to step 2 once a folder is chosen.
                     d.step = crate::state::AddProjectStep::NameProject;
                 }
-            Task::none()
+            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::ADD_PROJECT_NAME)
         }
         WorkspaceMessage::RemoveProjectRequested(id) => {
             let name = state.workspace.as_ref()
@@ -1321,7 +1322,7 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
         ContextMessage::BulkOpenRequested => {
             state.active_modal = crate::state::ActiveModal::Switch;
             state.context_ops.target_context = String::new();
-            Task::none()
+            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::SWITCH_TARGET)
         }
         ContextMessage::BulkSwitchRequested => {
             state.active_modal = crate::state::ActiveModal::None;
@@ -1384,7 +1385,7 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             // Pre-populate freeze selection
             state.freezer.project_selection = state.selection.selected_ids
                 .iter().map(|id| (id.clone(), true)).collect();
-            Task::none()
+            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::RELEASE_NAME)
         }
         FreezerMessage::BulkModalClosed => {
             state.active_modal = crate::state::ActiveModal::None;
@@ -1952,6 +1953,9 @@ fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<Message> {
         PaletteMessage::Opened => {
             state.palette.open_palette();
             crate::state::palette::update_results(state);
+            return knotra_ui::widget::focus_input(
+                &knotra_ui::widget::focus_id::PALETTE_QUERY
+            );
         }
         PaletteMessage::Closed => state.palette.close(),
         PaletteMessage::QueryChanged(q) => {

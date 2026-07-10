@@ -103,14 +103,41 @@ pub fn guided_field<'a, Message: Clone + 'a>(
     on_change: impl Fn(String) -> Message + 'a,
     error: Option<&'a str>,
 ) -> Element<'a, Message> {
-    use iced::widget::{column, text, text_input};
-    
+    guided_field_with_id(label, placeholder, value, on_change, error, None)
+}
 
-    let field = text_input(placeholder, value)
+/// Same as [`guided_field`] but assigns a [`widget::Id`] to the input for
+/// programmatic focus (e.g. auto-focus when a dialog opens).
+pub fn guided_field_focused<'a, Message: Clone + 'a>(
+    label: &'a str,
+    placeholder: &'a str,
+    value: &'a str,
+    on_change: impl Fn(String) -> Message + 'a,
+    error: Option<&'a str>,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    guided_field_with_id(label, placeholder, value, on_change, error, Some(id))
+}
+
+fn guided_field_with_id<'a, Message: Clone + 'a>(
+    label: &'a str,
+    placeholder: &'a str,
+    value: &'a str,
+    on_change: impl Fn(String) -> Message + 'a,
+    error: Option<&'a str>,
+    id: Option<iced::widget::Id>,
+) -> Element<'a, Message> {
+    use iced::widget::{column, text, text_input};
+
+    let mut field = text_input(placeholder, value)
         .on_input(on_change)
         .padding([0, 12])
         .width(Length::Fill)
         .size(FONT_BODY);
+
+    if let Some(widget_id) = id {
+        field = field.id(widget_id);
+    }
 
     let mut group = column![
         text(label).size(FONT_BODY),
@@ -123,4 +150,26 @@ pub fn guided_field<'a, Message: Clone + 'a>(
     }
 
     group.width(Length::Fill).into()
+}
+
+// ---------------------------------------------------------------------------
+// Focus IDs and keyboard focus tasks (Phase 6 — accessibility)
+// ---------------------------------------------------------------------------
+
+/// Stable widget IDs for text inputs that must be programmatically focusable.
+pub mod focus_id {
+    use iced::widget::Id;
+    use std::sync::LazyLock;
+
+    pub static SEARCH:           LazyLock<Id> = LazyLock::new(|| Id::new("dashboard-search"));
+    pub static PALETTE_QUERY:    LazyLock<Id> = LazyLock::new(|| Id::new("palette-query"));
+    pub static ADD_PROJECT_PATH: LazyLock<Id> = LazyLock::new(|| Id::new("add-project-path"));
+    pub static ADD_PROJECT_NAME: LazyLock<Id> = LazyLock::new(|| Id::new("add-project-name"));
+    pub static RELEASE_NAME:     LazyLock<Id> = LazyLock::new(|| Id::new("release-name"));
+    pub static SWITCH_TARGET:    LazyLock<Id> = LazyLock::new(|| Id::new("switch-target"));
+}
+
+/// Produce a `Task` that moves keyboard focus to the text input with the given ID.
+pub fn focus_input<Message: 'static>(id: &iced::widget::Id) -> iced::Task<Message> {
+    iced::widget::operation::focus(id.clone())
 }

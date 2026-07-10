@@ -92,9 +92,9 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
     // Minimal header: workspace name + refresh indicator.
     // Add project / bulk sync are accessible via ⌘K or the selection bar.
     let right: Element<'_, Message> = if state.is_refreshing {
-        text("⟳").size(14).into()
+        text(format!("⟳  {}", state.t("plain.status.checking"))).size(14).into()
     } else {
-        button(text("⟳").size(14))
+        button(text(format!("⟳  {}", state.t("plain.check_now"))).size(14))
             .on_press(Message::Workspace(WorkspaceMessage::RefreshRequested))
             .into()
     };
@@ -130,6 +130,7 @@ fn view_toolbar(state: &AppState) -> Element<'_, Message> {
         state.t("dashboard.search_placeholder"),
         &state.filter.search_text,
     )
+    .id(knotra_ui::widget::focus_id::SEARCH.clone())
     .on_input(|s| Message::Filter(FilterMessage::SearchChanged(s)))
     .width(200);
 
@@ -477,30 +478,39 @@ fn status_color_label(state: &AppState, color: StatusColor) -> &'static str {
 // ---------------------------------------------------------------------------
 
 fn view_confirm_remove_dialog(state: &AppState) -> Element<'_, Message> {
+    use knotra_ui::widget::{guided_button, BUTTON_HEIGHT, FONT_BODY, FONT_SMALL};
+
     let dialog = match &state.confirm_remove_dialog {
         Some(d) => d,
         None    => return Space::new().into(),
     };
 
     let id = dialog.project_id.clone();
-    let _id2 = id.clone();
 
     container(
         column![
-            text(state.t("confirm.remove_project")).size(15),
-            text(dialog.project_name.as_str()).size(14),
+            text(state.t("plain.remove.title")).size(FONT_BODY + 2.0),
+            text(dialog.project_name.as_str().to_string()).size(FONT_BODY),
+            text(state.t("plain.remove.body")).size(FONT_SMALL),
+            // Safe action (Cancel) on the left, risky (Remove) on the right.
             row![
-                button(text(state.t("confirm.remove_yes")))
-                    .on_press(Message::Workspace(WorkspaceMessage::RemoveProjectConfirmed(id))),
-                button(text(state.t("confirm.remove_no")))
-                    .on_press(Message::Workspace(WorkspaceMessage::RemoveProjectCancelled)),
+                guided_button(
+                    state.t("confirm.remove_no"),
+                    Some(Message::Workspace(WorkspaceMessage::RemoveProjectCancelled)),
+                    None,
+                ),
+                guided_button(
+                    state.t("plain.remove.confirm"),
+                    Some(Message::Workspace(WorkspaceMessage::RemoveProjectConfirmed(id))),
+                    None,
+                ),
             ]
-            .spacing(8),
+            .spacing(12),
         ]
-        .spacing(12)
+        .spacing(14)
         .padding(24),
     )
-    .width(360)
+    .width(380)
     .into()
 }
 

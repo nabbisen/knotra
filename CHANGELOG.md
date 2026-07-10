@@ -7,6 +7,52 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.22.0] — 2026-06-11
+
+### Changed — RFC-0021 Phase 6: accessibility hardening
+
+**Contrast fix (WCAG AA):** Light-theme `Behind` and `Dirty` status colours
+corrected from `#E65100` (3.5:1, failed AA for normal text) to `#BF4600`
+(4.71:1, passes AA). All six `StatusColor` values now meet WCAG AA on both
+dark and light backgrounds. `Unknown` on dark (3.7:1) meets AA-large as
+before; it is used only as a secondary label alongside an icon.
+
+**Programmatic focus (keyboard UX):** Six `widget::Id` constants added in
+`knotra_ui::widget::focus_id`. `focus_input()` helper wraps
+`iced::widget::operation::focus`. Auto-focus applied to:
+- Add Project dialog → path field on open; name field on advance to step 2
+  (both manual Next and Browse auto-advance)
+- Command palette → query field on open
+- Save release point modal → release name field on open
+- Change work area modal → target field on open
+
+**`guided_field_focused`** variant added: identical to `guided_field` but
+assigns a `widget::Id` to the underlying input.
+
+**Accessible labels on icon-only controls:**
+- Dashboard refresh: `⟳` → `⟳  Check now` / `⟳  Checking…`
+- Workspace tabs: `⊟` → `⊟  History`, `⚙` → `⚙  Settings`,
+  `+` → `+ New workspace`
+- Activity strip details: `›` → `› Details`
+
+**Confirm remove dialog:** Upgraded to `guided_button`, 44px controls,
+plain wording ("Remove this project?" / "This only removes it from knotra.
+Your project folder stays on this computer." / "Remove from list"), and
+safe-action-first button order (Cancel on left, Remove on right).
+
+**Modal width:** Fixed 600px modal width changed to `Fill` with
+`max_width(580)` — prevents overflow at the 800px minimum window width.
+
+**Shortcuts overlay:** Selection-mode binding descriptions updated to
+plain language, e.g. "Fetch selected projects" → "Check for updates (fetch)".
+
+**Pre-existing catalog gaps closed:** 33 missing i18n keys added to both
+English and Japanese (`history.*`, `settings.*`, `topology.scan`,
+`plain.remove.*`, `plain.add_workspace`). Views for History and Settings
+were already using these keys but falling back to the raw key string.
+
+---
+
 ## [0.21.0] — 2026-06-11
 
 ### Changed — RFC-0021 Phase 5: guided setup, empty states, undo for removal

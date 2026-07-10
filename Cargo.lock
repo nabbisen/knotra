@@ -3240,7 +3240,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "knotra"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3262,7 +3262,7 @@ dependencies = [
 
 [[package]]
 name = "knotra-ui"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "iced",
  "serde",
@@ -3271,7 +3271,7 @@ dependencies = [
 
 [[package]]
 name = "knotra-vcs"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "anyhow",
  "chrono",

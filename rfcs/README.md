@@ -33,6 +33,12 @@ until the RFC moves to `done/`.
 Implemented and shipped.  These are historical records; the design decisions
 they contain remain authoritative.
 
+### v0.22.0 — RFC-0021 Phase 6 (complete)
+
+| ID   | Title                                           | Shipped    |
+|------|-------------------------------------------------|------------|
+| [0021](./done/021-plain-language-layer.md) | Accessibility hardening: contrast, focus, labels, modal width (Phase 6 — RFC complete) | v0.22.0 |
+
 ### v0.21.0 — RFC-0021 Phase 5
 
 | ID   | Title                                           | Shipped    |

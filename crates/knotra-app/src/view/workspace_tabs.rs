@@ -71,11 +71,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
 
     // Fixed action buttons: new workspace, history, settings.
-    let new_btn = button(text("+").size(13))
+    let new_btn = button(text(format!("+ {}", state.t("plain.add_workspace"))).size(13))
         .on_press(Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened));
-    let history_btn = button(text("⊟").size(13))
+    let history_btn = button(text(format!("⊟  {}", state.t("nav.history"))).size(13))
         .on_press(Message::Navigate(crate::state::Screen::History));
-    let settings_btn = button(text("⚙").size(13))
+    let settings_btn = button(text(format!("⚙  {}", state.t("nav.settings"))).size(13))
         .on_press(Message::Navigate(crate::state::Screen::Settings));
 
     container(

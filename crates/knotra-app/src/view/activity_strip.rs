@@ -83,7 +83,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
 }
 
 fn strip_row_no_extra<'a>(label: String, state: &'a ActivityStripState) -> Element<'a, Message> {
-    let details_btn = button(text("›").size(FONT_SMALL))
+    let details_btn = button(text("› Details").size(FONT_SMALL))
         .on_press(Message::Activity(ActivityMessage::PopoverToggled));
     container(
         row![text(label).size(FONT_SMALL), Space::new().width(Length::Fill), details_btn]
@@ -100,7 +100,7 @@ fn strip_row<'a>(
     extra:  Option<impl Into<Element<'a, Message>>>,
     state:  &'a ActivityStripState,
 ) -> Element<'a, Message> {
-    let details_btn = button(text("›").size(FONT_SMALL))
+    let details_btn = button(text("› Details").size(FONT_SMALL))
         .on_press(Message::Activity(ActivityMessage::PopoverToggled));
 
     let mut r = row![

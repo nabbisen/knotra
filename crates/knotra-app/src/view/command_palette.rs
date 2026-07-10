@@ -16,6 +16,7 @@ use crate::{
 /// Render the palette overlay (call only when `state.palette.open`).
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let input = text_input("Search actions, projects, workspaces…", &state.palette.query)
+        .id(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
         .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
         .padding([8, 12])
         .size(14);

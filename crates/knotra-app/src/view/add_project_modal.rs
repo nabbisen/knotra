@@ -11,7 +11,7 @@ use iced::{
     Alignment, Element, Length,
 };
 
-use knotra_ui::widget::{guided_button, guided_field, BUTTON_HEIGHT, FONT_BODY, FONT_SMALL};
+use knotra_ui::widget::{guided_button, guided_field_focused, BUTTON_HEIGHT, FONT_BODY, FONT_SMALL};
 
 use crate::{
     message::{Message, WorkspaceMessage},
@@ -47,12 +47,13 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         // Step 1 — Choose the folder
         // ------------------------------------------------------------------
         AddProjectStep::ChooseFolder => {
-            let path_field = guided_field(
+            let path_field = guided_field_focused(
                 state.t("plain.add_project.folder_label"),
                 state.t("plain.add_project.folder_hint"),
                 &dialog.path,
                 |s| Message::Workspace(WorkspaceMessage::AddProjectPathChanged(s)),
                 dialog.error.as_deref(),
+                knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
             );
 
             let browse_btn = button(text(state.t("plain.add_project.browse")).size(FONT_BODY))
@@ -105,12 +106,13 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             )
             .padding([10, 14]);
 
-            let name_field = guided_field(
+            let name_field = guided_field_focused(
                 state.t("plain.add_project.name_label"),
                 state.t("dialog.add_project.name_hint"),
                 &dialog.name,
                 |s| Message::Workspace(WorkspaceMessage::AddProjectNameChanged(s)),
                 dialog.error.as_deref(),
+                knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
             );
 
             let add_reason: Option<&str> = if dialog.name.trim().is_empty() {

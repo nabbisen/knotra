@@ -223,3 +223,17 @@ plain language; expert terms move behind "Show details".
 - [x] 30 new i18n keys (EN + JA); wording guard passes
 - [x] 0/0 warnings, 71 tests under 1.91
 - [ ] Phase 6 (accessibility hardening) — next
+
+## v0.22.0 — RFC-0021 Phase 6: accessibility hardening (complete)
+
+- [x] WCAG AA contrast fix: light-theme Behind/Dirty #E65100 → #BF4600 (3.5→4.71:1)
+- [x] focus_id constants + focus_input() helper in knotra-ui::widget
+- [x] guided_field_focused variant for ID-assigned inputs
+- [x] Auto-focus: Add Project (open + step 2 advance), palette, release name, switch target
+- [x] Accessible labels: ⟳ Refresh, ⊟ History, ⚙ Settings, + New workspace, › Details
+- [x] Confirm remove dialog: guided_button, 44px, safe-first order, plain wording
+- [x] Modal width: Fixed(600) → Fill + max_width(580) for 800px windows
+- [x] Shortcuts overlay: plain-language binding descriptions
+- [x] 33 pre-existing catalog gaps closed (history.*, settings.*, plain.remove.*, etc)
+- [x] 0/0 warnings, 71 tests under 1.91
+- RFC-0021 complete (all 6 phases)

@@ -280,6 +280,46 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.undo.removed_prefix",   "Removed from the list:");
     m.insert("plain.undo.undo",             "Undo");
     m.insert("plain.undo.dismiss",          "Dismiss");
+
+    // --- Phase 6: accessibility + pre-existing catalog gaps ----------------
+    // Workspace tab toolbar
+    m.insert("plain.add_workspace",        "New workspace");
+    // Confirm remove dialog
+    m.insert("plain.remove.title",         "Remove this project?");
+    m.insert("plain.remove.body",          "This only removes it from knotra. Your project folder stays on this computer.");
+    m.insert("plain.remove.confirm",       "Remove from list");
+    // History screen
+    m.insert("history.title",              "What happened");
+    m.insert("history.search_hint",        "Search history…");
+    m.insert("history.empty",              "No operations recorded yet.");
+    m.insert("history.no_match",           "No entries match the search.");
+    m.insert("history.expand",             "Details");
+    m.insert("history.collapse",           "Hide");
+    m.insert("history.copy_log",           "Copy log");
+    m.insert("history.commands_header",    "Commands");
+    m.insert("history.recovery_header",    "Recovery steps");
+    m.insert("history.rollback_note",      "Rolled back");
+    // Settings screen
+    m.insert("settings.title",             "Settings");
+    m.insert("settings.section.display",   "Display");
+    m.insert("settings.section.refresh",   "Refresh & performance");
+    m.insert("settings.section.tools",     "External tools");
+    m.insert("settings.section.logs",      "Logs");
+    m.insert("settings.locale_label",      "Language");
+    m.insert("settings.theme_label",       "Theme");
+    m.insert("settings.theme_dark",        "Dark");
+    m.insert("settings.theme_light",       "Light");
+    m.insert("settings.refresh_interval_label", "Background refresh (seconds; 0 = manual)");
+    m.insert("settings.max_concurrent_label",   "Max concurrent reads");
+    m.insert("settings.editor_label",      "External editor path");
+    m.insert("settings.editor_hint",       "/usr/bin/nvim (optional)");
+    m.insert("settings.merge_tool_label",  "Merge tool path");
+    m.insert("settings.merge_tool_hint",   "/usr/bin/meld (optional)");
+    m.insert("settings.max_logs_label",    "Max operation log entries");
+    m.insert("settings.restart_hint",      "Some changes take effect on next launch.");
+    m.insert("settings.save",              "Save settings");
+    // Topology scan (used in legacy settings panel)
+    m.insert("topology.scan",              "Scan topology");
     m
 }
 
@@ -508,6 +548,41 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.undo.removed_prefix",   "リストから削除しました：");
     m.insert("plain.undo.undo",             "元に戻す");
     m.insert("plain.undo.dismiss",          "閉じる");
+
+    // --- Phase 6 (ja) ------------------------------------------------------
+    m.insert("plain.add_workspace",        "新しいワークスペース");
+    m.insert("plain.remove.title",         "このプロジェクトを削除しますか？");
+    m.insert("plain.remove.body",          "knotra のリストから削除するだけです。プロジェクトフォルダーはこのコンピューターに残ります。");
+    m.insert("plain.remove.confirm",       "リストから削除");
+    m.insert("history.title",              "実行内容");
+    m.insert("history.search_hint",        "履歴を検索…");
+    m.insert("history.empty",              "まだ操作が記録されていません。");
+    m.insert("history.no_match",           "検索に一致する項目はありません。");
+    m.insert("history.expand",             "詳細");
+    m.insert("history.collapse",           "閉じる");
+    m.insert("history.copy_log",           "ログをコピー");
+    m.insert("history.commands_header",    "コマンド");
+    m.insert("history.recovery_header",    "回復手順");
+    m.insert("history.rollback_note",      "ロールバック済み");
+    m.insert("settings.title",             "設定");
+    m.insert("settings.section.display",   "表示");
+    m.insert("settings.section.refresh",   "更新とパフォーマンス");
+    m.insert("settings.section.tools",     "外部ツール");
+    m.insert("settings.section.logs",      "ログ");
+    m.insert("settings.locale_label",      "言語");
+    m.insert("settings.theme_label",       "テーマ");
+    m.insert("settings.theme_dark",        "ダーク");
+    m.insert("settings.theme_light",       "ライト");
+    m.insert("settings.refresh_interval_label", "バックグラウンド更新（秒; 0 = 手動のみ）");
+    m.insert("settings.max_concurrent_label",   "最大同時読み込み数");
+    m.insert("settings.editor_label",      "外部エディタのパス");
+    m.insert("settings.editor_hint",       "/usr/bin/nvim （任意）");
+    m.insert("settings.merge_tool_label",  "マージツールのパス");
+    m.insert("settings.merge_tool_hint",   "/usr/bin/meld （任意）");
+    m.insert("settings.max_logs_label",    "操作ログの最大保持数");
+    m.insert("settings.restart_hint",      "一部の変更は次回起動時に有効になります。");
+    m.insert("settings.save",              "設定を保存");
+    m.insert("topology.scan",              "トポロジをスキャン");
     m
 }
 
