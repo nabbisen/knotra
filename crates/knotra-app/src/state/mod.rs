@@ -66,8 +66,19 @@ impl FilterState {
 // Dialog states
 // ---------------------------------------------------------------------------
 
+/// Which step of the 2-step Add Project flow is active.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum AddProjectStep {
+    /// Step 1: choose a project folder.
+    #[default]
+    ChooseFolder,
+    /// Step 2: give it a display name.
+    NameProject,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AddProjectDialog {
+    pub step: AddProjectStep,
     pub name: String,
     pub path: String,
     pub error: Option<String>,
@@ -77,6 +88,14 @@ pub struct AddProjectDialog {
 pub struct ConfirmRemoveDialog {
     pub project_id: ProjectId,
     pub project_name: String,
+}
+
+/// A recently removed project that can be undone before the snackbar expires.
+#[derive(Debug, Clone)]
+pub struct UndoableRemoval {
+    pub project: knotra_vcs::Project,
+    /// Project status snapshot so re-adding restores display immediately.
+    pub status_snapshot: Option<knotra_vcs::ProjectStatus>,
 }
 
 // ---------------------------------------------------------------------------
@@ -414,6 +433,8 @@ pub struct AppState {
     /// Whether to show technical command details in modal result views.
     /// Toggled by the "Show details" / "Hide details" button in result screens.
     pub show_op_details: bool,
+    /// A recently removed project eligible for undo (cleared by next action or timeout).
+    pub recent_removal: Option<UndoableRemoval>,
 }
 
 impl AppState {
@@ -460,6 +481,7 @@ impl AppState {
             active_modal: ActiveModal::default(),
             selection_mode: false,
             show_op_details: false,
+            recent_removal: None,
             config,
         }
     }

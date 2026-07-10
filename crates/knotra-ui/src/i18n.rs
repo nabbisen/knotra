@@ -253,6 +253,33 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.changelog.reason_empty",  "Enter a starting point (e.g. the previous release name).");
     m.insert("plain.changelog.collecting",    "Collecting notes…");
     m.insert("plain.changelog.copy",          "Copy to clipboard");
+
+    // --- Phase 5: guided setup, empty states, undo -------------------------
+    m.insert("plain.add_project.title",            "Add project folder");
+    m.insert("plain.add_project.step1_of2",        "Step 1 of 2");
+    m.insert("plain.add_project.step2_of2",        "Step 2 of 2");
+    m.insert("plain.add_project.step1_instruction","Choose the folder that contains your project.");
+    m.insert("plain.add_project.step2_instruction","Give this project a name.");
+    m.insert("plain.add_project.folder_label",     "Project folder");
+    m.insert("plain.add_project.folder_hint",      "/home/user/repos/my-project");
+    m.insert("plain.add_project.folder_chosen",    "Chosen folder");
+    m.insert("plain.add_project.browse",           "Choose folder");
+    m.insert("plain.add_project.next",             "Next");
+    m.insert("plain.add_project.back",             "Back");
+    m.insert("plain.add_project.add",              "Add project");
+    m.insert("plain.add_project.name_label",       "Project name");
+    m.insert("plain.add_project.error_no_folder",  "Choose a project folder first.");
+    m.insert("plain.add_project.reason_no_folder", "Choose a folder to continue.");
+    m.insert("plain.add_project.reason_no_name",   "Enter a project name to continue.");
+    m.insert("plain.empty.welcome_title",   "Welcome to knotra");
+    m.insert("plain.empty.welcome_body",    "Add your first project folder. knotra will check it and show what needs your attention.");
+    m.insert("plain.empty.add_first",       "Add project folder");
+    m.insert("plain.empty.all_clean",       "🎉 All set");
+    m.insert("plain.empty.all_clean_hint",  "Every project is up to date. Nothing needs your attention right now.");
+    m.insert("plain.empty.no_match",        "No projects match the current filter.");
+    m.insert("plain.undo.removed_prefix",   "Removed from the list:");
+    m.insert("plain.undo.undo",             "Undo");
+    m.insert("plain.undo.dismiss",          "Dismiss");
     m
 }
 
@@ -454,6 +481,33 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.changelog.reason_empty",  "開始地点を入力してください（例：前回のリリース名）。");
     m.insert("plain.changelog.collecting",    "収集中…");
     m.insert("plain.changelog.copy",          "クリップボードにコピー");
+
+    // --- Phase 5 (ja) ------------------------------------------------------
+    m.insert("plain.add_project.title",            "プロジェクトフォルダーを追加");
+    m.insert("plain.add_project.step1_of2",        "ステップ 1 / 2");
+    m.insert("plain.add_project.step2_of2",        "ステップ 2 / 2");
+    m.insert("plain.add_project.step1_instruction","プロジェクトが入っているフォルダーを選んでください。");
+    m.insert("plain.add_project.step2_instruction","このプロジェクトに名前をつけてください。");
+    m.insert("plain.add_project.folder_label",     "プロジェクトフォルダー");
+    m.insert("plain.add_project.folder_hint",      "/home/user/repos/my-project");
+    m.insert("plain.add_project.folder_chosen",    "選択したフォルダー");
+    m.insert("plain.add_project.browse",           "フォルダーを選択");
+    m.insert("plain.add_project.next",             "次へ");
+    m.insert("plain.add_project.back",             "戻る");
+    m.insert("plain.add_project.add",              "プロジェクトを追加");
+    m.insert("plain.add_project.name_label",       "プロジェクト名");
+    m.insert("plain.add_project.error_no_folder",  "先にプロジェクトフォルダーを選んでください。");
+    m.insert("plain.add_project.reason_no_folder", "続けるにはフォルダーを選んでください。");
+    m.insert("plain.add_project.reason_no_name",   "続けるにはプロジェクト名を入力してください。");
+    m.insert("plain.empty.welcome_title",   "knotra へようこそ");
+    m.insert("plain.empty.welcome_body",    "最初のプロジェクトフォルダーを追加してください。knotra が確認して、対応が必要なものをお知らせします。");
+    m.insert("plain.empty.add_first",       "プロジェクトフォルダーを追加");
+    m.insert("plain.empty.all_clean",       "🎉 問題なし");
+    m.insert("plain.empty.all_clean_hint",  "すべてのプロジェクトが最新です。今すぐ対応が必要なものはありません。");
+    m.insert("plain.empty.no_match",        "現在のフィルターに一致するプロジェクトはありません。");
+    m.insert("plain.undo.removed_prefix",   "リストから削除しました：");
+    m.insert("plain.undo.undo",             "元に戻す");
+    m.insert("plain.undo.dismiss",          "閉じる");
     m
 }
 

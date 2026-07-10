@@ -242,6 +242,18 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             if let Some(d) = &mut state.add_project_dialog { d.path = s; d.error = None; }
             Task::none()
         }
+        WorkspaceMessage::AddProjectNextStep => {
+            let err_msg = state.t("plain.add_project.error_no_folder").to_owned();
+            if let Some(d) = &mut state.add_project_dialog {
+                if d.path.trim().is_empty() {
+                    d.error = Some(err_msg);
+                } else {
+                    d.error = None;
+                    d.step = crate::state::AddProjectStep::NameProject;
+                }
+            }
+            Task::none()
+        }
         WorkspaceMessage::AddProjectConfirmed => {
             let dialog = match state.add_project_dialog.take() { Some(d) => d, None => return Task::none() };
             let name = dialog.name.trim().to_owned();
@@ -250,9 +262,12 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 state.add_project_dialog = Some(AddProjectDialog {
                     name: dialog.name, path: dialog.path,
                     error: Some(state.t("dialog.add_project.error_empty").to_owned()),
+                    ..Default::default()
                 });
                 return Task::none();
             }
+            // Clear any pending undo when a new project is added.
+            state.recent_removal = None;
             let project = Project::new(name, path);
             if let Some(ws) = &mut state.workspace {
                 ws.add_project(project);
@@ -278,6 +293,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
         WorkspaceMessage::BrowsePathSelected(path_opt) => {
             if let Some(path) = path_opt
                 && let Some(d) = &mut state.add_project_dialog {
+                    // Auto-fill name from folder name if not already set.
                     if d.name.is_empty()
                         && let Some(name) = std::path::Path::new(&path)
                             .file_name().and_then(|n| n.to_str())
@@ -286,6 +302,8 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                         }
                     d.path = path;
                     d.error = None;
+                    // Auto-advance to step 2 once a folder is chosen.
+                    d.step = crate::state::AddProjectStep::NameProject;
                 }
             Task::none()
         }
@@ -298,6 +316,12 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
         }
         WorkspaceMessage::RemoveProjectConfirmed(id) => {
             state.confirm_remove_dialog = None;
+            // Capture snapshots before removing so undo can restore exactly.
+            let removed_project = state.workspace.as_ref()
+                .and_then(|ws| ws.projects.iter().find(|p| p.id == id).cloned());
+            let removed_status = state.workspace_status.as_ref()
+                .and_then(|ws| ws.projects.iter().find(|s| s.project_id == id).cloned());
+
             if let Some(ws) = &mut state.workspace {
                 ws.remove_project(&id);
                 persist_workspace(ws);
@@ -306,10 +330,35 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 ws_status.projects.retain(|s| s.project_id != id);
             }
             state.fetching_projects.remove(&id);
+
+            // Store undo opportunity. Cleared by next user action or explicit dismiss.
+            if let Some(project) = removed_project {
+                state.recent_removal = Some(crate::state::UndoableRemoval {
+                    project,
+                    status_snapshot: removed_status,
+                });
+            }
             Task::none()
         }
         WorkspaceMessage::RemoveProjectCancelled => {
             state.confirm_remove_dialog = None; Task::none()
+        }
+        WorkspaceMessage::UndoRemoval => {
+            if let Some(removal) = state.recent_removal.take() {
+                if let Some(ws) = &mut state.workspace {
+                    ws.projects.push(removal.project);
+                    persist_workspace(ws);
+                }
+                if let Some(ws_status) = &mut state.workspace_status
+                    && let Some(snap) = removal.status_snapshot {
+                        ws_status.projects.push(snap);
+                    }
+            }
+            Task::none()
+        }
+        WorkspaceMessage::DismissUndoSnackbar => {
+            state.recent_removal = None;
+            Task::none()
         }
 
         // --- Multi-workspace management ---

@@ -6,7 +6,7 @@ use iced::{
     widget::{button, column, container, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,
 };
-use knotra_ui::{theme::StatusColor, widget::CARD_GAP};
+use knotra_ui::{theme::StatusColor, widget::{CARD_GAP, BUTTON_HEIGHT, FONT_BODY}};
 
 use crate::{
     message::{
@@ -244,7 +244,28 @@ fn view_tier_grid(state: &AppState) -> Element<'_, Message> {
         AttentionTier::Clean, state.tier_collapse.clean);
 
     if page.is_empty() {
-        return placeholder("No projects match the current filter.");
+        // All tiers are empty — either all projects are clean and the filter
+        // isn't set, or the filter matches nothing.
+        let has_filter = !state.filter.search_text.is_empty()
+            || !state.filter.status_filters.is_empty();
+        let msg = if has_filter {
+            state.t("plain.empty.no_match")
+        } else {
+            state.t("plain.empty.all_clean")
+        };
+        let hint = if has_filter { "" } else { state.t("plain.empty.all_clean_hint") };
+        return container(
+            column![
+                text(msg).size(FONT_BODY + 2.0),
+                text(hint).size(FONT_BODY),
+            ]
+            .spacing(8)
+            .align_x(iced::Alignment::Center),
+        )
+        .width(iced::Length::Fill)
+        .padding([40, 0])
+        .center_x(iced::Length::Fill)
+        .into();
     }
     column(page).spacing(CARD_GAP).padding(12).into()
 }
@@ -257,14 +278,15 @@ fn view_card_grid(state: &AppState) -> Element<'_, Message> {
         .unwrap_or(&[]);
 
     if projects.is_empty() {
-        // Empty state — clear call to action, no clutter.
+        // Welcome empty state — guides the user to their first action.
         return container(
             column![
-                text(state.t("dashboard.no_projects")).size(16),
-                text(state.t("dashboard.no_projects_hint")).size(13),
-                button(text(state.t("dashboard.add_project")).size(14))
-                    .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened))
-                    .padding([10, 20]),
+                text(state.t("plain.empty.welcome_title")).size(FONT_BODY + 6.0),
+                text(state.t("plain.empty.welcome_body")).size(FONT_BODY),
+                button(text(state.t("plain.empty.add_first")).size(FONT_BODY))
+                    .height(BUTTON_HEIGHT)
+                    .padding([0, 24])
+                    .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened)),
             ]
             .spacing(16)
             .align_x(iced::Alignment::Center)

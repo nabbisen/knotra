@@ -7,6 +7,39 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.21.0] — 2026-06-11
+
+### Changed — RFC-0021 Phase 5: guided setup, empty states, undo for removal
+
+**2-step Add Project flow** (`view/add_project_modal.rs`):
+- Step 1: "Choose the folder that contains your project." — folder field,
+  Browse button, Next (disabled with reason when empty).
+- Step 2: "Give this project a name." — shows chosen folder as read-only
+  confirmation, name field, Add project (disabled with reason when empty),
+  Back to return to Step 1.
+- Browse auto-advances to Step 2 and auto-fills the project name from the
+  folder name. `AddProjectStep` enum and `AddProjectNextStep` message added.
+
+**Empty states** (`view/dashboard.rs`):
+- No-projects welcome: "Welcome to knotra" with a plain description and an
+  "Add project folder" primary button (44px, prominent).
+- All-clean: "🎉 All set — Every project is up to date." shown when all tiers
+  are empty and no filter is active.
+- No-filter-match: "No projects match the current filter." shown when tiers
+  are empty because of an active filter.
+
+**Undo for project removal** (`view/activity_strip.rs`, `app.rs`):
+- `RemoveProjectConfirmed` now captures a snapshot of the removed project and
+  its last status before deletion, stored as `AppState::recent_removal`.
+- The activity strip displays an "Undo" snackbar when `recent_removal` is set,
+  with "Undo" (restores project + status) and "Dismiss" buttons.
+- `WorkspaceMessage::UndoRemoval` and `DismissUndoSnackbar` handle the two
+  outcomes. Adding a new project clears any pending undo.
+
+**30 new i18n keys (EN + JA)**, all passing the wording guard.
+
+---
+
 ## [0.20.0] — 2026-06-11
 
 ### Changed — RFC-0021 Phases 2–4: guided modal flows and safe components

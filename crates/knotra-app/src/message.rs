@@ -55,6 +55,8 @@ pub enum WorkspaceMessage {
     AddProjectDialogOpened,
     AddProjectNameChanged(String),
     AddProjectPathChanged(String),
+    /// Advance from Step 1 (folder) to Step 2 (name) in the guided flow.
+    AddProjectNextStep,
     AddProjectConfirmed,
     AddProjectCancelled,
     /// User clicked the folder browse button.
@@ -64,6 +66,10 @@ pub enum WorkspaceMessage {
     RemoveProjectRequested(ProjectId),
     RemoveProjectConfirmed(ProjectId),
     RemoveProjectCancelled,
+    /// Undo the most recent project removal (RFC-0021 Phase 5).
+    UndoRemoval,
+    /// Dismiss the undo snackbar without undoing.
+    DismissUndoSnackbar,
     // Multi-workspace management
     CreateWorkspaceDialogOpened,
     CreateWorkspaceNameChanged(String),

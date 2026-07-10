@@ -213,3 +213,13 @@ plain language; expert terms move behind "Show details".
 - [x] 0/0 warnings, 71 tests pass under 1.91
 - [ ] Phase 5 (guided setup / empty states / undo-for-removal) — next
 - [ ] Phase 6 (accessibility hardening) — later
+
+## v0.21.0 — RFC-0021 Phase 5: guided setup, empty states, undo
+
+- [x] 2-step Add Project guided dialog (Step 1: choose folder / Step 2: name it)
+- [x] Browse auto-advances + auto-fills name; AddProjectStep enum + AddProjectNextStep
+- [x] Welcome empty state, all-clean state, no-filter-match state
+- [x] Undo snackbar for project removal; snapshot capture; UndoRemoval / DismissUndoSnackbar
+- [x] 30 new i18n keys (EN + JA); wording guard passes
+- [x] 0/0 warnings, 71 tests under 1.91
+- [ ] Phase 6 (accessibility hardening) — next
