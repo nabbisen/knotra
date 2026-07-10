@@ -169,6 +169,90 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.disabled.no_upstream",  "These projects have nowhere to get updates from.");
     m.insert("plain.error.path_missing",    "We cannot find this project folder.");
     m.insert("plain.error.no_repo",         "This folder does not look like a project knotra can check.");
+
+    // --- Modal flows (Phase 2-4) -------------------------------------------
+    m.insert("plain.project",               "Project");
+    m.insert("plain.what_will_happen",      "What will happen");
+    m.insert("plain.note",                  "Note");
+    m.insert("plain.of",                    "of");
+    m.insert("plain.waiting",               "Waiting…");
+    m.insert("plain.needs_help",            "Needs help");
+    m.insert("plain.no_next_step",          "No next step needed.");
+
+    // Get latest safely (Smart Pull)
+    m.insert("plain.get_latest.preparing",          "Preparing a safe plan…");
+    m.insert("plain.get_latest.preparing_hint",     "This usually takes a few seconds.");
+    m.insert("plain.get_latest.review_heading",     "Review the plan before anything changes.");
+    m.insert("plain.get_latest.start",              "Start getting latest");
+    m.insert("plain.get_latest.working",            "Getting latest…");
+    m.insert("plain.get_latest.action_get",         "Get latest");
+    m.insert("plain.get_latest.action_check",       "Check only");
+    m.insert("plain.get_latest.action_get_anyway",  "Get latest anyway");
+    m.insert("plain.get_latest.action_skip",        "Skip");
+    m.insert("plain.get_latest.check_only",         "Check only");
+    m.insert("plain.get_latest.get_anyway",         "Get anyway");
+    m.insert("plain.get_latest.note_unsaved",       "Has unsaved work — check only by default.");
+    m.insert("plain.get_latest.note_save_restore",  "Will save work, get latest, then restore.");
+    m.insert("plain.get_latest.note_needs_choice",  "Needs your choice — skipped until resolved.");
+    m.insert("plain.get_latest.done_row",           "Done");
+    m.insert("plain.get_latest.needs_help_row",     "Needs help");
+    m.insert("plain.get_latest.all_done_prefix",    "All");
+    m.insert("plain.get_latest.all_done_suffix",    "projects are up to date.");
+    m.insert("plain.get_latest.done_count",         "done.");
+    m.insert("plain.get_latest.needs_help_count",   "need help.");
+    m.insert("plain.get_latest.review_help_rows",   "Review the highlighted rows before continuing.");
+
+    // Save release point (Freezer / Tag)
+    m.insert("plain.release.name_label",        "Release name");
+    m.insert("plain.release.name_hint",         "v1.2.3");
+    m.insert("plain.release.name_invalid",      "Use letters, numbers, dots, dashes, or underscores.");
+    m.insert("plain.release.note_label",        "Note for later (optional)");
+    m.insert("plain.release.note_hint",         "");
+    m.insert("plain.release.check_readiness",   "Check readiness");
+    m.insert("plain.release.checking",          "Checking…");
+    m.insert("plain.release.ready_check",       "Ready check");
+    m.insert("plain.release.row_ready",         "Ready");
+    m.insert("plain.release.row_excluded",      "Not included");
+    m.insert("plain.release.fix_one",           "Fix 1 item before saving.");
+    m.insert("plain.release.fix_some",          "Fix highlighted items before saving.");
+    m.insert("plain.release.saving",            "Saving release point…");
+    m.insert("plain.release.saving_hint",       "This saves atomically — either all succeed or none do.");
+    m.insert("plain.release.outcome_success",   "Release point saved.");
+    m.insert("plain.release.outcome_undone",    "We stopped and undid all changes.");
+    m.insert("plain.release.outcome_undone_hint","Nothing was saved. Try again after fixing the highlighted items.");
+    m.insert("plain.release.outcome_partial",   "We could not undo everything.");
+    m.insert("plain.release.outcome_partial_hint","Some projects may need manual cleanup. Show details for instructions.");
+    m.insert("plain.release.outcome_nothing",   "Nothing to save.");
+    m.insert("plain.release.row_saved",         "Saved");
+    m.insert("plain.release.row_undone",        "Undone");
+    m.insert("plain.release.blocker_name_used", "This release name is already in use. Choose another or remove the old one.");
+    m.insert("plain.release.blocker_needs_choice","Needs your choice — resolve it first.");
+    m.insert("plain.release.blocker_unsaved",   "Has unsaved work.");
+
+    // Change work area (Context Switch)
+    m.insert("plain.switch.target_label",  "Work area to switch to");
+    m.insert("plain.switch.target_hint",   "feature-x");
+    m.insert("plain.switch.reason_empty",  "Enter the name of the work area to switch to.");
+    m.insert("plain.switch.working",       "Changing work area…");
+    m.insert("plain.switch.done_title",    "Work area changed.");
+    m.insert("plain.switch.failed_title",  "We could not change the work area.");
+    m.insert("plain.switch.failed_hint",   "Show details for the exact reason and suggested steps.");
+
+    // Conflict resolve panel
+    m.insert("plain.resolve.title",        "Resolve");
+    m.insert("plain.resolve.instruction",  "Open each file, choose the final version, then mark it done.");
+    m.insert("plain.resolve.open_editor",  "Open in editor");
+    m.insert("plain.resolve.mark_done",    "Mark done");
+    m.insert("plain.resolve.stop_attempt", "Stop this fix attempt");
+
+    // Generate notes (Changelog)
+    m.insert("plain.changelog.title",         "Generate notes");
+    m.insert("plain.changelog.since_label",   "Since");
+    m.insert("plain.changelog.since_hint",    "v1.2.0");
+    m.insert("plain.changelog.generate",      "Generate notes");
+    m.insert("plain.changelog.reason_empty",  "Enter a starting point (e.g. the previous release name).");
+    m.insert("plain.changelog.collecting",    "Collecting notes…");
+    m.insert("plain.changelog.copy",          "Copy to clipboard");
     m
 }
 
@@ -286,6 +370,90 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.disabled.no_upstream",  "更新の取得元が設定されていません。");
     m.insert("plain.error.path_missing",    "プロジェクトフォルダーが見つかりません。");
     m.insert("plain.error.no_repo",         "このフォルダーは knotra が確認できるプロジェクトではないようです。");
+
+    // --- Modal flows (Phase 2-4) -------------------------------------------
+    m.insert("plain.project",               "プロジェクト");
+    m.insert("plain.what_will_happen",      "内容");
+    m.insert("plain.note",                  "メモ");
+    m.insert("plain.of",                    "/");
+    m.insert("plain.waiting",               "待機中…");
+    m.insert("plain.needs_help",            "対応が必要");
+    m.insert("plain.no_next_step",          "次のステップは不要です。");
+
+    // Get latest safely
+    m.insert("plain.get_latest.preparing",          "安全なプランを準備中…");
+    m.insert("plain.get_latest.preparing_hint",     "通常は数秒かかります。");
+    m.insert("plain.get_latest.review_heading",     "変更前に内容を確認してください。");
+    m.insert("plain.get_latest.start",              "最新を取得する");
+    m.insert("plain.get_latest.working",            "最新を取得中…");
+    m.insert("plain.get_latest.action_get",         "最新を取得");
+    m.insert("plain.get_latest.action_check",       "確認のみ");
+    m.insert("plain.get_latest.action_get_anyway",  "そのまま最新を取得");
+    m.insert("plain.get_latest.action_skip",        "スキップ");
+    m.insert("plain.get_latest.check_only",         "確認のみ");
+    m.insert("plain.get_latest.get_anyway",         "そのまま取得");
+    m.insert("plain.get_latest.note_unsaved",       "未保存の作業あり — デフォルトは確認のみ");
+    m.insert("plain.get_latest.note_save_restore",  "作業を保存し、最新を取得後に復元します");
+    m.insert("plain.get_latest.note_needs_choice",  "選択が必要 — 解決後にスキップ解除できます");
+    m.insert("plain.get_latest.done_row",           "完了");
+    m.insert("plain.get_latest.needs_help_row",     "対応が必要");
+    m.insert("plain.get_latest.all_done_prefix",    "すべての");
+    m.insert("plain.get_latest.all_done_suffix",    "プロジェクトが最新です。");
+    m.insert("plain.get_latest.done_count",         "件完了。");
+    m.insert("plain.get_latest.needs_help_count",   "件が対応を必要としています。");
+    m.insert("plain.get_latest.review_help_rows",   "続行前に強調表示された行を確認してください。");
+
+    // Save release point
+    m.insert("plain.release.name_label",        "リリース名");
+    m.insert("plain.release.name_hint",         "v1.2.3");
+    m.insert("plain.release.name_invalid",      "英数字、ドット、ハイフン、アンダースコアのみ使用できます。");
+    m.insert("plain.release.note_label",        "後のためのメモ（任意）");
+    m.insert("plain.release.note_hint",         "");
+    m.insert("plain.release.check_readiness",   "準備確認");
+    m.insert("plain.release.checking",          "確認中…");
+    m.insert("plain.release.ready_check",       "準備確認");
+    m.insert("plain.release.row_ready",         "準備完了");
+    m.insert("plain.release.row_excluded",      "対象外");
+    m.insert("plain.release.fix_one",           "保存前に1件修正してください。");
+    m.insert("plain.release.fix_some",          "強調表示された項目を修正してから保存してください。");
+    m.insert("plain.release.saving",            "リリースポイントを保存中…");
+    m.insert("plain.release.saving_hint",       "すべて成功するか、何も保存しないかのどちらかです。");
+    m.insert("plain.release.outcome_success",   "リリースポイントを保存しました。");
+    m.insert("plain.release.outcome_undone",    "処理を停止し、すべての変更を元に戻しました。");
+    m.insert("plain.release.outcome_undone_hint","何も保存されませんでした。問題を修正してから再試行してください。");
+    m.insert("plain.release.outcome_partial",   "すべての変更を元に戻せませんでした。");
+    m.insert("plain.release.outcome_partial_hint","手動でのクリーンアップが必要な場合があります。詳細を表示してください。");
+    m.insert("plain.release.outcome_nothing",   "保存するものがありません。");
+    m.insert("plain.release.row_saved",         "保存済み");
+    m.insert("plain.release.row_undone",        "元に戻しました");
+    m.insert("plain.release.blocker_name_used", "このリリース名はすでに使用されています。別の名前を選ぶか古いものを削除してください。");
+    m.insert("plain.release.blocker_needs_choice","選択が必要 — 先に解決してください。");
+    m.insert("plain.release.blocker_unsaved",   "未保存の作業があります。");
+
+    // Change work area
+    m.insert("plain.switch.target_label",  "切り替え先の作業エリア");
+    m.insert("plain.switch.target_hint",   "feature-x");
+    m.insert("plain.switch.reason_empty",  "切り替え先の作業エリア名を入力してください。");
+    m.insert("plain.switch.working",       "作業エリアを変更中…");
+    m.insert("plain.switch.done_title",    "作業エリアを変更しました。");
+    m.insert("plain.switch.failed_title",  "作業エリアを変更できませんでした。");
+    m.insert("plain.switch.failed_hint",   "詳細を表示して原因と対処法を確認してください。");
+
+    // Conflict resolve panel
+    m.insert("plain.resolve.title",        "解決");
+    m.insert("plain.resolve.instruction",  "各ファイルを開いて最終バージョンを選び、完了としてマークしてください。");
+    m.insert("plain.resolve.open_editor",  "エディタで開く");
+    m.insert("plain.resolve.mark_done",    "完了としてマーク");
+    m.insert("plain.resolve.stop_attempt", "この修正を中断");
+
+    // Generate notes
+    m.insert("plain.changelog.title",         "ノートを生成");
+    m.insert("plain.changelog.since_label",   "開始地点");
+    m.insert("plain.changelog.since_hint",    "v1.2.0");
+    m.insert("plain.changelog.generate",      "ノートを生成");
+    m.insert("plain.changelog.reason_empty",  "開始地点を入力してください（例：前回のリリース名）。");
+    m.insert("plain.changelog.collecting",    "収集中…");
+    m.insert("plain.changelog.copy",          "クリップボードにコピー");
     m
 }
 

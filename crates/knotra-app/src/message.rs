@@ -40,6 +40,8 @@ pub enum Message {
     FsWatchTick,
     /// Request to write text to the system clipboard.
     CopyToClipboard(String),
+    /// Toggle "Show details / Hide details" in modal result screens (RFC-0021 Phase 2).
+    ToggleOpDetails,
     Tick,
 }
 
@@ -252,6 +254,8 @@ pub enum ConflictOpsMessage {
     BackToDashboard,
     /// RFC-0013: mark a file resolved in the resolve panel.
     FileMarkedResolved(String),
+    /// RFC-0021 Phase 3: open a conflicted file in the configured external editor.
+    OpenInEditorRequested(String),
     /// RFC-0013: abort merge in the resolve panel.
     AbortRequested,
     /// RFC-0013: close the resolve panel.

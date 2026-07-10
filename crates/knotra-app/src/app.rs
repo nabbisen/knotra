@@ -170,6 +170,10 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         }
 
         Message::CopyToClipboard(text) => clipboard::write(text),
+        Message::ToggleOpDetails => {
+            state.show_op_details = !state.show_op_details;
+            Task::none()
+        }
         Message::Context(msg)        => handle_context(state, msg),
         Message::Launch(msg)         => handle_launch(state, msg),
     }
@@ -1536,6 +1540,18 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
             Task::none()
         }
         ConflictOpsMessage::FileMarkedResolved(_path) => {
+            Task::none()
+        }
+        ConflictOpsMessage::OpenInEditorRequested(path) => {
+            // Launch the configured external editor for this file.
+            // If no editor is configured, this is a no-op (button is only
+            // shown when the editor is configured — TODO: gate in the view).
+            if let Some(editor) = &state.config.external_editor {
+                let cmd = format!("{} {}", editor, path);
+                let _ = std::process::Command::new("sh")
+                    .args(["-c", &cmd])
+                    .spawn();
+            }
             Task::none()
         }
         ConflictOpsMessage::AbortRequested => {

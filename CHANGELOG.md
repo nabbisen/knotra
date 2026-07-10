@@ -7,6 +7,50 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.20.0] — 2026-06-11
+
+### Changed — RFC-0021 Phases 2–4: guided modal flows and safe components
+
+**Phase 2 — safe component helpers** (`knotra-ui::widget`):
+- `guided_button(label, on_press, reason)` — renders a reason beneath a
+  disabled button so users always know why they cannot proceed.
+- `guided_field(label, placeholder, value, on_change, error)` — labelled
+  input that keeps the label visible on focus and shows inline errors.
+
+**Phase 3 — guided "Get latest safely"** (Smart Pull modal):
+- Four named views: preparing → plan review → in-progress → result.
+- Plan table shows plain-language dispositions: "Get latest", "Check only",
+  "Get latest anyway" (stash), "Skip". Developer terms (fetch, pull, stash,
+  fast-forward) shown only under "Show details".
+- Dirty-project rows show inline toggle between "Check only" / "Get anyway".
+- Result view: plain summary ("3 done. 1 needs help.") with per-project rows;
+  technical commands shown under "Show details" toggle.
+- `show_op_details: bool` field added to `AppState`; `Message::ToggleOpDetails`
+  toggles it and is used by all three modal result views.
+
+**Phase 4 — guided "Save release point"** (Freezer / Tag modal):
+- Five views: name + note input → validation (ready check) → executing → result.
+- Validation table uses plain labels: "Ready", "Not included", blocker messages
+  in plain language ("This release name is already in use", "Needs your
+  choice — resolve it first", "Has unsaved work").
+- Primary button disabled with a reason: "Fix 1 item before saving." or
+  "Fix highlighted items before saving." (never just greyed out silently).
+- Result views: "Release point saved.", "We stopped and undid all changes.",
+  "We could not undo everything." Technical rollback output behind "Show details".
+
+**Conflict resolve panel** (also Phase 3):
+- "Open in editor" button added per file; launches `external_editor` via shell.
+- `ConflictOpsMessage::OpenInEditorRequested(path)` added and handled.
+- Button labels: "Mark done", "Stop this fix attempt" (was "Mark resolved",
+  "Abort merge").
+
+**All 72 new i18n keys added in English and Japanese.** The wording guard test
+(`first_level_wording_has_no_developer_jargon`) caught two violations during
+implementation ("conflict" leaked into two note strings) and forced corrections
+before the tests could pass — validating the Phase 1 regression guard works.
+
+---
+
 ## [0.19.0] — 2026-06-11
 
 ### Changed — Plain-language layer for non-technical users (RFC-0021, Phase 1)

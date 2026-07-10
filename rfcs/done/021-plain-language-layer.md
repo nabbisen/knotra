@@ -2,10 +2,10 @@
 
 | Field          | Value                                                                 |
 |----------------|-----------------------------------------------------------------------|
-| Status         | Implemented (v0.19.0) — Phase 1                                       |
+| Status         | Implemented (v0.20.0) — Phases 1–4                                       |
 | Priority       | Medium                                                                |
 | Effort         | Medium (phased)                                                       |
-| Target version | v0.19.0 (Phase 1); later phases TBD                                   |
+| Target version | v0.19.0 (Phase 1); v0.20.0 (Phases 2–4); Phases 5–6 TBD                                   |
 | Related        | UI/UX handoff; external non-technical UX review                       |
 
 ## Summary

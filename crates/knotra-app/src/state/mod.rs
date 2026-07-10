@@ -411,6 +411,9 @@ pub struct AppState {
     /// True = selection mode active (checkboxes visible, selection bar shown).
     /// Off by default — cards are clean until the user explicitly selects.
     pub selection_mode: bool,
+    /// Whether to show technical command details in modal result views.
+    /// Toggled by the "Show details" / "Hide details" button in result screens.
+    pub show_op_details: bool,
 }
 
 impl AppState {
@@ -456,6 +459,7 @@ impl AppState {
             detail_panel: DetailPanelState::default(),
             active_modal: ActiveModal::default(),
             selection_mode: false,
+            show_op_details: false,
             config,
         }
     }

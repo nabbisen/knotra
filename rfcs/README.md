@@ -33,6 +33,12 @@ until the RFC moves to `done/`.
 Implemented and shipped.  These are historical records; the design decisions
 they contain remain authoritative.
 
+### v0.20.0 — RFC-0021 Phases 2–4
+
+| ID   | Title                                           | Shipped    |
+|------|-------------------------------------------------|------------|
+| [0021](./done/021-plain-language-layer.md) | Guided modal flows, safe components, 72 i18n keys (Phases 2–4) | v0.20.0 |
+
 ### v0.19.0 — Plain-language layer
 
 | ID   | Title                                           | Shipped    |

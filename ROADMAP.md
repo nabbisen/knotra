@@ -198,3 +198,18 @@ plain language; expert terms move behind "Show details".
 - [x] Regression guard: forbidden-jargon + localisation-coverage tests
 - [ ] Phase 2–6 (safe components, guided flows, setup, a11y) — deferred
 - [x] 0/0 warnings, 71 tests pass under 1.91
+
+## v0.20.0 — RFC-0021 Phases 2–4: guided modal flows
+
+- [x] `guided_button` (disabled-with-reason) and `guided_field` helpers in knotra-ui
+- [x] "Get latest safely" modal: preparing → review plan → in-progress → result
+- [x] Plain dispositions ("Get latest", "Check only", "Get latest anyway", "Skip")
+- [x] "Save release point" modal: input → ready check → saving → result
+- [x] Disabled primary button with plain reason text
+- [x] Plain result wording ("Saved", "Undone", "We could not undo everything")
+- [x] "Open in editor" in conflict resolve panel; ConflictOpsMessage::OpenInEditorRequested
+- [x] show_op_details + Message::ToggleOpDetails for all result views
+- [x] 72 i18n keys (EN + JA); wording guard caught 2 violations during dev
+- [x] 0/0 warnings, 71 tests pass under 1.91
+- [ ] Phase 5 (guided setup / empty states / undo-for-removal) — next
+- [ ] Phase 6 (accessibility hardening) — later
