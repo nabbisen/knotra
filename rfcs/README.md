@@ -25,6 +25,7 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [0023](./proposed/023-workspace-management-completion.md) | Workspace management completion | Production Readiness Reset | High |
 
 ---
 

@@ -246,3 +246,52 @@ plain language; expert terms move behind "Show details".
       the design surface knotra doesn't use; no impact
 - [x] Snora Design System evaluated: deferred (knotra-ui already covers it)
 - [x] 0/0 warnings, 71 tests under 1.91
+
+## Production Readiness Reset — UI/UX and User Functions
+
+**Status:** Production release No-Go. Prior roadmap/RFC completion marks are
+historical implementation claims, not production-readiness proof.
+
+The July 2026 audit found that knotra has architecture and concept fragments,
+but the UI/UX and user functions are not sufficiently designed and implemented
+for production. Several visible controls mutate hidden state, silently close,
+loop messages, render debug output, or route to placeholder handlers. The next
+work must first convert these findings into lifecycle-managed RFCs under
+`rfcs/proposed/`, then implement and verify them one by one.
+
+Primary evidence:
+
+- `.git-exclude/reviewed/008-basic-function-rfc-overview-amended.md`
+- `.git-exclude/reviewed/010-reviewed-artifacts-consolidation.md`
+
+### RFC drafting track
+
+- [ ] Draft RFC: Workspace management completion
+- [ ] Draft RFC: Smart Pull modal execution completion
+- [ ] Draft RFC: Freezer / release point execution completion
+- [ ] Draft RFC: Conflict resolution action completion and editor-launch hardening
+- [ ] Draft RFC: Selection mode and bulk-selection completion
+- [ ] Draft RFC: Command palette action completion
+- [ ] Draft RFC: Typed context switching and context switch modal completion
+- [ ] Draft RFC: Changelog modal completion
+- [ ] Draft RFC: Activity retry semantics
+- [ ] Draft RFC: Dashboard grouping, sorting, and tier-density implementation
+- [ ] Draft RFC: Per-project VCS history for Git and jj
+
+### Implementation and verification track
+
+- [ ] Every visible control either works, is disabled with a clear reason, or is hidden
+- [ ] Dashboard uses the intended tier-specific information density in the active render path
+- [ ] All primary workflows have complete validation, confirmation, progress, result, error, and recovery states
+- [ ] User-facing strings are routed through the i18n catalog where production UI renders them
+- [ ] UI contract tests or smoke tests prove visible controls reach the intended message handler, task, and result state
+- [ ] Git integration tests are hermetic against global/user Git config
+- [ ] `cargo +1.91 fmt --check` passes
+- [ ] `cargo +1.91 clippy --workspace --all-targets` passes
+- [ ] `cargo +1.91 test -p knotra-vcs`, `cargo +1.91 test -p knotra-ui`, and `cargo +1.91 test -p knotra` pass in the documented release environment
+
+### Release gate
+
+Production release remains **No-Go** until the RFC drafting track is complete,
+the accepted RFCs are implemented, and the verification track passes with
+current evidence.
