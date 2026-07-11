@@ -1,14 +1,11 @@
 //! Sync Center UI state.
 
 use knotra_vcs::{
-    model::operation::{
-        RecoveryHint, SmartPullDisposition, SmartPullPlan,
-        SmartPullPlanEntry, SmartPullProgress,
-    },
     ProjectId, WorkspaceStatus,
+    model::operation::{
+        RecoveryHint, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
+    },
 };
-
-
 
 // ---------------------------------------------------------------------------
 // Sync Center phase
@@ -64,9 +61,15 @@ pub struct ProjectOutcome {
 
 #[allow(dead_code)]
 impl SyncResult {
-    pub fn success_count(&self) -> usize { self.per_project.iter().filter(|p| p.success).count() }
-    pub fn fail_count(&self)    -> usize { self.per_project.iter().filter(|p| !p.success).count() }
-    pub fn all_succeeded(&self) -> bool  { self.fail_count() == 0 }
+    pub fn success_count(&self) -> usize {
+        self.per_project.iter().filter(|p| p.success).count()
+    }
+    pub fn fail_count(&self) -> usize {
+        self.per_project.iter().filter(|p| !p.success).count()
+    }
+    pub fn all_succeeded(&self) -> bool {
+        self.fail_count() == 0
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -124,8 +127,8 @@ impl SyncCenterState {
             .map(|p| {
                 let selected = self.is_selected(&p.id);
                 let status = statuses.iter().find(|s| s.project_id == p.id);
-                let is_dirty    = status.map(|s| s.working_tree.is_dirty()).unwrap_or(false);
-                let has_conflict= status.map(|s| s.conflict.has_conflict).unwrap_or(false);
+                let is_dirty = status.map(|s| s.working_tree.is_dirty()).unwrap_or(false);
+                let has_conflict = status.map(|s| s.conflict.has_conflict).unwrap_or(false);
 
                 // Default disposition.
                 let disposition = if !selected {
@@ -150,7 +153,10 @@ impl SyncCenterState {
             })
             .collect();
 
-        SmartPullPlan { id: OperationId::new(), entries }
+        SmartPullPlan {
+            id: OperationId::new(),
+            entries,
+        }
     }
 }
 
@@ -161,13 +167,13 @@ impl SyncCenterState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
     use knotra_vcs::{
+        ProjectId, WorkspaceStatus,
         model::status::{
             ConflictStatus, RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus,
         },
-        ProjectId, WorkspaceStatus,
     };
-    use chrono::Utc;
 
     fn make_project(name: &str) -> knotra_vcs::Project {
         knotra_vcs::Project::new(name, "/tmp")
@@ -180,10 +186,16 @@ mod tests {
     ) -> knotra_vcs::ProjectStatus {
         knotra_vcs::ProjectStatus {
             project_id,
-            identity: RepositoryIdentity { path: "/tmp".into(), vcs_kind: VcsKind::Git },
+            identity: RepositoryIdentity {
+                path: "/tmp".into(),
+                vcs_kind: VcsKind::Git,
+            },
             context: None,
             remote: RemoteStatus::default(),
-            working_tree: WorkingTreeStatus { uncommitted_count: uncommitted, untracked_count: 0 },
+            working_tree: WorkingTreeStatus {
+                uncommitted_count: uncommitted,
+                untracked_count: 0,
+            },
             conflict: ConflictStatus {
                 has_conflict: conflict,
                 conflict_count: None,
@@ -198,7 +210,10 @@ mod tests {
     fn clean_project_gets_pull_disposition() {
         let p = make_project("svc");
         let status = make_status(p.id.clone(), 0, false);
-        let ws = WorkspaceStatus { projects: vec![status], last_refresh: None };
+        let ws = WorkspaceStatus {
+            projects: vec![status],
+            last_refresh: None,
+        };
 
         let mut sc = SyncCenterState::default();
         sc.init_selection(std::slice::from_ref(&p));
@@ -211,7 +226,10 @@ mod tests {
     fn dirty_project_defaults_to_fetch_only() {
         let p = make_project("svc");
         let status = make_status(p.id.clone(), 3, false);
-        let ws = WorkspaceStatus { projects: vec![status], last_refresh: None };
+        let ws = WorkspaceStatus {
+            projects: vec![status],
+            last_refresh: None,
+        };
 
         let mut sc = SyncCenterState::default();
         sc.init_selection(std::slice::from_ref(&p));
@@ -224,7 +242,10 @@ mod tests {
     fn conflicted_project_is_excluded() {
         let p = make_project("svc");
         let status = make_status(p.id.clone(), 0, true);
-        let ws = WorkspaceStatus { projects: vec![status], last_refresh: None };
+        let ws = WorkspaceStatus {
+            projects: vec![status],
+            last_refresh: None,
+        };
 
         let mut sc = SyncCenterState::default();
         sc.init_selection(std::slice::from_ref(&p));
@@ -248,7 +269,10 @@ mod tests {
     fn user_override_stash_and_pull() {
         let p = make_project("svc");
         let status = make_status(p.id.clone(), 2, false);
-        let ws = WorkspaceStatus { projects: vec![status], last_refresh: None };
+        let ws = WorkspaceStatus {
+            projects: vec![status],
+            last_refresh: None,
+        };
 
         let mut sc = SyncCenterState::default();
         sc.init_selection(std::slice::from_ref(&p));
@@ -256,7 +280,10 @@ mod tests {
             .insert(p.id.clone(), SmartPullDisposition::StashAndPull);
 
         let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
-        assert_eq!(plan.entries[0].disposition, SmartPullDisposition::StashAndPull);
+        assert_eq!(
+            plan.entries[0].disposition,
+            SmartPullDisposition::StashAndPull
+        );
     }
 
     #[test]
@@ -267,14 +294,17 @@ mod tests {
 
         let s1 = make_status(p1.id.clone(), 0, false);
         let s2 = make_status(p2.id.clone(), 1, false); // dirty → FetchOnly
-        let s3 = make_status(p3.id.clone(), 0, true);  // conflict → Excluded
-        let ws = WorkspaceStatus { projects: vec![s1, s2, s3], last_refresh: None };
+        let s3 = make_status(p3.id.clone(), 0, true); // conflict → Excluded
+        let ws = WorkspaceStatus {
+            projects: vec![s1, s2, s3],
+            last_refresh: None,
+        };
 
         let mut sc = SyncCenterState::default();
         sc.init_selection(&[p1.clone(), p2.clone(), p3.clone()]);
         let plan = sc.build_plan(&[p1, p2, p3], Some(&ws));
 
-        assert_eq!(plan.pull_count(),     1);
+        assert_eq!(plan.pull_count(), 1);
         assert_eq!(plan.excluded_count(), 1);
     }
 }

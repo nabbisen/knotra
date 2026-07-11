@@ -16,9 +16,16 @@ pub enum ConflictPhase {
         detail: ProjectConflictDetail,
     },
     /// A mark-resolved or abort operation is in progress.
-    Operating { project_id: ProjectId, action: String },
+    Operating {
+        project_id: ProjectId,
+        action: String,
+    },
     /// Show the operation result.
-    Done { project_id: ProjectId, success: bool, message: String },
+    Done {
+        project_id: ProjectId,
+        success: bool,
+        message: String,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -34,8 +41,8 @@ pub struct ConflictOpsState {
 
 #[cfg(test)]
 mod tests {
-    
-    use knotra_vcs::{ConflictedFile, ConflictMarker, ProjectConflictDetail, ProjectId};
+
+    use knotra_vcs::{ConflictMarker, ConflictedFile, ProjectConflictDetail, ProjectId};
 
     #[test]
     fn conflict_detail_resolved_when_no_files() {

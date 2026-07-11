@@ -7,11 +7,13 @@
 //! A typed path also advances on "Next" after validation.
 
 use iced::{
-    widget::{button, column, container, row, text, Space},
     Alignment, Element, Length,
+    widget::{Space, button, column, container, row, text},
 };
 
-use knotra_ui::widget::{guided_button, guided_field_focused, BUTTON_HEIGHT, FONT_BODY, FONT_SMALL};
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button, guided_field_focused,
+};
 
 use crate::{
     message::{Message, WorkspaceMessage},
@@ -22,8 +24,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     let dialog = state.add_project_dialog.as_ref()?;
 
     let (step_label, _total) = match dialog.step {
-        AddProjectStep::ChooseFolder  => (state.t("plain.add_project.step1_of2"), "1"),
-        AddProjectStep::NameProject   => (state.t("plain.add_project.step2_of2"), "2"),
+        AddProjectStep::ChooseFolder => (state.t("plain.add_project.step1_of2"), "1"),
+        AddProjectStep::NameProject => (state.t("plain.add_project.step2_of2"), "2"),
     };
 
     let close_btn = button(text("✕").size(FONT_BODY))
@@ -148,12 +150,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     };
 
     Some(
-        container(
-            column![header, body]
-                .spacing(16)
-                .padding(24),
-        )
-        .width(Length::Fixed(480.0))
-        .into(),
+        container(column![header, body].spacing(16).padding(24))
+            .width(Length::Fixed(480.0))
+            .into(),
     )
 }

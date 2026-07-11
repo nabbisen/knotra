@@ -13,22 +13,21 @@
 //! `state.t()` so they are available in English and Japanese.
 
 use iced::{
-    widget::{
-        button, column, container, row, scrollable, text, Space,
-    },
     Alignment, Element, Length,
+    widget::{Space, button, column, container, row, scrollable, text},
 };
 
-use knotra_ui::widget::{guided_button, guided_field, guided_field_focused, BUTTON_HEIGHT, FONT_BODY, FONT_SMALL};
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button, guided_field, guided_field_focused,
+};
 use knotra_vcs::{
-    model::operation::{FreezeOutcome, SmartPullDisposition},
     ProjectId,
+    model::operation::{FreezeOutcome, SmartPullDisposition},
 };
 
 use crate::{
     message::{
-        ChangelogMessage, ConflictOpsMessage, ContextMessage, FreezerMessage, Message,
-        SyncMessage,
+        ChangelogMessage, ConflictOpsMessage, ContextMessage, FreezerMessage, Message, SyncMessage,
     },
     state::AppState,
 };
@@ -79,14 +78,12 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
 
     let inner: Element<'_, Message> = match &sync.phase {
         // ── Step 0: Planning (computing the plan) ────────────────────────
-        SyncPhase::Idle | SyncPhase::Planning => {
-            column![
-                text(state.t("plain.get_latest.preparing")).size(FONT_BODY),
-                text(state.t("plain.get_latest.preparing_hint")).size(FONT_SMALL),
-            ]
-            .spacing(8)
-            .into()
-        }
+        SyncPhase::Idle | SyncPhase::Planning => column![
+            text(state.t("plain.get_latest.preparing")).size(FONT_BODY),
+            text(state.t("plain.get_latest.preparing_hint")).size(FONT_SMALL),
+        ]
+        .spacing(8)
+        .into(),
 
         // ── Step 1: Review the plan ───────────────────────────────────────
         SyncPhase::AwaitingConfirm(plan) => {
@@ -95,11 +92,14 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
             // Header row
             rows.push(
                 row![
-                    text(state.t("plain.project")).size(FONT_SMALL)
+                    text(state.t("plain.project"))
+                        .size(FONT_SMALL)
                         .width(Length::FillPortion(3)),
-                    text(state.t("plain.what_will_happen")).size(FONT_SMALL)
+                    text(state.t("plain.what_will_happen"))
+                        .size(FONT_SMALL)
                         .width(Length::FillPortion(2)),
-                    text(state.t("plain.note")).size(FONT_SMALL)
+                    text(state.t("plain.note"))
+                        .size(FONT_SMALL)
                         .width(Length::FillPortion(3)),
                 ]
                 .spacing(8)
@@ -107,37 +107,48 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
             );
 
             for entry in &plan.entries {
-                let (action_label, note) = disposition_plain(state, entry.disposition.clone(),
-                    entry.is_dirty, entry.has_conflict);
+                let (action_label, note) = disposition_plain(
+                    state,
+                    entry.disposition.clone(),
+                    entry.is_dirty,
+                    entry.has_conflict,
+                );
 
                 // Disposition override buttons for dirty (non-conflicted) projects
                 let action_cell: Element<'_, Message> = if entry.is_dirty && !entry.has_conflict {
                     let curr = &entry.disposition;
                     row![
-                        pick_disposition_btn(state, &entry.project_id,
+                        pick_disposition_btn(
+                            state,
+                            &entry.project_id,
                             SmartPullDisposition::FetchOnly,
                             state.t("plain.get_latest.check_only"),
-                            curr == &SmartPullDisposition::FetchOnly),
-                        pick_disposition_btn(state, &entry.project_id,
+                            curr == &SmartPullDisposition::FetchOnly
+                        ),
+                        pick_disposition_btn(
+                            state,
+                            &entry.project_id,
                             SmartPullDisposition::StashAndPull,
                             state.t("plain.get_latest.get_anyway"),
-                            curr == &SmartPullDisposition::StashAndPull),
+                            curr == &SmartPullDisposition::StashAndPull
+                        ),
                     ]
                     .spacing(4)
                     .into()
                 } else {
-                    text(action_label).size(FONT_BODY)
+                    text(action_label)
+                        .size(FONT_BODY)
                         .width(Length::FillPortion(2))
                         .into()
                 };
 
                 rows.push(
                     row![
-                        text(&entry.project_name).size(FONT_BODY)
+                        text(&entry.project_name)
+                            .size(FONT_BODY)
                             .width(Length::FillPortion(3)),
                         action_cell,
-                        text(note).size(FONT_SMALL)
-                            .width(Length::FillPortion(3)),
+                        text(note).size(FONT_SMALL).width(Length::FillPortion(3)),
                     ]
                     .spacing(8)
                     .align_y(Alignment::Center)
@@ -145,11 +156,16 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 );
             }
 
-            let can_start = plan.entries.iter()
+            let can_start = plan
+                .entries
+                .iter()
                 .any(|e| !matches!(e.disposition, SmartPullDisposition::Excluded));
 
-            let start_reason = if can_start { None }
-                else { Some(state.t("plain.disabled.choose_one")) };
+            let start_reason = if can_start {
+                None
+            } else {
+                Some(state.t("plain.disabled.choose_one"))
+            };
 
             let footer = row![
                 guided_button(
@@ -183,35 +199,44 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 state.t("plain.of"),
                 total
             );
-            column![
-                text(progress_text).size(FONT_BODY),
-            ]
-            .spacing(8)
-            .into()
+            column![text(progress_text).size(FONT_BODY),]
+                .spacing(8)
+                .into()
         }
 
         SyncPhase::PullRunning { completed, plan } => {
             let total = plan.entries.len();
-            let done  = completed.len();
-            let mut result_rows: Vec<Element<'_, Message>> = completed.iter().map(|p| {
-                let (icon, msg) = if p.result.success { ("✓", state.t("plain.get_latest.done_row")) }
-                    else { ("!", state.t("plain.get_latest.needs_help_row")) };
-                row![
-                    text(icon).size(FONT_BODY).width(Length::Fixed(20.0)),
-                    text(&p.project_name).size(FONT_BODY).width(Length::FillPortion(2)),
-                    text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
-                ]
-                .spacing(8)
-                .into()
-            }).collect();
+            let done = completed.len();
+            let mut result_rows: Vec<Element<'_, Message>> = completed
+                .iter()
+                .map(|p| {
+                    let (icon, msg) = if p.result.success {
+                        ("✓", state.t("plain.get_latest.done_row"))
+                    } else {
+                        ("!", state.t("plain.get_latest.needs_help_row"))
+                    };
+                    row![
+                        text(icon).size(FONT_BODY).width(Length::Fixed(20.0)),
+                        text(&p.project_name)
+                            .size(FONT_BODY)
+                            .width(Length::FillPortion(2)),
+                        text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
+                    ]
+                    .spacing(8)
+                    .into()
+                })
+                .collect();
 
             // Waiting rows for not-yet-started projects
             for entry in plan.entries.iter().skip(done) {
                 result_rows.push(
                     row![
                         text("○").size(FONT_BODY).width(Length::Fixed(20.0)),
-                        text(&entry.project_name).size(FONT_BODY).width(Length::FillPortion(2)),
-                        text(state.t("plain.waiting")).size(FONT_SMALL)
+                        text(&entry.project_name)
+                            .size(FONT_BODY)
+                            .width(Length::FillPortion(2)),
+                        text(state.t("plain.waiting"))
+                            .size(FONT_SMALL)
                             .width(Length::FillPortion(2)),
                     ]
                     .spacing(8)
@@ -241,19 +266,28 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
 }
 
 /// Render the result step for Get latest safely.
-fn pull_result_view<'a>(state: &'a AppState, result: &'a crate::state::sync::SyncResult) -> Element<'a, Message> {
-    let ok    = result.success_count();
-    let fail  = result.fail_count();
+fn pull_result_view<'a>(
+    state: &'a AppState,
+    result: &'a crate::state::sync::SyncResult,
+) -> Element<'a, Message> {
+    let ok = result.success_count();
+    let fail = result.fail_count();
 
     let summary = if fail == 0 {
-        format!("{} {} {}.",
+        format!(
+            "{} {} {}.",
             state.t("plain.get_latest.all_done_prefix"),
             ok,
-            state.t("plain.get_latest.all_done_suffix"))
+            state.t("plain.get_latest.all_done_suffix")
+        )
     } else {
-        format!("{} {}. {} {}.",
-            ok, state.t("plain.get_latest.done_count"),
-            fail, state.t("plain.get_latest.needs_help_count"))
+        format!(
+            "{} {}. {} {}.",
+            ok,
+            state.t("plain.get_latest.done_count"),
+            fail,
+            state.t("plain.get_latest.needs_help_count")
+        )
     };
 
     let body = if fail == 0 {
@@ -263,41 +297,45 @@ fn pull_result_view<'a>(state: &'a AppState, result: &'a crate::state::sync::Syn
     };
 
     // Per-project result rows
-    let rows: Vec<Element<'_, Message>> = result.per_project.iter().map(|pp| {
-        let icon = if pp.success { "✓" } else { "!" };
-        let msg  = if pp.success {
-            state.t("plain.get_latest.done_row")
-        } else {
-            state.t("plain.needs_help")
-        };
+    let rows: Vec<Element<'_, Message>> = result
+        .per_project
+        .iter()
+        .map(|pp| {
+            let icon = if pp.success { "✓" } else { "!" };
+            let msg = if pp.success {
+                state.t("plain.get_latest.done_row")
+            } else {
+                state.t("plain.needs_help")
+            };
 
-        let mut row_col = column![
-            row![
-                text(icon).size(FONT_BODY).width(Length::Fixed(20.0)),
-                text(&pp.project_name).size(FONT_BODY).width(Length::FillPortion(2)),
-                text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
+            let mut row_col = column![
+                row![
+                    text(icon).size(FONT_BODY).width(Length::Fixed(20.0)),
+                    text(&pp.project_name)
+                        .size(FONT_BODY)
+                        .width(Length::FillPortion(2)),
+                    text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
+                ]
+                .spacing(8),
             ]
-            .spacing(8),
-        ]
-        .spacing(4);
+            .spacing(4);
 
-        // Show commands under "Show details" if failed
-        if !pp.success && !pp.commands_executed.is_empty() && state.show_op_details {
-            for cmd in &pp.commands_executed {
-                row_col = row_col.push(
-                    text(format!("  {}", cmd)).size(FONT_SMALL)
-                );
+            // Show commands under "Show details" if failed
+            if !pp.success && !pp.commands_executed.is_empty() && state.show_op_details {
+                for cmd in &pp.commands_executed {
+                    row_col = row_col.push(text(format!("  {}", cmd)).size(FONT_SMALL));
+                }
+                if !pp.stderr.is_empty() {
+                    row_col = row_col.push(
+                        text(format!("  {}", pp.stderr.lines().next().unwrap_or("")))
+                            .size(FONT_SMALL),
+                    );
+                }
             }
-            if !pp.stderr.is_empty() {
-                row_col = row_col.push(
-                    text(format!("  {}", pp.stderr.lines().next().unwrap_or("")))
-                        .size(FONT_SMALL)
-                );
-            }
-        }
 
-        row_col.into()
-    }).collect();
+            row_col.into()
+        })
+        .collect();
 
     let details_label = if state.show_op_details {
         state.t("plain.hide_details")
@@ -359,13 +397,27 @@ fn disposition_plain(
     has_conflict: bool,
 ) -> (&str, &str) {
     match d {
-        SmartPullDisposition::Pull         => (state.t("plain.get_latest.action_get"),  ""),
-        SmartPullDisposition::FetchOnly    => (state.t("plain.get_latest.action_check"),
-            if is_dirty { state.t("plain.get_latest.note_unsaved") } else { "" }),
-        SmartPullDisposition::StashAndPull => (state.t("plain.get_latest.action_get_anyway"),
-            state.t("plain.get_latest.note_save_restore")),
-        SmartPullDisposition::Excluded     => (state.t("plain.get_latest.action_skip"),
-            if has_conflict { state.t("plain.get_latest.note_needs_choice") } else { "" }),
+        SmartPullDisposition::Pull => (state.t("plain.get_latest.action_get"), ""),
+        SmartPullDisposition::FetchOnly => (
+            state.t("plain.get_latest.action_check"),
+            if is_dirty {
+                state.t("plain.get_latest.note_unsaved")
+            } else {
+                ""
+            },
+        ),
+        SmartPullDisposition::StashAndPull => (
+            state.t("plain.get_latest.action_get_anyway"),
+            state.t("plain.get_latest.note_save_restore"),
+        ),
+        SmartPullDisposition::Excluded => (
+            state.t("plain.get_latest.action_skip"),
+            if has_conflict {
+                state.t("plain.get_latest.note_needs_choice")
+            } else {
+                ""
+            },
+        ),
     }
 }
 
@@ -406,17 +458,20 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 None,
             );
 
-            let validate_or_spinner: Element<'_, Message> = if matches!(freezer.phase, FreezerPhase::Validating) {
-                text(state.t("plain.release.checking")).size(FONT_BODY).into()
-            } else if freezer.freeze_name_is_valid() {
-                button(text(state.t("plain.release.check_readiness")).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::Freezer(FreezerMessage::ValidateRequested))
-                    .into()
-            } else {
-                Space::new().into()
-            };
+            let validate_or_spinner: Element<'_, Message> =
+                if matches!(freezer.phase, FreezerPhase::Validating) {
+                    text(state.t("plain.release.checking"))
+                        .size(FONT_BODY)
+                        .into()
+                } else if freezer.freeze_name_is_valid() {
+                    button(text(state.t("plain.release.check_readiness")).size(FONT_BODY))
+                        .height(BUTTON_HEIGHT)
+                        .padding([0, 18])
+                        .on_press(Message::Freezer(FreezerMessage::ValidateRequested))
+                        .into()
+                } else {
+                    Space::new().into()
+                };
 
             column![name_field, msg_field, validate_or_spinner]
                 .spacing(14)
@@ -426,28 +481,39 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         // ── Validation result + execute ───────────────────────────────────
         FreezerPhase::ValidationReady(validation) => {
             let blocked_count = validation.blocked_count();
-            let can_save      = validation.all_ready();
+            let can_save = validation.all_ready();
 
-            let val_rows: Vec<Element<'_, Message>> = validation.entries.iter().map(|entry| {
-                let (icon, msg) = if entry.is_blocked() {
-                    ("!", entry.blockers.first()
-                        .map(|s| plain_blocker(state, s.as_str()))
-                        .unwrap_or(""))
-                } else if !entry.included {
-                    ("—", state.t("plain.release.row_excluded"))
-                } else {
-                    ("✓", state.t("plain.release.row_ready"))
-                };
+            let val_rows: Vec<Element<'_, Message>> = validation
+                .entries
+                .iter()
+                .map(|entry| {
+                    let (icon, msg) = if entry.is_blocked() {
+                        (
+                            "!",
+                            entry
+                                .blockers
+                                .first()
+                                .map(|s| plain_blocker(state, s.as_str()))
+                                .unwrap_or(""),
+                        )
+                    } else if !entry.included {
+                        ("—", state.t("plain.release.row_excluded"))
+                    } else {
+                        ("✓", state.t("plain.release.row_ready"))
+                    };
 
-                row![
-                    text(icon).size(FONT_BODY).width(Length::Fixed(22.0)),
-                    text(&entry.project_name).size(FONT_BODY).width(Length::FillPortion(2)),
-                    text(msg).size(FONT_SMALL).width(Length::FillPortion(3)),
-                ]
-                .spacing(8)
-                .align_y(Alignment::Center)
-                .into()
-            }).collect();
+                    row![
+                        text(icon).size(FONT_BODY).width(Length::Fixed(22.0)),
+                        text(&entry.project_name)
+                            .size(FONT_BODY)
+                            .width(Length::FillPortion(2)),
+                        text(msg).size(FONT_SMALL).width(Length::FillPortion(3)),
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center)
+                    .into()
+                })
+                .collect();
 
             let save_reason: Option<&str> = if can_save {
                 None
@@ -481,62 +547,72 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         }
 
         // ── Executing ─────────────────────────────────────────────────────
-        FreezerPhase::Executing => {
-            column![
-                text(state.t("plain.release.saving")).size(FONT_BODY),
-                text(state.t("plain.release.saving_hint")).size(FONT_SMALL),
-            ]
-            .spacing(8)
-            .into()
-        }
+        FreezerPhase::Executing => column![
+            text(state.t("plain.release.saving")).size(FONT_BODY),
+            text(state.t("plain.release.saving_hint")).size(FONT_SMALL),
+        ]
+        .spacing(8)
+        .into(),
 
         // ── Result ────────────────────────────────────────────────────────
         FreezerPhase::Done(result) => {
             let outcome_title = match result.outcome {
-                FreezeOutcome::Success      => state.t("plain.release.outcome_success"),
-                FreezeOutcome::RolledBack   => state.t("plain.release.outcome_undone"),
+                FreezeOutcome::Success => state.t("plain.release.outcome_success"),
+                FreezeOutcome::RolledBack => state.t("plain.release.outcome_undone"),
                 FreezeOutcome::RollbackFailed => state.t("plain.release.outcome_partial"),
-                FreezeOutcome::NothingDone  => state.t("plain.release.outcome_nothing"),
+                FreezeOutcome::NothingDone => state.t("plain.release.outcome_nothing"),
             };
 
             let outcome_body = match result.outcome {
-                FreezeOutcome::Success      => state.t("plain.no_next_step"),
-                FreezeOutcome::RolledBack   => state.t("plain.release.outcome_undone_hint"),
+                FreezeOutcome::Success => state.t("plain.no_next_step"),
+                FreezeOutcome::RolledBack => state.t("plain.release.outcome_undone_hint"),
                 FreezeOutcome::RollbackFailed => state.t("plain.release.outcome_partial_hint"),
-                FreezeOutcome::NothingDone  => "",
+                FreezeOutcome::NothingDone => "",
             };
 
-            let rows: Vec<Element<'_, Message>> = result.project_results.iter().map(|pr| {
-                let icon = if pr.success { "✓" } else if pr.rollback_attempted && pr.rollback_succeeded == Some(true) { "⟲" } else { "!" };
-                let msg  = if pr.success {
-                    state.t("plain.release.row_saved")
-                } else if pr.rollback_attempted && pr.rollback_succeeded == Some(true) {
-                    state.t("plain.release.row_undone")
-                } else {
-                    state.t("plain.needs_help")
-                };
+            let rows: Vec<Element<'_, Message>> = result
+                .project_results
+                .iter()
+                .map(|pr| {
+                    let icon = if pr.success {
+                        "✓"
+                    } else if pr.rollback_attempted && pr.rollback_succeeded == Some(true) {
+                        "⟲"
+                    } else {
+                        "!"
+                    };
+                    let msg = if pr.success {
+                        state.t("plain.release.row_saved")
+                    } else if pr.rollback_attempted && pr.rollback_succeeded == Some(true) {
+                        state.t("plain.release.row_undone")
+                    } else {
+                        state.t("plain.needs_help")
+                    };
 
-                let mut row_col = column![
-                    row![
-                        text(icon).size(FONT_BODY).width(Length::Fixed(22.0)),
-                        text(&pr.project_name).size(FONT_BODY).width(Length::FillPortion(2)),
-                        text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
+                    let mut row_col = column![
+                        row![
+                            text(icon).size(FONT_BODY).width(Length::Fixed(22.0)),
+                            text(&pr.project_name)
+                                .size(FONT_BODY)
+                                .width(Length::FillPortion(2)),
+                            text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
+                        ]
+                        .spacing(8),
                     ]
-                    .spacing(8),
-                ]
-                .spacing(4);
+                    .spacing(4);
 
-                if !pr.success && state.show_op_details
-                    && let Some(hint) = &pr.recovery_hint {
+                    if !pr.success
+                        && state.show_op_details
+                        && let Some(hint) = &pr.recovery_hint
+                    {
                         for cmd in &hint.suggested_commands {
-                            row_col = row_col.push(
-                                text(format!("  {}", cmd)).size(FONT_SMALL)
-                            );
+                            row_col = row_col.push(text(format!("  {}", cmd)).size(FONT_SMALL));
                         }
                     }
 
-                row_col.into()
-            }).collect();
+                    row_col.into()
+                })
+                .collect();
 
             let details_label = if state.show_op_details {
                 state.t("plain.hide_details")
@@ -639,9 +715,15 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
         ContextPhase::Done(result) => {
             let (title, body) = if result.operation_result.success {
-                (state.t("plain.switch.done_title"), state.t("plain.no_next_step"))
+                (
+                    state.t("plain.switch.done_title"),
+                    state.t("plain.no_next_step"),
+                )
             } else {
-                (state.t("plain.switch.failed_title"), state.t("plain.switch.failed_hint"))
+                (
+                    state.t("plain.switch.failed_title"),
+                    state.t("plain.switch.failed_hint"),
+                )
             };
 
             let mut detail_col = column![
@@ -694,7 +776,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
 pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Element<'a, Message> {
     let name = project_name_for(state, project_id);
-    let ops  = &state.conflict_ops;
+    let ops = &state.conflict_ops;
 
     let file_rows: Vec<Element<'_, Message>> = ops
         .cached
@@ -705,20 +787,18 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                 text("!").size(FONT_BODY).width(Length::Fixed(22.0)),
                 text(&f.path).size(FONT_BODY).width(Length::Fill),
                 Space::new().width(Length::Fixed(8.0)),
-                button(
-                    text(state.t("plain.resolve.open_editor")).size(FONT_SMALL + 1.0)
-                )
-                .height(36.0)
-                .padding([0, 10])
-                .on_press(Message::ConflictOps(ConflictOpsMessage::OpenInEditorRequested(f.path.clone()))),
-                button(
-                    text(state.t("plain.resolve.mark_done")).size(FONT_SMALL + 1.0)
-                )
-                .height(36.0)
-                .padding([0, 10])
-                .on_press(Message::ConflictOps(
-                    ConflictOpsMessage::FileMarkedResolved(f.path.clone()),
-                )),
+                button(text(state.t("plain.resolve.open_editor")).size(FONT_SMALL + 1.0))
+                    .height(36.0)
+                    .padding([0, 10])
+                    .on_press(Message::ConflictOps(
+                        ConflictOpsMessage::OpenInEditorRequested(f.path.clone())
+                    )),
+                button(text(state.t("plain.resolve.mark_done")).size(FONT_SMALL + 1.0))
+                    .height(36.0)
+                    .padding([0, 10])
+                    .on_press(Message::ConflictOps(
+                        ConflictOpsMessage::FileMarkedResolved(f.path.clone()),
+                    )),
             ]
             .align_y(Alignment::Center)
             .spacing(6)
@@ -782,7 +862,10 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
 
     let content: Element<'_, Message> = match &cl.phase {
         ChangelogPhase::Idle => {
-            let reason = cl.since_ref.trim().is_empty()
+            let reason = cl
+                .since_ref
+                .trim()
+                .is_empty()
                 .then_some(state.t("plain.changelog.reason_empty"));
             guided_button(
                 state.t("plain.changelog.generate"),
@@ -792,16 +875,15 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
             )
         }
 
-        ChangelogPhase::Collecting => {
-            text(state.t("plain.changelog.collecting")).size(FONT_BODY).into()
-        }
+        ChangelogPhase::Collecting => text(state.t("plain.changelog.collecting"))
+            .size(FONT_BODY)
+            .into(),
 
         ChangelogPhase::Ready(draft) => {
             let content_text = format!("{:?}", draft); // TODO: render ChangelogDraft properly
             let copy_text = content_text.clone();
             column![
-                scrollable(text(content_text).size(FONT_SMALL))
-                    .height(Length::Fixed(240.0)),
+                scrollable(text(content_text).size(FONT_SMALL)).height(Length::Fixed(240.0)),
                 row![
                     button(text(state.t("plain.changelog.copy")).size(FONT_BODY))
                         .height(BUTTON_HEIGHT)

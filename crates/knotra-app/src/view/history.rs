@@ -1,10 +1,10 @@
 //! History view — searchable, expandable operation log.
 
-use knotra_vcs::model::operation::{OperationLog, OperationResult};
 use iced::{
-    widget::{button, column, container, row, scrollable, text, text_input, Space},
     Alignment, Element, Length, Padding,
+    widget::{Space, button, column, container, row, scrollable, text, text_input},
 };
+use knotra_vcs::model::operation::{OperationLog, OperationResult};
 
 use crate::{
     message::{HistoryMessage, Message},
@@ -16,9 +16,9 @@ use crate::{
 // ---------------------------------------------------------------------------
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
-    let header  = view_header(state);
+    let header = view_header(state);
     let toolbar = view_toolbar(state);
-    let body    = view_body(state);
+    let body = view_body(state);
 
     column![header, toolbar, scrollable(body).height(Length::Fill)]
         .height(Length::Fill)
@@ -31,8 +31,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
 fn view_header(state: &AppState) -> Element<'_, Message> {
     row![
-        button(text("← Dashboard"))
-            .on_press(Message::History(HistoryMessage::BackToDashboard)),
+        button(text("← Dashboard")).on_press(Message::History(HistoryMessage::BackToDashboard)),
         text(state.t("history.title")).size(20),
     ]
     .spacing(12)
@@ -51,7 +50,12 @@ fn view_toolbar(state: &AppState) -> Element<'_, Message> {
             .on_input(|s| Message::History(HistoryMessage::SearchChanged(s)))
             .width(Length::Fill),
     ]
-    .padding(Padding { top: 0.0, bottom: 8.0, left: 12.0, right: 12.0 })
+    .padding(Padding {
+        top: 0.0,
+        bottom: 8.0,
+        left: 12.0,
+        right: 12.0,
+    })
     .into()
 }
 
@@ -103,11 +107,14 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
 // ---------------------------------------------------------------------------
 
 fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a, Message> {
-    let result   = &log.result;
+    let result = &log.result;
     let expanded = state.history_expanded.contains(&result.operation_id);
 
     let status_label = summarise_status(result);
-    let timestamp    = result.started_at.format("%Y-%m-%d %H:%M:%S UTC").to_string();
+    let timestamp = result
+        .started_at
+        .format("%Y-%m-%d %H:%M:%S UTC")
+        .to_string();
     let project_count = result.per_project.len();
 
     let toggle_label = if expanded {
@@ -117,7 +124,7 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     };
 
     let op_id_toggle = result.operation_id.clone();
-    let _op_id_copy  = result.operation_id.clone();
+    let _op_id_copy = result.operation_id.clone();
 
     let summary_row = row![
         text(result.kind.to_string()).size(13),
@@ -127,29 +134,29 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         text(status_label).size(12),
         button(text(toggle_label).size(11))
             .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle))),
-        button(text(state.t("history.copy_log")).size(11))
-            .on_press({
-                // Build a text representation of the log entry for clipboard.
-                let kind   = result.kind.to_string();
-                let ts     = result.started_at.format("%Y-%m-%d %H:%M:%S UTC").to_string();
-                let status = summarise_status(result);
-                let mut text_parts = vec![
-                    format!("# {} — {} — {}", kind, ts, status),
-                ];
-                for pr in &result.per_project {
-                    let ok = if pr.success { "ok" } else { "FAILED" };
-                    text_parts.push(format!("  {} [{}]", pr.project_id, ok));
-                    for cmd in &pr.commands_executed {
-                        text_parts.push(format!("    $ {}", cmd));
-                    }
-                    if !pr.stderr.is_empty() {
-                        for line in pr.stderr.lines().take(5) {
-                            text_parts.push(format!("    {}", line));
-                        }
+        button(text(state.t("history.copy_log")).size(11)).on_press({
+            // Build a text representation of the log entry for clipboard.
+            let kind = result.kind.to_string();
+            let ts = result
+                .started_at
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string();
+            let status = summarise_status(result);
+            let mut text_parts = vec![format!("# {} — {} — {}", kind, ts, status)];
+            for pr in &result.per_project {
+                let ok = if pr.success { "ok" } else { "FAILED" };
+                text_parts.push(format!("  {} [{}]", pr.project_id, ok));
+                for cmd in &pr.commands_executed {
+                    text_parts.push(format!("    $ {}", cmd));
+                }
+                if !pr.stderr.is_empty() {
+                    for line in pr.stderr.lines().take(5) {
+                        text_parts.push(format!("    {}", line));
                     }
                 }
-                Message::CopyToClipboard(text_parts.join("\n"))
-            }),
+            }
+            Message::CopyToClipboard(text_parts.join("\n"))
+        }),
     ]
     .spacing(6)
     .align_y(Alignment::Center);
@@ -160,10 +167,7 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         col = col.push(view_log_detail(state, log));
     }
 
-    container(col)
-        .width(Length::Fill)
-        .padding([8, 12])
-        .into()
+    container(col).width(Length::Fill).padding([8, 12]).into()
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +183,11 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
         let rb_text = format!(
             "{}  {}",
             state.t("history.rollback_note"),
-            if result.rollback_succeeded == Some(true) { "succeeded" } else { "FAILED" }
+            if result.rollback_succeeded == Some(true) {
+                "succeeded"
+            } else {
+                "FAILED"
+            }
         );
         rows.push(text(rb_text).size(11).into());
     }
@@ -271,10 +279,18 @@ pub(crate) fn log_to_markdown(log: &knotra_vcs::OperationLog) -> String {
     let result = &log.result;
 
     let status = if result.rollback_attempted {
-        if result.rollback_succeeded == Some(true) { "Rolled back" } else { "Rollback failed" }
-    } else if result.all_succeeded() { "Success" }
-      else if result.any_failed()    { "Partial"  }
-      else                           { "Failed"   };
+        if result.rollback_succeeded == Some(true) {
+            "Rolled back"
+        } else {
+            "Rollback failed"
+        }
+    } else if result.all_succeeded() {
+        "Success"
+    } else if result.any_failed() {
+        "Partial"
+    } else {
+        "Failed"
+    };
 
     let mut md = format!(
         "# Operation: {}\nStarted:  {}\nFinished: {}\nStatus:   {}\n\n## Projects\n\n",
@@ -285,7 +301,11 @@ pub(crate) fn log_to_markdown(log: &knotra_vcs::OperationLog) -> String {
     );
 
     for pr in &result.per_project {
-        let icon = if pr.success { "✓ Success" } else { "✗ Failed" };
+        let icon = if pr.success {
+            "✓ Success"
+        } else {
+            "✗ Failed"
+        };
         md.push_str(&format!("### {} — {}\n", pr.project_id, icon));
 
         if !pr.commands_executed.is_empty() {
@@ -295,13 +315,21 @@ pub(crate) fn log_to_markdown(log: &knotra_vcs::OperationLog) -> String {
             }
         }
         if !pr.stdout.is_empty() {
-            let preview: String = pr.stdout.lines().take(20)
-                .map(|l| format!("  {l}\n")).collect();
+            let preview: String = pr
+                .stdout
+                .lines()
+                .take(20)
+                .map(|l| format!("  {l}\n"))
+                .collect();
             md.push_str(&format!("Stdout:\n{preview}"));
         }
         if !pr.stderr.is_empty() {
-            let preview: String = pr.stderr.lines().take(10)
-                .map(|l| format!("  {l}\n")).collect();
+            let preview: String = pr
+                .stderr
+                .lines()
+                .take(10)
+                .map(|l| format!("  {l}\n"))
+                .collect();
             md.push_str(&format!("Stderr:\n{preview}"));
         }
         md.push('\n');

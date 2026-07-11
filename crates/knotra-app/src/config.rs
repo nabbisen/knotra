@@ -4,8 +4,8 @@
 //! Workspace definitions live in `~/.config/knotra/workspaces/`.
 //! Operation history lives in `~/.local/share/knotra/history/`.
 
-use serde::{Deserialize, Serialize};
 use knotra_ui::i18n::Locale;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Application-level configuration.
@@ -49,6 +49,7 @@ impl Default for AppConfig {
 }
 
 /// Paths used by the application.
+#[derive(Debug, Clone)]
 pub struct AppPaths {
     pub config_file: PathBuf,
     pub workspaces_dir: PathBuf,
@@ -68,6 +69,15 @@ impl AppPaths {
             config_file: config_base.join("config.toml"),
             workspaces_dir: config_base.join("workspaces"),
             history_dir: data_base.join("history"),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn under(base: PathBuf) -> Self {
+        AppPaths {
+            config_file: base.join("config").join("config.toml"),
+            workspaces_dir: base.join("config").join("workspaces"),
+            history_dir: base.join("data").join("history"),
         }
     }
 }
@@ -99,11 +109,8 @@ pub fn load_config(paths: &AppPaths) -> (AppConfig, Option<String>) {
 /// Persist configuration to disk.
 pub fn save_config(config: &AppConfig, paths: &AppPaths) -> Result<(), String> {
     if let Some(parent) = paths.config_file.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("cannot create config dir: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("cannot create config dir: {e}"))?;
     }
-    let text =
-        toml::to_string_pretty(config).map_err(|e| format!("serialization error: {e}"))?;
-    std::fs::write(&paths.config_file, text)
-        .map_err(|e| format!("cannot write config.toml: {e}"))
+    let text = toml::to_string_pretty(config).map_err(|e| format!("serialization error: {e}"))?;
+    std::fs::write(&paths.config_file, text).map_err(|e| format!("cannot write config.toml: {e}"))
 }

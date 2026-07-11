@@ -1,7 +1,7 @@
 //! Conflict resolution domain types.
 
-use serde::{Deserialize, Serialize};
 use crate::model::project::ProjectId;
+use serde::{Deserialize, Serialize};
 
 /// Conflict state of one file in a repository.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,10 +19,10 @@ pub enum ConflictMarker {
 impl std::fmt::Display for ConflictMarker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BothModified  => write!(f, "both modified"),
-            Self::DeleteModify  => write!(f, "delete/modify"),
-            Self::BothAdded     => write!(f, "both added"),
-            Self::Other         => write!(f, "conflict"),
+            Self::BothModified => write!(f, "both modified"),
+            Self::DeleteModify => write!(f, "delete/modify"),
+            Self::BothAdded => write!(f, "both added"),
+            Self::Other => write!(f, "conflict"),
         }
     }
 }

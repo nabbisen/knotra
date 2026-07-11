@@ -1,11 +1,9 @@
 //! All `Message` variants for the knotra GUI.
 
 use knotra_vcs::{
-    ContextList, ContextSwitchResult, FreezeResult, FreezeValidation,
-    ProjectId,
+    ContextList, ContextSwitchResult, FreezeResult, FreezeValidation, ProjectId, WorkspaceStatus,
     model::operation::{OperationId, OperationLog, SmartPullPlan, SmartPullProgress},
     model::workspace::WorkspaceId,
-    WorkspaceStatus,
 };
 
 use crate::state::Screen;
@@ -208,14 +206,19 @@ pub enum BackgroundMessage {
     /// Topology graph scanned.
     TopologyScanned(knotra_vcs::DependencyGraph),
     /// Tag push completed for all offered projects.
-    TagPushCompleted { success_count: usize, fail_count: usize },
+    TagPushCompleted {
+        success_count: usize,
+        fail_count: usize,
+    },
     /// Missing repository paths detected at refresh.
     MissingProjectsDetected(Vec<ProjectId>),
     /// Validation phase completed.
     FreezeValidationDone(FreezeValidation),
     /// Execution phase completed.
     FreezeExecutionDone(FreezeResult),
-    TaskError { description: String },
+    TaskError {
+        description: String,
+    },
 }
 
 // --- Filter ---
@@ -231,18 +234,23 @@ pub enum FilterMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum StatusFilter {
-    Healthy, Behind, Ahead, Dirty, Conflict, Error,
+    Healthy,
+    Behind,
+    Ahead,
+    Dirty,
+    Conflict,
+    Error,
 }
 #[allow(dead_code)]
 impl StatusFilter {
     pub fn label_key(&self) -> &'static str {
         match self {
-            StatusFilter::Healthy  => "filter.healthy",
-            StatusFilter::Behind   => "filter.behind",
-            StatusFilter::Ahead    => "filter.ahead",
-            StatusFilter::Dirty    => "filter.dirty",
+            StatusFilter::Healthy => "filter.healthy",
+            StatusFilter::Behind => "filter.behind",
+            StatusFilter::Ahead => "filter.ahead",
+            StatusFilter::Dirty => "filter.dirty",
             StatusFilter::Conflict => "filter.conflict",
-            StatusFilter::Error    => "filter.error",
+            StatusFilter::Error => "filter.error",
         }
     }
 }
@@ -254,7 +262,10 @@ pub enum ConflictOpsMessage {
     OpenRequested(Option<ProjectId>),
     ProjectSelected(ProjectId),
     RecheckRequested(ProjectId),
-    MarkResolvedRequested { project_id: ProjectId, file_path: String },
+    MarkResolvedRequested {
+        project_id: ProjectId,
+        file_path: String,
+    },
     AbortMergeRequested(ProjectId),
     AbortMergeConfirmed(ProjectId),
     BackToDashboard,
@@ -295,7 +306,10 @@ pub enum TopologyMessage {
 #[allow(dead_code)]
 pub enum TagPushMessage {
     /// Offer to push after successful freeze.
-    OfferShown { freeze_name: String, project_ids: Vec<ProjectId> },
+    OfferShown {
+        freeze_name: String,
+        project_ids: Vec<ProjectId>,
+    },
     /// User accepted the push.
     PushConfirmed,
     /// User declined.
@@ -316,7 +330,11 @@ pub enum LaunchMessage {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum ShortcutMessage {
-    Refresh, OpenContextOps, OpenFreezer, FocusSearch, Close,
+    Refresh,
+    OpenContextOps,
+    OpenFreezer,
+    FocusSearch,
+    Close,
 }
 
 // ---------------------------------------------------------------------------

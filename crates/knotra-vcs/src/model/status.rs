@@ -178,8 +178,8 @@ impl Default for ContextList {
 /// A single stash entry (maps to knotra_vcs-backend StashEntry).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StashEntry {
-    pub index:     usize,
+    pub index: usize,
     /// Short (8-char) hex hash of the stash commit.
     pub commit_id: String,
-    pub message:   String,
+    pub message: String,
 }

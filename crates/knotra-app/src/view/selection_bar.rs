@@ -5,16 +5,15 @@
 //! ≥ 1 project is selected.  Displays the count and primary action buttons.
 
 use iced::{
-    widget::{button, container, row, text, Space},
     Alignment, Element, Length,
+    widget::{Space, button, container, row, text},
 };
 
 use knotra_ui::widget::BUTTON_HEIGHT;
 
 use crate::{
     message::{
-        ActivityMessage, Message, SelectionMessage,
-        SyncMessage, FreezerMessage, ContextMessage,
+        ActivityMessage, ContextMessage, FreezerMessage, Message, SelectionMessage, SyncMessage,
     },
     state::AppState,
 };
@@ -29,11 +28,14 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     let label = format!("✓  {}  selected", count);
 
     // Determine which buttons are applicable.
-    let has_upstream = state.workspace_status.as_ref()
-        .map(|ws| ws.projects.iter().any(|ps| {
-            state.selection.contains(&ps.project_id)
-                && ps.remote.upstream.is_some()
-        }))
+    let has_upstream = state
+        .workspace_status
+        .as_ref()
+        .map(|ws| {
+            ws.projects
+                .iter()
+                .any(|ps| state.selection.contains(&ps.project_id) && ps.remote.upstream.is_some())
+        })
         .unwrap_or(false);
 
     // Plain-language, goal-oriented labels. Expert terms (Fetch / Pull / Tag /

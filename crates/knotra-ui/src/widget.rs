@@ -5,8 +5,8 @@
 
 // Re-export iced primitives so callers need only one import.
 pub use iced::{
-    widget::{button, column, container, row, scrollable, text, text_input, Column, Row},
     Alignment, Color, Element, Length, Padding,
+    widget::{Column, Row, button, column, container, row, scrollable, text, text_input},
 };
 
 /// Standard corner radius for cards and panels.
@@ -68,8 +68,8 @@ pub fn guided_button<'a, Message: Clone + 'a>(
     on_press: Option<Message>,
     reason: Option<&'a str>,
 ) -> Element<'a, Message> {
-    use iced::widget::{column, text};
     use crate::widget::BUTTON_HEIGHT;
+    use iced::widget::{column, text};
 
     let btn = button(text(label).size(FONT_BODY))
         .height(BUTTON_HEIGHT)
@@ -79,14 +79,11 @@ pub fn guided_button<'a, Message: Clone + 'a>(
 
     let btn: Element<'a, Message> = match on_press {
         Some(msg) => btn.on_press(msg).into(),
-        None      => btn.into(),
+        None => btn.into(),
     };
 
     match reason {
-        Some(r) if show_reason =>
-            column![btn, text(r).size(FONT_SMALL)]
-                .spacing(6)
-                .into(),
+        Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
         _ => btn,
     }
 }
@@ -139,11 +136,7 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
         field = field.id(widget_id);
     }
 
-    let mut group = column![
-        text(label).size(FONT_BODY),
-        field,
-    ]
-    .spacing(8);
+    let mut group = column![text(label).size(FONT_BODY), field,].spacing(8);
 
     if let Some(err) = error {
         group = group.push(text(err).size(FONT_SMALL));
@@ -161,12 +154,13 @@ pub mod focus_id {
     use iced::widget::Id;
     use std::sync::LazyLock;
 
-    pub static SEARCH:           LazyLock<Id> = LazyLock::new(|| Id::new("dashboard-search"));
-    pub static PALETTE_QUERY:    LazyLock<Id> = LazyLock::new(|| Id::new("palette-query"));
+    pub static SEARCH: LazyLock<Id> = LazyLock::new(|| Id::new("dashboard-search"));
+    pub static PALETTE_QUERY: LazyLock<Id> = LazyLock::new(|| Id::new("palette-query"));
     pub static ADD_PROJECT_PATH: LazyLock<Id> = LazyLock::new(|| Id::new("add-project-path"));
     pub static ADD_PROJECT_NAME: LazyLock<Id> = LazyLock::new(|| Id::new("add-project-name"));
-    pub static RELEASE_NAME:     LazyLock<Id> = LazyLock::new(|| Id::new("release-name"));
-    pub static SWITCH_TARGET:    LazyLock<Id> = LazyLock::new(|| Id::new("switch-target"));
+    pub static WORKSPACE_NAME: LazyLock<Id> = LazyLock::new(|| Id::new("workspace-name"));
+    pub static RELEASE_NAME: LazyLock<Id> = LazyLock::new(|| Id::new("release-name"));
+    pub static SWITCH_TARGET: LazyLock<Id> = LazyLock::new(|| Id::new("switch-target"));
 }
 
 /// Produce a `Task` that moves keyboard focus to the text input with the given ID.

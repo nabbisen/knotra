@@ -1,9 +1,6 @@
 //! Workspace definition and operation history persistence.
 
-use knotra_vcs::model::{
-    operation::OperationLog,
-    workspace::Workspace,
-};
+use knotra_vcs::model::{operation::OperationLog, workspace::Workspace};
 use serde::{Deserialize, Serialize};
 
 use crate::config::AppPaths;
@@ -66,6 +63,20 @@ pub fn save_workspace(workspace: &Workspace, paths: &AppPaths) -> Result<(), Str
     std::fs::write(&path, text).map_err(|e| format!("write error: {e}"))
 }
 
+/// Remove a persisted workspace file.
+///
+/// Missing files are treated as already removed so in-memory cleanup can
+/// proceed for workspaces loaded before the file disappeared.
+pub fn delete_workspace_file(workspace: &Workspace, paths: &AppPaths) -> Result<(), String> {
+    let file_name = format!("{}.toml", workspace.id);
+    let path = paths.workspaces_dir.join(file_name);
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("delete error: {e}")),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Operation history persistence
 // ---------------------------------------------------------------------------
@@ -79,7 +90,8 @@ pub fn save_operation_log(log: &OperationLog, paths: &AppPaths) -> Result<(), St
     let file_name = format!("{}_{}.json", ts, log.result.operation_id);
     let path = paths.history_dir.join(file_name);
 
-    let text = serde_json::to_string_pretty(log).map_err(|e| format!("serialization error: {e}"))?;
+    let text =
+        serde_json::to_string_pretty(log).map_err(|e| format!("serialization error: {e}"))?;
     std::fs::write(&path, text).map_err(|e| format!("write error: {e}"))
 }
 

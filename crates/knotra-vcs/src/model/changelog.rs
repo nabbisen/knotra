@@ -1,8 +1,8 @@
 //! Changelog auto-aggregation domain types.
 
+use crate::model::project::ProjectId;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::model::project::ProjectId;
 
 /// A single commit entry collected for the changelog.
 #[derive(Debug, Clone, Serialize, Deserialize)]

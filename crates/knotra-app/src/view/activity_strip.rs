@@ -7,8 +7,8 @@
 //! When a project was just removed, shows an "Undo" snackbar instead.
 
 use iced::{
-    widget::{button, container, row, text, Space},
     Alignment, Element, Length,
+    widget::{Space, button, container, row, text},
 };
 
 use knotra_ui::widget::{BUTTON_HEIGHT, FONT_BODY, FONT_SMALL};
@@ -62,7 +62,10 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             let label = format!("ⓘ  {}", summary);
             Some(strip_row_no_extra(label, strip))
         }
-        LatestOpState::PartialFailure { summary, failed_names } => {
+        LatestOpState::PartialFailure {
+            summary,
+            failed_names,
+        } => {
             let names = failed_names.join(", ");
             let label = format!("⚠  {}  (failed: {})", summary, names);
             let retry = Some(
@@ -86,19 +89,23 @@ fn strip_row_no_extra<'a>(label: String, state: &'a ActivityStripState) -> Eleme
     let details_btn = button(text("› Details").size(FONT_SMALL))
         .on_press(Message::Activity(ActivityMessage::PopoverToggled));
     container(
-        row![text(label).size(FONT_SMALL), Space::new().width(Length::Fill), details_btn]
-            .spacing(8)
-            .align_y(Alignment::Center)
-            .padding([4, 12])
+        row![
+            text(label).size(FONT_SMALL),
+            Space::new().width(Length::Fill),
+            details_btn
+        ]
+        .spacing(8)
+        .align_y(Alignment::Center)
+        .padding([4, 12]),
     )
     .width(Length::Fill)
     .into()
 }
 
 fn strip_row<'a>(
-    label:  String,
-    extra:  Option<impl Into<Element<'a, Message>>>,
-    state:  &'a ActivityStripState,
+    label: String,
+    extra: Option<impl Into<Element<'a, Message>>>,
+    state: &'a ActivityStripState,
 ) -> Element<'a, Message> {
     let details_btn = button(text("› Details").size(FONT_SMALL))
         .on_press(Message::Activity(ActivityMessage::PopoverToggled));
@@ -115,7 +122,5 @@ fn strip_row<'a>(
     }
     r = r.push(details_btn);
 
-    container(r.padding([4, 12]))
-        .width(Length::Fill)
-        .into()
+    container(r.padding([4, 12])).width(Length::Fill).into()
 }

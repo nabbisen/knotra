@@ -6,7 +6,7 @@
 | Priority | High — visible workspace controls currently do not complete their user contract |
 | Effort | Medium |
 | Target | Production Readiness Reset |
-| Related files | `crates/knotra-app/src/view/workspace_tabs.rs`, `crates/knotra-app/src/view/mod.rs`, `crates/knotra-app/src/app.rs`, `crates/knotra-app/src/message.rs`, `crates/knotra-app/src/state/workspace_mgr.rs`, `crates/knotra-app/src/state/palette.rs`, `crates/knotra-app/src/persistence.rs`, `crates/knotra-ui/src/i18n.rs`, `rfcs/done/015-workspace-tabs.md`, `rfcs/done/021-plain-language-layer.md` |
+| Related files | `crates/knotra-app/src/view/workspace_tabs.rs`, `crates/knotra-app/src/view.rs`, `crates/knotra-app/src/app.rs`, `crates/knotra-app/src/message.rs`, `crates/knotra-app/src/state/workspace_mgr.rs`, `crates/knotra-app/src/state/palette.rs`, `crates/knotra-app/src/persistence.rs`, `crates/knotra-ui/src/i18n.rs`, `rfcs/done/015-workspace-tabs.md`, `rfcs/done/021-plain-language-layer.md` |
 | Related audit evidence | `.git-exclude/reviewed/008-basic-function-rfc-overview-amended.md`, `.git-exclude/reviewed/010-reviewed-artifacts-consolidation.md`, `.git-exclude/reviewed/009-architect-001-prepare-review.md`, `.git-exclude/reviewed/011-rfc-0023-workspace-management-review.md` |
 
 ## Summary
@@ -39,7 +39,7 @@ Current code does part of the work:
   through to no message.
 - `persistence.rs` can save and load workspace files.
 
-The production gap is that `view/mod.rs` only layers the add-project modal,
+The production gap is that `view.rs` only layers the add-project modal,
 command palette, and shortcuts overlay above the snora layout. No view renders
 the workspace create, rename, or delete dialog state. A user can click
 `+ New workspace`, mutate hidden state, and see no UI.
@@ -332,7 +332,7 @@ It should expose one function that returns an optional overlay:
 pub fn view(state: &AppState) -> Option<Element<'_, Message>>
 ```
 
-`view/mod.rs` then layers this overlay in the same stack as add-project,
+`view.rs` then layers this overlay in the same stack as add-project,
 palette, and shortcuts. The ordering should prevent workspace dialogs from
 being visually hidden behind the palette or another modal. The first
 implementation should define a simple topmost rule, such as:

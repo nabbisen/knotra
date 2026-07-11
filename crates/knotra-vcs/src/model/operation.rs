@@ -172,18 +172,30 @@ impl SmartPullPlan {
     /// True when no project will undergo a merge (nothing to do).
     pub fn is_noop(&self) -> bool {
         self.entries.iter().all(|e| {
-            matches!(e.disposition, SmartPullDisposition::FetchOnly | SmartPullDisposition::Excluded)
+            matches!(
+                e.disposition,
+                SmartPullDisposition::FetchOnly | SmartPullDisposition::Excluded
+            )
         })
     }
 
     pub fn pull_count(&self) -> usize {
-        self.entries.iter().filter(|e| {
-            matches!(e.disposition, SmartPullDisposition::Pull | SmartPullDisposition::StashAndPull)
-        }).count()
+        self.entries
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e.disposition,
+                    SmartPullDisposition::Pull | SmartPullDisposition::StashAndPull
+                )
+            })
+            .count()
     }
 
     pub fn excluded_count(&self) -> usize {
-        self.entries.iter().filter(|e| e.disposition == SmartPullDisposition::Excluded).count()
+        self.entries
+            .iter()
+            .filter(|e| e.disposition == SmartPullDisposition::Excluded)
+            .count()
     }
 }
 
@@ -261,7 +273,10 @@ impl FreezeValidation {
     }
 
     pub fn blocked_count(&self) -> usize {
-        self.entries.iter().filter(|e| e.included && e.is_blocked()).count()
+        self.entries
+            .iter()
+            .filter(|e| e.included && e.is_blocked())
+            .count()
     }
 
     pub fn ready_count(&self) -> usize {
@@ -314,9 +329,9 @@ impl FreezeResult {
         self.project_results.iter().filter(|r| !r.success).count()
     }
     pub fn rollback_partial_failure(&self) -> bool {
-        self.project_results.iter().any(|r| {
-            r.rollback_attempted && r.rollback_succeeded == Some(false)
-        })
+        self.project_results
+            .iter()
+            .any(|r| r.rollback_attempted && r.rollback_succeeded == Some(false))
     }
     pub fn recovery_hints(&self) -> Vec<&RecoveryHint> {
         self.project_results

@@ -98,9 +98,9 @@ mod tests {
     #[test]
     fn filter_candidates_empty_search_returns_all() {
         let list = make_list(vec![
-            ("main",    "main",    true),
+            ("main", "main", true),
             ("feature", "feature", false),
-            ("hotfix",  "hotfix",  false),
+            ("hotfix", "hotfix", false),
         ]);
         let id = list.project_id.clone();
         let state = ContextOpsState {
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn filter_candidates_by_search_text() {
         let list = make_list(vec![
-            ("main",      "main",      true),
+            ("main", "main", true),
             ("feature/x", "feature/x", false),
             ("feature/y", "feature/y", false),
         ]);
@@ -135,10 +135,7 @@ mod tests {
 
     #[test]
     fn filter_candidates_case_insensitive() {
-        let list = make_list(vec![
-            ("Main",    "Main",    true),
-            ("Feature", "Feature", false),
-        ]);
+        let list = make_list(vec![("Main", "Main", true), ("Feature", "Feature", false)]);
         let id = list.project_id.clone();
         let state = ContextOpsState {
             phase: ContextPhase::BrowsingList {

@@ -24,15 +24,19 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .map(|(i, ws)| {
             let is_active = i == state.active_workspace_idx;
 
-            let attention = state.workspace_status.as_ref()
+            let attention = state
+                .workspace_status
+                .as_ref()
                 .filter(|_| is_active)
                 .map(|wss| {
                     let missing = &state.missing_projects;
-                    ws.projects.iter()
+                    ws.projects
+                        .iter()
                         .filter(|p| {
-                            if missing.contains(&p.id) { return true; }
-                            let status = wss.projects.iter()
-                                .find(|ps| ps.project_id == p.id);
+                            if missing.contains(&p.id) {
+                                return true;
+                            }
+                            let status = wss.projects.iter().find(|ps| ps.project_id == p.id);
                             let (tier, _) = crate::state::tier::compute_tier(status, true);
                             tier == crate::state::AttentionTier::NeedsAttention
                         })
@@ -46,12 +50,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 ws.name.clone()
             };
 
-            Tab { id: ws.id.clone(), label, icon: None }
+            Tab {
+                id: ws.id.clone(),
+                label,
+                icon: None,
+            }
         })
         .collect();
 
     // Active workspace id (None → empty workspace list, use a sentinel).
-    let active_id = state.all_workspaces
+    let active_id = state
+        .all_workspaces
         .get(state.active_workspace_idx)
         .map(|ws| ws.id.clone());
 
@@ -59,9 +68,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         app_tab_bar(
             TabBar { tabs, active },
             &|action: TabAction<WorkspaceId>| match action {
-                TabAction::Pressed(id) => Message::Workspace(
-                    WorkspaceMessage::WorkspaceSwitched(id)
-                ),
+                TabAction::Pressed(id) => {
+                    Message::Workspace(WorkspaceMessage::WorkspaceSwitched(id))
+                }
             },
             LayoutDirection::Ltr,
         )
@@ -71,8 +80,21 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
 
     // Fixed action buttons: new workspace, history, settings.
-    let new_btn = button(text(format!("+ {}", state.t("plain.add_workspace"))).size(13))
-        .on_press(Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened));
+    let new_btn = button(text(format!("+ {}", state.t("plain.add_workspace"))).size(13)).on_press(
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
+    );
+    let rename_btn = button(text(state.t("workspace.rename.short")).size(13)).on_press(
+        Message::Workspace(WorkspaceMessage::RenameWorkspaceDialogOpened),
+    );
+    let delete_btn: Element<'_, Message> = if state.all_workspaces.len() > 1 {
+        button(text(state.t("workspace.delete.short")).size(13))
+            .on_press(Message::Workspace(
+                WorkspaceMessage::DeleteWorkspaceRequested,
+            ))
+            .into()
+    } else {
+        space().width(Length::Shrink).into()
+    };
     let history_btn = button(text(format!("⊟  {}", state.t("nav.history"))).size(13))
         .on_press(Message::Navigate(crate::state::Screen::History));
     let settings_btn = button(text(format!("⚙  {}", state.t("nav.settings"))).size(13))
@@ -82,6 +104,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         row![
             tab_strip,
             new_btn,
+            rename_btn,
+            delete_btn,
             space().width(Length::Fixed(4.0)),
             history_btn,
             settings_btn,

@@ -2,38 +2,117 @@
 //! RFC-0016 — Keyboard shortcuts cheat-sheet overlay.
 
 use iced::{
-    widget::{button, column, container, row, text, Space},
     Alignment, Element, Length,
+    widget::{Space, button, column, container, row, text},
 };
 
-use crate::{message::{KeyboardMessage, Message}, state::AppState};
+use crate::{
+    message::{KeyboardMessage, Message},
+    state::AppState,
+};
 
 struct Binding {
-    keys:    &'static str,
+    keys: &'static str,
     context: &'static str,
-    desc:    &'static str,
+    desc: &'static str,
 }
 
 const BINDINGS: &[Binding] = &[
-    Binding { keys: "Ctrl+K / ⌘K", context: "Global",   desc: "Open command palette" },
-    Binding { keys: "?",            context: "Global",   desc: "Show / hide this cheat sheet" },
-    Binding { keys: "Ctrl+R",       context: "Global",   desc: "Refresh workspace" },
-    Binding { keys: "⌘1 … ⌘9",     context: "Global",   desc: "Switch workspace by index" },
-    Binding { keys: "/",            context: "Dashboard", desc: "Focus search field" },
-    Binding { keys: "↑ / ↓ / j / k", context: "Dashboard", desc: "Move focus between cards" },
-    Binding { keys: "Space",        context: "Dashboard", desc: "Toggle selection on focused card" },
-    Binding { keys: "Shift+Space",  context: "Dashboard", desc: "Range-select to focused card" },
-    Binding { keys: "Ctrl+A / ⌘A", context: "Dashboard", desc: "Select all visible projects" },
-    Binding { keys: "Esc",          context: "Dashboard", desc: "Clear selection / close dialog" },
-    Binding { keys: "f",            context: "Selection", desc: "Check for updates (fetch)" },
-    Binding { keys: "p",            context: "Selection", desc: "Get latest safely (pull)" },
-    Binding { keys: "t",            context: "Selection", desc: "Save release point (tag)" },
-    Binding { keys: "b",            context: "Selection", desc: "Change work area (switch branch)" },
-    Binding { keys: "g h",          context: "Global",   desc: "Go to History" },
-    Binding { keys: "g s",          context: "Global",   desc: "Go to Settings" },
-    Binding { keys: "Esc",          context: "Modal",    desc: "Close modal / palette" },
-    Binding { keys: "↑ / ↓",        context: "Palette",  desc: "Navigate results" },
-    Binding { keys: "Enter",        context: "Palette",  desc: "Confirm highlighted entry" },
+    Binding {
+        keys: "Ctrl+K / ⌘K",
+        context: "Global",
+        desc: "Open command palette",
+    },
+    Binding {
+        keys: "?",
+        context: "Global",
+        desc: "Show / hide this cheat sheet",
+    },
+    Binding {
+        keys: "Ctrl+R",
+        context: "Global",
+        desc: "Refresh workspace",
+    },
+    Binding {
+        keys: "⌘1 … ⌘9",
+        context: "Global",
+        desc: "Switch workspace by index",
+    },
+    Binding {
+        keys: "/",
+        context: "Dashboard",
+        desc: "Focus search field",
+    },
+    Binding {
+        keys: "↑ / ↓ / j / k",
+        context: "Dashboard",
+        desc: "Move focus between cards",
+    },
+    Binding {
+        keys: "Space",
+        context: "Dashboard",
+        desc: "Toggle selection on focused card",
+    },
+    Binding {
+        keys: "Shift+Space",
+        context: "Dashboard",
+        desc: "Range-select to focused card",
+    },
+    Binding {
+        keys: "Ctrl+A / ⌘A",
+        context: "Dashboard",
+        desc: "Select all visible projects",
+    },
+    Binding {
+        keys: "Esc",
+        context: "Dashboard",
+        desc: "Clear selection / close dialog",
+    },
+    Binding {
+        keys: "f",
+        context: "Selection",
+        desc: "Check for updates (fetch)",
+    },
+    Binding {
+        keys: "p",
+        context: "Selection",
+        desc: "Get latest safely (pull)",
+    },
+    Binding {
+        keys: "t",
+        context: "Selection",
+        desc: "Save release point (tag)",
+    },
+    Binding {
+        keys: "b",
+        context: "Selection",
+        desc: "Change work area (switch branch)",
+    },
+    Binding {
+        keys: "g h",
+        context: "Global",
+        desc: "Go to History",
+    },
+    Binding {
+        keys: "g s",
+        context: "Global",
+        desc: "Go to Settings",
+    },
+    Binding {
+        keys: "Esc",
+        context: "Modal",
+        desc: "Close modal / palette",
+    },
+    Binding {
+        keys: "↑ / ↓",
+        context: "Palette",
+        desc: "Navigate results",
+    },
+    Binding {
+        keys: "Enter",
+        context: "Palette",
+        desc: "Confirm highlighted entry",
+    },
 ];
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -55,26 +134,25 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(16);
 
-    let rows: Vec<Element<'_, Message>> = BINDINGS.iter().map(|b| {
-        row![
-            text(b.keys).size(12),
-            text(b.context).size(11),
-            text(b.desc).size(12),
-        ]
-        .spacing(16)
-        .into()
-    }).collect();
+    let rows: Vec<Element<'_, Message>> = BINDINGS
+        .iter()
+        .map(|b| {
+            row![
+                text(b.keys).size(12),
+                text(b.context).size(11),
+                text(b.desc).size(12),
+            ]
+            .spacing(16)
+            .into()
+        })
+        .collect();
 
     let _ = state; // unused but kept for symmetry with other view functions
 
     container(
-        column![
-            header,
-            col_header,
-            column(rows).spacing(4),
-        ]
-        .spacing(8)
-        .padding(20)
+        column![header, col_header, column(rows).spacing(4),]
+            .spacing(8)
+            .padding(20),
     )
     .width(Length::Fixed(600.0))
     .into()
