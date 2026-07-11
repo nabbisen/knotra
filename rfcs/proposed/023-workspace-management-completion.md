@@ -6,8 +6,8 @@
 | Priority | High — visible workspace controls currently do not complete their user contract |
 | Effort | Medium |
 | Target | Production Readiness Reset |
-| Related files | `crates/knotra-app/src/view/workspace_tabs.rs`, `crates/knotra-app/src/view/mod.rs`, `crates/knotra-app/src/app.rs`, `crates/knotra-app/src/message.rs`, `crates/knotra-app/src/state/workspace_mgr.rs`, `crates/knotra-app/src/persistence.rs`, `crates/knotra-ui/src/i18n.rs`, `rfcs/done/015-workspace-tabs.md`, `rfcs/done/021-plain-language-layer.md` |
-| Related audit evidence | `.git-exclude/reviewed/008-basic-function-rfc-overview-amended.md`, `.git-exclude/reviewed/010-reviewed-artifacts-consolidation.md`, `.git-exclude/reviewed/009-architect-001-prepare-review.md` |
+| Related files | `crates/knotra-app/src/view/workspace_tabs.rs`, `crates/knotra-app/src/view/mod.rs`, `crates/knotra-app/src/app.rs`, `crates/knotra-app/src/message.rs`, `crates/knotra-app/src/state/workspace_mgr.rs`, `crates/knotra-app/src/state/palette.rs`, `crates/knotra-app/src/persistence.rs`, `crates/knotra-ui/src/i18n.rs`, `rfcs/done/015-workspace-tabs.md`, `rfcs/done/021-plain-language-layer.md` |
+| Related audit evidence | `.git-exclude/reviewed/008-basic-function-rfc-overview-amended.md`, `.git-exclude/reviewed/010-reviewed-artifacts-consolidation.md`, `.git-exclude/reviewed/009-architect-001-prepare-review.md`, `.git-exclude/reviewed/011-rfc-0023-workspace-management-review.md` |
 
 ## Summary
 
@@ -35,6 +35,8 @@ Current code does part of the work:
 - `app.rs` handles create, rename, delete, and switch messages.
 - `state/workspace_mgr.rs` stores `create_dialog`, `rename_dialog`, and
   `confirm_delete`.
+- `state/palette.rs` advertises `Create new workspace` but currently falls
+  through to no message.
 - `persistence.rs` can save and load workspace files.
 
 The production gap is that `view/mod.rs` only layers the add-project modal,
@@ -102,6 +104,11 @@ R12. Workspace switching by clicking an existing tab continues to work.
 R13. If persistence fails during create, rename, or delete, the UI reports a
 plain-language error and must not silently claim success.
 
+R14. The command palette's existing `Create new workspace` action must either
+dispatch to the same create-workspace dialog as the tab-strip button or be
+hidden until the command-palette completion RFC. It must not remain a visible
+action that closes silently.
+
 ### Non-Functional
 
 N1. All production user-facing strings introduced by this RFC are routed
@@ -135,6 +142,8 @@ Workspace files remain the source for restart survival.
   refresh state agree after every operation.
 - Existing add-project, command-palette, shortcut, and snora modal layers keep
   working after workspace dialogs are added.
+- The existing command-palette `Create new workspace` action no longer silently
+  does nothing.
 - Tests prove the main visible workspace controls reach intended state changes
   and persistence behavior.
 
@@ -239,9 +248,19 @@ The user should not have to understand workspace file paths or UUIDs to decide.
 ### Command Palette
 
 The command palette has its own production-readiness RFC. For this RFC, only
-one constraint applies: if the palette already exposes "Create new workspace",
-that action may dispatch to the same create dialog after this RFC, but palette
-parity for all workspace actions is not required here.
+one workspace-management action is in scope because it is already visible:
+`Create new workspace`.
+
+Implementation must choose one of two acceptable outcomes:
+
+- Wire `Create new workspace` to `WorkspaceMessage::CreateWorkspaceDialogOpened`
+  and the same create dialog as the tab-strip button.
+- Hide `Create new workspace` from palette results until the later
+  command-palette completion RFC.
+
+Leaving the action visible while dispatching `None` is not acceptable. Full
+palette parity for rename, delete, switch-next, and other actions remains
+deferred to the command-palette completion RFC.
 
 ## Internal Design
 
@@ -329,6 +348,12 @@ must close only the visible topmost modal or use a deterministic close order.
 
 ### Handler Behavior
 
+Workspace-management handler logic must be testable without touching the
+developer's real application directories. The current implementation resolves
+paths inside handlers via `AppPaths::resolve()` and inside `persist_workspace`.
+This RFC requires extracting pure or path-parameterized helpers so tests can
+pass temporary `AppPaths`.
+
 Create:
 
 1. Open dialog and focus name input.
@@ -361,17 +386,38 @@ Delete:
 5. Update `workspace`, clear `workspace_status`, prune `fs_poller` to the new
    active workspace project ids, set refreshing state, and refresh.
 
+Palette:
+
+1. If this RFC wires the palette action, `state/palette.rs` must dispatch
+   `action.workspace_create` to
+   `Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened)`.
+2. If this RFC hides the palette action, `build_entries` must omit
+   `action.workspace_create` until the command-palette RFC.
+3. In either case, selecting a visible `Create new workspace` palette entry
+   must not return `None`.
+
 ### Persistence
 
-Continue using `save_workspace` and the existing workspace file shape. Add a
-small delete helper if needed:
+Continue using `save_workspace` and the existing workspace file shape. The
+implementation must introduce a testable path boundary. Acceptable approaches:
+
+- helper functions that accept `&AppPaths` and are called by the iced handlers;
+- an application path/provider field in state used by handlers;
+- narrower operation helpers that take explicit workspace paths in tests and
+  are wrapped by production handlers.
+
+Do not write handler tests that depend on the developer's real
+`~/.config/knotra`. Add a small delete helper if needed:
 
 ```rust
 delete_workspace_file(workspace_id, paths) -> Result<(), String>
 ```
 
 Direct `std::fs::remove_file` inside `app.rs` should be replaced or wrapped so
-delete errors can be tested and shown to the user.
+delete errors can be tested and shown to the user. Existing logging-only helper
+paths such as `persist_workspace(ws)` should not be the only route used by
+create/rename tests, because they hide persistence errors and resolve real
+paths internally.
 
 ### i18n
 
@@ -441,6 +487,8 @@ Add tests or smoke coverage for visible control paths:
 4. `delete_workspace_confirm_removes_tab_and_file`: delete removes the active
    workspace from state and disk while preserving project folders.
 5. `cancel_paths_do_not_mutate_workspace_state`.
+6. `palette_create_workspace_is_wired_or_hidden`: the palette either does not
+   show `Create new workspace`, or selecting it opens the create dialog.
 
 If iced view introspection is not practical, create focused view-model helpers
 that expose dialog visibility and enabled/disabled state, and test those
@@ -448,12 +496,14 @@ helpers plus update handlers.
 
 ### Persistence Tests
 
-Use temporary config directories. Do not read or write the developer's real
-`~/.config/knotra`.
+Use temporary config directories through the path boundary required by this
+RFC. Do not read or write the developer's real `~/.config/knotra`.
 
 1. Save then load a created workspace.
 2. Rename then load the same workspace id with the new name.
 3. Delete removes only the workspace file.
+4. Create, rename, and delete handler-level tests pass explicit temporary
+   paths or a test path provider.
 
 ### i18n Tests
 
@@ -479,6 +529,8 @@ the normal gate is production-ready.
 ## Acceptance Criteria
 
 - [ ] `+ New workspace` opens a visible create-workspace dialog.
+- [ ] Palette `Create new workspace` is either wired to the same dialog or
+      hidden; it does not silently close with no action.
 - [ ] Create, rename, and delete workspace flows are reachable from visible UI.
 - [ ] Create and rename reject empty and duplicate names with plain-language
       errors.
@@ -490,6 +542,8 @@ the normal gate is production-ready.
       workspace.
 - [ ] Cancel and close paths do not mutate workspace state or disk.
 - [ ] Persistence failures remain visible and do not silently claim success.
+- [ ] Handler and persistence tests use temporary paths through an explicit
+      path boundary, not real application directories.
 - [ ] All new production strings are in the English and Japanese i18n catalog.
 - [ ] Tests prove visible workspace controls reach their intended handler,
       state, persistence, and rendered result.
@@ -505,5 +559,5 @@ the normal gate is production-ready.
    workspaces allow names that differ only by case?
 3. Should delete remove the workspace file before mutating in-memory state, or
    should the implementation mutate then roll back on delete failure?
-4. Should command-palette "Create new workspace" be wired in this RFC as a
-   narrow exception, or deferred fully to the command-palette RFC?
+4. For the first implementation, should palette `Create new workspace` be wired
+   immediately or hidden until the command-palette RFC?
