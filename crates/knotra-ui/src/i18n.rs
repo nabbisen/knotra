@@ -233,8 +233,25 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "plain.get_latest.note_needs_choice",
         "Needs your choice — skipped until resolved.",
     );
+    m.insert(
+        "plain.get_latest.note_no_upstream",
+        "No update source is configured.",
+    );
+    m.insert(
+        "plain.get_latest.note_not_selected",
+        "Not selected for this run.",
+    );
+    m.insert(
+        "plain.get_latest.note_status_missing",
+        "Status is not available — skipped.",
+    );
+    m.insert(
+        "plain.get_latest.note_project_not_found",
+        "Project was not found — skipped.",
+    );
     m.insert("plain.get_latest.done_row", "Done");
     m.insert("plain.get_latest.needs_help_row", "Needs help");
+    m.insert("plain.get_latest.skipped_row", "Skipped");
     m.insert("plain.get_latest.all_done_prefix", "All");
     m.insert(
         "plain.get_latest.all_done_suffix",
@@ -242,6 +259,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     );
     m.insert("plain.get_latest.done_count", "done.");
     m.insert("plain.get_latest.needs_help_count", "need help.");
+    m.insert("plain.get_latest.skipped_count", "skipped.");
     m.insert(
         "plain.get_latest.review_help_rows",
         "Review the highlighted rows before continuing.",
@@ -669,8 +687,25 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "plain.get_latest.note_needs_choice",
         "選択が必要 — 解決後にスキップ解除できます",
     );
+    m.insert(
+        "plain.get_latest.note_no_upstream",
+        "更新元が設定されていません。",
+    );
+    m.insert(
+        "plain.get_latest.note_not_selected",
+        "今回は選択されていません。",
+    );
+    m.insert(
+        "plain.get_latest.note_status_missing",
+        "状態を確認できないためスキップします。",
+    );
+    m.insert(
+        "plain.get_latest.note_project_not_found",
+        "プロジェクトが見つからないためスキップします。",
+    );
     m.insert("plain.get_latest.done_row", "完了");
     m.insert("plain.get_latest.needs_help_row", "対応が必要");
+    m.insert("plain.get_latest.skipped_row", "スキップ");
     m.insert("plain.get_latest.all_done_prefix", "すべての");
     m.insert(
         "plain.get_latest.all_done_suffix",
@@ -681,6 +716,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "plain.get_latest.needs_help_count",
         "件が対応を必要としています。",
     );
+    m.insert("plain.get_latest.skipped_count", "件スキップ。");
     m.insert(
         "plain.get_latest.review_help_rows",
         "続行前に強調表示された行を確認してください。",

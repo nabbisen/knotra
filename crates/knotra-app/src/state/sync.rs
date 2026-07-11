@@ -3,7 +3,8 @@
 use knotra_vcs::{
     ProjectId, WorkspaceStatus,
     model::operation::{
-        RecoveryHint, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
+        ProjectOperationOutcome, RecoveryHint, SmartPullDisposition, SmartPullPlan,
+        SmartPullPlanEntry, SmartPullProgress, SmartPullSkipReason,
     },
 };
 
@@ -26,6 +27,7 @@ pub enum SyncPhase {
     /// Smart Pull in progress — collecting streaming results.
     PullRunning {
         plan: SmartPullPlan,
+        started_at: chrono::DateTime<chrono::Utc>,
         completed: Vec<SmartPullProgress>,
     },
     /// Operation finished — show results.
@@ -52,7 +54,9 @@ pub enum SyncKind {
 pub struct ProjectOutcome {
     pub project_id: ProjectId,
     pub project_name: String,
+    pub outcome: ProjectOperationOutcome,
     pub success: bool,
+    pub skip_reason: Option<String>,
     pub commands_executed: Vec<String>,
     pub stdout: String,
     pub stderr: String,
@@ -62,10 +66,22 @@ pub struct ProjectOutcome {
 #[allow(dead_code)]
 impl SyncResult {
     pub fn success_count(&self) -> usize {
-        self.per_project.iter().filter(|p| p.success).count()
+        self.per_project
+            .iter()
+            .filter(|p| p.outcome == ProjectOperationOutcome::Succeeded)
+            .count()
     }
     pub fn fail_count(&self) -> usize {
-        self.per_project.iter().filter(|p| !p.success).count()
+        self.per_project
+            .iter()
+            .filter(|p| p.outcome == ProjectOperationOutcome::Failed)
+            .count()
+    }
+    pub fn skipped_count(&self) -> usize {
+        self.per_project
+            .iter()
+            .filter(|p| p.outcome == ProjectOperationOutcome::Skipped)
+            .count()
     }
     pub fn all_succeeded(&self) -> bool {
         self.fail_count() == 0
@@ -96,6 +112,18 @@ impl SyncCenterState {
         // Remove stale entries.
         let ids: std::collections::HashSet<_> = projects.iter().map(|p| &p.id).collect();
         self.project_selection.retain(|id, _| ids.contains(id));
+    }
+
+    pub fn set_selection(
+        &mut self,
+        projects: &[knotra_vcs::Project],
+        selected: &std::collections::HashSet<ProjectId>,
+    ) {
+        self.project_selection.clear();
+        for p in projects {
+            self.project_selection
+                .insert(p.id.clone(), selected.contains(&p.id));
+        }
     }
 
     pub fn is_selected(&self, id: &ProjectId) -> bool {
@@ -129,18 +157,35 @@ impl SyncCenterState {
                 let status = statuses.iter().find(|s| s.project_id == p.id);
                 let is_dirty = status.map(|s| s.working_tree.is_dirty()).unwrap_or(false);
                 let has_conflict = status.map(|s| s.conflict.has_conflict).unwrap_or(false);
+                let has_upstream = status.and_then(|s| s.remote.upstream.as_ref()).is_some();
 
                 // Default disposition.
-                let disposition = if !selected {
-                    SmartPullDisposition::Excluded
+                let (disposition, skip_reason) = if !selected {
+                    (
+                        SmartPullDisposition::Excluded,
+                        Some(SmartPullSkipReason::Deselected),
+                    )
+                } else if status.is_none() {
+                    (
+                        SmartPullDisposition::Excluded,
+                        Some(SmartPullSkipReason::MissingStatus),
+                    )
                 } else if let Some(d) = self.disposition_overrides.get(&p.id) {
-                    d.clone()
+                    (d.clone(), None)
                 } else if has_conflict {
-                    SmartPullDisposition::Excluded // never auto-pull conflicted repos
+                    (
+                        SmartPullDisposition::Excluded,
+                        Some(SmartPullSkipReason::Conflict),
+                    )
+                } else if !has_upstream {
+                    (
+                        SmartPullDisposition::Excluded,
+                        Some(SmartPullSkipReason::NoUpstream),
+                    )
                 } else if is_dirty {
-                    SmartPullDisposition::FetchOnly // conservative default for dirty
+                    (SmartPullDisposition::FetchOnly, None)
                 } else {
-                    SmartPullDisposition::Pull
+                    (SmartPullDisposition::Pull, None)
                 };
 
                 SmartPullPlanEntry {
@@ -148,6 +193,7 @@ impl SyncCenterState {
                     project_name: p.name.clone(),
                     is_dirty,
                     has_conflict,
+                    skip_reason,
                     disposition,
                 }
             })
@@ -184,6 +230,15 @@ mod tests {
         uncommitted: u32,
         conflict: bool,
     ) -> knotra_vcs::ProjectStatus {
+        make_status_with_upstream(project_id, uncommitted, conflict, Some("origin/main"))
+    }
+
+    fn make_status_with_upstream(
+        project_id: ProjectId,
+        uncommitted: u32,
+        conflict: bool,
+        upstream: Option<&str>,
+    ) -> knotra_vcs::ProjectStatus {
         knotra_vcs::ProjectStatus {
             project_id,
             identity: RepositoryIdentity {
@@ -191,7 +246,10 @@ mod tests {
                 vcs_kind: VcsKind::Git,
             },
             context: None,
-            remote: RemoteStatus::default(),
+            remote: RemoteStatus {
+                upstream: upstream.map(str::to_owned),
+                ..RemoteStatus::default()
+            },
             working_tree: WorkingTreeStatus {
                 uncommitted_count: uncommitted,
                 untracked_count: 0,
@@ -252,6 +310,10 @@ mod tests {
         let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
 
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Excluded);
+        assert_eq!(
+            plan.entries[0].skip_reason,
+            Some(SmartPullSkipReason::Conflict)
+        );
     }
 
     #[test]
@@ -263,6 +325,54 @@ mod tests {
 
         let plan = sc.build_plan(std::slice::from_ref(&p), None);
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Excluded);
+        assert_eq!(
+            plan.entries[0].skip_reason,
+            Some(SmartPullSkipReason::Deselected)
+        );
+    }
+
+    #[test]
+    fn selected_project_without_upstream_is_excluded() {
+        let p = make_project("svc");
+        let status = make_status_with_upstream(p.id.clone(), 0, false, None);
+        let ws = WorkspaceStatus {
+            projects: vec![status],
+            last_refresh: None,
+        };
+
+        let mut sc = SyncCenterState::default();
+        sc.init_selection(std::slice::from_ref(&p));
+        let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
+
+        assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Excluded);
+        assert_eq!(
+            plan.entries[0].skip_reason,
+            Some(SmartPullSkipReason::NoUpstream)
+        );
+    }
+
+    #[test]
+    fn mixed_upstream_plan_has_pull_and_skipped_no_upstream() {
+        let p1 = make_project("has-upstream");
+        let p2 = make_project("no-upstream");
+
+        let s1 = make_status(p1.id.clone(), 0, false);
+        let s2 = make_status_with_upstream(p2.id.clone(), 0, false, None);
+        let ws = WorkspaceStatus {
+            projects: vec![s1, s2],
+            last_refresh: None,
+        };
+
+        let mut sc = SyncCenterState::default();
+        sc.init_selection(&[p1.clone(), p2.clone()]);
+        let plan = sc.build_plan(&[p1, p2], Some(&ws));
+
+        assert_eq!(plan.pull_count(), 1);
+        assert_eq!(plan.excluded_count(), 1);
+        assert_eq!(
+            plan.entries[1].skip_reason,
+            Some(SmartPullSkipReason::NoUpstream)
+        );
     }
 
     #[test]

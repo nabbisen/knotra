@@ -9,7 +9,7 @@ use knotra_vcs::{
     model::{
         operation::{
             ContextSwitchResult, OperationId, OperationKind, OperationLog, OperationResult,
-            SmartPullDisposition, SmartPullProgress,
+            ProjectOperationOutcome, SmartPullDisposition, SmartPullProgress, SmartPullSkipReason,
         },
         project::Project,
         workspace::Workspace,
@@ -247,12 +247,19 @@ fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
         state.workspace_mgr.rename_dialog = None;
     } else if state.workspace_mgr.confirm_delete.is_some() {
         state.workspace_mgr.confirm_delete = None;
+    } else if smart_pull_is_running(state) {
+        return Task::none();
     } else if !matches!(state.active_modal, crate::state::ActiveModal::None) {
         state.active_modal = crate::state::ActiveModal::None;
     } else if state.confirm_remove_dialog.is_some() {
         state.confirm_remove_dialog = None;
     }
     Task::none()
+}
+
+fn smart_pull_is_running(state: &AppState) -> bool {
+    matches!(state.active_modal, crate::state::ActiveModal::Pull)
+        && matches!(state.sync.phase, SyncPhase::PullRunning { .. })
 }
 
 // ---------------------------------------------------------------------------
@@ -725,19 +732,31 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
         }
 
         SyncMessage::DispositionChanged(id, disposition) => {
-            state.sync.disposition_overrides.insert(id, disposition);
+            state
+                .sync
+                .disposition_overrides
+                .insert(id.clone(), disposition.clone());
+            if let SyncPhase::AwaitingConfirm(plan) = &mut state.sync.phase
+                && let Some(entry) = plan.entries.iter_mut().find(|entry| entry.project_id == id)
+            {
+                entry.disposition = disposition;
+                entry.skip_reason = None;
+            }
             Task::none()
         }
 
         SyncMessage::PlanRequested => {
             // Open the pull modal and start planning.
             state.active_modal = crate::state::ActiveModal::Pull;
-            Task::none()
+            state.sync.phase = SyncPhase::Planning;
+            Task::done(Message::Sync(SyncMessage::SmartPullPlanRequested))
         }
         SyncMessage::ExecuteRequested => {
-            // Delegate to existing SmartPullConfirmed path.
-            state.active_modal = crate::state::ActiveModal::None;
-            Task::none()
+            if let SyncPhase::AwaitingConfirm(plan) = &state.sync.phase {
+                Task::done(Message::Sync(SyncMessage::SmartPullConfirmed(plan.clone())))
+            } else {
+                Task::none()
+            }
         }
         SyncMessage::BulkFetchRequested => {
             let ids = state.sync.selected_ids();
@@ -778,14 +797,24 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
         SyncMessage::SmartPullPlanRequested => {
             state.sync.phase = SyncPhase::Planning;
             // Build the plan synchronously from existing status.
-            let plan = state.sync.build_plan(
-                state
-                    .workspace
-                    .as_ref()
-                    .map(|w| w.projects.as_slice())
-                    .unwrap_or(&[]),
-                state.workspace_status.as_ref(),
-            );
+            let selected_projects: Vec<Project> = state
+                .workspace
+                .as_ref()
+                .map(|w| {
+                    if state.sync.selected_project_ids.is_empty() {
+                        w.projects.clone()
+                    } else {
+                        w.projects
+                            .iter()
+                            .filter(|p| state.sync.selected_project_ids.contains(&p.id))
+                            .cloned()
+                            .collect()
+                    }
+                })
+                .unwrap_or_default();
+            let plan = state
+                .sync
+                .build_plan(&selected_projects, state.workspace_status.as_ref());
             state.sync.phase = SyncPhase::AwaitingConfirm(plan.clone());
             Task::done(Message::Background(BackgroundMessage::SmartPullPlanReady(
                 plan,
@@ -807,6 +836,7 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             let entries = plan.entries.clone();
             state.sync.phase = SyncPhase::PullRunning {
                 plan,
+                started_at: chrono::Utc::now(),
                 completed: Vec::new(),
             };
 
@@ -821,7 +851,9 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
                             project_name: entry.project_name.clone(),
                             result: knotra_vcs::model::operation::ProjectOperationResult {
                                 project_id: entry.project_id,
+                                outcome: ProjectOperationOutcome::Failed,
                                 success: false,
+                                skip_reason: None,
                                 commands_executed: vec![],
                                 stdout: String::new(),
                                 stderr: String::new(),
@@ -838,7 +870,13 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
                             project_name: entry.project_name.clone(),
                             result: knotra_vcs::model::operation::ProjectOperationResult {
                                 project_id: project.id.clone(),
+                                outcome: ProjectOperationOutcome::Skipped,
                                 success: true,
+                                skip_reason: entry
+                                    .skip_reason
+                                    .as_ref()
+                                    .map(smart_pull_skip_reason_text)
+                                    .map(str::to_owned),
                                 commands_executed: vec![],
                                 stdout: "[excluded]".to_owned(),
                                 stderr: String::new(),
@@ -887,7 +925,7 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
                 result
                     .per_project
                     .iter()
-                    .filter(|p| !p.success)
+                    .filter(|p| p.outcome == ProjectOperationOutcome::Failed)
                     .map(|p| p.project_id.clone())
                     .collect()
             } else {
@@ -902,17 +940,27 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             Task::done(Message::Sync(SyncMessage::BulkFetchRequested))
         }
         SyncMessage::ModalClosed => {
-            state.active_modal = crate::state::ActiveModal::None;
+            if !smart_pull_is_running(state) {
+                state.active_modal = crate::state::ActiveModal::None;
+            }
             Task::none()
         }
         SyncMessage::Cancelled => {
-            state.active_modal = crate::state::ActiveModal::None;
+            if !smart_pull_is_running(state) {
+                state.active_modal = crate::state::ActiveModal::None;
+            }
             Task::none()
         }
         SyncMessage::BulkPullRequested => {
             state.active_modal = crate::state::ActiveModal::Pull;
+            state.sync.phase = SyncPhase::Planning;
             state.sync.selected_project_ids = state.selection.selected_ids.clone();
-            Task::none()
+            if let Some(ws) = &state.workspace {
+                state
+                    .sync
+                    .set_selection(&ws.projects, &state.selection.selected_ids);
+            }
+            Task::done(Message::Sync(SyncMessage::SmartPullPlanRequested))
         }
     }
 }
@@ -957,6 +1005,8 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                 progress.project_name = name;
             }
 
+            let mut completed_log: Option<OperationLog> = None;
+
             match &mut state.sync.phase {
                 SyncPhase::FetchRunning { done, total } => {
                     *done += 1;
@@ -968,7 +1018,9 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                     let outcome = ProjectOutcome {
                         project_id: progress.project_id.clone(),
                         project_name: progress.project_name.clone(),
+                        outcome: progress.result.effective_outcome(),
                         success: progress.result.success,
+                        skip_reason: progress.result.skip_reason.clone(),
                         commands_executed: progress.result.commands_executed.clone(),
                         stdout: progress.result.stdout.clone(),
                         stderr: progress.result.stderr.clone(),
@@ -996,7 +1048,11 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                     // (This rebuilds to avoid borrow issues.)
                     let _ = outcome; // handled per-project in Done transition
                 }
-                SyncPhase::PullRunning { plan, completed } => {
+                SyncPhase::PullRunning {
+                    plan,
+                    started_at,
+                    completed,
+                } => {
                     if let Some(hint) = progress.recovery_hint.clone() {
                         // Recovery hint collected.
                         let _ = hint;
@@ -1012,7 +1068,9 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                             .map(|p| ProjectOutcome {
                                 project_id: p.project_id.clone(),
                                 project_name: p.project_name.clone(),
+                                outcome: p.result.effective_outcome(),
                                 success: p.result.success,
+                                skip_reason: p.result.skip_reason.clone(),
                                 commands_executed: p.result.commands_executed.clone(),
                                 stdout: p.result.stdout.clone(),
                                 stderr: p.result.stderr.clone(),
@@ -1025,6 +1083,19 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                             .filter_map(|p| p.recovery_hint.clone())
                             .collect();
 
+                        completed_log = Some(OperationLog {
+                            result: OperationResult {
+                                operation_id: plan.id.clone(),
+                                kind: OperationKind::SmartPull,
+                                started_at: started_at.to_owned(),
+                                finished_at: chrono::Utc::now(),
+                                per_project: completed.iter().map(|p| p.result.clone()).collect(),
+                                rollback_attempted: false,
+                                rollback_succeeded: None,
+                            },
+                            recovery_hints: hints.clone(),
+                        });
+
                         state.sync.phase = SyncPhase::Done(SyncResult {
                             kind: SyncKind::SmartPull,
                             per_project: outcomes,
@@ -1034,10 +1105,13 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                         // Trigger status refresh.
                         state.is_refreshing = true;
                         state.load_phase = LoadPhase::Refreshing;
-                        return refresh_workspace_task(state);
                     }
                 }
                 _ => {}
+            }
+            if let Some(log) = completed_log {
+                persist_log(&log, state);
+                return refresh_workspace_task(state);
             }
             Task::none()
         }
@@ -1158,7 +1232,9 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                 .iter()
                 .map(|r| knotra_vcs::model::operation::ProjectOperationResult {
                     project_id: r.project_id.clone(),
+                    outcome: ProjectOperationOutcome::from_success(r.success),
                     success: r.success,
+                    skip_reason: None,
                     commands_executed: r.commands_executed.clone(),
                     stdout: r.stdout.clone(),
                     stderr: r.stderr.clone(),
@@ -1440,6 +1516,16 @@ fn persist_log(log: &OperationLog, state: &mut AppState) {
     }
     state.operation_logs.insert(0, log.clone());
     state.operation_logs.truncate(state.config.max_log_entries);
+}
+
+fn smart_pull_skip_reason_text(reason: &SmartPullSkipReason) -> &'static str {
+    match reason {
+        SmartPullSkipReason::Deselected => "Not selected.",
+        SmartPullSkipReason::NoUpstream => "No update source is configured.",
+        SmartPullSkipReason::Conflict => "Needs your choice first.",
+        SmartPullSkipReason::MissingStatus => "Status is not available.",
+        SmartPullSkipReason::ProjectNotFound => "Project was not found.",
+    }
 }
 
 fn refresh_workspace_task(state: &AppState) -> Task<Message> {

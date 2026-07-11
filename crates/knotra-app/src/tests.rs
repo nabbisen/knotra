@@ -2,10 +2,22 @@
 
 use crate::config::AppConfig;
 use crate::config::AppPaths;
-use crate::message::{FilterMessage, Message, ShortcutMessage, WorkspaceMessage};
+use crate::message::{
+    BackgroundMessage, FilterMessage, Message, ShortcutMessage, SyncMessage, WorkspaceMessage,
+};
 use crate::persistence::{load_workspaces, save_workspace};
-use crate::state::{ActiveModal, AddProjectDialog, AppState, Screen};
-use knotra_vcs::Workspace;
+use crate::state::{ActiveModal, AddProjectDialog, AppState, Screen, sync::SyncPhase};
+use chrono::Utc;
+use knotra_vcs::{
+    OperationId, Project, ProjectId, Workspace, WorkspaceStatus,
+    model::{
+        operation::{
+            ProjectOperationOutcome, ProjectOperationResult, SmartPullDisposition, SmartPullPlan,
+            SmartPullPlanEntry, SmartPullProgress, SmartPullSkipReason,
+        },
+        status::{ConflictStatus, RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus},
+    },
+};
 
 fn make_state() -> AppState {
     AppState::new(AppConfig::default())
@@ -29,6 +41,29 @@ fn install_workspaces(state: &mut AppState, workspaces: Vec<Workspace>, active_i
     state.all_workspaces = workspaces;
     state.active_workspace_idx = active_idx;
     state.workspace = state.all_workspaces.get(active_idx).cloned();
+}
+
+fn make_project(name: &str) -> Project {
+    Project::new(name, "/tmp")
+}
+
+fn make_project_status(project_id: ProjectId, upstream: Option<&str>) -> knotra_vcs::ProjectStatus {
+    knotra_vcs::ProjectStatus {
+        project_id,
+        identity: RepositoryIdentity {
+            path: "/tmp".into(),
+            vcs_kind: VcsKind::Git,
+        },
+        context: None,
+        remote: RemoteStatus {
+            upstream: upstream.map(str::to_owned),
+            ..RemoteStatus::default()
+        },
+        working_tree: WorkingTreeStatus::default(),
+        conflict: ConflictStatus::default(),
+        refreshed_at: Utc::now(),
+        read_error: None,
+    }
 }
 
 fn dispatch(state: &mut AppState, message: Message) {
@@ -389,4 +424,191 @@ fn palette_create_workspace_opens_dialog() {
             WorkspaceMessage::CreateWorkspaceDialogOpened
         ))
     ));
+}
+
+#[test]
+fn smart_pull_bulk_open_enters_planning_for_dashboard_selection() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection.selected_ids.insert(project.id.clone());
+
+    dispatch(&mut state, Message::Sync(SyncMessage::BulkPullRequested));
+
+    assert!(matches!(state.active_modal, ActiveModal::Pull));
+    assert!(matches!(state.sync.phase, SyncPhase::Planning));
+    assert!(state.sync.selected_project_ids.contains(&project.id));
+}
+
+#[test]
+fn smart_pull_plan_keeps_mixed_no_upstream_project_skipped() {
+    let mut state = make_state();
+    let with_upstream = make_project("with-upstream");
+    let no_upstream = make_project("no-upstream");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![with_upstream.clone(), no_upstream.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![
+            make_project_status(with_upstream.id.clone(), Some("origin/main")),
+            make_project_status(no_upstream.id.clone(), None),
+        ],
+        last_refresh: Some(Utc::now()),
+    });
+    state
+        .selection
+        .selected_ids
+        .insert(with_upstream.id.clone());
+    state.selection.selected_ids.insert(no_upstream.id.clone());
+
+    dispatch(&mut state, Message::Sync(SyncMessage::BulkPullRequested));
+    dispatch(
+        &mut state,
+        Message::Sync(SyncMessage::SmartPullPlanRequested),
+    );
+
+    let SyncPhase::AwaitingConfirm(plan) = &state.sync.phase else {
+        panic!("expected reviewed plan");
+    };
+    assert_eq!(plan.entries.len(), 2);
+    assert_eq!(plan.pull_count(), 1);
+    assert_eq!(plan.excluded_count(), 1);
+    let skipped = plan
+        .entries
+        .iter()
+        .find(|entry| entry.project_id == no_upstream.id)
+        .expect("no-upstream row");
+    assert_eq!(skipped.disposition, SmartPullDisposition::Excluded);
+    assert_eq!(skipped.skip_reason, Some(SmartPullSkipReason::NoUpstream));
+}
+
+#[test]
+fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = AppPaths::under(tmp.path().to_path_buf());
+    let mut state = make_state_with_paths(paths.clone());
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    let plan = SmartPullPlan {
+        id: OperationId::new(),
+        entries: vec![SmartPullPlanEntry {
+            project_id: project.id.clone(),
+            project_name: project.name.clone(),
+            is_dirty: false,
+            has_conflict: false,
+            skip_reason: Some(SmartPullSkipReason::NoUpstream),
+            disposition: SmartPullDisposition::Excluded,
+        }],
+    };
+    state.sync.phase = SyncPhase::PullRunning {
+        plan,
+        started_at: Utc::now(),
+        completed: Vec::new(),
+    };
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::SmartPullProjectCompleted(
+            SmartPullProgress {
+                project_id: project.id.clone(),
+                project_name: project.name.clone(),
+                result: ProjectOperationResult {
+                    project_id: project.id.clone(),
+                    outcome: ProjectOperationOutcome::Skipped,
+                    success: true,
+                    skip_reason: Some("No update source is configured.".to_owned()),
+                    commands_executed: vec![],
+                    stdout: "[excluded]".to_owned(),
+                    stderr: String::new(),
+                    exit_code: Some(0),
+                    error_message: None,
+                },
+                recovery_hint: None,
+            },
+        )),
+    );
+
+    let SyncPhase::Done(result) = &state.sync.phase else {
+        panic!("expected result phase");
+    };
+    assert_eq!(result.success_count(), 0);
+    assert_eq!(result.fail_count(), 0);
+    assert_eq!(result.skipped_count(), 1);
+    assert_eq!(state.operation_logs.len(), 1);
+    assert_eq!(
+        state.operation_logs[0].result.successful_projects().len(),
+        0
+    );
+    assert_eq!(state.operation_logs[0].result.failed_projects().len(), 0);
+    assert_eq!(state.operation_logs[0].result.skipped_projects().len(), 1);
+
+    let loaded = crate::persistence::load_recent_logs(&paths, 10);
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0].result.skipped_projects().len(), 1);
+    assert_eq!(
+        loaded[0].result.per_project[0].skip_reason.as_deref(),
+        Some("No update source is configured.")
+    );
+}
+
+fn install_running_smart_pull(state: &mut AppState) {
+    let project = make_project("svc");
+    state.active_modal = ActiveModal::Pull;
+    state.sync.phase = SyncPhase::PullRunning {
+        plan: SmartPullPlan {
+            id: OperationId::new(),
+            entries: vec![SmartPullPlanEntry {
+                project_id: project.id.clone(),
+                project_name: project.name,
+                is_dirty: false,
+                has_conflict: false,
+                skip_reason: None,
+                disposition: SmartPullDisposition::Pull,
+            }],
+        },
+        started_at: Utc::now(),
+        completed: Vec::new(),
+    };
+}
+
+#[test]
+fn smart_pull_running_modal_close_keeps_progress_visible() {
+    let mut state = make_state();
+    install_running_smart_pull(&mut state);
+
+    dispatch(&mut state, Message::Sync(SyncMessage::ModalClosed));
+
+    assert!(matches!(state.active_modal, ActiveModal::Pull));
+    assert!(matches!(state.sync.phase, SyncPhase::PullRunning { .. }));
+}
+
+#[test]
+fn smart_pull_running_escape_keeps_progress_visible() {
+    let mut state = make_state();
+    install_running_smart_pull(&mut state);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+
+    assert!(matches!(state.active_modal, ActiveModal::Pull));
+    assert!(matches!(state.sync.phase, SyncPhase::PullRunning { .. }));
 }

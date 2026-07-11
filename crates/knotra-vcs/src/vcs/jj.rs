@@ -10,7 +10,7 @@ use std::process::Command;
 use endringer_async::AsyncRepository;
 
 use crate::model::{
-    operation::{ProjectOperationResult, RecoveryHint},
+    operation::{ProjectOperationOutcome, ProjectOperationResult, RecoveryHint},
     project::Project,
     status::{
         ProjectStatus, RemoteStatus, RepositoryIdentity, VcsContext, VcsKind, WorkingTreeStatus,
@@ -41,7 +41,9 @@ async fn run_jj_command(project: &Project, args: &[&str]) -> ProjectOperationRes
                 let code = output.status.code().unwrap_or(-1);
                 ProjectOperationResult {
                     project_id: project_id.clone(),
+                    outcome: ProjectOperationOutcome::from_success(output.status.success()),
                     success: output.status.success(),
+                    skip_reason: None,
                     commands_executed: vec![cmd_str.clone()],
                     stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
                     stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
@@ -55,7 +57,9 @@ async fn run_jj_command(project: &Project, args: &[&str]) -> ProjectOperationRes
             }
             Err(e) => ProjectOperationResult {
                 project_id,
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![cmd_str],
                 stdout: String::new(),
                 stderr: String::new(),
@@ -67,7 +71,9 @@ async fn run_jj_command(project: &Project, args: &[&str]) -> ProjectOperationRes
     .await
     .unwrap_or_else(|e| ProjectOperationResult {
         project_id: project.id.clone(),
+        outcome: ProjectOperationOutcome::Failed,
         success: false,
+        skip_reason: None,
         commands_executed: vec![],
         stdout: String::new(),
         stderr: String::new(),

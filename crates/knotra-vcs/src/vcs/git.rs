@@ -15,7 +15,7 @@ use endringer_async::AsyncRepository;
 use endringer_core::types::SortOrder;
 
 use crate::model::{
-    operation::{ProjectOperationResult, RecoveryHint},
+    operation::{ProjectOperationOutcome, ProjectOperationResult, RecoveryHint},
     project::Project,
     status::{
         ConflictStatus, ProjectStatus, RemoteStatus, RepositoryIdentity, VcsContext, VcsKind,
@@ -56,7 +56,9 @@ async fn run_git(project: &Project, args: &[&str]) -> ProjectOperationResult {
                 let code = output.status.code().unwrap_or(-1);
                 ProjectOperationResult {
                     project_id: project_id.clone(),
+                    outcome: ProjectOperationOutcome::from_success(output.status.success()),
                     success: output.status.success(),
+                    skip_reason: None,
                     commands_executed: vec![cmd_str.clone()],
                     stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
                     stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
@@ -70,7 +72,9 @@ async fn run_git(project: &Project, args: &[&str]) -> ProjectOperationResult {
             }
             Err(e) => ProjectOperationResult {
                 project_id,
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![cmd_str],
                 stdout: String::new(),
                 stderr: String::new(),
@@ -82,7 +86,9 @@ async fn run_git(project: &Project, args: &[&str]) -> ProjectOperationResult {
     .await
     .unwrap_or_else(|e| ProjectOperationResult {
         project_id: project.id.clone(),
+        outcome: ProjectOperationOutcome::Failed,
         success: false,
+        skip_reason: None,
         commands_executed: vec![],
         stdout: String::new(),
         stderr: String::new(),
@@ -439,7 +445,9 @@ pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationRe
         match endringer_git::GitBackend::open(&path) {
             Err(e) => ProjectOperationResult {
                 project_id: project_id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![format!("git tag {name}")],
                 stdout: String::new(),
                 stderr: e.to_string(),
@@ -449,7 +457,9 @@ pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationRe
             Ok(backend) => match backend.create_tag(&name) {
                 Ok(()) => ProjectOperationResult {
                     project_id: project_id.clone(),
+                    outcome: ProjectOperationOutcome::Succeeded,
                     success: true,
+                    skip_reason: None,
                     commands_executed: vec![format!("git tag {name}")],
                     stdout: String::new(),
                     stderr: String::new(),
@@ -458,7 +468,9 @@ pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationRe
                 },
                 Err(e) => ProjectOperationResult {
                     project_id,
+                    outcome: ProjectOperationOutcome::Failed,
                     success: false,
+                    skip_reason: None,
                     commands_executed: vec![format!("git tag {name}")],
                     stdout: String::new(),
                     stderr: e.to_string(),
@@ -471,7 +483,9 @@ pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationRe
     .await
     .unwrap_or_else(|e| ProjectOperationResult {
         project_id: project_id2,
+        outcome: ProjectOperationOutcome::Failed,
         success: false,
+        skip_reason: None,
         commands_executed: vec![],
         stdout: String::new(),
         stderr: String::new(),
@@ -496,7 +510,9 @@ pub(crate) async fn tag_create_annotated(
         match endringer_git::GitBackend::open(&path) {
             Err(e) => ProjectOperationResult {
                 project_id: pid,
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![format!("git tag -a {name} -m ...")],
                 stdout: String::new(),
                 stderr: e.to_string(),
@@ -506,7 +522,9 @@ pub(crate) async fn tag_create_annotated(
             Ok(b) => match b.create_annotated_tag(&name, &msg) {
                 Ok(()) => ProjectOperationResult {
                     project_id: pid,
+                    outcome: ProjectOperationOutcome::Succeeded,
                     success: true,
+                    skip_reason: None,
                     commands_executed: vec![format!("git tag -a {name} -m ...")],
                     stdout: String::new(),
                     stderr: String::new(),
@@ -515,7 +533,9 @@ pub(crate) async fn tag_create_annotated(
                 },
                 Err(e) => ProjectOperationResult {
                     project_id: pid,
+                    outcome: ProjectOperationOutcome::Failed,
                     success: false,
+                    skip_reason: None,
                     commands_executed: vec![format!("git tag -a {name} -m ...")],
                     stdout: String::new(),
                     stderr: e.to_string(),
@@ -528,7 +548,9 @@ pub(crate) async fn tag_create_annotated(
     .await
     .unwrap_or_else(|e| ProjectOperationResult {
         project_id: pid2,
+        outcome: ProjectOperationOutcome::Failed,
         success: false,
+        skip_reason: None,
         commands_executed: vec![],
         stdout: String::new(),
         stderr: String::new(),
@@ -625,7 +647,9 @@ pub async fn smart_pull(
         return (
             ProjectOperationResult {
                 project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Succeeded,
                 success: true,
+                skip_reason: None,
                 commands_executed: fetch_res.commands_executed,
                 stdout: fetch_res.stdout,
                 stderr: format!("{}[knotra] dirty — merge skipped", fetch_res.stderr),
@@ -701,7 +725,9 @@ pub async fn switch_context(
         return (
             ProjectOperationResult {
                 project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![],
                 stdout: String::new(),
                 stderr: "[knotra] blocked: dirty working tree".to_owned(),

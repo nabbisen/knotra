@@ -266,8 +266,8 @@ Primary evidence:
 
 ### RFC drafting track
 
-- [ ] Draft RFC: Workspace management completion
-- [ ] Draft RFC: Smart Pull modal execution completion
+- [x] Draft RFC: Workspace management completion
+- [x] Draft RFC: Smart Pull modal execution completion
 - [ ] Draft RFC: Freezer / release point execution completion
 - [ ] Draft RFC: Conflict resolution action completion and editor-launch hardening
 - [ ] Draft RFC: Selection mode and bulk-selection completion

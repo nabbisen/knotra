@@ -25,7 +25,6 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [0023](./proposed/023-workspace-management-completion.md) | Workspace management completion | Production Readiness Reset | High |
 
 ---
 
@@ -33,6 +32,13 @@ until the RFC moves to `done/`.
 
 Implemented and shipped.  These are historical records; the design decisions
 they contain remain authoritative.
+
+### main — Production Readiness Reset checkpoint
+
+| ID   | Title                                           | Shipped    |
+|------|-------------------------------------------------|------------|
+| [024](./done/024-smart-pull-modal-execution-completion.md) | Smart Pull modal execution completion | working tree; pending commit |
+| [023](./done/023-workspace-management-completion.md) | Workspace management completion | main: 02e1481 |
 
 ### v0.23.0 — snora 0.25.0 migration
 

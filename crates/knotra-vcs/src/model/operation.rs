@@ -71,17 +71,66 @@ pub struct OperationPlan {
     pub risks: Vec<String>,
 }
 
+/// Explicit per-project outcome within a larger operation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProjectOperationOutcome {
+    Succeeded,
+    Failed,
+    Skipped,
+}
+
+impl ProjectOperationOutcome {
+    pub fn from_success(success: bool) -> Self {
+        if success {
+            Self::Succeeded
+        } else {
+            Self::Failed
+        }
+    }
+}
+
 /// Per-project outcome within a larger operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectOperationResult {
     pub project_id: ProjectId,
+    #[serde(default = "ProjectOperationResult::default_outcome")]
+    pub outcome: ProjectOperationOutcome,
     pub success: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skip_reason: Option<String>,
     /// The VCS command(s) that were executed, for transparency.
     pub commands_executed: Vec<String>,
     pub stdout: String,
     pub stderr: String,
     pub exit_code: Option<i32>,
     pub error_message: Option<String>,
+}
+
+impl ProjectOperationResult {
+    fn default_outcome() -> ProjectOperationOutcome {
+        ProjectOperationOutcome::Succeeded
+    }
+
+    /// Normalize logs written before explicit outcomes existed.
+    pub fn effective_outcome(&self) -> ProjectOperationOutcome {
+        if self.outcome == ProjectOperationOutcome::Succeeded && !self.success {
+            ProjectOperationOutcome::Failed
+        } else {
+            self.outcome.clone()
+        }
+    }
+
+    pub fn is_succeeded(&self) -> bool {
+        self.effective_outcome() == ProjectOperationOutcome::Succeeded
+    }
+
+    pub fn is_failed(&self) -> bool {
+        self.effective_outcome() == ProjectOperationOutcome::Failed
+    }
+
+    pub fn is_skipped(&self) -> bool {
+        self.effective_outcome() == ProjectOperationOutcome::Skipped
+    }
 }
 
 /// Aggregate result for an entire operation across all target projects.
@@ -98,19 +147,26 @@ pub struct OperationResult {
 
 impl OperationResult {
     pub fn all_succeeded(&self) -> bool {
-        self.per_project.iter().all(|r| r.success)
+        self.per_project.iter().all(|r| r.is_succeeded())
     }
 
     pub fn any_failed(&self) -> bool {
-        self.per_project.iter().any(|r| !r.success)
+        self.per_project.iter().any(|r| r.is_failed())
     }
 
     pub fn failed_projects(&self) -> Vec<&ProjectOperationResult> {
-        self.per_project.iter().filter(|r| !r.success).collect()
+        self.per_project.iter().filter(|r| r.is_failed()).collect()
     }
 
     pub fn successful_projects(&self) -> Vec<&ProjectOperationResult> {
-        self.per_project.iter().filter(|r| r.success).collect()
+        self.per_project
+            .iter()
+            .filter(|r| r.is_succeeded())
+            .collect()
+    }
+
+    pub fn skipped_projects(&self) -> Vec<&ProjectOperationResult> {
+        self.per_project.iter().filter(|r| r.is_skipped()).collect()
     }
 }
 
@@ -150,6 +206,28 @@ pub enum SmartPullDisposition {
     Excluded,
 }
 
+/// Reason an entry is skipped before Smart Pull execution.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SmartPullSkipReason {
+    Deselected,
+    NoUpstream,
+    Conflict,
+    MissingStatus,
+    ProjectNotFound,
+}
+
+impl SmartPullSkipReason {
+    pub fn i18n_key(&self) -> &'static str {
+        match self {
+            SmartPullSkipReason::Deselected => "plain.get_latest.note_not_selected",
+            SmartPullSkipReason::NoUpstream => "plain.get_latest.note_no_upstream",
+            SmartPullSkipReason::Conflict => "plain.get_latest.note_needs_choice",
+            SmartPullSkipReason::MissingStatus => "plain.get_latest.note_status_missing",
+            SmartPullSkipReason::ProjectNotFound => "plain.get_latest.note_project_not_found",
+        }
+    }
+}
+
 /// Pre-execution plan for a Smart Pull operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmartPullPlan {
@@ -165,6 +243,7 @@ pub struct SmartPullPlanEntry {
     pub project_name: String,
     pub is_dirty: bool,
     pub has_conflict: bool,
+    pub skip_reason: Option<SmartPullSkipReason>,
     pub disposition: SmartPullDisposition,
 }
 

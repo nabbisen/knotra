@@ -4,7 +4,7 @@ use iced::{
     Alignment, Element, Length, Padding,
     widget::{Space, button, column, container, row, scrollable, text, text_input},
 };
-use knotra_vcs::model::operation::{OperationLog, OperationResult};
+use knotra_vcs::model::operation::{OperationLog, OperationResult, ProjectOperationOutcome};
 
 use crate::{
     message::{HistoryMessage, Message},
@@ -144,8 +144,15 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
             let status = summarise_status(result);
             let mut text_parts = vec![format!("# {} — {} — {}", kind, ts, status)];
             for pr in &result.per_project {
-                let ok = if pr.success { "ok" } else { "FAILED" };
+                let ok = match pr.effective_outcome() {
+                    ProjectOperationOutcome::Succeeded => "ok",
+                    ProjectOperationOutcome::Failed => "FAILED",
+                    ProjectOperationOutcome::Skipped => "SKIPPED",
+                };
                 text_parts.push(format!("  {} [{}]", pr.project_id, ok));
+                if let Some(reason) = &pr.skip_reason {
+                    text_parts.push(format!("    {}", reason));
+                }
                 for cmd in &pr.commands_executed {
                     text_parts.push(format!("    $ {}", cmd));
                 }
@@ -194,8 +201,15 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
 
     // Per-project results.
     for pr in &result.per_project {
-        let icon = if pr.success { "✓" } else { "✗" };
+        let icon = match pr.effective_outcome() {
+            ProjectOperationOutcome::Succeeded => "✓",
+            ProjectOperationOutcome::Failed => "✗",
+            ProjectOperationOutcome::Skipped => "-",
+        };
         rows.push(text(format!("  {icon} {}", pr.project_id)).size(12).into());
+        if let Some(reason) = &pr.skip_reason {
+            rows.push(text(format!("    {reason}")).size(10).into());
+        }
 
         // Commands (transparency).
         if !pr.commands_executed.is_empty() {
@@ -206,7 +220,7 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
         }
 
         // Stderr excerpt on failure.
-        if !pr.success && !pr.stderr.is_empty() {
+        if pr.is_failed() && !pr.stderr.is_empty() {
             let preview: String = pr.stderr.lines().take(3).collect::<Vec<_>>().join("\n");
             rows.push(text(format!("    {preview}")).size(10).into());
         }
@@ -231,16 +245,22 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
 // ---------------------------------------------------------------------------
 
 fn summarise_status(result: &OperationResult) -> &'static str {
+    let succeeded = result.successful_projects().len();
+    let failed = result.failed_projects().len();
+    let skipped = result.skipped_projects().len();
+
     if result.rollback_attempted {
         if result.rollback_succeeded == Some(true) {
             "↩ Rolled back"
         } else {
             "✗ Rollback failed"
         }
-    } else if result.per_project.iter().all(|p| p.success) {
+    } else if succeeded > 0 && failed == 0 && skipped == 0 {
         "✓ Success"
-    } else if result.per_project.iter().any(|p| p.success) {
+    } else if failed > 0 && (succeeded > 0 || skipped > 0) {
         "⚠ Partial"
+    } else if skipped > 0 && failed == 0 {
+        "- Skipped"
     } else {
         "✗ Failed"
     }
@@ -277,6 +297,9 @@ fn summarise_status(result: &OperationResult) -> &'static str {
 #[allow(dead_code)]
 pub(crate) fn log_to_markdown(log: &knotra_vcs::OperationLog) -> String {
     let result = &log.result;
+    let succeeded = result.successful_projects().len();
+    let failed = result.failed_projects().len();
+    let skipped = result.skipped_projects().len();
 
     let status = if result.rollback_attempted {
         if result.rollback_succeeded == Some(true) {
@@ -284,10 +307,12 @@ pub(crate) fn log_to_markdown(log: &knotra_vcs::OperationLog) -> String {
         } else {
             "Rollback failed"
         }
-    } else if result.all_succeeded() {
+    } else if succeeded > 0 && failed == 0 && skipped == 0 {
         "Success"
-    } else if result.any_failed() {
+    } else if failed > 0 && (succeeded > 0 || skipped > 0) {
         "Partial"
+    } else if skipped > 0 && failed == 0 {
+        "Skipped"
     } else {
         "Failed"
     };
@@ -301,12 +326,15 @@ pub(crate) fn log_to_markdown(log: &knotra_vcs::OperationLog) -> String {
     );
 
     for pr in &result.per_project {
-        let icon = if pr.success {
-            "✓ Success"
-        } else {
-            "✗ Failed"
+        let icon = match pr.effective_outcome() {
+            ProjectOperationOutcome::Succeeded => "✓ Success",
+            ProjectOperationOutcome::Failed => "✗ Failed",
+            ProjectOperationOutcome::Skipped => "- Skipped",
         };
         md.push_str(&format!("### {} — {}\n", pr.project_id, icon));
+        if let Some(reason) = &pr.skip_reason {
+            md.push_str(&format!("Reason: {reason}\n"));
+        }
 
         if !pr.commands_executed.is_empty() {
             md.push_str("Commands:\n");

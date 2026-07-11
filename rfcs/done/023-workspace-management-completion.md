@@ -1,8 +1,8 @@
-# RFC-0023 — Workspace Management Completion
+# RFC-023 — Workspace Management Completion
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented (main: 02e1481) |
 | Priority | High — visible workspace controls currently do not complete their user contract |
 | Effort | Medium |
 | Target | Production Readiness Reset |

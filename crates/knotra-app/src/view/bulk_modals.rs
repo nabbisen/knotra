@@ -22,7 +22,7 @@ use knotra_ui::widget::{
 };
 use knotra_vcs::{
     ProjectId,
-    model::operation::{FreezeOutcome, SmartPullDisposition},
+    model::operation::{FreezeOutcome, ProjectOperationOutcome, SmartPullDisposition},
 };
 
 use crate::{
@@ -39,13 +39,13 @@ use crate::{
 /// Shared shell with title bar used by all modals.
 fn modal_shell<'a>(
     title: &'a str,
-    close_msg: Message,
+    close_msg: Option<Message>,
     inner: Element<'a, Message>,
 ) -> Element<'a, Message> {
     let close_btn = button(text("✕").size(FONT_BODY))
         .height(BUTTON_HEIGHT)
         .padding([0, 12])
-        .on_press(close_msg);
+        .on_press_maybe(close_msg);
 
     let header = row![
         text(title).size(FONT_BODY + 2.0),
@@ -112,35 +112,37 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                     entry.disposition.clone(),
                     entry.is_dirty,
                     entry.has_conflict,
+                    entry.skip_reason.as_ref().map(|reason| reason.i18n_key()),
                 );
 
                 // Disposition override buttons for dirty (non-conflicted) projects
-                let action_cell: Element<'_, Message> = if entry.is_dirty && !entry.has_conflict {
-                    let curr = &entry.disposition;
-                    row![
-                        pick_disposition_btn(
-                            state,
-                            &entry.project_id,
-                            SmartPullDisposition::FetchOnly,
-                            state.t("plain.get_latest.check_only"),
-                            curr == &SmartPullDisposition::FetchOnly
-                        ),
-                        pick_disposition_btn(
-                            state,
-                            &entry.project_id,
-                            SmartPullDisposition::StashAndPull,
-                            state.t("plain.get_latest.get_anyway"),
-                            curr == &SmartPullDisposition::StashAndPull
-                        ),
-                    ]
-                    .spacing(4)
-                    .into()
-                } else {
-                    text(action_label)
-                        .size(FONT_BODY)
-                        .width(Length::FillPortion(2))
+                let action_cell: Element<'_, Message> =
+                    if entry.is_dirty && !entry.has_conflict && entry.skip_reason.is_none() {
+                        let curr = &entry.disposition;
+                        row![
+                            pick_disposition_btn(
+                                state,
+                                &entry.project_id,
+                                SmartPullDisposition::FetchOnly,
+                                state.t("plain.get_latest.check_only"),
+                                curr == &SmartPullDisposition::FetchOnly
+                            ),
+                            pick_disposition_btn(
+                                state,
+                                &entry.project_id,
+                                SmartPullDisposition::StashAndPull,
+                                state.t("plain.get_latest.get_anyway"),
+                                curr == &SmartPullDisposition::StashAndPull
+                            ),
+                        ]
+                        .spacing(4)
                         .into()
-                };
+                    } else {
+                        text(action_label)
+                            .size(FONT_BODY)
+                            .width(Length::FillPortion(2))
+                            .into()
+                    };
 
                 rows.push(
                     row![
@@ -204,16 +206,24 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 .into()
         }
 
-        SyncPhase::PullRunning { completed, plan } => {
+        SyncPhase::PullRunning {
+            completed, plan, ..
+        } => {
             let total = plan.entries.len();
             let done = completed.len();
             let mut result_rows: Vec<Element<'_, Message>> = completed
                 .iter()
                 .map(|p| {
-                    let (icon, msg) = if p.result.success {
-                        ("✓", state.t("plain.get_latest.done_row"))
-                    } else {
-                        ("!", state.t("plain.get_latest.needs_help_row"))
+                    let (icon, msg) = match p.result.effective_outcome() {
+                        ProjectOperationOutcome::Succeeded => {
+                            ("✓", state.t("plain.get_latest.done_row"))
+                        }
+                        ProjectOperationOutcome::Failed => {
+                            ("!", state.t("plain.get_latest.needs_help_row"))
+                        }
+                        ProjectOperationOutcome::Skipped => {
+                            ("-", state.t("plain.get_latest.skipped_row"))
+                        }
                     };
                     row![
                         text(icon).size(FONT_BODY).width(Length::Fixed(20.0)),
@@ -258,11 +268,13 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
         SyncPhase::Done(result) => pull_result_view(state, result),
     };
 
-    modal_shell(
-        state.t("plain.get_latest"),
-        Message::Sync(SyncMessage::ModalClosed),
-        inner,
-    )
+    let close_msg = if matches!(sync.phase, SyncPhase::PullRunning { .. }) {
+        None
+    } else {
+        Some(Message::Sync(SyncMessage::ModalClosed))
+    };
+
+    modal_shell(state.t("plain.get_latest"), close_msg, inner)
 }
 
 /// Render the result step for Get latest safely.
@@ -272,21 +284,32 @@ fn pull_result_view<'a>(
 ) -> Element<'a, Message> {
     let ok = result.success_count();
     let fail = result.fail_count();
+    let skipped = result.skipped_count();
 
-    let summary = if fail == 0 {
+    let summary = if fail == 0 && skipped == 0 {
         format!(
             "{} {} {}.",
             state.t("plain.get_latest.all_done_prefix"),
             ok,
             state.t("plain.get_latest.all_done_suffix")
         )
-    } else {
+    } else if fail == 0 {
         format!(
             "{} {}. {} {}.",
             ok,
             state.t("plain.get_latest.done_count"),
+            skipped,
+            state.t("plain.get_latest.skipped_count")
+        )
+    } else {
+        format!(
+            "{} {}. {} {}. {} {}.",
+            ok,
+            state.t("plain.get_latest.done_count"),
             fail,
-            state.t("plain.get_latest.needs_help_count")
+            state.t("plain.get_latest.needs_help_count"),
+            skipped,
+            state.t("plain.get_latest.skipped_count")
         )
     };
 
@@ -301,11 +324,15 @@ fn pull_result_view<'a>(
         .per_project
         .iter()
         .map(|pp| {
-            let icon = if pp.success { "✓" } else { "!" };
-            let msg = if pp.success {
-                state.t("plain.get_latest.done_row")
-            } else {
-                state.t("plain.needs_help")
+            let (icon, msg) = match pp.outcome {
+                ProjectOperationOutcome::Succeeded => ("✓", state.t("plain.get_latest.done_row")),
+                ProjectOperationOutcome::Failed => ("!", state.t("plain.needs_help")),
+                ProjectOperationOutcome::Skipped => (
+                    "-",
+                    pp.skip_reason
+                        .as_deref()
+                        .unwrap_or(state.t("plain.get_latest.skipped_row")),
+                ),
             };
 
             let mut row_col = column![
@@ -321,7 +348,10 @@ fn pull_result_view<'a>(
             .spacing(4);
 
             // Show commands under "Show details" if failed
-            if !pp.success && !pp.commands_executed.is_empty() && state.show_op_details {
+            if pp.outcome == ProjectOperationOutcome::Failed
+                && !pp.commands_executed.is_empty()
+                && state.show_op_details
+            {
                 for cmd in &pp.commands_executed {
                     row_col = row_col.push(text(format!("  {}", cmd)).size(FONT_SMALL));
                 }
@@ -395,7 +425,8 @@ fn disposition_plain(
     d: SmartPullDisposition,
     is_dirty: bool,
     has_conflict: bool,
-) -> (&str, &str) {
+    skip_reason_key: Option<&'static str>,
+) -> (&'static str, &'static str) {
     match d {
         SmartPullDisposition::Pull => (state.t("plain.get_latest.action_get"), ""),
         SmartPullDisposition::FetchOnly => (
@@ -412,7 +443,9 @@ fn disposition_plain(
         ),
         SmartPullDisposition::Excluded => (
             state.t("plain.get_latest.action_skip"),
-            if has_conflict {
+            if let Some(key) = skip_reason_key {
+                state.t(key)
+            } else if has_conflict {
                 state.t("plain.get_latest.note_needs_choice")
             } else {
                 ""
@@ -646,7 +679,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
 
     modal_shell(
         state.t("plain.save_release_point"),
-        Message::Freezer(FreezerMessage::BulkModalClosed),
+        Some(Message::Freezer(FreezerMessage::BulkModalClosed)),
         inner,
     )
 }
@@ -765,7 +798,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
     modal_shell(
         state.t("plain.change_work_area"),
-        Message::Context(ContextMessage::BulkModalClosed),
+        Some(Message::Context(ContextMessage::BulkModalClosed)),
         inner,
     )
 }
@@ -907,7 +940,7 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
 
     modal_shell(
         state.t("plain.changelog.title"),
-        Message::Changelog(ChangelogMessage::ModalClosed),
+        Some(Message::Changelog(ChangelogMessage::ModalClosed)),
         inner.into(),
     )
 }

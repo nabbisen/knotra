@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::model::{
-    operation::{ProjectOperationResult, RecoveryHint},
+    operation::{ProjectOperationOutcome, ProjectOperationResult, RecoveryHint},
     project::Project,
     status::{ProjectStatus, VcsKind, WorkspaceStatus},
     workspace::Workspace,
@@ -97,7 +97,9 @@ impl VcsAdapter {
             Some(VcsKind::Jujutsu) => jj::fetch(project).await,
             None => ProjectOperationResult {
                 project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![],
                 stdout: String::new(),
                 stderr: String::new(),
@@ -123,7 +125,9 @@ impl VcsAdapter {
             None => (
                 ProjectOperationResult {
                     project_id: project.id.clone(),
+                    outcome: ProjectOperationOutcome::Failed,
                     success: false,
+                    skip_reason: None,
                     commands_executed: vec![],
                     stdout: String::new(),
                     stderr: String::new(),
@@ -171,7 +175,9 @@ impl VcsAdapter {
             None => (
                 crate::model::operation::ProjectOperationResult {
                     project_id: project.id.clone(),
+                    outcome: ProjectOperationOutcome::Failed,
                     success: false,
+                    skip_reason: None,
                     commands_executed: vec![],
                     stdout: String::new(),
                     stderr: String::new(),
@@ -304,7 +310,9 @@ impl VcsAdapter {
                 Some(VcsKind::Jujutsu) => jj::bookmark_create(project, freeze_name).await,
                 None => crate::model::operation::ProjectOperationResult {
                     project_id: project.id.clone(),
+                    outcome: ProjectOperationOutcome::Failed,
                     success: false,
+                    skip_reason: None,
                     commands_executed: vec![],
                     stdout: String::new(),
                     stderr: String::new(),
@@ -370,7 +378,9 @@ impl VcsAdapter {
                 Some(VcsKind::Jujutsu) => jj::bookmark_delete(project, freeze_name).await,
                 None => crate::model::operation::ProjectOperationResult {
                     project_id: project.id.clone(),
+                    outcome: ProjectOperationOutcome::Failed,
                     success: false,
+                    skip_reason: None,
                     commands_executed: vec![],
                     stdout: String::new(),
                     stderr: String::new(),
@@ -441,7 +451,9 @@ impl VcsAdapter {
             Some(VcsKind::Git) => git::mark_resolved(project, file_path).await,
             _ => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![],
                 stdout: String::new(),
                 stderr: String::new(),
@@ -457,7 +469,9 @@ impl VcsAdapter {
             Some(VcsKind::Git) => git::abort_merge(project).await,
             _ => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![],
                 stdout: String::new(),
                 stderr: String::new(),
@@ -577,7 +591,9 @@ impl VcsAdapter {
             Some(VcsKind::Git) => git::push_tags(project, tag_name).await,
             _ => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![],
                 stdout: String::new(),
                 stderr: String::new(),
@@ -616,7 +632,9 @@ impl VcsAdapter {
             (Some(VcsKind::Jujutsu), _) => jj::bookmark_create(project, tag_name).await,
             (None, _) => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![],
                 stdout: String::new(),
                 stderr: String::new(),
@@ -640,7 +658,9 @@ impl VcsAdapter {
             Some(VcsKind::Jujutsu) => jj::bookmark_create(project, tag_name).await,
             None => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![],
                 stdout: String::new(),
                 stderr: String::new(),
@@ -664,7 +684,9 @@ impl VcsAdapter {
             Some(VcsKind::Jujutsu) => jj::bookmark_delete(project, tag_name).await,
             None => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
                 success: false,
+                skip_reason: None,
                 commands_executed: vec![],
                 stdout: String::new(),
                 stderr: String::new(),
