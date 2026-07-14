@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (working tree; pending commit) |
+| Status | Implemented (main: 4362a2e) |
 | Priority | High — a visible primary workflow can open or close without completing its promised operation |
 | Effort | Medium |
 | Target | Production Readiness Reset |

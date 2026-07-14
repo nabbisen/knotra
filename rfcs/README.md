@@ -25,6 +25,7 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [025](./proposed/025-freezer-release-point-execution-completion.md) | Freezer / Release Point Execution Completion | Production Readiness Reset | High |
 
 ---
 
@@ -37,7 +38,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
-| [024](./done/024-smart-pull-modal-execution-completion.md) | Smart Pull modal execution completion | working tree; pending commit |
+| [024](./done/024-smart-pull-modal-execution-completion.md) | Smart Pull modal execution completion | main: 4362a2e |
 | [023](./done/023-workspace-management-completion.md) | Workspace management completion | main: 02e1481 |
 
 ### v0.23.0 — snora 0.25.0 migration
