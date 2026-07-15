@@ -25,6 +25,7 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [026](./proposed/026-conflict-resolution-action-completion-and-editor-launch-hardening.md) | Conflict Resolution Action Completion and Editor-Launch Hardening | Production Readiness Reset | High |
 
 ---
 
