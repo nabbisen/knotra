@@ -3,17 +3,22 @@
 use crate::config::AppConfig;
 use crate::config::AppPaths;
 use crate::message::{
-    BackgroundMessage, FilterMessage, Message, ShortcutMessage, SyncMessage, WorkspaceMessage,
+    BackgroundMessage, FilterMessage, FreezerMessage, Message, ShortcutMessage, SyncMessage,
+    TagPushMessage, WorkspaceMessage,
 };
 use crate::persistence::{load_workspaces, save_workspace};
-use crate::state::{ActiveModal, AddProjectDialog, AppState, Screen, sync::SyncPhase};
+use crate::state::{
+    ActiveModal, AddProjectDialog, AppState, Screen, freezer::FreezerPhase, sync::SyncPhase,
+};
 use chrono::Utc;
 use knotra_vcs::{
     OperationId, Project, ProjectId, Workspace, WorkspaceStatus,
     model::{
         operation::{
-            ProjectOperationOutcome, ProjectOperationResult, SmartPullDisposition, SmartPullPlan,
-            SmartPullPlanEntry, SmartPullProgress, SmartPullSkipReason,
+            FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
+            FreezeValidationEntry, OperationKind, ProjectOperationOutcome, ProjectOperationResult,
+            SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
+            SmartPullSkipReason,
         },
         status::{ConflictStatus, RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus},
     },
@@ -64,6 +69,48 @@ fn make_project_status(project_id: ProjectId, upstream: Option<&str>) -> knotra_
         refreshed_at: Utc::now(),
         read_error: None,
     }
+}
+
+fn make_project_status_with_kind(
+    project_id: ProjectId,
+    vcs_kind: VcsKind,
+) -> knotra_vcs::ProjectStatus {
+    knotra_vcs::ProjectStatus {
+        project_id,
+        identity: RepositoryIdentity {
+            path: "/tmp".into(),
+            vcs_kind,
+        },
+        context: None,
+        remote: RemoteStatus::default(),
+        working_tree: WorkingTreeStatus::default(),
+        conflict: ConflictStatus::default(),
+        refreshed_at: Utc::now(),
+        read_error: None,
+    }
+}
+
+fn ready_freeze_validation(project: &Project, freeze_name: &str) -> FreezeValidation {
+    FreezeValidation {
+        freeze_name: freeze_name.to_owned(),
+        entries: vec![FreezeValidationEntry {
+            project_id: project.id.clone(),
+            project_name: project.name.clone(),
+            included: true,
+            is_clean: true,
+            tag_exists: false,
+            notes: Vec::new(),
+            blockers: Vec::new(),
+        }],
+    }
+}
+
+fn install_pending_push(state: &mut AppState, freeze_name: &str, project_id: ProjectId) {
+    state.pending_tag_push = Some(crate::state::PendingTagPush {
+        freeze_name: freeze_name.to_owned(),
+        project_ids: vec![project_id],
+        is_pushing: false,
+    });
 }
 
 fn dispatch(state: &mut AppState, message: Message) {
@@ -611,4 +658,308 @@ fn smart_pull_running_escape_keeps_progress_visible() {
 
     assert!(matches!(state.active_modal, ActiveModal::Pull));
     assert!(matches!(state.sync.phase, SyncPhase::PullRunning { .. }));
+}
+
+#[test]
+fn freezer_bulk_open_initializes_dashboard_selection() {
+    let mut state = make_state();
+    let selected = make_project("selected");
+    let other = make_project("other");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![selected.clone(), other.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection.selected_ids.insert(selected.id.clone());
+
+    dispatch(
+        &mut state,
+        Message::Freezer(FreezerMessage::BulkOpenRequested),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::Tag));
+    assert!(matches!(state.freezer.phase, FreezerPhase::Idle));
+    assert_eq!(state.freezer.project_selection.len(), 1);
+    assert_eq!(
+        state.freezer.project_selection.get(&selected.id),
+        Some(&true)
+    );
+    assert!(!state.freezer.project_selection.contains_key(&other.id));
+}
+
+#[test]
+fn freezer_execute_confirmed_enters_executing_from_ready_validation() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.freezer.phase =
+        FreezerPhase::ValidationReady(ready_freeze_validation(&project, "v1.0.0"));
+
+    dispatch(
+        &mut state,
+        Message::Freezer(FreezerMessage::ExecuteConfirmed),
+    );
+
+    assert!(matches!(state.freezer.phase, FreezerPhase::Executing));
+    assert!(state.freezer.execution_started_at.is_some());
+}
+
+#[test]
+fn freezer_execute_requested_does_not_loop_back_to_confirmed() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.freezer.phase =
+        FreezerPhase::ValidationReady(ready_freeze_validation(&project, "v1.0.0"));
+
+    dispatch(
+        &mut state,
+        Message::Freezer(FreezerMessage::ExecuteRequested),
+    );
+
+    assert!(matches!(state.freezer.phase, FreezerPhase::Executing));
+}
+
+#[test]
+fn freezer_execute_requires_at_least_one_ready_project() {
+    let mut state = make_state();
+    state.freezer.phase = FreezerPhase::ValidationReady(FreezeValidation {
+        freeze_name: "v1.0.0".to_owned(),
+        entries: Vec::new(),
+    });
+
+    dispatch(
+        &mut state,
+        Message::Freezer(FreezerMessage::ExecuteConfirmed),
+    );
+
+    assert!(matches!(
+        state.freezer.phase,
+        FreezerPhase::ValidationReady(_)
+    ));
+    assert!(state.freezer.execution_started_at.is_none());
+}
+
+fn install_running_freezer(state: &mut AppState) {
+    state.active_modal = ActiveModal::Tag;
+    state.freezer.phase = FreezerPhase::Executing;
+    state.freezer.execution_started_at = Some(Utc::now());
+}
+
+#[test]
+fn freezer_running_modal_close_keeps_progress_visible() {
+    let mut state = make_state();
+    install_running_freezer(&mut state);
+
+    dispatch(
+        &mut state,
+        Message::Freezer(FreezerMessage::BulkModalClosed),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::Tag));
+    assert!(matches!(state.freezer.phase, FreezerPhase::Executing));
+}
+
+#[test]
+fn freezer_running_escape_keeps_progress_visible() {
+    let mut state = make_state();
+    install_running_freezer(&mut state);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+
+    assert!(matches!(state.active_modal, ActiveModal::Tag));
+    assert!(matches!(state.freezer.phase, FreezerPhase::Executing));
+}
+
+#[test]
+fn freezer_completion_persists_log_and_offers_git_push() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = AppPaths::under(tmp.path().to_path_buf());
+    let mut state = make_state_with_paths(paths.clone());
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![make_project_status_with_kind(
+            project.id.clone(),
+            VcsKind::Git,
+        )],
+        last_refresh: Some(Utc::now()),
+    });
+    state.freezer.execution_started_at = Some(Utc::now());
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::FreezeExecutionDone(FreezeResult {
+            freeze_name: "v1.0.0".to_owned(),
+            project_results: vec![FreezeProjectResult {
+                project_id: project.id.clone(),
+                project_name: project.name.clone(),
+                success: true,
+                commands_executed: vec!["git tag v1.0.0".to_owned()],
+                stdout: String::new(),
+                stderr: String::new(),
+                rollback_attempted: false,
+                rollback_succeeded: None,
+                recovery_hint: None,
+            }],
+            outcome: FreezeOutcome::Success,
+        })),
+    );
+
+    assert!(matches!(state.freezer.phase, FreezerPhase::Done(_)));
+    assert_eq!(state.operation_logs.len(), 1);
+    assert_eq!(state.operation_logs[0].result.kind, OperationKind::Freeze);
+    let pending = state.pending_tag_push.as_ref().expect("pending push offer");
+    assert_eq!(pending.freeze_name, "v1.0.0");
+    assert_eq!(pending.project_ids, vec![project.id.clone()]);
+
+    let loaded = crate::persistence::load_recent_logs(&paths, 10);
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0].result.kind, OperationKind::Freeze);
+}
+
+#[test]
+fn freezer_completion_does_not_offer_jj_push() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_pending_push(&mut state, "v1.0.0", ProjectId::new());
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![make_project_status_with_kind(
+            project.id.clone(),
+            VcsKind::Jujutsu,
+        )],
+        last_refresh: Some(Utc::now()),
+    });
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::FreezeExecutionDone(FreezeResult {
+            freeze_name: "v1.0.0".to_owned(),
+            project_results: vec![FreezeProjectResult {
+                project_id: project.id.clone(),
+                project_name: project.name,
+                success: true,
+                commands_executed: vec!["jj bookmark create v1.0.0 -r @".to_owned()],
+                stdout: String::new(),
+                stderr: String::new(),
+                rollback_attempted: false,
+                rollback_succeeded: None,
+                recovery_hint: None,
+            }],
+            outcome: FreezeOutcome::Success,
+        })),
+    );
+
+    assert!(state.pending_tag_push.is_none());
+}
+
+#[test]
+fn freezer_non_success_result_clears_stale_push_offer() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_pending_push(&mut state, "v1.0.0", ProjectId::new());
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![make_project_status_with_kind(
+            project.id.clone(),
+            VcsKind::Git,
+        )],
+        last_refresh: Some(Utc::now()),
+    });
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::FreezeExecutionDone(FreezeResult {
+            freeze_name: "v1.0.0".to_owned(),
+            project_results: vec![FreezeProjectResult {
+                project_id: project.id.clone(),
+                project_name: project.name,
+                success: false,
+                commands_executed: vec!["git tag v1.0.0".to_owned()],
+                stdout: String::new(),
+                stderr: "failed".to_owned(),
+                rollback_attempted: false,
+                rollback_succeeded: None,
+                recovery_hint: None,
+            }],
+            outcome: FreezeOutcome::RolledBack,
+        })),
+    );
+
+    assert!(state.pending_tag_push.is_none());
+}
+
+#[test]
+fn freezer_start_execution_clears_stale_push_offer() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_pending_push(&mut state, "v0.9.0", project.id.clone());
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.freezer.phase =
+        FreezerPhase::ValidationReady(ready_freeze_validation(&project, "v1.0.0"));
+
+    dispatch(
+        &mut state,
+        Message::Freezer(FreezerMessage::ExecuteConfirmed),
+    );
+
+    assert!(state.pending_tag_push.is_none());
+    assert!(matches!(state.freezer.phase, FreezerPhase::Executing));
+}
+
+#[test]
+fn tag_push_decline_clears_pending_offer() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_pending_push(&mut state, "v1.0.0", project.id);
+
+    dispatch(&mut state, Message::TagPush(TagPushMessage::PushDeclined));
+
+    assert!(state.pending_tag_push.is_none());
 }

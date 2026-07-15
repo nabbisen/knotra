@@ -398,6 +398,43 @@ async fn tag_create_and_delete_roundtrip() {
     );
 }
 
+#[tokio::test]
+async fn execute_freeze_with_message_creates_annotated_git_tag() {
+    use std::collections::HashSet;
+
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    let project = make_project(dir.path());
+    let projects = vec![project.clone()];
+    let selection: HashSet<_> = [project.id.clone()].into_iter().collect();
+    let validation = VcsAdapter::validate_freeze(&projects, &selection, "v2.1.0", 4).await;
+
+    let result =
+        VcsAdapter::execute_freeze_with_message(&projects, &validation, Some("release note")).await;
+
+    assert!(
+        matches!(result.outcome, knotra_vcs::FreezeOutcome::Success),
+        "freeze failed: {:?}",
+        result
+    );
+
+    let output = Command::new("git")
+        .args(["cat-file", "-p", "v2.1.0"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git cat-file failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let tag_object = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        tag_object.contains("release note"),
+        "annotated tag should contain message, got {tag_object:?}"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // §16.4 State 9: Permission-error (simulate with non-existent path)
 // ---------------------------------------------------------------------------

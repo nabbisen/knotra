@@ -260,11 +260,24 @@ impl VcsAdapter {
         projects: &[crate::model::project::Project],
         validation: &crate::model::operation::FreezeValidation,
     ) -> crate::model::operation::FreezeResult {
+        VcsAdapter::execute_freeze_with_message(projects, validation, None).await
+    }
+
+    /// Execute the freeze with an optional Git tag annotation message.
+    ///
+    /// The message is used for Git annotated tags. jj bookmarks do not carry
+    /// this note and are created with the bookmark name only.
+    pub async fn execute_freeze_with_message(
+        projects: &[crate::model::project::Project],
+        validation: &crate::model::operation::FreezeValidation,
+        message: Option<&str>,
+    ) -> crate::model::operation::FreezeResult {
         use crate::model::operation::{
             FreezeOutcome, FreezeProjectResult, FreezeResult, RecoveryHint,
         };
 
         let freeze_name = &validation.freeze_name;
+        let message = message.map(str::trim).filter(|message| !message.is_empty());
 
         // Only process projects that are included and not blocked.
         let ready_entries: Vec<_> = validation.entries.iter().filter(|e| e.ready()).collect();
@@ -306,7 +319,10 @@ impl VcsAdapter {
 
             let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
             let result = match kind {
-                Some(VcsKind::Git) => git::tag_create(project, freeze_name).await,
+                Some(VcsKind::Git) => match message {
+                    Some(message) => git::tag_create_annotated(project, freeze_name, message).await,
+                    None => git::tag_create(project, freeze_name).await,
+                },
                 Some(VcsKind::Jujutsu) => jj::bookmark_create(project, freeze_name).await,
                 None => crate::model::operation::ProjectOperationResult {
                     project_id: project.id.clone(),

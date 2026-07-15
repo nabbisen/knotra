@@ -310,6 +310,18 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.release.row_saved", "Saved");
     m.insert("plain.release.row_undone", "Undone");
     m.insert(
+        "plain.release.share_offer",
+        "Share this release point with the team?",
+    );
+    m.insert("plain.release.share_action", "Share release point");
+    m.insert("plain.release.share_decline", "Not now");
+    m.insert("plain.release.sharing", "Sharing release point…");
+    m.insert("plain.release.shared_status", "Release point shared");
+    m.insert("plain.release.share_failed_status", "Release point sharing");
+    m.insert("plain.release.projects_suffix", "project(s).");
+    m.insert("plain.release.succeeded_suffix", "succeeded,");
+    m.insert("plain.release.failed_suffix", "failed.");
+    m.insert(
         "plain.release.blocker_name_used",
         "This release name is already in use. Choose another or remove the old one.",
     );
@@ -772,6 +784,24 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     );
     m.insert("plain.release.row_saved", "保存済み");
     m.insert("plain.release.row_undone", "元に戻しました");
+    m.insert(
+        "plain.release.share_offer",
+        "このリリースポイントをチームと共有しますか？",
+    );
+    m.insert("plain.release.share_action", "リリースポイントを共有");
+    m.insert("plain.release.share_decline", "今はしない");
+    m.insert("plain.release.sharing", "リリースポイントを共有しています…");
+    m.insert(
+        "plain.release.shared_status",
+        "リリースポイントを共有しました",
+    );
+    m.insert(
+        "plain.release.share_failed_status",
+        "リリースポイントの共有",
+    );
+    m.insert("plain.release.projects_suffix", "件。");
+    m.insert("plain.release.succeeded_suffix", "件成功、");
+    m.insert("plain.release.failed_suffix", "件失敗。");
     m.insert(
         "plain.release.blocker_name_used",
         "このリリース名はすでに使用されています。別の名前を選ぶか古いものを削除してください。",

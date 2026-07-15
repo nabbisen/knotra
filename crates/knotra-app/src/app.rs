@@ -5,7 +5,7 @@ use iced::{Element, Subscription, Task, clipboard, keyboard, time};
 use std::time::Duration;
 
 use knotra_vcs::{
-    VcsAdapter,
+    VcsAdapter, VcsKind,
     model::{
         operation::{
             ContextSwitchResult, OperationId, OperationKind, OperationLog, OperationResult,
@@ -247,7 +247,7 @@ fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
         state.workspace_mgr.rename_dialog = None;
     } else if state.workspace_mgr.confirm_delete.is_some() {
         state.workspace_mgr.confirm_delete = None;
-    } else if smart_pull_is_running(state) {
+    } else if smart_pull_is_running(state) || freezer_is_running(state) {
         return Task::none();
     } else if !matches!(state.active_modal, crate::state::ActiveModal::None) {
         state.active_modal = crate::state::ActiveModal::None;
@@ -260,6 +260,11 @@ fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
 fn smart_pull_is_running(state: &AppState) -> bool {
     matches!(state.active_modal, crate::state::ActiveModal::Pull)
         && matches!(state.sync.phase, SyncPhase::PullRunning { .. })
+}
+
+fn freezer_is_running(state: &AppState) -> bool {
+    matches!(state.active_modal, crate::state::ActiveModal::Tag)
+        && matches!(state.freezer.phase, FreezerPhase::Executing)
 }
 
 // ---------------------------------------------------------------------------
@@ -1173,11 +1178,20 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
         } => {
             state.pending_tag_push = None;
             state.status_bar = Some(if fail_count == 0 {
-                format!("✓ Tags pushed to remote — {} project(s).", success_count)
+                format!(
+                    "{} — {} {}",
+                    state.t("plain.release.shared_status"),
+                    success_count,
+                    state.t("plain.release.projects_suffix")
+                )
             } else {
                 format!(
-                    "⚠ Tag push: {} succeeded, {} failed.",
-                    success_count, fail_count
+                    "{}: {} {} {} {}",
+                    state.t("plain.release.share_failed_status"),
+                    success_count,
+                    state.t("plain.release.succeeded_suffix"),
+                    fail_count,
+                    state.t("plain.release.failed_suffix")
                 )
             });
             Task::none()
@@ -1226,6 +1240,13 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
         BackgroundMessage::FreezeExecutionDone(result) => {
             use knotra_vcs::model::operation::{OperationKind, OperationLog, OperationResult};
 
+            let started_at = state
+                .freezer
+                .execution_started_at
+                .take()
+                .unwrap_or_else(chrono::Utc::now);
+            let finished_at = chrono::Utc::now();
+
             // Build per-project entries for the operation log.
             let per_project: Vec<_> = result
                 .project_results
@@ -1257,8 +1278,8 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                 result: OperationResult {
                     operation_id: OperationId::new(),
                     kind: OperationKind::Freeze,
-                    started_at: chrono::Utc::now(),
-                    finished_at: chrono::Utc::now(),
+                    started_at,
+                    finished_at,
                     per_project,
                     rollback_attempted: result.project_results.iter().any(|r| r.rollback_attempted),
                     rollback_succeeded: {
@@ -1280,24 +1301,14 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             };
             persist_log(&op_log, state);
 
-            // If the freeze succeeded fully, offer to push tags to remote.
-            if let FreezerPhase::Done(ref freeze_result) = state.freezer.phase
-                && freeze_result.outcome == knotra_vcs::FreezeOutcome::Success
-            {
-                let ids: Vec<_> = freeze_result
-                    .project_results
-                    .iter()
-                    .filter(|r| r.success)
-                    .map(|r| r.project_id.clone())
-                    .collect();
-                if !ids.is_empty() {
-                    let _ = Task::done(Message::TagPush(TagPushMessage::OfferShown {
-                        freeze_name: freeze_result.freeze_name.clone(),
-                        project_ids: ids,
-                    }));
-                }
-            }
+            let push_offer = git_push_offer_for_freeze(state, &result);
             state.freezer.phase = FreezerPhase::Done(result);
+
+            state.pending_tag_push = push_offer.map(|(freeze_name, project_ids)| PendingTagPush {
+                freeze_name,
+                project_ids,
+                is_pushing: false,
+            });
             Task::none()
         }
 
@@ -1518,6 +1529,40 @@ fn persist_log(log: &OperationLog, state: &mut AppState) {
     state.operation_logs.truncate(state.config.max_log_entries);
 }
 
+fn git_push_offer_for_freeze(
+    state: &AppState,
+    result: &knotra_vcs::FreezeResult,
+) -> Option<(String, Vec<knotra_vcs::ProjectId>)> {
+    if result.outcome != knotra_vcs::FreezeOutcome::Success {
+        return None;
+    }
+
+    let ids: Vec<_> = result
+        .project_results
+        .iter()
+        .filter(|r| r.success && project_is_git_for_push(state, &r.project_id))
+        .map(|r| r.project_id.clone())
+        .collect();
+
+    (!ids.is_empty()).then(|| (result.freeze_name.clone(), ids))
+}
+
+fn project_is_git_for_push(state: &AppState, project_id: &knotra_vcs::ProjectId) -> bool {
+    if let Some(status) = state.workspace_status.as_ref().and_then(|ws| {
+        ws.projects
+            .iter()
+            .find(|status| &status.project_id == project_id)
+    }) {
+        return status.identity.vcs_kind == VcsKind::Git;
+    }
+
+    let Some(project) = find_project(state, project_id) else {
+        return false;
+    };
+    let path = std::path::Path::new(&project.path);
+    !path.join(".jj").is_dir() && path.join(".git").exists()
+}
+
 fn smart_pull_skip_reason_text(reason: &SmartPullSkipReason) -> &'static str {
     match reason {
         SmartPullSkipReason::Deselected => "Not selected.",
@@ -1722,6 +1767,8 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
                 let ids: Vec<_> = ws.projects.iter().map(|p| p.id.clone()).collect();
                 state.freezer.init_selection(&ids);
             }
+            state.pending_tag_push = None;
+            state.freezer.execution_started_at = None;
             state.freezer.phase = FreezerPhase::Idle;
             state.active_modal = crate::state::ActiveModal::Tag;
             Task::none()
@@ -1740,14 +1787,14 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             state.freezer.tag_message = s;
             Task::none()
         }
-        FreezerMessage::ExecuteConfirmed => {
-            Task::done(Message::Freezer(FreezerMessage::ExecuteRequested))
-        }
-        FreezerMessage::ExecuteRequested => {
-            Task::done(Message::Freezer(FreezerMessage::ExecuteConfirmed))
+        FreezerMessage::ExecuteConfirmed | FreezerMessage::ExecuteRequested => {
+            start_freeze_execution(state)
         }
         FreezerMessage::BulkOpenRequested => {
             state.active_modal = crate::state::ActiveModal::Tag;
+            state.freezer.phase = FreezerPhase::Idle;
+            state.freezer.execution_started_at = None;
+            state.pending_tag_push = None;
             // Pre-populate freeze selection
             state.freezer.project_selection = state
                 .selection
@@ -1758,6 +1805,9 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::RELEASE_NAME)
         }
         FreezerMessage::BulkModalClosed => {
+            if matches!(state.freezer.phase, FreezerPhase::Executing) {
+                return Task::none();
+            }
             state.active_modal = crate::state::ActiveModal::None;
             Task::none()
         }
@@ -1786,6 +1836,7 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             let max = state.config.max_concurrent_reads;
 
             state.freezer.phase = FreezerPhase::Validating;
+            state.freezer.execution_started_at = None;
 
             Task::perform(
                 async move {
@@ -1796,16 +1847,55 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
         }
 
         FreezerMessage::Cancelled => {
+            if matches!(state.freezer.phase, FreezerPhase::Executing) {
+                return Task::none();
+            }
+            state.freezer.execution_started_at = None;
             state.freezer.phase = FreezerPhase::Idle;
             Task::none()
         }
 
         FreezerMessage::BackToDashboard => {
+            if matches!(state.freezer.phase, FreezerPhase::Executing) {
+                return Task::none();
+            }
             state.screen = Screen::Dashboard;
+            state.freezer.execution_started_at = None;
             state.freezer.phase = FreezerPhase::Idle;
             Task::none()
         }
     }
+}
+
+fn start_freeze_execution(state: &mut AppState) -> Task<Message> {
+    let validation = match &state.freezer.phase {
+        FreezerPhase::ValidationReady(validation)
+            if validation.all_ready() && validation.ready_count() > 0 =>
+        {
+            validation.clone()
+        }
+        _ => return Task::none(),
+    };
+
+    let projects: Vec<_> = state
+        .workspace
+        .as_ref()
+        .map(|ws| ws.projects.clone())
+        .unwrap_or_default();
+    let tag_message = state.freezer.tag_message.trim().to_owned();
+    let tag_message = (!tag_message.is_empty()).then_some(tag_message);
+
+    state.freezer.execution_started_at = Some(chrono::Utc::now());
+    state.freezer.phase = FreezerPhase::Executing;
+    state.pending_tag_push = None;
+
+    Task::perform(
+        async move {
+            VcsAdapter::execute_freeze_with_message(&projects, &validation, tag_message.as_deref())
+                .await
+        },
+        |result| Message::Background(BackgroundMessage::FreezeExecutionDone(result)),
+    )
 }
 
 // ---------------------------------------------------------------------------

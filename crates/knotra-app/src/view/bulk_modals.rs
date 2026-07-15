@@ -28,6 +28,7 @@ use knotra_vcs::{
 use crate::{
     message::{
         ChangelogMessage, ConflictOpsMessage, ContextMessage, FreezerMessage, Message, SyncMessage,
+        TagPushMessage,
     },
     state::AppState,
 };
@@ -514,7 +515,8 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         // ── Validation result + execute ───────────────────────────────────
         FreezerPhase::ValidationReady(validation) => {
             let blocked_count = validation.blocked_count();
-            let can_save = validation.all_ready();
+            let ready_count = validation.ready_count();
+            let can_save = validation.all_ready() && ready_count > 0;
 
             let val_rows: Vec<Element<'_, Message>> = validation
                 .entries
@@ -550,6 +552,8 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
 
             let save_reason: Option<&str> = if can_save {
                 None
+            } else if ready_count == 0 && blocked_count == 0 {
+                Some(state.t("plain.disabled.choose_one"))
             } else if blocked_count == 1 {
                 Some(state.t("plain.release.fix_one"))
             } else {
@@ -653,6 +657,39 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 state.t("plain.show_details")
             };
 
+            let push_offer: Element<'_, Message> = match &state.pending_tag_push {
+                Some(push)
+                    if push.freeze_name == result.freeze_name && !push.project_ids.is_empty() =>
+                {
+                    if push.is_pushing {
+                        text(state.t("plain.release.sharing"))
+                            .size(FONT_BODY)
+                            .into()
+                    } else {
+                        column![
+                            text(state.t("plain.release.share_offer")).size(FONT_BODY),
+                            row![
+                                button(text(state.t("plain.release.share_action")).size(FONT_BODY))
+                                    .height(BUTTON_HEIGHT)
+                                    .padding([0, 18])
+                                    .on_press(Message::TagPush(TagPushMessage::PushConfirmed)),
+                                button(
+                                    text(state.t("plain.release.share_decline")).size(FONT_BODY)
+                                )
+                                .height(BUTTON_HEIGHT)
+                                .padding([0, 18])
+                                .on_press(Message::TagPush(TagPushMessage::PushDeclined)),
+                            ]
+                            .spacing(8)
+                            .align_y(Alignment::Center),
+                        ]
+                        .spacing(8)
+                        .into()
+                    }
+                }
+                _ => Space::new().height(Length::Fixed(0.0)).into(),
+            };
+
             let footer = row![
                 button(text(details_label).size(FONT_BODY))
                     .height(BUTTON_HEIGHT)
@@ -670,6 +707,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 text(outcome_title).size(FONT_BODY + 2.0),
                 text(outcome_body).size(FONT_BODY),
                 scrollable(column(rows).spacing(8)).height(Length::Fixed(200.0)),
+                push_offer,
                 footer,
             ]
             .spacing(12)
@@ -677,11 +715,13 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         }
     };
 
-    modal_shell(
-        state.t("plain.save_release_point"),
-        Some(Message::Freezer(FreezerMessage::BulkModalClosed)),
-        inner,
-    )
+    let close_msg = if matches!(freezer.phase, FreezerPhase::Executing) {
+        None
+    } else {
+        Some(Message::Freezer(FreezerMessage::BulkModalClosed))
+    };
+
+    modal_shell(state.t("plain.save_release_point"), close_msg, inner)
 }
 
 /// Map a technical blocker string to a plain-language message.

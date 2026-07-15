@@ -32,6 +32,8 @@ pub enum FreezerPhase {
 #[derive(Debug, Default)]
 pub struct FreezerState {
     pub phase: FreezerPhase,
+    /// When the current execution phase started. Used for operation history.
+    pub execution_started_at: Option<chrono::DateTime<chrono::Utc>>,
     /// The name of the freeze point (tag / bookmark name).
     pub freeze_name: String,
     /// Optional annotation message. Empty = lightweight tag.
