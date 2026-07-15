@@ -358,6 +358,33 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.resolve.open_editor", "Open in editor");
     m.insert("plain.resolve.mark_done", "Mark done");
     m.insert("plain.resolve.stop_attempt", "Stop this fix attempt");
+    m.insert("plain.resolve.loading", "Checking files…");
+    m.insert("plain.resolve.marking", "Marking file done…");
+    m.insert("plain.resolve.stopping", "Stopping this fix attempt…");
+    m.insert(
+        "plain.resolve.working_hint",
+        "This usually takes a few seconds.",
+    );
+    m.insert("plain.resolve.done", "Done.");
+    m.insert("plain.resolve.failed", "We could not finish that action.");
+    m.insert("plain.resolve.no_files", "No files need your choice now.");
+    m.insert(
+        "plain.resolve.unsupported",
+        "This action is available for Git projects only.",
+    );
+    m.insert(
+        "plain.resolve.stop_unavailable",
+        "This fix attempt cannot be stopped here.",
+    );
+    m.insert(
+        "plain.resolve.editor_not_configured",
+        "Choose an editor in Settings first.",
+    );
+    m.insert(
+        "plain.resolve.file_outside_project",
+        "This file is outside the project folder.",
+    );
+    m.insert("plain.resolve.file_missing", "We cannot find this file.");
 
     // Generate notes (Changelog)
     m.insert("plain.changelog.title", "Generate notes");
@@ -839,6 +866,36 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.resolve.open_editor", "エディタで開く");
     m.insert("plain.resolve.mark_done", "完了としてマーク");
     m.insert("plain.resolve.stop_attempt", "この修正を中断");
+    m.insert("plain.resolve.loading", "ファイルを確認中…");
+    m.insert("plain.resolve.marking", "ファイルを完了としてマーク中…");
+    m.insert("plain.resolve.stopping", "この修正を中断中…");
+    m.insert("plain.resolve.working_hint", "通常は数秒かかります。");
+    m.insert("plain.resolve.done", "完了しました。");
+    m.insert("plain.resolve.failed", "この操作を完了できませんでした。");
+    m.insert(
+        "plain.resolve.no_files",
+        "対応が必要なファイルはありません。",
+    );
+    m.insert(
+        "plain.resolve.unsupported",
+        "この操作は Git プロジェクトでのみ利用できます。",
+    );
+    m.insert(
+        "plain.resolve.stop_unavailable",
+        "この修正はここでは中断できません。",
+    );
+    m.insert(
+        "plain.resolve.editor_not_configured",
+        "先に設定でエディタを選んでください。",
+    );
+    m.insert(
+        "plain.resolve.file_outside_project",
+        "このファイルはプロジェクトフォルダーの外にあります。",
+    );
+    m.insert(
+        "plain.resolve.file_missing",
+        "このファイルが見つかりません。",
+    );
 
     // Generate notes
     m.insert("plain.changelog.title", "ノートを生成");

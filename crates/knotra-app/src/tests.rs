@@ -3,16 +3,18 @@
 use crate::config::AppConfig;
 use crate::config::AppPaths;
 use crate::message::{
-    BackgroundMessage, FilterMessage, FreezerMessage, Message, ShortcutMessage, SyncMessage,
-    TagPushMessage, WorkspaceMessage,
+    BackgroundMessage, ConflictOpsMessage, FilterMessage, FreezerMessage, Message, ShortcutMessage,
+    SyncMessage, TagPushMessage, WorkspaceMessage,
 };
 use crate::persistence::{load_workspaces, save_workspace};
 use crate::state::{
-    ActiveModal, AddProjectDialog, AppState, Screen, freezer::FreezerPhase, sync::SyncPhase,
+    ActiveModal, AddProjectDialog, AppState, Screen, conflict_ops::ConflictPhase,
+    freezer::FreezerPhase, sync::SyncPhase,
 };
 use chrono::Utc;
 use knotra_vcs::{
-    OperationId, Project, ProjectId, Workspace, WorkspaceStatus,
+    ConflictMarker, ConflictedFile, OperationId, Project, ProjectConflictDetail, ProjectId,
+    Workspace, WorkspaceStatus,
     model::{
         operation::{
             FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
@@ -50,6 +52,10 @@ fn install_workspaces(state: &mut AppState, workspaces: Vec<Workspace>, active_i
 
 fn make_project(name: &str) -> Project {
     Project::new(name, "/tmp")
+}
+
+fn make_project_at(name: &str, path: impl Into<String>) -> Project {
+    Project::new(name, path)
 }
 
 fn make_project_status(project_id: ProjectId, upstream: Option<&str>) -> knotra_vcs::ProjectStatus {
@@ -962,4 +968,256 @@ fn tag_push_decline_clears_pending_offer() {
     dispatch(&mut state, Message::TagPush(TagPushMessage::PushDeclined));
 
     assert!(state.pending_tag_push.is_none());
+}
+
+#[test]
+fn conflict_mark_resolved_request_enters_operating_for_git_project() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(tmp.path().join(".git")).expect("git marker");
+    let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
+    let mut state = make_state();
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::ConflictOps(ConflictOpsMessage::MarkResolvedRequested {
+            project_id: project.id.clone(),
+            file_path: "src/lib.rs".to_owned(),
+        }),
+    );
+
+    assert!(matches!(
+        state.conflict_ops.phase,
+        ConflictPhase::Operating { .. }
+    ));
+}
+
+#[test]
+fn conflict_mark_resolved_request_rejects_jj_project() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(tmp.path().join(".jj")).expect("jj marker");
+    let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
+    let mut state = make_state();
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::ConflictOps(ConflictOpsMessage::MarkResolvedRequested {
+            project_id: project.id.clone(),
+            file_path: "src/lib.rs".to_owned(),
+        }),
+    );
+
+    assert!(matches!(
+        state.conflict_ops.phase,
+        ConflictPhase::Done { success: false, .. }
+    ));
+}
+
+#[test]
+fn conflict_abort_request_requires_git_merge_state() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let git_dir = tmp.path().join(".git");
+    std::fs::create_dir(&git_dir).expect("git marker");
+    let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
+    let mut state = make_state();
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::ConflictOps(ConflictOpsMessage::AbortMergeRequested(project.id.clone())),
+    );
+    assert!(matches!(
+        state.conflict_ops.phase,
+        ConflictPhase::Done { success: false, .. }
+    ));
+
+    std::fs::write(git_dir.join("MERGE_HEAD"), "merge").expect("merge marker");
+    dispatch(
+        &mut state,
+        Message::ConflictOps(ConflictOpsMessage::AbortMergeRequested(project.id.clone())),
+    );
+    assert!(matches!(
+        state.conflict_ops.phase,
+        ConflictPhase::Operating { .. }
+    ));
+}
+
+#[test]
+fn conflict_running_escape_keeps_panel_visible() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    state.active_modal = ActiveModal::Resolve(project.id.clone());
+    state.conflict_ops.phase = ConflictPhase::Operating {
+        project_id: project.id,
+        action: "Working".to_owned(),
+    };
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+
+    assert!(matches!(state.active_modal, ActiveModal::Resolve(_)));
+    assert!(matches!(
+        state.conflict_ops.phase,
+        ConflictPhase::Operating { .. }
+    ));
+}
+
+#[test]
+fn conflict_operation_completion_success_refreshes_browsing_detail() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    let detail = ProjectConflictDetail {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        conflicted_files: Vec::new(),
+        note: None,
+        read_error: None,
+    };
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::ConflictOperationCompleted {
+            result: ProjectOperationResult {
+                project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Succeeded,
+                success: true,
+                skip_reason: None,
+                commands_executed: vec!["git add src/lib.rs".to_owned()],
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: Some(0),
+                error_message: None,
+            },
+            detail,
+        }),
+    );
+
+    assert!(matches!(
+        state.conflict_ops.phase,
+        ConflictPhase::Browsing { .. }
+    ));
+    assert!(state.conflict_ops.cached.contains_key(&project.id));
+}
+
+#[test]
+fn conflict_operation_completion_failure_keeps_panel_error_visible() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    let detail = ProjectConflictDetail {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        conflicted_files: vec![ConflictedFile {
+            path: "src/lib.rs".to_owned(),
+            marker: ConflictMarker::BothModified,
+        }],
+        note: None,
+        read_error: None,
+    };
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::ConflictOperationCompleted {
+            result: ProjectOperationResult {
+                project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
+                success: false,
+                skip_reason: None,
+                commands_executed: vec!["git add src/lib.rs".to_owned()],
+                stdout: String::new(),
+                stderr: "failed".to_owned(),
+                exit_code: Some(1),
+                error_message: Some("failed".to_owned()),
+            },
+            detail,
+        }),
+    );
+
+    let ConflictPhase::Done {
+        success,
+        message,
+        result,
+        ..
+    } = &state.conflict_ops.phase
+    else {
+        panic!("expected conflict error state");
+    };
+    assert!(!success);
+    assert_eq!(message, "We could not finish that action.");
+    let result = result.as_ref().expect("operation result details");
+    assert_eq!(
+        result.commands_executed,
+        vec!["git add src/lib.rs".to_owned()]
+    );
+    assert_eq!(result.stderr, "failed");
+    assert_eq!(result.error_message.as_deref(), Some("failed"));
+    assert!(state.conflict_ops.cached.contains_key(&project.id));
+}
+
+#[test]
+fn resolve_project_file_path_accepts_spaces_and_metacharacters_as_path() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let nested = tmp.path().join("a dir");
+    std::fs::create_dir(&nested).expect("nested dir");
+    let file = nested.join("name; still-file.txt");
+    std::fs::write(&file, "content").expect("file");
+    let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
+
+    let resolved = crate::app::resolve_project_file_path(&project, "a dir/name; still-file.txt")
+        .expect("resolved");
+
+    assert_eq!(resolved, std::fs::canonicalize(file).expect("canonical"));
+}
+
+#[test]
+fn resolve_project_file_path_rejects_parent_traversal_and_outside_absolute() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let outside = tempfile::NamedTempFile::new().expect("outside file");
+    let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
+
+    assert_eq!(
+        crate::app::resolve_project_file_path(&project, "../outside").unwrap_err(),
+        "plain.resolve.file_outside_project"
+    );
+    assert_eq!(
+        crate::app::resolve_project_file_path(&project, outside.path().to_str().unwrap())
+            .unwrap_err(),
+        "plain.resolve.file_outside_project"
+    );
+}
+
+#[test]
+fn resolve_project_file_path_rejects_symlink_escape() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let outside_dir = tempfile::tempdir().expect("outside dir");
+    let outside_file = outside_dir.path().join("outside.txt");
+    std::fs::write(&outside_file, "outside").expect("outside file");
+    let link = tmp.path().join("link.txt");
+    std::os::unix::fs::symlink(&outside_file, &link).expect("symlink");
+    let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
+
+    assert_eq!(
+        crate::app::resolve_project_file_path(&project, "link.txt").unwrap_err(),
+        "plain.resolve.file_outside_project"
+    );
 }

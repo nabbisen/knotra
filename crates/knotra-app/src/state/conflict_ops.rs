@@ -1,6 +1,6 @@
 //! Conflict resolution UI state.
 
-use knotra_vcs::{ProjectConflictDetail, ProjectId};
+use knotra_vcs::{ProjectConflictDetail, ProjectId, model::operation::ProjectOperationResult};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
@@ -25,6 +25,7 @@ pub enum ConflictPhase {
         project_id: ProjectId,
         success: bool,
         message: String,
+        result: Option<ProjectOperationResult>,
     },
 }
 

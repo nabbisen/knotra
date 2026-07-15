@@ -2,6 +2,7 @@
 
 use iced::futures::StreamExt;
 use iced::{Element, Subscription, Task, clipboard, keyboard, time};
+use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 use knotra_vcs::{
@@ -247,7 +248,10 @@ fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
         state.workspace_mgr.rename_dialog = None;
     } else if state.workspace_mgr.confirm_delete.is_some() {
         state.workspace_mgr.confirm_delete = None;
-    } else if smart_pull_is_running(state) || freezer_is_running(state) {
+    } else if smart_pull_is_running(state)
+        || freezer_is_running(state)
+        || conflict_is_running(state)
+    {
         return Task::none();
     } else if !matches!(state.active_modal, crate::state::ActiveModal::None) {
         state.active_modal = crate::state::ActiveModal::None;
@@ -265,6 +269,11 @@ fn smart_pull_is_running(state: &AppState) -> bool {
 fn freezer_is_running(state: &AppState) -> bool {
     matches!(state.active_modal, crate::state::ActiveModal::Tag)
         && matches!(state.freezer.phase, FreezerPhase::Executing)
+}
+
+fn conflict_is_running(state: &AppState) -> bool {
+    matches!(state.active_modal, crate::state::ActiveModal::Resolve(_))
+        && matches!(state.conflict_ops.phase, ConflictPhase::Operating { .. })
 }
 
 // ---------------------------------------------------------------------------
@@ -1212,6 +1221,31 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
+        BackgroundMessage::ConflictOperationCompleted { result, detail } => {
+            let id = detail.project_id.clone();
+            let success = result.success;
+            let message = if success {
+                state.t("plain.resolve.done").to_owned()
+            } else {
+                state.t("plain.resolve.failed").to_owned()
+            };
+            state.conflict_ops.cached.insert(id.clone(), detail.clone());
+            if success {
+                state.conflict_ops.phase = ConflictPhase::Browsing {
+                    project_id: id,
+                    detail,
+                };
+            } else {
+                state.conflict_ops.phase = ConflictPhase::Done {
+                    project_id: id,
+                    success,
+                    message,
+                    result: Some(result),
+                };
+            }
+            Task::none()
+        }
+
         BackgroundMessage::ChangelogDraftReady(draft) => {
             state.changelog.phase = ChangelogPhase::Ready(draft);
             Task::none()
@@ -1924,6 +1958,77 @@ fn handle_launch(state: &mut AppState, msg: LaunchMessage) -> Task<Message> {
     Task::none()
 }
 
+pub(crate) fn resolve_project_file_path(
+    project: &Project,
+    file_path: &str,
+) -> Result<PathBuf, &'static str> {
+    let root = std::fs::canonicalize(&project.path).map_err(|_| "plain.error.path_missing")?;
+    let raw = Path::new(file_path);
+    let candidate = if raw.is_absolute() {
+        raw.to_path_buf()
+    } else {
+        if raw.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::Prefix(_) | Component::RootDir
+            )
+        }) {
+            return Err("plain.resolve.file_outside_project");
+        }
+        root.join(raw)
+    };
+    let resolved = std::fs::canonicalize(&candidate).map_err(|_| "plain.resolve.file_missing")?;
+    if !resolved.starts_with(&root) {
+        return Err("plain.resolve.file_outside_project");
+    }
+    Ok(resolved)
+}
+
+fn active_conflict_project_id(state: &AppState) -> Option<knotra_vcs::ProjectId> {
+    match &state.conflict_ops.phase {
+        ConflictPhase::Loading(id)
+        | ConflictPhase::Browsing { project_id: id, .. }
+        | ConflictPhase::Operating { project_id: id, .. }
+        | ConflictPhase::Done { project_id: id, .. } => Some(id.clone()),
+        ConflictPhase::Idle => match &state.active_modal {
+            crate::state::ActiveModal::Resolve(id) => Some(id.clone()),
+            _ => None,
+        },
+    }
+}
+
+fn project_supports_git_conflict_actions(
+    state: &AppState,
+    project_id: &knotra_vcs::ProjectId,
+) -> bool {
+    state
+        .workspace_status
+        .as_ref()
+        .and_then(|ws| {
+            ws.projects
+                .iter()
+                .find(|status| &status.project_id == project_id)
+        })
+        .map(|status| status.identity.vcs_kind == VcsKind::Git)
+        .unwrap_or_else(|| {
+            find_project(state, project_id)
+                .map(|project| {
+                    let path = Path::new(&project.path);
+                    !path.join(".jj").is_dir() && path.join(".git").exists()
+                })
+                .unwrap_or(false)
+        })
+}
+
+fn project_has_git_merge_state(state: &AppState, project_id: &knotra_vcs::ProjectId) -> bool {
+    find_project(state, project_id)
+        .map(|project| {
+            let path = Path::new(&project.path);
+            path.join(".git").join("MERGE_HEAD").exists()
+        })
+        .unwrap_or(false)
+}
+
 // ---------------------------------------------------------------------------
 // Conflict resolution handler
 // ---------------------------------------------------------------------------
@@ -1981,40 +2086,50 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
                 Some(p) => p,
                 None => return Task::none(),
             };
+            if !project_supports_git_conflict_actions(state, &project_id) {
+                state.conflict_ops.phase = ConflictPhase::Done {
+                    project_id,
+                    success: false,
+                    message: state.t("plain.resolve.unsupported").to_owned(),
+                    result: None,
+                };
+                return Task::none();
+            }
             state.conflict_ops.phase = ConflictPhase::Operating {
                 project_id: project_id.clone(),
-                action: format!("git add {}", file_path),
+                action: state.t("plain.resolve.marking").to_owned(),
             };
             state.conflict_ops.cached.remove(&project_id);
-            let file_path_for_msg = file_path.clone();
             Task::perform(
-                async move { VcsAdapter::mark_resolved(&project, &file_path).await },
-                move |r| {
-                    let pid = r.project_id.clone();
-                    let ok = r.success;
-                    let msg = if ok {
-                        format!("Marked resolved: {}", file_path_for_msg)
-                    } else {
-                        r.error_message
-                            .unwrap_or_else(|| "mark-resolved failed".to_owned())
-                    };
-                    Message::Background(BackgroundMessage::ConflictFilesLoaded(
-                        knotra_vcs::ProjectConflictDetail {
-                            project_id: pid.clone(),
-                            project_name: String::new(),
-                            conflicted_files: vec![],
-                            note: None,
-                            read_error: if ok { None } else { Some(msg) },
-                        },
-                    ))
+                async move {
+                    let result = VcsAdapter::mark_resolved(&project, &file_path).await;
+                    let detail = VcsAdapter::list_conflicted_files(&project).await;
+                    (result, detail)
+                },
+                |(result, detail)| {
+                    Message::Background(BackgroundMessage::ConflictOperationCompleted {
+                        result,
+                        detail,
+                    })
                 },
             )
         }
 
         ConflictOpsMessage::AbortMergeRequested(id) => {
+            if !project_supports_git_conflict_actions(state, &id)
+                || !project_has_git_merge_state(state, &id)
+            {
+                state.conflict_ops.phase = ConflictPhase::Done {
+                    project_id: id,
+                    success: false,
+                    message: state.t("plain.resolve.stop_unavailable").to_owned(),
+                    result: None,
+                };
+                return Task::none();
+            }
             state.conflict_ops.phase = ConflictPhase::Operating {
                 project_id: id.clone(),
-                action: "git merge --abort".to_owned(),
+                action: state.t("plain.resolve.stopping").to_owned(),
             };
             state.conflict_ops.cached.remove(&id);
             let project = match find_project(state, &id) {
@@ -2022,27 +2137,16 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
                 None => return Task::none(),
             };
             Task::perform(
-                async move { VcsAdapter::abort_merge(&project).await },
-                |r| {
-                    let ok = r.success;
-                    let pid = r.project_id.clone();
-                    Message::Background(BackgroundMessage::ConflictFilesLoaded(
-                        knotra_vcs::ProjectConflictDetail {
-                            project_id: pid,
-                            project_name: String::new(),
-                            conflicted_files: vec![],
-                            note: if ok {
-                                Some("Merge aborted.".to_owned())
-                            } else {
-                                None
-                            },
-                            read_error: if ok {
-                                None
-                            } else {
-                                Some(r.error_message.unwrap_or_else(|| "abort failed".to_owned()))
-                            },
-                        },
-                    ))
+                async move {
+                    let result = VcsAdapter::abort_merge(&project).await;
+                    let detail = VcsAdapter::list_conflicted_files(&project).await;
+                    (result, detail)
+                },
+                |(result, detail)| {
+                    Message::Background(BackgroundMessage::ConflictOperationCompleted {
+                        result,
+                        detail,
+                    })
                 },
             )
         }
@@ -2055,19 +2159,48 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
             state.screen = Screen::Dashboard;
             Task::none()
         }
-        ConflictOpsMessage::FileMarkedResolved(_path) => Task::none(),
-        ConflictOpsMessage::OpenInEditorRequested(path) => {
-            // Launch the configured external editor for this file.
-            // If no editor is configured, this is a no-op (button is only
-            // shown when the editor is configured — TODO: gate in the view).
-            if let Some(editor) = &state.config.external_editor {
-                let cmd = format!("{} {}", editor, path);
-                let _ = std::process::Command::new("sh").args(["-c", &cmd]).spawn();
-            }
-            Task::none()
+        ConflictOpsMessage::FileMarkedResolved(path) => {
+            let Some(project_id) = active_conflict_project_id(state) else {
+                return Task::none();
+            };
+            Task::done(Message::ConflictOps(
+                ConflictOpsMessage::MarkResolvedRequested {
+                    project_id,
+                    file_path: path,
+                },
+            ))
         }
-        ConflictOpsMessage::AbortRequested => Task::none(),
+        ConflictOpsMessage::OpenInEditorRequested(path) => {
+            let Some(project_id) = active_conflict_project_id(state) else {
+                return Task::none();
+            };
+            let Some(project) = find_project(state, &project_id) else {
+                state.status_bar = Some(state.t("plain.error.path_missing").to_owned());
+                return Task::none();
+            };
+            let resolved = match resolve_project_file_path(&project, &path) {
+                Ok(path) => path,
+                Err(key) => {
+                    state.status_bar = Some(state.t(key).to_owned());
+                    return Task::none();
+                }
+            };
+            Task::done(Message::Launch(LaunchMessage::OpenInEditor(
+                resolved.to_string_lossy().into_owned(),
+            )))
+        }
+        ConflictOpsMessage::AbortRequested => {
+            let Some(project_id) = active_conflict_project_id(state) else {
+                return Task::none();
+            };
+            Task::done(Message::ConflictOps(
+                ConflictOpsMessage::AbortMergeRequested(project_id),
+            ))
+        }
         ConflictOpsMessage::PanelClosed => {
+            if matches!(state.conflict_ops.phase, ConflictPhase::Operating { .. }) {
+                return Task::none();
+            }
             state.active_modal = crate::state::ActiveModal::None;
             Task::none()
         }

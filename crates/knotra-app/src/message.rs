@@ -200,6 +200,11 @@ pub enum BackgroundMessage {
     ContextSwitchDone(ContextSwitchResult),
     /// Conflict file list loaded.
     ConflictFilesLoaded(knotra_vcs::ProjectConflictDetail),
+    /// Conflict mutation completed, with refreshed conflict state.
+    ConflictOperationCompleted {
+        result: knotra_vcs::model::operation::ProjectOperationResult,
+        detail: knotra_vcs::ProjectConflictDetail,
+    },
     /// Changelog draft generated.
     ChangelogDraftReady(knotra_vcs::ChangelogDraft),
     /// Available tags loaded for changelog since-selector.

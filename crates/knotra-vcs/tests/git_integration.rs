@@ -329,6 +329,99 @@ async fn conflict_repo_shows_has_conflict() {
     assert!(status.conflict.has_conflict, "should detect merge conflict");
 }
 
+#[tokio::test]
+async fn mark_resolved_stages_conflicted_file() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+
+    git(&["checkout", "-b", "branch-a"], dir.path());
+    fs::write(dir.path().join("README.md"), "branch-a content\n").unwrap();
+    git(&["add", "README.md"], dir.path());
+    git(&["commit", "-m", "branch-a"], dir.path());
+
+    git(&["checkout", "main"], dir.path());
+    fs::write(dir.path().join("README.md"), "main content\n").unwrap();
+    git(&["add", "README.md"], dir.path());
+    git(&["commit", "-m", "main-change"], dir.path());
+
+    let merge_status = Command::new("git")
+        .args(["merge", "branch-a"])
+        .current_dir(dir.path())
+        .env("GIT_AUTHOR_NAME", "Test")
+        .env("GIT_AUTHOR_EMAIL", "test@test.local")
+        .env("GIT_COMMITTER_NAME", "Test")
+        .env("GIT_COMMITTER_EMAIL", "test@test.local")
+        .status()
+        .unwrap();
+    assert!(!merge_status.success(), "expected merge conflict");
+
+    fs::write(dir.path().join("README.md"), "resolved content\n").unwrap();
+    let project = make_project(dir.path());
+    let result = VcsAdapter::mark_resolved(&project, "README.md").await;
+    assert!(
+        result.success,
+        "mark_resolved failed: {:?}",
+        result.error_message
+    );
+
+    let output = Command::new("git")
+        .args(["diff", "--cached", "--name-only"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let staged = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        staged.lines().any(|line| line == "README.md"),
+        "README.md should be staged, got {staged:?}"
+    );
+}
+
+#[tokio::test]
+async fn abort_merge_clears_active_merge_conflict() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+
+    git(&["checkout", "-b", "branch-a"], dir.path());
+    fs::write(dir.path().join("README.md"), "branch-a content\n").unwrap();
+    git(&["add", "README.md"], dir.path());
+    git(&["commit", "-m", "branch-a"], dir.path());
+
+    git(&["checkout", "main"], dir.path());
+    fs::write(dir.path().join("README.md"), "main content\n").unwrap();
+    git(&["add", "README.md"], dir.path());
+    git(&["commit", "-m", "main-change"], dir.path());
+
+    let merge_status = Command::new("git")
+        .args(["merge", "branch-a"])
+        .current_dir(dir.path())
+        .env("GIT_AUTHOR_NAME", "Test")
+        .env("GIT_AUTHOR_EMAIL", "test@test.local")
+        .env("GIT_COMMITTER_NAME", "Test")
+        .env("GIT_COMMITTER_EMAIL", "test@test.local")
+        .status()
+        .unwrap();
+    assert!(!merge_status.success(), "expected merge conflict");
+
+    let project = make_project(dir.path());
+    let result = VcsAdapter::abort_merge(&project).await;
+    assert!(
+        result.success,
+        "abort_merge failed: {:?}",
+        result.error_message
+    );
+
+    let status = VcsAdapter::read_project_status(&project).await;
+    assert!(
+        !status.conflict.has_conflict,
+        "merge abort should clear conflict"
+    );
+    assert!(
+        !dir.path().join(".git").join("MERGE_HEAD").exists(),
+        "MERGE_HEAD should be removed"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // §16.4 State 8: Tag created — validate_for_freeze and tag ops
 // ---------------------------------------------------------------------------
