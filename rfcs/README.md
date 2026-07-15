@@ -37,7 +37,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
-| [025](./done/025-freezer-release-point-execution-completion.md) | Freezer / Release Point Execution Completion | working tree; pending commit |
+| [025](./done/025-freezer-release-point-execution-completion.md) | Freezer / Release Point Execution Completion | main: d9f687a |
 | [024](./done/024-smart-pull-modal-execution-completion.md) | Smart Pull modal execution completion | main: 4362a2e |
 | [023](./done/023-workspace-management-completion.md) | Workspace management completion | main: 02e1481 |
 

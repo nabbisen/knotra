@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (working tree; pending commit) |
+| Status | Implemented (main: d9f687a) |
 | Priority | High — a visible release workflow validates but cannot reach execution from the modal |
 | Effort | Large |
 | Target | Production Readiness Reset |
