@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented (working tree; pending commit) |
 | Priority | High - the palette advertises actions that can silently do nothing |
 | Effort | Medium |
 | Target | Production Readiness Reset |

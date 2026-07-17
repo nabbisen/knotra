@@ -292,6 +292,8 @@ pub struct PaletteEntry {
     pub label: String,
     /// Machine-readable id for dispatching (e.g. project id, action key).
     pub payload: String,
+    /// i18n key for why this row cannot currently run.
+    pub disabled_reason_key: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -301,6 +303,8 @@ pub struct PaletteState {
     pub results: Vec<PaletteEntry>,
     /// Index of the highlighted result.
     pub highlighted: usize,
+    /// Last disabled/no-op reason shown in the palette.
+    pub notice_key: Option<&'static str>,
 }
 
 impl PaletteState {
@@ -308,9 +312,11 @@ impl PaletteState {
         self.open = true;
         self.query.clear();
         self.highlighted = 0;
+        self.notice_key = None;
     }
     pub fn close(&mut self) {
         self.open = false;
+        self.notice_key = None;
     }
 }
 

@@ -797,82 +797,32 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
                     .collect();
                 (ids, fetchable_ids)
             };
-            if ids.is_empty() {
-                return Task::none();
-            }
+            start_bulk_fetch(state, ids, fetchable_ids)
+        }
 
-            let project_map: std::collections::HashMap<_, _> = state
-                .workspace
-                .as_ref()
-                .map(|ws| {
-                    ws.projects
-                        .iter()
-                        .map(|p| (p.id.clone(), p.clone()))
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            let mut skipped = Vec::new();
-            let projects: Vec<_> = fetchable_ids
-                .iter()
-                .filter_map(|id| project_map.get(id).cloned())
-                .collect();
-            for id in ids {
-                if !project_map.contains_key(&id) || state.missing_projects.contains(&id) {
-                    let project_name = project_map
-                        .get(&id)
-                        .map(|project| project.name.clone())
-                        .unwrap_or_else(|| state.t("plain.project").to_owned());
-                    skipped.push(ProjectOutcome {
-                        project_id: id,
-                        project_name,
-                        outcome: ProjectOperationOutcome::Skipped,
-                        success: true,
-                        skip_reason: Some(state.t("plain.fetch.skipped_unavailable").to_owned()),
-                        commands_executed: Vec::new(),
-                        stdout: String::new(),
-                        stderr: String::new(),
-                        log_expanded: false,
-                    });
-                }
-            }
-            let total = projects.len() + skipped.len();
-            if total == 0 {
+        SyncMessage::BulkFetchAllRequested => {
+            let Some(ws) = &state.workspace else {
                 return Task::none();
-            }
-            let done = skipped.len();
-            if projects.is_empty() {
-                state.sync.phase = SyncPhase::Done(SyncResult {
-                    kind: SyncKind::Fetch,
-                    per_project: skipped,
-                    recovery_hints: Vec::new(),
-                });
-                return Task::none();
-            }
-            state.sync.phase = SyncPhase::FetchRunning {
-                total,
-                done,
-                completed: skipped,
             };
-
-            let _max = state.config.max_concurrent_reads;
-
-            // Stream results per-project using Task::run.
-            use iced::futures::stream;
-
-            let project_stream = stream::iter(projects)
-                .then(move |project| async move { VcsAdapter::fetch(&project).await });
-
-            Task::run(project_stream, |per_project_result| {
-                Message::Background(BackgroundMessage::SmartPullProjectCompleted(
-                    SmartPullProgress {
-                        project_id: per_project_result.project_id.clone(),
-                        project_name: String::new(), // filled in from state on receipt
-                        result: per_project_result,
-                        recovery_hint: None,
-                    },
-                ))
-            })
+            let ids: Vec<_> = ws
+                .projects
+                .iter()
+                .map(|project| project.id.clone())
+                .collect();
+            let fetchable_ids: Vec<_> = ids
+                .iter()
+                .filter(|id| !state.missing_projects.contains(*id))
+                .cloned()
+                .collect();
+            state.sync.selected_project_ids = fetchable_ids.iter().cloned().collect();
+            state.sync.project_selection.clear();
+            for project in &ws.projects {
+                state
+                    .sync
+                    .project_selection
+                    .insert(project.id.clone(), fetchable_ids.contains(&project.id));
+            }
+            start_bulk_fetch(state, ids, fetchable_ids)
         }
 
         SyncMessage::SmartPullPlanRequested => {
@@ -1044,6 +994,86 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             Task::done(Message::Sync(SyncMessage::SmartPullPlanRequested))
         }
     }
+}
+
+fn start_bulk_fetch(
+    state: &mut AppState,
+    ids: Vec<knotra_vcs::ProjectId>,
+    fetchable_ids: Vec<knotra_vcs::ProjectId>,
+) -> Task<Message> {
+    if ids.is_empty() {
+        return Task::none();
+    }
+
+    let project_map: std::collections::HashMap<_, _> = state
+        .workspace
+        .as_ref()
+        .map(|ws| {
+            ws.projects
+                .iter()
+                .map(|p| (p.id.clone(), p.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut skipped = Vec::new();
+    let projects: Vec<_> = fetchable_ids
+        .iter()
+        .filter_map(|id| project_map.get(id).cloned())
+        .collect();
+    for id in ids {
+        if !project_map.contains_key(&id) || state.missing_projects.contains(&id) {
+            let project_name = project_map
+                .get(&id)
+                .map(|project| project.name.clone())
+                .unwrap_or_else(|| state.t("plain.project").to_owned());
+            skipped.push(ProjectOutcome {
+                project_id: id,
+                project_name,
+                outcome: ProjectOperationOutcome::Skipped,
+                success: true,
+                skip_reason: Some(state.t("plain.fetch.skipped_unavailable").to_owned()),
+                commands_executed: Vec::new(),
+                stdout: String::new(),
+                stderr: String::new(),
+                log_expanded: false,
+            });
+        }
+    }
+    let total = projects.len() + skipped.len();
+    if total == 0 {
+        return Task::none();
+    }
+    let done = skipped.len();
+    if projects.is_empty() {
+        state.sync.phase = SyncPhase::Done(SyncResult {
+            kind: SyncKind::Fetch,
+            per_project: skipped,
+            recovery_hints: Vec::new(),
+        });
+        return Task::none();
+    }
+    state.sync.phase = SyncPhase::FetchRunning {
+        total,
+        done,
+        completed: skipped,
+    };
+
+    use iced::futures::stream;
+
+    let project_stream = stream::iter(projects)
+        .then(move |project| async move { VcsAdapter::fetch(&project).await });
+
+    Task::run(project_stream, |per_project_result| {
+        Message::Background(BackgroundMessage::SmartPullProjectCompleted(
+            SmartPullProgress {
+                project_id: per_project_result.project_id.clone(),
+                project_name: String::new(),
+                result: per_project_result,
+                recovery_hint: None,
+            },
+        ))
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -2686,6 +2716,7 @@ fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<Message> {
         PaletteMessage::Closed => state.palette.close(),
         PaletteMessage::QueryChanged(q) => {
             state.palette.query = q;
+            state.palette.notice_key = None;
             crate::state::palette::update_results(state);
         }
         PaletteMessage::MoveUp => {
@@ -2703,11 +2734,18 @@ fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<Message> {
             if let PaletteMessage::EntryClicked(i) = msg {
                 state.palette.highlighted = i;
             }
-            if let Some(msg) = crate::state::palette::dispatch_entry(state) {
-                state.palette.close();
-                return Task::done(msg);
+            match crate::state::palette::dispatch_entry(state) {
+                crate::state::palette::PaletteDispatch::Dispatched(msg) => {
+                    state.palette.close();
+                    return Task::done(msg);
+                }
+                crate::state::palette::PaletteDispatch::Disabled(reason) => {
+                    state.palette.notice_key = Some(reason);
+                }
+                crate::state::palette::PaletteDispatch::Noop => {
+                    state.palette.notice_key = Some("palette.disabled.unavailable");
+                }
             }
-            state.palette.close();
         }
     }
     Task::none()

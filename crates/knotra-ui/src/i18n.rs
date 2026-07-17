@@ -526,6 +526,52 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "This only removes it from knotra. Your project folder stays on this computer.",
     );
     m.insert("plain.remove.confirm", "Remove from list");
+    // Command palette
+    m.insert("palette.title", "Command palette");
+    m.insert(
+        "palette.search_placeholder",
+        "Search actions, projects, and workspaces",
+    );
+    m.insert("palette.no_matches", "No matching actions.");
+    m.insert("palette.kind.project", "Project");
+    m.insert("palette.kind.workspace", "Workspace");
+    m.insert("palette.action.check_all", "Check all projects");
+    m.insert(
+        "palette.action.changelog_selected",
+        "Generate notes for selected",
+    );
+    m.insert("palette.action.add_project", "Add project folder");
+    m.insert("palette.action.remove_project", "Remove selected project");
+    m.insert("palette.action.workspace_create", "Create new workspace");
+    m.insert("palette.action.workspace_next", "Switch to next workspace");
+    m.insert("palette.action.clear_selection", "Clear selection");
+    m.insert("palette.action.open_settings", "Open settings");
+    m.insert("palette.action.open_history", "Open history");
+    m.insert("palette.action.toggle_theme", "Toggle theme");
+    m.insert("palette.action.refresh", "Refresh dashboard");
+    m.insert("palette.action.shortcuts", "Show keyboard shortcuts");
+    m.insert("palette.disabled.no_workspace", "Open a workspace first.");
+    m.insert(
+        "palette.disabled.no_fetchable_projects",
+        "No projects can be checked right now.",
+    );
+    m.insert(
+        "palette.disabled.only_one_workspace",
+        "There is no other workspace to switch to.",
+    );
+    m.insert(
+        "palette.disabled.no_selection_to_clear",
+        "There is no selection to clear.",
+    );
+    m.insert(
+        "palette.disabled.choose_one_to_remove",
+        "Choose one project to remove.",
+    );
+    m.insert("palette.disabled.already_open", "Already open.");
+    m.insert(
+        "palette.disabled.unavailable",
+        "That action is not available.",
+    );
     // History screen
     m.insert("history.title", "What happened");
     m.insert("history.search_hint", "Search history…");
@@ -1063,6 +1109,61 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.remove.title", "このプロジェクトを削除しますか？");
     m.insert("plain.remove.body",          "knotra のリストから削除するだけです。プロジェクトフォルダーはこのコンピューターに残ります。");
     m.insert("plain.remove.confirm", "リストから削除");
+    // Command palette
+    m.insert("palette.title", "コマンドパレット");
+    m.insert(
+        "palette.search_placeholder",
+        "操作、プロジェクト、ワークスペースを検索",
+    );
+    m.insert("palette.no_matches", "一致する操作はありません。");
+    m.insert("palette.kind.project", "プロジェクト");
+    m.insert("palette.kind.workspace", "ワークスペース");
+    m.insert("palette.action.check_all", "すべてのプロジェクトを確認");
+    m.insert(
+        "palette.action.changelog_selected",
+        "選択項目のノートを生成",
+    );
+    m.insert("palette.action.add_project", "プロジェクトフォルダーを追加");
+    m.insert(
+        "palette.action.remove_project",
+        "選択したプロジェクトを削除",
+    );
+    m.insert(
+        "palette.action.workspace_create",
+        "新しいワークスペースを作成",
+    );
+    m.insert(
+        "palette.action.workspace_next",
+        "次のワークスペースへ切り替え",
+    );
+    m.insert("palette.action.clear_selection", "選択を解除");
+    m.insert("palette.action.open_settings", "設定を開く");
+    m.insert("palette.action.open_history", "履歴を開く");
+    m.insert("palette.action.toggle_theme", "テーマを切り替え");
+    m.insert("palette.action.refresh", "ダッシュボードを更新");
+    m.insert("palette.action.shortcuts", "キーボードショートカットを表示");
+    m.insert(
+        "palette.disabled.no_workspace",
+        "先にワークスペースを開いてください。",
+    );
+    m.insert(
+        "palette.disabled.no_fetchable_projects",
+        "今は確認できるプロジェクトがありません。",
+    );
+    m.insert(
+        "palette.disabled.only_one_workspace",
+        "切り替え先のワークスペースがありません。",
+    );
+    m.insert(
+        "palette.disabled.no_selection_to_clear",
+        "解除する選択がありません。",
+    );
+    m.insert(
+        "palette.disabled.choose_one_to_remove",
+        "削除するプロジェクトを1つ選んでください。",
+    );
+    m.insert("palette.disabled.already_open", "すでに開いています。");
+    m.insert("palette.disabled.unavailable", "この操作は利用できません。");
     m.insert("history.title", "実行内容");
     m.insert("history.search_hint", "履歴を検索…");
     m.insert("history.empty", "まだ操作が記録されていません。");

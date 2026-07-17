@@ -3,8 +3,9 @@
 use crate::config::AppConfig;
 use crate::config::AppPaths;
 use crate::message::{
-    BackgroundMessage, ConflictOpsMessage, ContextMessage, FilterMessage, FreezerMessage, Message,
-    SelectionMessage, ShortcutMessage, SyncMessage, TagPushMessage, WorkspaceMessage,
+    BackgroundMessage, ConflictOpsMessage, ContextMessage, DetailPanelMessage, FilterMessage,
+    FreezerMessage, Message, PaletteMessage, SelectionMessage, ShortcutMessage, SyncMessage,
+    TagPushMessage, WorkspaceMessage,
 };
 use crate::persistence::{load_workspaces, save_workspace};
 use crate::state::{
@@ -473,9 +474,211 @@ fn palette_create_workspace_opens_dialog() {
     let message = crate::state::palette::dispatch_entry(&state);
     assert!(matches!(
         message,
-        Some(Message::Workspace(
+        crate::state::palette::PaletteDispatch::Dispatched(Message::Workspace(
             WorkspaceMessage::CreateWorkspaceDialogOpened
         ))
+    ));
+}
+
+fn highlight_palette_payload(state: &mut AppState, query: &str, payload: &str) {
+    state.palette.query = query.to_owned();
+    crate::state::palette::update_results(state);
+    state.palette.highlighted = state
+        .palette
+        .results
+        .iter()
+        .position(|entry| entry.payload == payload)
+        .unwrap_or_else(|| panic!("palette payload {payload} visible for query {query:?}"));
+}
+
+#[test]
+fn palette_visible_action_rows_do_not_noop() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    for action_id in crate::state::palette::visible_action_ids(&state) {
+        highlight_palette_payload(&mut state, action_id, action_id);
+        assert!(
+            !matches!(
+                crate::state::palette::dispatch_entry(&state),
+                crate::state::palette::PaletteDispatch::Noop
+            ),
+            "visible palette action {action_id} must dispatch or be disabled"
+        );
+    }
+}
+
+#[test]
+fn palette_hidden_actions_are_not_listed() {
+    let mut state = make_state();
+
+    state.palette.query = "changelog".to_owned();
+    crate::state::palette::update_results(&mut state);
+    assert!(
+        state
+            .palette
+            .results
+            .iter()
+            .all(|entry| entry.payload != "action.changelog_selected")
+    );
+
+    state.palette.query = "toggle theme".to_owned();
+    crate::state::palette::update_results(&mut state);
+    assert!(
+        state
+            .palette
+            .results
+            .iter()
+            .all(|entry| entry.payload != "action.toggle_theme")
+    );
+}
+
+#[test]
+fn palette_disabled_confirm_keeps_palette_open_with_reason() {
+    let mut state = make_state();
+    state.palette.open_palette();
+
+    dispatch(
+        &mut state,
+        Message::Palette(PaletteMessage::QueryChanged("get latest".to_owned())),
+    );
+    dispatch(&mut state, Message::Palette(PaletteMessage::Confirmed));
+
+    assert!(state.palette.open);
+    assert_eq!(state.palette.notice_key, Some("plain.disabled.choose_one"));
+}
+
+#[test]
+fn palette_project_row_opens_detail_panel() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    highlight_palette_payload(&mut state, "svc", &project.id.to_string());
+
+    let message = crate::state::palette::dispatch_entry(&state);
+
+    assert!(matches!(
+        message,
+        crate::state::palette::PaletteDispatch::Dispatched(Message::DetailPanel(
+            DetailPanelMessage::Opened(id)
+        )) if id == project.id
+    ));
+}
+
+#[test]
+fn palette_active_workspace_row_is_disabled() {
+    let mut state = make_state();
+    let workspace = Workspace::new("Main");
+    let workspace_id = workspace.id.clone();
+    install_workspaces(&mut state, vec![workspace], 0);
+    highlight_palette_payload(&mut state, "Main", &workspace_id.to_string());
+
+    assert!(matches!(
+        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::PaletteDispatch::Disabled("palette.disabled.already_open")
+    ));
+}
+
+#[test]
+fn palette_fetch_all_uses_active_workspace_projects() {
+    let mut state = make_state();
+    let available = make_project("available");
+    let missing = make_project("missing");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![available.clone(), missing.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.missing_projects.insert(missing.id.clone());
+    state.selection.selected_ids.insert(missing.id.clone());
+    state
+        .sync
+        .project_selection
+        .insert(missing.id.clone(), true);
+
+    dispatch(
+        &mut state,
+        Message::Sync(SyncMessage::BulkFetchAllRequested),
+    );
+
+    assert!(state.sync.selected_project_ids.contains(&available.id));
+    assert!(!state.sync.selected_project_ids.contains(&missing.id));
+    assert_eq!(state.sync.project_selection.get(&available.id), Some(&true));
+    assert_eq!(state.sync.project_selection.get(&missing.id), Some(&false));
+    let SyncPhase::FetchRunning {
+        total,
+        done,
+        completed,
+    } = &state.sync.phase
+    else {
+        panic!("expected active workspace fetch to start");
+    };
+    assert_eq!((*total, *done), (2, 1));
+    assert_eq!(completed.len(), 1);
+    assert_eq!(completed[0].outcome, ProjectOperationOutcome::Skipped);
+}
+
+#[test]
+fn palette_remove_project_requires_exactly_one_selected_project() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    highlight_palette_payload(&mut state, "remove selected", "action.remove_project");
+    assert!(matches!(
+        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::PaletteDispatch::Disabled("plain.disabled.choose_one")
+    ));
+
+    state.selection.selected_ids.insert(project.id.clone());
+    highlight_palette_payload(&mut state, "remove selected", "action.remove_project");
+    assert!(matches!(
+        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::PaletteDispatch::Dispatched(Message::Workspace(
+            WorkspaceMessage::RemoveProjectRequested(id)
+        )) if id == project.id
+    ));
+}
+
+#[test]
+fn palette_next_workspace_switches_in_tab_order() {
+    let mut state = make_state();
+    let first = Workspace::new("Main");
+    let second = Workspace::new("Lab");
+    let second_id = second.id.clone();
+    install_workspaces(&mut state, vec![first, second], 0);
+    highlight_palette_payload(&mut state, "next workspace", "action.workspace_next");
+
+    assert!(matches!(
+        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::PaletteDispatch::Dispatched(Message::Workspace(
+            WorkspaceMessage::WorkspaceSwitched(id)
+        )) if id == second_id
     ));
 }
 

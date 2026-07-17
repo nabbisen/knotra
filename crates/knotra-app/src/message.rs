@@ -99,6 +99,7 @@ pub enum SyncMessage {
     ProjectToggled(ProjectId, bool),
     DispositionChanged(ProjectId, knotra_vcs::SmartPullDisposition),
     BulkFetchRequested,
+    BulkFetchAllRequested,
     SmartPullPlanRequested,
     SmartPullConfirmed(SmartPullPlan),
     SmartPullCancelled,
