@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (working tree; pending commit) |
+| Status | Implemented (main: 0fd1e22) |
 | Priority | High — bulk workflows depend on a coherent selection contract |
 | Effort | Medium |
 | Target | Production Readiness Reset |
