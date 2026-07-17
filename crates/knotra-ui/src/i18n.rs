@@ -352,12 +352,31 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.release.blocker_unsaved", "Has unsaved work.");
 
     // Change work area (Context Switch)
-    m.insert("plain.switch.target_label", "Work area to switch to");
-    m.insert("plain.switch.target_hint", "feature-x");
+    m.insert("plain.switch.search_label", "Find work area");
+    m.insert("plain.switch.search_hint", "Type to filter");
     m.insert(
         "plain.switch.loading_hint",
         "Choose where this project should go.",
     );
+    m.insert("plain.switch.no_project", "Choose one project first.");
+    m.insert("plain.switch.no_targets", "No work areas found.");
+    m.insert("plain.switch.reason_current", "Already current.");
+    m.insert(
+        "plain.switch.reason_unavailable",
+        "This project cannot be checked right now.",
+    );
+    m.insert(
+        "plain.switch.reason_conflict",
+        "Finish the current fix before changing work area.",
+    );
+    m.insert(
+        "plain.switch.reason_dirty",
+        "Save or clear unsaved work first.",
+    );
+    m.insert("plain.switch.kind_local", "Local work area");
+    m.insert("plain.switch.kind_shared", "From shared source");
+    m.insert("plain.switch.kind_saved_name", "Saved name");
+    m.insert("plain.switch.kind_change", "Change");
     m.insert(
         "plain.switch.dirty_hint",
         "This project has unsaved work. Check it before changing work area.",
@@ -937,12 +956,34 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.release.blocker_unsaved", "未保存の作業があります。");
 
     // Change work area
-    m.insert("plain.switch.target_label", "切り替え先の作業エリア");
-    m.insert("plain.switch.target_hint", "feature-x");
+    m.insert("plain.switch.search_label", "作業エリアを検索");
+    m.insert("plain.switch.search_hint", "入力して絞り込み");
     m.insert(
         "plain.switch.loading_hint",
         "このプロジェクトの切り替え先を選んでください。",
     );
+    m.insert(
+        "plain.switch.no_project",
+        "先にプロジェクトを1つ選んでください。",
+    );
+    m.insert("plain.switch.no_targets", "作業エリアが見つかりません。");
+    m.insert("plain.switch.reason_current", "現在の作業エリアです。");
+    m.insert(
+        "plain.switch.reason_unavailable",
+        "このプロジェクトは今は確認できません。",
+    );
+    m.insert(
+        "plain.switch.reason_conflict",
+        "現在の修正を完了してから作業エリアを変更してください。",
+    );
+    m.insert(
+        "plain.switch.reason_dirty",
+        "未保存の作業を保存または片付けてください。",
+    );
+    m.insert("plain.switch.kind_local", "ローカル作業エリア");
+    m.insert("plain.switch.kind_shared", "共有元から");
+    m.insert("plain.switch.kind_saved_name", "保存済みの名前");
+    m.insert("plain.switch.kind_change", "変更");
     m.insert(
         "plain.switch.dirty_hint",
         "このプロジェクトには未保存の作業があります。作業エリアを変更する前に確認してください。",

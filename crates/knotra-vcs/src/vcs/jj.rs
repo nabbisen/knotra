@@ -13,7 +13,8 @@ use crate::model::{
     operation::{ProjectOperationOutcome, ProjectOperationResult, RecoveryHint},
     project::Project,
     status::{
-        ProjectStatus, RemoteStatus, RepositoryIdentity, VcsContext, VcsKind, WorkingTreeStatus,
+        ContextTarget, ProjectStatus, RemoteStatus, RepositoryIdentity, VcsContext, VcsKind,
+        WorkingTreeStatus,
     },
 };
 
@@ -177,7 +178,7 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
 // ---------------------------------------------------------------------------
 
 pub async fn list_contexts(project: &Project) -> crate::model::status::ContextList {
-    use crate::model::status::{ContextCandidate, ContextList};
+    use crate::model::status::{ContextCandidate, ContextList, ContextTarget};
 
     let path = std::path::Path::new(&project.path);
     match AsyncRepository::open_jj(path).await {
@@ -202,9 +203,8 @@ pub async fn list_contexts(project: &Project) -> crate::model::status::ContextLi
                 for b in branches {
                     candidates.push(ContextCandidate {
                         label: b.name.clone(),
-                        target: b.name,
+                        target: ContextTarget::JjBookmark { name: b.name },
                         is_current: false,
-                        is_remote: false,
                     });
                 }
             }
@@ -220,15 +220,14 @@ pub async fn list_contexts(project: &Project) -> crate::model::status::ContextLi
                     };
                     candidates.push(ContextCandidate {
                         label,
-                        target: short.clone(),
+                        target: ContextTarget::JjChange { id: short.clone() },
                         is_current: short == current,
-                        is_remote: false,
                     });
                 }
             }
 
             candidates.sort_by(|a, b| b.is_current.cmp(&a.is_current).then(a.label.cmp(&b.label)));
-            candidates.dedup_by(|a, b| a.target == b.target);
+            candidates.dedup_by(|a, b| a.target.display_target() == b.target.display_target());
 
             ContextList {
                 project_id: project.id.clone(),
@@ -382,14 +381,38 @@ pub async fn smart_pull(
 
 pub async fn switch_context(
     project: &Project,
-    target: &str,
+    target: &ContextTarget,
 ) -> (ProjectOperationResult, Option<RecoveryHint>) {
-    let result = run_jj_command(project, &["edit", target]).await;
+    let Some(target_text) = (match target {
+        ContextTarget::JjBookmark { name } | ContextTarget::JjChange { id: name } => {
+            Some(name.clone())
+        }
+        ContextTarget::Manual { vcs_kind, input } if *vcs_kind == VcsKind::Jujutsu => {
+            Some(input.clone())
+        }
+        _ => None,
+    }) else {
+        return (
+            ProjectOperationResult {
+                project_id: project.id.clone(),
+                outcome: ProjectOperationOutcome::Failed,
+                success: false,
+                skip_reason: None,
+                commands_executed: vec![],
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: None,
+                error_message: Some("target is not a jj work area".to_owned()),
+            },
+            None,
+        );
+    };
+    let result = run_jj_command(project, &["edit", &target_text]).await;
     let hint = if !result.success {
         Some(RecoveryHint {
             project_id: project.id.clone(),
-            situation: format!("jj edit {} failed", target),
-            suggested_commands: vec![format!("cd {:?} && jj edit {}", project.path, target)],
+            situation: format!("jj edit {} failed", target_text),
+            suggested_commands: vec![format!("cd {:?} && jj edit {}", project.path, target_text)],
             see_also: Some("https://jj-vcs.github.io/jj/latest/working-copy/".to_owned()),
         })
     } else {

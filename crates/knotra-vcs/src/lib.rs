@@ -18,7 +18,7 @@ pub use model::{
     },
     project::{Project, ProjectId},
     status::{
-        ConflictStatus, ContextCandidate, ContextList, ProjectStatus, RemoteStatus,
+        ConflictStatus, ContextCandidate, ContextList, ContextTarget, ProjectStatus, RemoteStatus,
         RepositoryIdentity, VcsContext, VcsKind, WorkingTreeStatus, WorkspaceStatus,
     },
     topology::{DependencyEdge, DependencyGraph, ImpactWarning},

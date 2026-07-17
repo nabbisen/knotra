@@ -18,8 +18,8 @@ use crate::model::{
     operation::{ProjectOperationOutcome, ProjectOperationResult, RecoveryHint},
     project::Project,
     status::{
-        ConflictStatus, ProjectStatus, RemoteStatus, RepositoryIdentity, VcsContext, VcsKind,
-        WorkingTreeStatus,
+        ConflictStatus, ContextTarget, ProjectStatus, RemoteStatus, RepositoryIdentity, VcsContext,
+        VcsKind, WorkingTreeStatus,
     },
 };
 
@@ -259,7 +259,7 @@ fn read_conflict_cli(path: &str) -> ConflictStatus {
 // ---------------------------------------------------------------------------
 
 pub async fn list_contexts(project: &Project) -> crate::model::status::ContextList {
-    use crate::model::status::{ContextCandidate, ContextList};
+    use crate::model::status::{ContextCandidate, ContextList, ContextTarget};
 
     let path = std::path::Path::new(&project.path);
     match AsyncRepository::open(path).await {
@@ -286,9 +286,8 @@ pub async fn list_contexts(project: &Project) -> crate::model::status::ContextLi
                     seen.insert(b.name.clone());
                     candidates.push(ContextCandidate {
                         label: b.name.clone(),
-                        target: b.name,
+                        target: ContextTarget::GitLocalBranch { name: b.name },
                         is_current,
-                        is_remote: false,
                     });
                 }
             }
@@ -302,11 +301,19 @@ pub async fn list_contexts(project: &Project) -> crate::model::status::ContextLi
                     if seen.contains(&local_name) {
                         continue;
                     }
+                    let (remote, branch) = b
+                        .name
+                        .split_once('/')
+                        .map(|(remote, branch)| (remote.to_owned(), branch.to_owned()))
+                        .unwrap_or_else(|| (String::new(), b.name.clone()));
                     candidates.push(ContextCandidate {
                         label: local_name,
-                        target: b.name,
+                        target: ContextTarget::GitRemoteBranch {
+                            remote,
+                            branch,
+                            full_name: b.name,
+                        },
                         is_current: false,
-                        is_remote: true,
                     });
                 }
             }
@@ -314,7 +321,11 @@ pub async fn list_contexts(project: &Project) -> crate::model::status::ContextLi
             candidates.sort_by(|a, b| {
                 b.is_current
                     .cmp(&a.is_current)
-                    .then(a.is_remote.cmp(&b.is_remote))
+                    .then(
+                        a.target
+                            .is_remote_git_branch()
+                            .cmp(&b.target.is_remote_git_branch()),
+                    )
                     .then(a.label.cmp(&b.label))
             });
 
@@ -690,7 +701,7 @@ pub async fn smart_pull(
 
 pub async fn switch_context(
     project: &Project,
-    target: &str,
+    target: &ContextTarget,
 ) -> (ProjectOperationResult, Option<RecoveryHint>) {
     // Check dirty via gix
     let path = std::path::Path::new(&project.path).to_path_buf();
@@ -738,19 +749,42 @@ pub async fn switch_context(
         );
     }
 
-    let is_remote = target.contains('/');
-    let result = if is_remote {
-        let local = target.split_once('/').map(|(_, b)| b).unwrap_or(target);
-        run_git(project, &["switch", "-c", local, "--track", target]).await
-    } else {
-        run_git(project, &["switch", target]).await
+    let target_text = target.display_target();
+    let result = match target {
+        ContextTarget::GitLocalBranch { name } => run_git(project, &["switch", name]).await,
+        ContextTarget::GitRemoteBranch {
+            branch, full_name, ..
+        } => {
+            if local_branch_exists(project, branch).await {
+                run_git(project, &["switch", branch]).await
+            } else {
+                run_git(project, &["switch", "-c", branch, "--track", full_name]).await
+            }
+        }
+        ContextTarget::Manual { vcs_kind, input } if *vcs_kind == VcsKind::Git => {
+            run_git(project, &["switch", input]).await
+        }
+        _ => ProjectOperationResult {
+            project_id: project.id.clone(),
+            outcome: ProjectOperationOutcome::Failed,
+            success: false,
+            skip_reason: None,
+            commands_executed: vec![],
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: None,
+            error_message: Some("target is not a Git work area".to_owned()),
+        },
     };
 
     let hint = if !result.success {
         Some(RecoveryHint {
             project_id: project.id.clone(),
-            situation: format!("switch to '{}' failed", target),
-            suggested_commands: vec![format!("cd {:?} && git switch {}", project.path, target)],
+            situation: format!("switch to '{}' failed", target_text),
+            suggested_commands: vec![format!(
+                "cd {:?} && git switch {}",
+                project.path, target_text
+            )],
             see_also: None,
         })
     } else {
@@ -758,6 +792,20 @@ pub async fn switch_context(
     };
 
     (result, hint)
+}
+
+async fn local_branch_exists(project: &Project, branch: &str) -> bool {
+    let path = project.path.clone();
+    let branch_ref = format!("refs/heads/{branch}");
+    tokio::task::spawn_blocking(move || {
+        Command::new("git")
+            .args(["show-ref", "--verify", "--quiet", &branch_ref])
+            .current_dir(path)
+            .status()
+            .is_ok_and(|status| status.success())
+    })
+    .await
+    .unwrap_or(false)
 }
 
 pub async fn list_conflicted_files(

@@ -1,6 +1,8 @@
 //! Context Operations screen state.
 
-use knotra_vcs::{ContextCandidate, ContextList, ContextSwitchResult, ProjectId, VcsKind};
+use knotra_vcs::{
+    ContextCandidate, ContextList, ContextSwitchResult, ContextTarget, ProjectId, VcsKind,
+};
 
 // ---------------------------------------------------------------------------
 // Phase enum
@@ -26,15 +28,18 @@ pub enum ContextPhase {
     ConfirmSwitch {
         project_id: ProjectId,
         project_name: String,
-        target: String,
+        target: ContextTarget,
+        target_label: String,
         vcs_kind: VcsKind,
         /// True when the working tree was detected as dirty.
         is_dirty: bool,
+        disabled_reason_key: Option<&'static str>,
     },
     /// Switch in progress.
     Switching {
         project_id: ProjectId,
-        target: String,
+        target: ContextTarget,
+        target_label: String,
     },
     /// Switch completed — show result.
     Done(ContextSwitchResult),
@@ -47,8 +52,6 @@ pub enum ContextPhase {
 #[derive(Debug, Default)]
 pub struct ContextOpsState {
     pub phase: ContextPhase,
-    /// Branch name typed in the Switch modal.
-    pub target_context: String,
     /// Context lists cached per project (invalidated on switch / refresh).
     pub cached_lists: std::collections::HashMap<ProjectId, ContextList>,
 }
@@ -76,7 +79,7 @@ impl ContextOpsState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use knotra_vcs::{ContextCandidate, ContextList, ProjectId, VcsKind};
+    use knotra_vcs::{ContextCandidate, ContextList, ContextTarget, ProjectId, VcsKind};
 
     fn make_list(candidates: Vec<(&str, &str, bool)>) -> ContextList {
         ContextList {
@@ -86,9 +89,10 @@ mod tests {
                 .into_iter()
                 .map(|(label, target, is_current)| ContextCandidate {
                     label: label.to_owned(),
-                    target: target.to_owned(),
+                    target: ContextTarget::GitLocalBranch {
+                        name: target.to_owned(),
+                    },
                     is_current,
-                    is_remote: false,
                 })
                 .collect(),
             warning: None,

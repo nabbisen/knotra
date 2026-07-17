@@ -14,8 +14,8 @@ use crate::state::{
 };
 use chrono::Utc;
 use knotra_vcs::{
-    ConflictMarker, ConflictedFile, OperationId, Project, ProjectConflictDetail, ProjectId,
-    Workspace, WorkspaceStatus,
+    ConflictMarker, ConflictedFile, ContextTarget, OperationId, Project, ProjectConflictDetail,
+    ProjectId, Workspace, WorkspaceStatus,
     model::{
         operation::{
             FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
@@ -937,6 +937,90 @@ fn context_bulk_open_rejects_multiple_selected_projects() {
 
     assert!(matches!(state.active_modal, ActiveModal::None));
     assert!(matches!(state.context_ops.phase, ContextPhase::Idle));
+}
+
+#[test]
+fn context_target_choice_preserves_typed_target_and_blocks_dirty_project() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let mut status = make_project_status(project.id.clone(), Some("origin/main"));
+    status.working_tree.uncommitted_count = 1;
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![status],
+        last_refresh: Some(Utc::now()),
+    });
+    let target = ContextTarget::GitLocalBranch {
+        name: "feature/foo".to_owned(),
+    };
+
+    dispatch(
+        &mut state,
+        Message::Context(ContextMessage::SwitchTargetChosen(
+            project.id.clone(),
+            target.clone(),
+            "feature/foo".to_owned(),
+        )),
+    );
+
+    assert!(matches!(
+        &state.context_ops.phase,
+        ContextPhase::ConfirmSwitch {
+            target: actual,
+            disabled_reason_key: Some("plain.switch.reason_dirty"),
+            ..
+        } if actual == &target
+    ));
+}
+
+#[test]
+fn context_switch_confirm_does_not_execute_disabled_confirmation() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let mut status = make_project_status(project.id.clone(), Some("origin/main"));
+    status.conflict.has_conflict = true;
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![status],
+        last_refresh: Some(Utc::now()),
+    });
+
+    dispatch(
+        &mut state,
+        Message::Context(ContextMessage::SwitchTargetChosen(
+            project.id,
+            ContextTarget::GitLocalBranch {
+                name: "main".to_owned(),
+            },
+            "main".to_owned(),
+        )),
+    );
+    dispatch(
+        &mut state,
+        Message::Context(ContextMessage::SwitchConfirmed),
+    );
+
+    assert!(matches!(
+        &state.context_ops.phase,
+        ContextPhase::ConfirmSwitch {
+            disabled_reason_key: Some("plain.switch.reason_conflict"),
+            ..
+        }
+    ));
 }
 
 #[test]

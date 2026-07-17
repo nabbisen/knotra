@@ -9,7 +9,10 @@ use std::{fs, path::Path, process::Command};
 
 use knotra_vcs::{
     VcsAdapter,
-    model::{project::Project, status::VcsKind},
+    model::{
+        project::Project,
+        status::{ContextTarget, VcsKind},
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -709,7 +712,10 @@ async fn switch_context_changes_branch() {
     git(&["checkout", "main"], dir.path());
 
     let project = make_project(dir.path());
-    let (result, _hint) = VcsAdapter::switch_context(&project, "featurex").await;
+    let target = ContextTarget::GitLocalBranch {
+        name: "featurex".to_owned(),
+    };
+    let (result, _hint) = VcsAdapter::switch_context(&project, &target).await;
 
     assert!(
         result.success,
@@ -724,6 +730,104 @@ async fn switch_context_changes_branch() {
         .unwrap();
     let branch = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     assert_eq!(branch, "featurex", "expected featurex, got {:?}", branch);
+}
+
+#[tokio::test]
+async fn switch_context_changes_slash_local_branch() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    git(&["checkout", "-b", "feature/foo"], dir.path());
+    git(&["checkout", "main"], dir.path());
+
+    let project = make_project(dir.path());
+    let target = ContextTarget::GitLocalBranch {
+        name: "feature/foo".to_owned(),
+    };
+    let (result, _hint) = VcsAdapter::switch_context(&project, &target).await;
+
+    assert!(
+        result.success,
+        "switch failed: {:?}\nstderr: {}",
+        result.error_message, result.stderr
+    );
+
+    let output = Command::new("git")
+        .args(["symbolic-ref", "--short", "HEAD"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    assert_eq!(
+        branch, "feature/foo",
+        "expected feature/foo, got {branch:?}"
+    );
+}
+
+#[tokio::test]
+async fn switch_context_remote_branch_uses_explicit_remote_target() {
+    let remote_dir = tempfile::tempdir().unwrap();
+    let clone1_dir = tempfile::tempdir().unwrap();
+    let clone2_dir = tempfile::tempdir().unwrap();
+
+    git(&["init", "--bare", "-b", "main"], remote_dir.path());
+    Command::new("git")
+        .args(["clone", remote_dir.path().to_str().unwrap(), "."])
+        .current_dir(clone1_dir.path())
+        .status()
+        .unwrap();
+    git(
+        &["config", "user.email", "test@test.local"],
+        clone1_dir.path(),
+    );
+    git(&["config", "user.name", "Test"], clone1_dir.path());
+
+    fs::write(clone1_dir.path().join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"], clone1_dir.path());
+    git(&["commit", "-m", "base"], clone1_dir.path());
+    git(&["push", "-u", "origin", "main"], clone1_dir.path());
+    git(&["checkout", "-b", "feature/foo"], clone1_dir.path());
+    fs::write(clone1_dir.path().join("feature.txt"), "feature\n").unwrap();
+    git(&["add", "feature.txt"], clone1_dir.path());
+    git(&["commit", "-m", "feature"], clone1_dir.path());
+    git(&["push", "-u", "origin", "feature/foo"], clone1_dir.path());
+
+    Command::new("git")
+        .args(["clone", remote_dir.path().to_str().unwrap(), "."])
+        .current_dir(clone2_dir.path())
+        .status()
+        .unwrap();
+    git(&["fetch", "origin"], clone2_dir.path());
+
+    let project = make_project(clone2_dir.path());
+    let ctx_list = VcsAdapter::list_contexts(&project).await;
+    let candidate = ctx_list
+        .candidates
+        .iter()
+        .find(|candidate| {
+            matches!(
+                &candidate.target,
+                ContextTarget::GitRemoteBranch { full_name, .. } if full_name == "origin/feature/foo"
+            )
+        })
+        .expect("remote feature/foo candidate");
+
+    let (result, _hint) = VcsAdapter::switch_context(&project, &candidate.target).await;
+    assert!(
+        result.success,
+        "switch failed: {:?}\nstderr: {}",
+        result.error_message, result.stderr
+    );
+
+    let output = Command::new("git")
+        .args(["symbolic-ref", "--short", "HEAD"])
+        .current_dir(clone2_dir.path())
+        .output()
+        .unwrap();
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    assert_eq!(
+        branch, "feature/foo",
+        "expected feature/foo, got {branch:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------

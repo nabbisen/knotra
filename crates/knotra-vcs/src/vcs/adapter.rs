@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::model::{
     operation::{ProjectOperationOutcome, ProjectOperationResult, RecoveryHint},
     project::Project,
-    status::{ProjectStatus, VcsKind, WorkspaceStatus},
+    status::{ContextTarget, ProjectStatus, VcsKind, WorkspaceStatus},
     workspace::Workspace,
 };
 
@@ -163,12 +163,30 @@ impl VcsAdapter {
     /// Switch the working context of a repository.
     pub async fn switch_context(
         project: &Project,
-        target: &str,
+        target: &ContextTarget,
     ) -> (
         crate::model::operation::ProjectOperationResult,
         Option<crate::model::operation::RecoveryHint>,
     ) {
         let kind = detect_vcs_kind(Path::new(&project.path)).await;
+        if let Some(kind) = kind
+            && target.vcs_kind() != kind
+        {
+            return (
+                crate::model::operation::ProjectOperationResult {
+                    project_id: project.id.clone(),
+                    outcome: ProjectOperationOutcome::Failed,
+                    success: false,
+                    skip_reason: None,
+                    commands_executed: vec![],
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: Some("context target does not match repository type".to_owned()),
+                },
+                None,
+            );
+        }
         match kind {
             Some(VcsKind::Git) => git::switch_context(project, target).await,
             Some(VcsKind::Jujutsu) => jj::switch_context(project, target).await,

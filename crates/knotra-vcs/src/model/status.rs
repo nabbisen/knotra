@@ -137,17 +137,64 @@ pub struct WorkspaceStatus {
 // Context listing (branches / change-sets available to switch to)
 // ---------------------------------------------------------------------------
 
+/// Typed target used to change a repository's current work area.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ContextTarget {
+    GitLocalBranch {
+        name: String,
+    },
+    GitRemoteBranch {
+        remote: String,
+        branch: String,
+        full_name: String,
+    },
+    JjBookmark {
+        name: String,
+    },
+    JjChange {
+        id: String,
+    },
+    Manual {
+        vcs_kind: VcsKind,
+        input: String,
+    },
+}
+
+impl ContextTarget {
+    pub fn display_target(&self) -> String {
+        match self {
+            ContextTarget::GitLocalBranch { name }
+            | ContextTarget::JjBookmark { name }
+            | ContextTarget::Manual { input: name, .. } => name.clone(),
+            ContextTarget::GitRemoteBranch { full_name, .. } => full_name.clone(),
+            ContextTarget::JjChange { id } => id.clone(),
+        }
+    }
+
+    pub fn vcs_kind(&self) -> VcsKind {
+        match self {
+            ContextTarget::GitLocalBranch { .. } | ContextTarget::GitRemoteBranch { .. } => {
+                VcsKind::Git
+            }
+            ContextTarget::JjBookmark { .. } | ContextTarget::JjChange { .. } => VcsKind::Jujutsu,
+            ContextTarget::Manual { vcs_kind, .. } => *vcs_kind,
+        }
+    }
+
+    pub fn is_remote_git_branch(&self) -> bool {
+        matches!(self, ContextTarget::GitRemoteBranch { .. })
+    }
+}
+
 /// One switchable context candidate for a repository.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContextCandidate {
     /// Short human-readable label (branch name, jj change-id + description).
     pub label: String,
-    /// Full ref string used as the switch target (e.g. `refs/heads/main`).
-    pub target: String,
+    /// Typed target to execute if the user chooses this candidate.
+    pub target: ContextTarget,
     /// True when this is the currently active context.
     pub is_current: bool,
-    /// True when the candidate is a remote-tracking ref (not locally checked out).
-    pub is_remote: bool,
 }
 
 /// All context candidates for one repository.

@@ -10,7 +10,8 @@ use knotra_vcs::{
     model::{
         operation::{
             ContextSwitchResult, OperationId, OperationKind, OperationLog, OperationResult,
-            ProjectOperationOutcome, SmartPullDisposition, SmartPullProgress, SmartPullSkipReason,
+            ProjectOperationOutcome, ProjectOperationResult, SmartPullDisposition,
+            SmartPullProgress, SmartPullSkipReason,
         },
         project::Project,
         workspace::Workspace,
@@ -1711,6 +1712,35 @@ fn refresh_workspace_task(state: &AppState) -> Task<Message> {
     )
 }
 
+fn context_switch_disabled_reason(
+    status: Option<&knotra_vcs::ProjectStatus>,
+) -> Option<&'static str> {
+    let status = status?;
+    if status.read_error.is_some() {
+        Some("plain.switch.reason_unavailable")
+    } else if status.conflict.has_conflict {
+        Some("plain.switch.reason_conflict")
+    } else if status.working_tree.is_dirty() {
+        Some("plain.switch.reason_dirty")
+    } else {
+        None
+    }
+}
+
+fn blocked_context_switch_result(project: &Project, reason: String) -> ProjectOperationResult {
+    ProjectOperationResult {
+        project_id: project.id.clone(),
+        outcome: ProjectOperationOutcome::Failed,
+        success: false,
+        skip_reason: None,
+        commands_executed: vec![],
+        stdout: String::new(),
+        stderr: reason.clone(),
+        exit_code: Some(1),
+        error_message: Some(reason),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Context Operations handler
 // ---------------------------------------------------------------------------
@@ -1720,7 +1750,6 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
         ContextMessage::OpenRequested(preselect_id) => {
             state.active_modal = crate::state::ActiveModal::Switch;
             state.context_ops.phase = ContextPhase::Idle;
-            state.context_ops.target_context = String::new();
 
             // If a project was pre-selected (e.g. from a dashboard card shortcut), load it.
             if let Some(id) = preselect_id
@@ -1765,47 +1794,57 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
             Task::none()
         }
 
-        ContextMessage::SwitchTargetChosen(project_id, target) => {
+        ContextMessage::SwitchTargetChosen(project_id, target, target_label) => {
             let project = match find_project(state, &project_id) {
                 Some(p) => p,
                 None => return Task::none(),
             };
 
-            // Check current dirty state.
-            let vcs_kind = state
+            let status = state
                 .workspace_status
                 .as_ref()
-                .and_then(|ws| ws.projects.iter().find(|s| s.project_id == project_id))
+                .and_then(|ws| ws.projects.iter().find(|s| s.project_id == project_id));
+            let vcs_kind = status
                 .map(|s| s.identity.vcs_kind)
                 .unwrap_or(knotra_vcs::VcsKind::Git);
 
-            let is_dirty = state
-                .workspace_status
-                .as_ref()
-                .and_then(|ws| ws.projects.iter().find(|s| s.project_id == project_id))
-                .map(|s| s.working_tree.is_dirty())
-                .unwrap_or(false);
+            let is_dirty = status.map(|s| s.working_tree.is_dirty()).unwrap_or(false);
+            let disabled_reason_key = context_switch_disabled_reason(status);
 
             state.context_ops.phase = ContextPhase::ConfirmSwitch {
                 project_id,
                 project_name: project.name.clone(),
                 target,
+                target_label,
                 vcs_kind,
                 is_dirty,
+                disabled_reason_key,
             };
             Task::none()
         }
 
         ContextMessage::SwitchConfirmed => {
-            let (project_id, target, project_name) = match &state.context_ops.phase {
-                ContextPhase::ConfirmSwitch {
-                    project_id,
-                    target,
-                    project_name,
-                    ..
-                } => (project_id.clone(), target.clone(), project_name.clone()),
-                _ => return Task::none(),
-            };
+            let (project_id, target, target_label, project_name, disabled_reason_key) =
+                match &state.context_ops.phase {
+                    ContextPhase::ConfirmSwitch {
+                        project_id,
+                        target,
+                        target_label,
+                        project_name,
+                        disabled_reason_key,
+                        ..
+                    } => (
+                        project_id.clone(),
+                        target.clone(),
+                        target_label.clone(),
+                        project_name.clone(),
+                        *disabled_reason_key,
+                    ),
+                    _ => return Task::none(),
+                };
+            if disabled_reason_key.is_some() {
+                return Task::none();
+            }
 
             let project = match find_project(state, &project_id) {
                 Some(p) => p,
@@ -1815,17 +1854,34 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
             state.context_ops.phase = ContextPhase::Switching {
                 project_id: project_id.clone(),
                 target: target.clone(),
+                target_label: target_label.clone(),
             };
             // Invalidate cached list for this project.
             state.context_ops.cached_lists.remove(&project_id);
 
+            let unavailable_reason = state.t("plain.switch.reason_unavailable").to_owned();
+            let conflict_reason = state.t("plain.switch.reason_conflict").to_owned();
+            let dirty_reason = state.t("plain.switch.reason_dirty").to_owned();
+
             Task::perform(
                 async move {
-                    let (result, hint) = VcsAdapter::switch_context(&project, &target).await;
+                    let latest_status = VcsAdapter::read_project_status(&project).await;
+                    let blocked_reason =
+                        context_switch_disabled_reason(Some(&latest_status)).map(|key| match key {
+                            "plain.switch.reason_unavailable" => unavailable_reason.clone(),
+                            "plain.switch.reason_conflict" => conflict_reason.clone(),
+                            "plain.switch.reason_dirty" => dirty_reason.clone(),
+                            _ => key.to_owned(),
+                        });
+                    let (result, hint) = if let Some(reason) = blocked_reason {
+                        (blocked_context_switch_result(&project, reason), None)
+                    } else {
+                        VcsAdapter::switch_context(&project, &target).await
+                    };
                     ContextSwitchResult {
                         project_id: project.id,
                         project_name,
-                        target,
+                        target: target_label,
                         operation_result: result,
                         recovery_hint: hint,
                     }
@@ -1867,32 +1923,14 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
                 return Task::none();
             };
             state.active_modal = crate::state::ActiveModal::Switch;
-            state.context_ops.target_context = String::new();
             state.context_ops.phase = ContextPhase::LoadingList(project_id);
             Task::perform(
                 async move { VcsAdapter::list_contexts(&project).await },
                 |list| Message::Background(BackgroundMessage::ContextListLoaded(list)),
             )
         }
-        ContextMessage::BulkSwitchRequested => {
-            let project_id = match &state.context_ops.phase {
-                ContextPhase::BrowsingList { project_id, .. } => project_id.clone(),
-                _ => return Task::none(),
-            };
-            let target = state.context_ops.target_context.trim().to_owned();
-            if target.is_empty() {
-                return Task::none();
-            }
-            Task::done(Message::Context(ContextMessage::SwitchTargetChosen(
-                project_id, target,
-            )))
-        }
         ContextMessage::BulkModalClosed => {
             state.active_modal = crate::state::ActiveModal::None;
-            Task::none()
-        }
-        ContextMessage::TargetChanged(s) => {
-            state.context_ops.target_context = s;
             Task::none()
         }
         ContextMessage::Cancelled => {

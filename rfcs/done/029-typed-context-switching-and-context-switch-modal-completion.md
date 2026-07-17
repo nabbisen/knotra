@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented (working tree; pending commit) |
 | Priority | High - context switching is a visible mutating workflow and current target handling can switch the wrong kind of Git ref |
 | Effort | Medium |
 | Target | Production Readiness Reset |
@@ -38,8 +38,7 @@ Current code has useful pieces:
 
 - `ContextCandidate` stores `label`, `target`, `is_current`, and `is_remote`.
 - `ContextList` stores project ID, VCS kind, candidates, and a warning.
-- `ContextOpsState` stores phase, a free-text `target_context`, and cached
-  context lists.
+- `ContextOpsState` stores phase and cached context lists.
 - `handle_context` opens the switch modal, loads contexts, transitions through
   confirmation, runs `VcsAdapter::switch_context`, logs the result, and refreshes
   project status.
@@ -487,13 +486,14 @@ Before marking implemented, observe current-thread evidence for:
       behavior.
 - [ ] Required gates are run and observed in the implementation review thread.
 
-## Open Questions
+## Resolved Design Decisions
 
-1. Should manual Git target entry remain visible by default, or should it move
-   behind an advanced affordance after candidate-list rendering lands?
+1. Manual Git entry is hidden by default for this implementation. Users choose
+   from typed candidates; manual entry can return later behind an explicit
+   advanced flow.
 
-2. Should dirty Git repositories be strictly blocked in the UI, or should a
-   later RFC add an explicit stash-before-switch option?
+2. Dirty and conflicted repositories are revalidated immediately before
+   mutation. Stale dashboard state must not allow a switch to proceed.
 
-3. For jj, should bookmark and change targets share the same confirmation copy
-   initially, or should they have distinct copy from the first implementation?
+3. jj bookmark and change targets are typed distinctly from the first
+   implementation, even though both execute through `jj edit <target>` for now.

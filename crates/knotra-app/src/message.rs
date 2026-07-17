@@ -1,7 +1,8 @@
 //! All `Message` variants for the knotra GUI.
 
 use knotra_vcs::{
-    ContextList, ContextSwitchResult, FreezeResult, FreezeValidation, ProjectId, WorkspaceStatus,
+    ContextList, ContextSwitchResult, ContextTarget, FreezeResult, FreezeValidation, ProjectId,
+    WorkspaceStatus,
     model::operation::{OperationId, OperationLog, SmartPullPlan, SmartPullProgress},
     model::workspace::WorkspaceId,
 };
@@ -118,14 +119,12 @@ pub enum ContextMessage {
     OpenRequested(Option<ProjectId>),
     ProjectSelected(ProjectId),
     SearchChanged(String),
-    SwitchTargetChosen(ProjectId, String),
+    SwitchTargetChosen(ProjectId, ContextTarget, String),
     SwitchConfirmed,
     SwitchCancelled,
     BackToDashboard,
     BulkOpenRequested,
-    BulkSwitchRequested,
     BulkModalClosed,
-    TargetChanged(String),
     Cancelled,
 }
 
