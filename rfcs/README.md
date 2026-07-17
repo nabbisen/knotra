@@ -25,6 +25,7 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [027](./proposed/027-selection-mode-and-bulk-selection-completion.md) | Selection mode and bulk-selection completion | Production Readiness Reset | High |
 
 ---
 
@@ -37,7 +38,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
-| [026](./done/026-conflict-resolution-action-completion-and-editor-launch-hardening.md) | Conflict Resolution Action Completion and Editor-Launch Hardening | working tree; pending commit |
+| [026](./done/026-conflict-resolution-action-completion-and-editor-launch-hardening.md) | Conflict Resolution Action Completion and Editor-Launch Hardening | main: 1cde97d |
 | [025](./done/025-freezer-release-point-execution-completion.md) | Freezer / Release Point Execution Completion | main: d9f687a |
 | [024](./done/024-smart-pull-modal-execution-completion.md) | Smart Pull modal execution completion | main: 4362a2e |
 | [023](./done/023-workspace-management-completion.md) | Workspace management completion | main: 02e1481 |

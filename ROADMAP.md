@@ -270,7 +270,7 @@ Primary evidence:
 - [x] Draft RFC: Smart Pull modal execution completion
 - [x] Draft RFC: Freezer / release point execution completion
 - [x] Draft RFC: Conflict resolution action completion and editor-launch hardening
-- [ ] Draft RFC: Selection mode and bulk-selection completion
+- [x] Draft RFC: Selection mode and bulk-selection completion
 - [ ] Draft RFC: Command palette action completion
 - [ ] Draft RFC: Typed context switching and context switch modal completion
 - [ ] Draft RFC: Changelog modal completion

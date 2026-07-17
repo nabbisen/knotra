@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (working tree; pending commit) |
+| Status | Implemented (main: 1cde97d) |
 | Priority | High — visible conflict-resolution controls can be no-ops and one editor path uses shell interpolation |
 | Effort | Large |
 | Target | Production Readiness Reset |
