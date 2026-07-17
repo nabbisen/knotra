@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (working tree; pending commit) |
+| Status | Implemented (main: 3699bad) |
 | Priority | High - the palette advertises actions that can silently do nothing |
 | Effort | Medium |
 | Target | Production Readiness Reset |
