@@ -3,13 +3,13 @@
 use crate::config::AppConfig;
 use crate::config::AppPaths;
 use crate::message::{
-    BackgroundMessage, ConflictOpsMessage, FilterMessage, FreezerMessage, Message, ShortcutMessage,
-    SyncMessage, TagPushMessage, WorkspaceMessage,
+    BackgroundMessage, ConflictOpsMessage, ContextMessage, FilterMessage, FreezerMessage, Message,
+    SelectionMessage, ShortcutMessage, SyncMessage, TagPushMessage, WorkspaceMessage,
 };
 use crate::persistence::{load_workspaces, save_workspace};
 use crate::state::{
     ActiveModal, AddProjectDialog, AppState, Screen, conflict_ops::ConflictPhase,
-    freezer::FreezerPhase, sync::SyncPhase,
+    context::ContextPhase, freezer::FreezerPhase, sync::SyncPhase,
 };
 use chrono::Utc;
 use knotra_vcs::{
@@ -477,6 +477,263 @@ fn palette_create_workspace_opens_dialog() {
             WorkspaceMessage::CreateWorkspaceDialogOpened
         ))
     ));
+}
+
+#[test]
+fn selection_mode_enter_shows_empty_selection_state() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::Selection(SelectionMessage::ModeEntered),
+    );
+
+    assert!(state.selection_mode);
+    assert_eq!(state.selection.len(), 0);
+    assert!(state.selection.anchor_id.is_none());
+    assert_eq!(state.selection_summary().selected_count, 0);
+}
+
+#[test]
+fn selection_mode_entry_label_is_not_select_visible_action() {
+    let state = make_state();
+
+    assert_ne!(
+        state.t("plain.selection.enter"),
+        state.t("plain.select_visible_projects")
+    );
+}
+
+#[test]
+fn selection_last_deselect_keeps_empty_mode_and_clears_anchor() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::Selection(SelectionMessage::Toggled(project.id.clone())),
+    );
+    dispatch(
+        &mut state,
+        Message::Selection(SelectionMessage::Toggled(project.id.clone())),
+    );
+
+    assert!(state.selection_mode);
+    assert_eq!(state.selection.len(), 0);
+    assert!(state.selection.anchor_id.is_none());
+}
+
+#[test]
+fn selection_toggle_rejects_project_outside_active_workspace() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    let stale = ProjectId::new();
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::Selection(SelectionMessage::Toggled(stale)),
+    );
+
+    assert!(!state.selection_mode);
+    assert_eq!(state.selection.len(), 0);
+}
+
+#[test]
+fn selection_select_all_uses_visible_project_set() {
+    let mut state = make_state();
+    let visible = make_project("visible");
+    let hidden = make_project("hidden");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![visible.clone(), hidden.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.apply_filter(FilterMessage::SearchChanged("visible".to_owned()));
+
+    dispatch(&mut state, Message::Selection(SelectionMessage::SelectAll));
+
+    assert!(state.selection_mode);
+    assert!(state.selection.contains(&visible.id));
+    assert!(!state.selection.contains(&hidden.id));
+}
+
+#[test]
+fn workspace_switch_clears_selection_mode() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    let first = Workspace {
+        projects: vec![project.clone()],
+        ..Workspace::new("Main")
+    };
+    let second = Workspace::new("Lab");
+    let second_id = second.id.clone();
+    install_workspaces(&mut state, vec![first, second], 0);
+    state.selection_mode = true;
+    state.selection.selected_ids.insert(project.id);
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::WorkspaceSwitched(second_id)),
+    );
+
+    assert!(!state.selection_mode);
+    assert_eq!(state.selection.len(), 0);
+}
+
+#[test]
+fn project_removal_prunes_selection_and_exits_empty_mode() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection_mode = true;
+    state.selection.selected_ids.insert(project.id.clone());
+    state.selection.anchor_id = Some(project.id.clone());
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::RemoveProjectConfirmed(project.id)),
+    );
+
+    assert!(!state.selection_mode);
+    assert_eq!(state.selection.len(), 0);
+    assert!(state.selection.anchor_id.is_none());
+}
+
+#[test]
+fn bulk_fetch_uses_dashboard_selection_exactly() {
+    let mut state = make_state();
+    let selected = make_project("selected");
+    let other = make_project("other");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![selected.clone(), other.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection_mode = true;
+    state.selection.selected_ids.insert(selected.id.clone());
+    state.sync.project_selection.insert(other.id.clone(), true);
+
+    dispatch(&mut state, Message::Sync(SyncMessage::BulkFetchRequested));
+
+    assert!(state.sync.selected_project_ids.contains(&selected.id));
+    assert!(!state.sync.selected_project_ids.contains(&other.id));
+    assert_eq!(state.sync.project_selection.get(&selected.id), Some(&true));
+    assert_eq!(state.sync.project_selection.get(&other.id), Some(&false));
+    let SyncPhase::FetchRunning { total, done, .. } = &state.sync.phase else {
+        panic!("expected selected-project fetch to start");
+    };
+    assert_eq!((*total, *done), (1, 0));
+}
+
+#[test]
+fn bulk_fetch_empty_dashboard_selection_does_not_start() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection_mode = true;
+
+    dispatch(&mut state, Message::Sync(SyncMessage::BulkFetchRequested));
+
+    assert!(matches!(state.sync.phase, SyncPhase::Idle));
+}
+
+#[test]
+fn context_bulk_open_uses_exactly_one_selected_project() {
+    let mut state = make_state();
+    let selected = make_project("selected");
+    let other = make_project("other");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![selected.clone(), other],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection_mode = true;
+    state.selection.selected_ids.insert(selected.id.clone());
+
+    dispatch(
+        &mut state,
+        Message::Context(ContextMessage::BulkOpenRequested),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::Switch));
+    assert!(matches!(
+        &state.context_ops.phase,
+        ContextPhase::LoadingList(project_id) if project_id == &selected.id
+    ));
+}
+
+#[test]
+fn context_bulk_open_rejects_multiple_selected_projects() {
+    let mut state = make_state();
+    let first = make_project("first");
+    let second = make_project("second");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![first.clone(), second.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection_mode = true;
+    state.selection.selected_ids.insert(first.id);
+    state.selection.selected_ids.insert(second.id);
+
+    dispatch(
+        &mut state,
+        Message::Context(ContextMessage::BulkOpenRequested),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::None));
+    assert!(matches!(state.context_ops.phase, ContextPhase::Idle));
 }
 
 #[test]

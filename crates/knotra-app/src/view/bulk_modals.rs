@@ -194,7 +194,7 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
         }
 
         // ── Step 2: In progress ───────────────────────────────────────────
-        SyncPhase::FetchRunning { done, total } => {
+        SyncPhase::FetchRunning { done, total, .. } => {
             let progress_text = format!(
                 "{} — {} {} {}",
                 state.t("plain.get_latest.working"),
@@ -782,6 +782,82 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
             column![field, footer].spacing(14).into()
         }
 
+        ContextPhase::LoadingList(_) => column![
+            text(state.t("plain.status.checking")).size(FONT_BODY),
+            text(state.t("plain.switch.loading_hint")).size(FONT_SMALL),
+        ]
+        .spacing(8)
+        .into(),
+
+        ContextPhase::BrowsingList { .. } => {
+            let field = guided_field_focused(
+                state.t("plain.switch.target_label"),
+                state.t("plain.switch.target_hint"),
+                &ctx.target_context,
+                |s| Message::Context(ContextMessage::TargetChanged(s)),
+                None,
+                knotra_ui::widget::focus_id::SWITCH_TARGET.clone(),
+            );
+
+            let switch_reason: Option<&str> = if ctx.target_context.trim().is_empty() {
+                Some(state.t("plain.switch.reason_empty"))
+            } else {
+                None
+            };
+
+            let footer = row![
+                guided_button(
+                    state.t("plain.change_work_area"),
+                    (!ctx.target_context.trim().is_empty())
+                        .then_some(Message::Context(ContextMessage::BulkSwitchRequested)),
+                    switch_reason,
+                ),
+                Space::new().width(Length::Fill),
+                button(text(state.t("action.cancel")).size(FONT_BODY))
+                    .height(BUTTON_HEIGHT)
+                    .padding([0, 18])
+                    .on_press(Message::Context(ContextMessage::BulkModalClosed)),
+            ]
+            .align_y(Alignment::Center);
+
+            column![field, footer].spacing(14).into()
+        }
+
+        ContextPhase::ConfirmSwitch {
+            project_name,
+            target,
+            is_dirty,
+            ..
+        } => {
+            let caution = if *is_dirty {
+                state.t("plain.switch.dirty_hint")
+            } else {
+                state.t("plain.no_next_step")
+            };
+            let footer = row![
+                guided_button(
+                    state.t("plain.change_work_area"),
+                    Some(Message::Context(ContextMessage::SwitchConfirmed)),
+                    None,
+                ),
+                Space::new().width(Length::Fill),
+                button(text(state.t("action.cancel")).size(FONT_BODY))
+                    .height(BUTTON_HEIGHT)
+                    .padding([0, 18])
+                    .on_press(Message::Context(ContextMessage::SwitchCancelled)),
+            ]
+            .align_y(Alignment::Center);
+
+            column![
+                text(project_name).size(FONT_BODY),
+                text(target).size(FONT_BODY),
+                text(caution).size(FONT_SMALL),
+                footer,
+            ]
+            .spacing(12)
+            .into()
+        }
+
         ContextPhase::Switching { .. } => {
             text(state.t("plain.switch.working")).size(FONT_BODY).into()
         }
@@ -832,8 +908,6 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
             column![detail_col, footer].spacing(12).into()
         }
-
-        _ => Space::new().into(),
     };
 
     modal_shell(

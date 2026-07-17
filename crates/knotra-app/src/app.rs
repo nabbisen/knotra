@@ -257,6 +257,8 @@ fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
         state.active_modal = crate::state::ActiveModal::None;
     } else if state.confirm_remove_dialog.is_some() {
         state.confirm_remove_dialog = None;
+    } else if state.selection_mode {
+        state.clear_selection_mode();
     }
     Task::none()
 }
@@ -416,6 +418,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 ws_status.projects.retain(|s| s.project_id != id);
             }
             state.fetching_projects.remove(&id);
+            state.prune_selection_to_active_workspace();
 
             // Store undo opportunity. Cleared by next user action or explicit dismiss.
             if let Some(project) = removed_project {
@@ -493,6 +496,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             state.all_workspaces.push(ws);
             state.active_workspace_idx = state.all_workspaces.len().saturating_sub(1);
             state.workspace = state.all_workspaces.last().cloned();
+            state.clear_selection_mode();
             state.workspace_status = None;
             state.load_phase = LoadPhase::Refreshing;
             state.is_refreshing = true;
@@ -632,6 +636,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 .all_workspaces
                 .get(state.active_workspace_idx)
                 .cloned();
+            state.clear_selection_mode();
             state.workspace_status = None;
             let active_ids: Vec<knotra_vcs::ProjectId> = state
                 .workspace
@@ -653,6 +658,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             if let Some(idx) = state.all_workspaces.iter().position(|ws| ws.id == id) {
                 state.active_workspace_idx = idx;
                 state.workspace = state.all_workspaces.get(idx).cloned();
+                state.clear_selection_mode();
                 // Prune stale FsPoller snapshots from the previous workspace.
                 let active_ids: Vec<knotra_vcs::ProjectId> = state
                     .workspace
@@ -773,20 +779,81 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             }
         }
         SyncMessage::BulkFetchRequested => {
-            let ids = state.sync.selected_ids();
-            let projects: Vec<_> = state
+            let (ids, fetchable_ids): (Vec<_>, Vec<_>) = if state.selection_mode {
+                let summary = state.selection_summary();
+                state.sync.selected_project_ids = summary.selected_ids.iter().cloned().collect();
+                if let Some(ws) = &state.workspace {
+                    state
+                        .sync
+                        .set_selection(ws.projects.as_slice(), &state.selection.selected_ids);
+                }
+                (summary.selected_ids, summary.fetchable_ids)
+            } else {
+                let ids = state.sync.selected_ids();
+                let fetchable_ids = ids
+                    .iter()
+                    .filter(|id| !state.missing_projects.contains(*id))
+                    .cloned()
+                    .collect();
+                (ids, fetchable_ids)
+            };
+            if ids.is_empty() {
+                return Task::none();
+            }
+
+            let project_map: std::collections::HashMap<_, _> = state
                 .workspace
                 .as_ref()
                 .map(|ws| {
                     ws.projects
                         .iter()
-                        .filter(|p| ids.contains(&p.id))
-                        .cloned()
+                        .map(|p| (p.id.clone(), p.clone()))
                         .collect()
                 })
                 .unwrap_or_default();
-            let total = projects.len();
-            state.sync.phase = SyncPhase::FetchRunning { total, done: 0 };
+
+            let mut skipped = Vec::new();
+            let projects: Vec<_> = fetchable_ids
+                .iter()
+                .filter_map(|id| project_map.get(id).cloned())
+                .collect();
+            for id in ids {
+                if !project_map.contains_key(&id) || state.missing_projects.contains(&id) {
+                    let project_name = project_map
+                        .get(&id)
+                        .map(|project| project.name.clone())
+                        .unwrap_or_else(|| state.t("plain.project").to_owned());
+                    skipped.push(ProjectOutcome {
+                        project_id: id,
+                        project_name,
+                        outcome: ProjectOperationOutcome::Skipped,
+                        success: true,
+                        skip_reason: Some(state.t("plain.fetch.skipped_unavailable").to_owned()),
+                        commands_executed: Vec::new(),
+                        stdout: String::new(),
+                        stderr: String::new(),
+                        log_expanded: false,
+                    });
+                }
+            }
+            let total = projects.len() + skipped.len();
+            if total == 0 {
+                return Task::none();
+            }
+            let done = skipped.len();
+            if projects.is_empty() {
+                state.sync.phase = SyncPhase::Done(SyncResult {
+                    kind: SyncKind::Fetch,
+                    per_project: skipped,
+                    recovery_hints: Vec::new(),
+                });
+                return Task::none();
+            }
+            state.sync.phase = SyncPhase::FetchRunning {
+                total,
+                done,
+                completed: skipped,
+            };
 
             let _max = state.config.max_concurrent_reads;
 
@@ -1022,13 +1089,15 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             let mut completed_log: Option<OperationLog> = None;
 
             match &mut state.sync.phase {
-                SyncPhase::FetchRunning { done, total } => {
+                SyncPhase::FetchRunning {
+                    done,
+                    total,
+                    completed,
+                } => {
                     *done += 1;
                     let done_val = *done;
                     let total_val = *total;
 
-                    // Accumulate into a temporary vec using the Done phase.
-                    // We check completion after updating.
                     let outcome = ProjectOutcome {
                         project_id: progress.project_id.clone(),
                         project_name: progress.project_name.clone(),
@@ -1040,16 +1109,13 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                         stderr: progress.result.stderr.clone(),
                         log_expanded: false,
                     };
+                    completed.push(outcome);
 
-                    // Store partial results in a transient Done or accumulate in running.
-                    // For simplicity, switch to Done when all projects report.
-                    // We keep a partial results list in the Fetch case.
-                    // Switch to Done phase temporarily when all are in.
                     if done_val >= total_val {
-                        // All done — we need the full list. Rebuild from log.
+                        let per_project = completed.clone();
                         state.sync.phase = SyncPhase::Done(SyncResult {
                             kind: SyncKind::Fetch,
-                            per_project: vec![outcome],
+                            per_project,
                             recovery_hints: vec![],
                         });
                         // Trigger status refresh.
@@ -1057,10 +1123,6 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                         state.load_phase = LoadPhase::Refreshing;
                         return refresh_workspace_task(state);
                     }
-                    // Still running — accumulate into a temporary SyncResult in Done.
-                    // Replace with accumulation pattern.
-                    // (This rebuilds to avoid borrow issues.)
-                    let _ = outcome; // handled per-project in Done transition
                 }
                 SyncPhase::PullRunning {
                     plan,
@@ -1626,7 +1688,9 @@ fn refresh_workspace_task(state: &AppState) -> Task<Message> {
 fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
     match msg {
         ContextMessage::OpenRequested(preselect_id) => {
+            state.active_modal = crate::state::ActiveModal::Switch;
             state.context_ops.phase = ContextPhase::Idle;
+            state.context_ops.target_context = String::new();
 
             // If a project was pre-selected (e.g. from a dashboard card shortcut), load it.
             if let Some(id) = preselect_id
@@ -1765,13 +1829,33 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
             Task::none()
         }
         ContextMessage::BulkOpenRequested => {
+            let selected = state.selection_summary().selected_ids;
+            let Some(project_id) = selected.first().cloned().filter(|_| selected.len() == 1) else {
+                return Task::none();
+            };
+            let Some(project) = find_project(state, &project_id) else {
+                return Task::none();
+            };
             state.active_modal = crate::state::ActiveModal::Switch;
             state.context_ops.target_context = String::new();
-            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::SWITCH_TARGET)
+            state.context_ops.phase = ContextPhase::LoadingList(project_id);
+            Task::perform(
+                async move { VcsAdapter::list_contexts(&project).await },
+                |list| Message::Background(BackgroundMessage::ContextListLoaded(list)),
+            )
         }
         ContextMessage::BulkSwitchRequested => {
-            state.active_modal = crate::state::ActiveModal::None;
-            Task::none()
+            let project_id = match &state.context_ops.phase {
+                ContextPhase::BrowsingList { project_id, .. } => project_id.clone(),
+                _ => return Task::none(),
+            };
+            let target = state.context_ops.target_context.trim().to_owned();
+            if target.is_empty() {
+                return Task::none();
+            }
+            Task::done(Message::Context(ContextMessage::SwitchTargetChosen(
+                project_id, target,
+            )))
         }
         ContextMessage::BulkModalClosed => {
             state.active_modal = crate::state::ActiveModal::None;
@@ -2481,31 +2565,33 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
 // ---------------------------------------------------------------------------
 
 fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> Task<Message> {
-    let ordered: Vec<knotra_vcs::ProjectId> = state
-        .workspace
-        .as_ref()
-        .map(|ws| ws.projects.iter().map(|p| p.id.clone()).collect())
-        .unwrap_or_default();
+    let ordered: Vec<knotra_vcs::ProjectId> = state.visible_project_ids();
 
     match msg {
         SelectionMessage::ModeEntered => state.selection_mode = true,
-        SelectionMessage::ModeExited => {
-            state.selection_mode = false;
-            state.selection.clear();
-        }
+        SelectionMessage::ModeExited => state.clear_selection_mode(),
         SelectionMessage::Toggled(id) => {
+            let active_ids: std::collections::HashSet<_> = ordered.iter().cloned().collect();
+            if !active_ids.contains(&id) {
+                return Task::none();
+            }
             state.selection_mode = true; // selecting anything enters mode
             state.selection.toggle(id);
         }
-        SelectionMessage::RangeTo(id) => state.selection.select_range(&ordered, &id),
+        SelectionMessage::RangeTo(id) => {
+            if !ordered.contains(&id) {
+                return Task::none();
+            }
+            state.selection_mode = true;
+            state.selection.select_range(&ordered, &id);
+        }
         SelectionMessage::SelectAll => {
             state.selection_mode = true;
-            state.selection.select_all(&ordered);
-        }
-        SelectionMessage::Clear => {
+            let ids = state.visible_project_ids();
             state.selection.clear();
-            state.selection_mode = false; // clearing exits mode
+            state.selection.select_all(&ids);
         }
+        SelectionMessage::Clear => state.clear_selection_mode(),
         SelectionMessage::FocusMoved(_) => {} // focus tracking only
     }
     Task::none()

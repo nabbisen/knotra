@@ -17,7 +17,7 @@ const ACTIONS: &[(&str, &str)] = &[
     ("Remove project from workspace", "action.remove_project"),
     ("Create new workspace", "action.workspace_create"),
     ("Switch to next workspace", "action.workspace_next"),
-    ("Select all projects", "action.select_all"),
+    ("Select visible projects", "action.select_all"),
     ("Clear selection", "action.selection_clear"),
     ("Open Settings", "action.settings_open"),
     ("Open History", "action.history_open"),

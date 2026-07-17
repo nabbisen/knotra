@@ -9,7 +9,7 @@ use iced::{
     widget::{Space, button, container, row, text},
 };
 
-use knotra_ui::widget::BUTTON_HEIGHT;
+use knotra_ui::widget::{BUTTON_HEIGHT, guided_button};
 
 use crate::{
     message::{
@@ -24,41 +24,63 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         return None;
     }
 
-    let count = state.selection.len();
-    let label = format!("✓  {}  selected", count);
-
-    // Determine which buttons are applicable.
-    let has_upstream = state
-        .workspace_status
-        .as_ref()
-        .map(|ws| {
-            ws.projects
-                .iter()
-                .any(|ps| state.selection.contains(&ps.project_id) && ps.remote.upstream.is_some())
-        })
-        .unwrap_or(false);
+    let summary = state.selection_summary();
+    let count = summary.selected_count;
+    let label = if count == 0 {
+        state.t("plain.selection.none").to_owned()
+    } else {
+        format!(
+            "✓  {}  {}",
+            count,
+            state.t("plain.selection.selected_suffix")
+        )
+    };
 
     // Plain-language, goal-oriented labels. Expert terms (Fetch / Pull / Tag /
     // Switch) remain available behind "Show details" in result views.
-    let fetch_btn = button(text(format!("⤓  {}", state.t("plain.check_for_updates"))).size(13))
-        .height(BUTTON_HEIGHT)
-        .on_press(Message::Sync(SyncMessage::BulkFetchRequested));
+    let choose_reason = state.t("plain.disabled.choose_one");
+    let fetch_msg = (count > 0 && !summary.fetchable_ids.is_empty())
+        .then_some(Message::Sync(SyncMessage::BulkFetchRequested));
+    let fetch_reason = if count == 0 {
+        Some(choose_reason)
+    } else if summary.fetchable_ids.is_empty() {
+        Some(state.t("plain.selection.none_fetchable"))
+    } else {
+        None
+    };
+    let fetch_btn = guided_button(state.t("plain.check_for_updates"), fetch_msg, fetch_reason);
 
-    let pull_btn = button(text(format!("⤒  {}", state.t("plain.get_latest"))).size(13))
-        .height(BUTTON_HEIGHT)
-        .on_press_maybe(if has_upstream {
-            Some(Message::Sync(SyncMessage::BulkPullRequested))
+    let pull_reason = if count == 0 {
+        Some(choose_reason)
+    } else if !summary.has_upstream {
+        Some(state.t("plain.disabled.no_upstream"))
+    } else {
+        None
+    };
+    let pull_btn = guided_button(
+        state.t("plain.get_latest"),
+        (count > 0 && summary.has_upstream)
+            .then_some(Message::Sync(SyncMessage::BulkPullRequested)),
+        pull_reason,
+    );
+
+    let tag_btn = guided_button(
+        state.t("plain.save_release_point"),
+        (count > 0).then_some(Message::Freezer(FreezerMessage::BulkOpenRequested)),
+        (count == 0).then_some(choose_reason),
+    );
+
+    let switch_btn = guided_button(
+        state.t("plain.change_work_area"),
+        (count == 1).then_some(Message::Context(ContextMessage::BulkOpenRequested)),
+        if count == 0 {
+            Some(choose_reason)
+        } else if count > 1 {
+            Some(state.t("plain.selection.choose_one_work_area"))
         } else {
             None
-        });
-
-    let tag_btn = button(text(format!("⊘  {}", state.t("plain.save_release_point"))).size(13))
-        .height(BUTTON_HEIGHT)
-        .on_press(Message::Freezer(FreezerMessage::BulkOpenRequested));
-
-    let switch_btn = button(text(format!("⇄  {}", state.t("plain.change_work_area"))).size(13))
-        .height(BUTTON_HEIGHT)
-        .on_press(Message::Context(ContextMessage::BulkOpenRequested));
+        },
+    );
 
     let clear_btn = button(text(state.t("plain.exit_selection")).size(13))
         .height(BUTTON_HEIGHT)

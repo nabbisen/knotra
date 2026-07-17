@@ -140,12 +140,27 @@ fn view_toolbar(state: &AppState) -> Element<'_, Message> {
     // Group selector placeholder (full picker in Phase 6).
     let group_btn = button(text(state.t("dashboard.group_by")));
 
+    let summary = state.selection_summary();
+    let select_btn: Element<'_, Message> = if summary.visible_ids.is_empty() {
+        knotra_ui::widget::guided_button(
+            state.t("plain.selection.enter"),
+            None,
+            Some(state.t("plain.selection.no_visible_projects")),
+        )
+    } else {
+        button(text(state.t("plain.selection.enter")).size(13))
+            .height(BUTTON_HEIGHT)
+            .on_press(Message::Selection(SelectionMessage::ModeEntered))
+            .into()
+    };
+
     let mut toolbar_row = row![chips].spacing(6).align_y(Alignment::Center);
     if let Some(btn) = clear_btn {
         toolbar_row = toolbar_row.push(btn);
     }
     toolbar_row = toolbar_row
         .push(Space::new().width(Length::Fill))
+        .push(select_btn)
         .push(group_btn)
         .push(search);
 
@@ -401,25 +416,26 @@ fn view_project_card<'a>(
 
     let is_fetching = state.fetching_projects.contains(&project.id);
 
-    // Header row: checkbox | name  |  VCS badge
-    let is_selected = state.selection.contains(&project.id);
-    let checkbox_label = if is_selected { "☑" } else { "☐" };
-    let select_btn = button(text(checkbox_label).size(13)).on_press(Message::Selection(
-        SelectionMessage::Toggled(project.id.clone()),
-    ));
-
     // Clicking the name opens the detail panel (RFC-0014)
     let name_btn = button(text(project.name.clone()).size(14)).on_press(Message::DetailPanel(
         DetailPanelMessage::Opened(project.id.clone()),
     ));
 
-    let header_row = row![
-        select_btn,
-        name_btn,
-        Space::new().width(Length::Fill),
-        text(vcs_label).size(11),
-    ]
-    .align_y(Alignment::Center);
+    let mut header_row = row![].align_y(Alignment::Center);
+    if state.selection_mode {
+        let is_selected = state.selection.contains(&project.id);
+        let checkbox_label = if is_selected { "☑" } else { "☐" };
+        let select_btn = button(text(checkbox_label).size(13))
+            .width(Length::Fixed(32.0))
+            .on_press(Message::Selection(SelectionMessage::Toggled(
+                project.id.clone(),
+            )));
+        header_row = header_row.push(select_btn);
+    }
+    let header_row = header_row
+        .push(name_btn)
+        .push(Space::new().width(Length::Fill))
+        .push(text(vcs_label).size(11));
 
     // Status badge + context
     let status_row = row![

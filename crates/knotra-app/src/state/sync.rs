@@ -19,7 +19,11 @@ pub enum SyncPhase {
     #[default]
     Idle,
     /// A bulk fetch is running.
-    FetchRunning { total: usize, done: usize },
+    FetchRunning {
+        total: usize,
+        done: usize,
+        completed: Vec<ProjectOutcome>,
+    },
     /// Computing the Smart Pull plan (checking dirty states).
     Planning,
     /// Plan ready — awaiting user confirmation.

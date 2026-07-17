@@ -171,6 +171,26 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.show_details", "Show details");
     m.insert("plain.hide_details", "Hide details");
     m.insert("plain.exit_selection", "Exit selection");
+    m.insert("plain.selection.enter", "Select");
+    m.insert("plain.select_visible_projects", "Select visible projects");
+    m.insert("plain.selection.none", "No projects selected");
+    m.insert("plain.selection.selected_suffix", "selected");
+    m.insert(
+        "plain.selection.no_visible_projects",
+        "No projects match this view.",
+    );
+    m.insert(
+        "plain.selection.none_fetchable",
+        "None of the selected projects can be checked right now.",
+    );
+    m.insert(
+        "plain.selection.choose_one_work_area",
+        "Choose one project to change work area.",
+    );
+    m.insert(
+        "plain.fetch.skipped_unavailable",
+        "This project cannot be checked right now.",
+    );
 
     m.insert("plain.status.all_set", "All set");
     m.insert("plain.status.unsaved_work", "Unsaved work");
@@ -334,6 +354,14 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // Change work area (Context Switch)
     m.insert("plain.switch.target_label", "Work area to switch to");
     m.insert("plain.switch.target_hint", "feature-x");
+    m.insert(
+        "plain.switch.loading_hint",
+        "Choose where this project should go.",
+    );
+    m.insert(
+        "plain.switch.dirty_hint",
+        "This project has unsaved work. Check it before changing work area.",
+    );
     m.insert(
         "plain.switch.reason_empty",
         "Enter the name of the work area to switch to.",
@@ -664,6 +692,29 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.show_details", "詳細を表示");
     m.insert("plain.hide_details", "詳細を隠す");
     m.insert("plain.exit_selection", "選択を終了");
+    m.insert("plain.selection.enter", "選択");
+    m.insert(
+        "plain.select_visible_projects",
+        "表示中のプロジェクトを選択",
+    );
+    m.insert("plain.selection.none", "プロジェクトが選択されていません");
+    m.insert("plain.selection.selected_suffix", "件選択中");
+    m.insert(
+        "plain.selection.no_visible_projects",
+        "この表示に一致するプロジェクトがありません。",
+    );
+    m.insert(
+        "plain.selection.none_fetchable",
+        "選択したプロジェクトは今は確認できません。",
+    );
+    m.insert(
+        "plain.selection.choose_one_work_area",
+        "作業エリアを変更するプロジェクトを1つ選んでください。",
+    );
+    m.insert(
+        "plain.fetch.skipped_unavailable",
+        "このプロジェクトは今は確認できません。",
+    );
 
     m.insert("plain.status.all_set", "問題なし");
     m.insert("plain.status.unsaved_work", "未保存の作業");
@@ -842,6 +893,14 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     // Change work area
     m.insert("plain.switch.target_label", "切り替え先の作業エリア");
     m.insert("plain.switch.target_hint", "feature-x");
+    m.insert(
+        "plain.switch.loading_hint",
+        "このプロジェクトの切り替え先を選んでください。",
+    );
+    m.insert(
+        "plain.switch.dirty_hint",
+        "このプロジェクトには未保存の作業があります。作業エリアを変更する前に確認してください。",
+    );
     m.insert(
         "plain.switch.reason_empty",
         "切り替え先の作業エリア名を入力してください。",

@@ -164,6 +164,11 @@ impl SelectionState {
     pub fn toggle(&mut self, id: knotra_vcs::ProjectId) {
         if self.selected_ids.contains(&id) {
             self.selected_ids.remove(&id);
+            if self.selected_ids.is_empty() {
+                self.anchor_id = None;
+            } else if self.anchor_id.as_ref() == Some(&id) {
+                self.anchor_id = self.selected_ids.iter().next().cloned();
+            }
         } else {
             self.selected_ids.insert(id.clone());
             self.anchor_id = Some(id);
@@ -192,6 +197,7 @@ impl SelectionState {
     pub fn is_empty(&self) -> bool {
         self.selected_ids.is_empty()
     }
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.selected_ids.len()
     }
@@ -204,7 +210,33 @@ impl SelectionState {
         for id in ids {
             self.selected_ids.insert(id.clone());
         }
+        if self.anchor_id.is_none() {
+            self.anchor_id = ids.first().cloned();
+        }
     }
+
+    pub fn retain_ids(&mut self, ids: &HashSet<knotra_vcs::ProjectId>) {
+        self.selected_ids.retain(|id| ids.contains(id));
+        if self
+            .anchor_id
+            .as_ref()
+            .is_some_and(|anchor| !self.selected_ids.contains(anchor))
+        {
+            self.anchor_id = self.selected_ids.iter().next().cloned();
+        }
+        if self.selected_ids.is_empty() {
+            self.anchor_id = None;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SelectionSummary {
+    pub selected_count: usize,
+    pub selected_ids: Vec<knotra_vcs::ProjectId>,
+    pub visible_ids: Vec<knotra_vcs::ProjectId>,
+    pub fetchable_ids: Vec<knotra_vcs::ProjectId>,
+    pub has_upstream: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -534,6 +566,92 @@ impl AppState {
             }
             FilterMessage::AllFiltersCleared => self.filter = FilterState::default(),
         }
+    }
+
+    pub fn visible_project_ids(&self) -> Vec<knotra_vcs::ProjectId> {
+        let projects = self
+            .workspace
+            .as_ref()
+            .map(|ws| ws.projects.as_slice())
+            .unwrap_or(&[]);
+        crate::state::dashboard::build_display_groups(
+            projects,
+            self.workspace_status.as_ref(),
+            &self.filter,
+        )
+        .into_iter()
+        .flat_map(|group| {
+            group
+                .entries
+                .into_iter()
+                .map(|entry| entry.project.id.clone())
+                .collect::<Vec<_>>()
+        })
+        .collect()
+    }
+
+    pub fn selection_summary(&self) -> SelectionSummary {
+        let active_ids: HashSet<_> = self
+            .workspace
+            .as_ref()
+            .map(|ws| {
+                ws.projects
+                    .iter()
+                    .map(|project| project.id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let selected_ids: Vec<_> = self
+            .selection
+            .selected_ids
+            .iter()
+            .filter(|id| active_ids.contains(*id))
+            .cloned()
+            .collect();
+
+        let fetchable_ids: Vec<_> = selected_ids
+            .iter()
+            .filter(|id| !self.missing_projects.contains(*id))
+            .cloned()
+            .collect();
+
+        let has_upstream = self.workspace_status.as_ref().is_some_and(|status| {
+            status.projects.iter().any(|project_status| {
+                selected_ids.contains(&project_status.project_id)
+                    && project_status.remote.upstream.is_some()
+                    && !self.missing_projects.contains(&project_status.project_id)
+            })
+        });
+
+        SelectionSummary {
+            selected_count: selected_ids.len(),
+            selected_ids,
+            visible_ids: self.visible_project_ids(),
+            fetchable_ids,
+            has_upstream,
+        }
+    }
+
+    pub fn prune_selection_to_active_workspace(&mut self) {
+        let active_ids: HashSet<_> = self
+            .workspace
+            .as_ref()
+            .map(|ws| {
+                ws.projects
+                    .iter()
+                    .map(|project| project.id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.selection.retain_ids(&active_ids);
+        if self.selection.selected_ids.is_empty() {
+            self.selection_mode = false;
+        }
+    }
+
+    pub fn clear_selection_mode(&mut self) {
+        self.selection.clear();
+        self.selection_mode = false;
     }
 
     #[allow(dead_code)]
