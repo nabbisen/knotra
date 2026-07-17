@@ -25,6 +25,7 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [029](./proposed/029-typed-context-switching-and-context-switch-modal-completion.md) | Typed context switching and context switch modal completion | Production Readiness Reset | High |
 
 ---
 
