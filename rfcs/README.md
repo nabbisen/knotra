@@ -25,6 +25,7 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [031](./proposed/031-activity-retry-semantics.md) | Activity retry semantics | Production Readiness Reset | High |
 
 ---
 
