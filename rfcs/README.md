@@ -37,7 +37,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
-| [029](./done/029-typed-context-switching-and-context-switch-modal-completion.md) | Typed context switching and context switch modal completion | working tree; pending commit |
+| [029](./done/029-typed-context-switching-and-context-switch-modal-completion.md) | Typed context switching and context switch modal completion | main: 9821bef |
 | [028](./done/028-command-palette-action-completion.md) | Command palette action completion | main: 3699bad |
 | [027](./done/027-selection-mode-and-bulk-selection-completion.md) | Selection mode and bulk-selection completion | main: 0fd1e22 |
 | [026](./done/026-conflict-resolution-action-completion-and-editor-launch-hardening.md) | Conflict Resolution Action Completion and Editor-Launch Hardening | main: 1cde97d |

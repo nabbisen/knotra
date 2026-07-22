@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (working tree; pending commit) |
+| Status | Implemented (main: 9821bef) |
 | Priority | High - context switching is a visible mutating workflow and current target handling can switch the wrong kind of Git ref |
 | Effort | Medium |
 | Target | Production Readiness Reset |
