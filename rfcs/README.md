@@ -25,7 +25,6 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [031](./proposed/031-activity-retry-semantics.md) | Activity retry semantics | Production Readiness Reset | High |
 
 ---
 
@@ -38,6 +37,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [031](./done/031-activity-retry-semantics.md) | Activity retry semantics | working tree; pending commit |
 | [030](./done/030-changelog-modal-completion.md) | Changelog modal completion | main: f22dc5e |
 | [029](./done/029-typed-context-switching-and-context-switch-modal-completion.md) | Typed context switching and context switch modal completion | main: 9821bef |
 | [028](./done/028-command-palette-action-completion.md) | Command palette action completion | main: 3699bad |

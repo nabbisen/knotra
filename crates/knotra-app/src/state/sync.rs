@@ -1,12 +1,27 @@
 //! Sync Center UI state.
 
 use knotra_vcs::{
-    ProjectId, WorkspaceStatus,
+    OperationId, ProjectId, WorkspaceId, WorkspaceStatus,
     model::operation::{
         ProjectOperationOutcome, RecoveryHint, SmartPullDisposition, SmartPullPlan,
         SmartPullPlanEntry, SmartPullProgress, SmartPullSkipReason,
     },
 };
+
+use super::{OperationLeaseId, RetryExclusion};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RetryPreparationId(pub u64);
+
+#[derive(Debug, Clone)]
+pub struct SmartPullRetryPreparation {
+    pub id: RetryPreparationId,
+    pub workspace_id: WorkspaceId,
+    pub source_operation_id: OperationId,
+    pub lease_id: OperationLeaseId,
+    pub eligible_ids: Vec<ProjectId>,
+    pub exclusions: Vec<RetryExclusion>,
+}
 
 // ---------------------------------------------------------------------------
 // Sync Center phase
@@ -20,17 +35,26 @@ pub enum SyncPhase {
     Idle,
     /// A bulk fetch is running.
     FetchRunning {
+        operation_id: OperationId,
+        lease_id: OperationLeaseId,
+        started_at: chrono::DateTime<chrono::Utc>,
         total: usize,
         done: usize,
         completed: Vec<ProjectOutcome>,
+        operation_results: Vec<knotra_vcs::model::operation::ProjectOperationResult>,
     },
     /// Computing the Smart Pull plan (checking dirty states).
     Planning,
+    /// Refreshing current status for a correlated Activity retry review.
+    RetryPreparing,
+    /// Retry status collection failed for every eligible project.
+    RetryPreparationFailed,
     /// Plan ready — awaiting user confirmation.
     AwaitingConfirm(#[allow(dead_code)] SmartPullPlan),
     /// Smart Pull in progress — collecting streaming results.
     PullRunning {
         plan: SmartPullPlan,
+        lease_id: OperationLeaseId,
         started_at: chrono::DateTime<chrono::Utc>,
         completed: Vec<SmartPullProgress>,
     },
@@ -105,9 +129,17 @@ pub struct SyncCenterState {
     pub phase: SyncPhase,
     /// RFC-0009: project ids pre-populated from dashboard selection.
     pub selected_project_ids: std::collections::HashSet<knotra_vcs::ProjectId>,
+    pub retry_preparation: Option<SmartPullRetryPreparation>,
+    pub retry_exclusions: Vec<RetryExclusion>,
+    next_retry_preparation_id: u64,
 }
 
 impl SyncCenterState {
+    pub fn next_retry_preparation_id(&mut self) -> RetryPreparationId {
+        self.next_retry_preparation_id = self.next_retry_preparation_id.wrapping_add(1).max(1);
+        RetryPreparationId(self.next_retry_preparation_id)
+    }
+
     /// Initialise selection from workspace projects (all included by default).
     pub fn init_selection(&mut self, projects: &[knotra_vcs::Project]) {
         for p in projects {

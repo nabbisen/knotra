@@ -129,6 +129,64 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("action.retry", "Retry");
     m.insert("action.copy_log", "Copy Log");
     m.insert("action.close", "Close");
+    m.insert("plain.activity.details", "Details");
+    m.insert("plain.activity.succeeded", "succeeded");
+    m.insert("plain.activity.failed", "failed");
+    m.insert("plain.activity.skipped", "skipped");
+    m.insert("plain.activity.retry_failed_fetches", "Retry failed checks");
+    m.insert("plain.activity.review_retry", "Review retry");
+    m.insert(
+        "plain.activity.busy",
+        "Wait for the current operation to finish.",
+    );
+    m.insert(
+        "plain.activity.none_available",
+        "These projects are no longer available in this workspace.",
+    );
+    m.insert("plain.activity.retrying_fetch", "Retrying failed checks");
+    m.insert(
+        "plain.activity.retry_context_again",
+        "Open Change work area again.",
+    );
+    m.insert(
+        "plain.activity.retry_freeze_again",
+        "Validate the release point again.",
+    );
+    m.insert(
+        "plain.activity.retry_refresh_again",
+        "Use Refresh to check again.",
+    );
+    m.insert(
+        "plain.activity.log_save_failed",
+        "The result is visible, but History could not be saved.",
+    );
+    m.insert(
+        "plain.activity.excluded_workspace",
+        "Not in the active workspace",
+    );
+    m.insert(
+        "plain.activity.excluded_missing",
+        "Project folder is missing",
+    );
+    m.insert(
+        "plain.activity.excluded_unsupported",
+        "Not a supported repository",
+    );
+    m.insert("plain.activity.excluded_status", "Status is unavailable");
+    m.insert("plain.activity.kind_refresh", "Refresh");
+    m.insert("plain.activity.kind_fetch", "Check for updates");
+    m.insert("plain.activity.kind_smart_pull", "Get latest");
+    m.insert("plain.activity.kind_context_switch", "Change work area");
+    m.insert("plain.activity.kind_freeze", "Record release point");
+    m.insert("plain.activity.kind_freeze_rollback", "Undo release point");
+    m.insert(
+        "plain.activity.retry_preparing",
+        "Refreshing project status for retry...",
+    );
+    m.insert(
+        "plain.activity.retry_prepare_failed",
+        "Could not refresh project status.",
+    );
     // Keyboard shortcuts hint
     m.insert("shortcut.refresh", "Ctrl+R  Refresh");
     m.insert("shortcut.context", "Ctrl+K  Context");
@@ -735,6 +793,70 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("action.retry", "再試行");
     m.insert("action.copy_log", "ログをコピー");
     m.insert("action.close", "閉じる");
+    m.insert("plain.activity.details", "詳細");
+    m.insert("plain.activity.succeeded", "成功");
+    m.insert("plain.activity.failed", "失敗");
+    m.insert("plain.activity.skipped", "対象外");
+    m.insert(
+        "plain.activity.retry_failed_fetches",
+        "失敗した取得を再試行",
+    );
+    m.insert("plain.activity.review_retry", "再試行を確認");
+    m.insert(
+        "plain.activity.busy",
+        "現在の操作が完了するまでお待ちください。",
+    );
+    m.insert(
+        "plain.activity.none_available",
+        "これらのプロジェクトは現在のワークスペースで利用できません。",
+    );
+    m.insert("plain.activity.retrying_fetch", "失敗した取得を再試行中");
+    m.insert(
+        "plain.activity.retry_context_again",
+        "作業場所の変更をもう一度開いてください。",
+    );
+    m.insert(
+        "plain.activity.retry_freeze_again",
+        "リリースポイントをもう一度検証してください。",
+    );
+    m.insert(
+        "plain.activity.retry_refresh_again",
+        "更新を使ってもう一度確認してください。",
+    );
+    m.insert(
+        "plain.activity.log_save_failed",
+        "結果は表示されていますが、履歴を保存できませんでした。",
+    );
+    m.insert(
+        "plain.activity.excluded_workspace",
+        "現在のワークスペースにありません",
+    );
+    m.insert(
+        "plain.activity.excluded_missing",
+        "プロジェクトフォルダーがありません",
+    );
+    m.insert(
+        "plain.activity.excluded_unsupported",
+        "対応しているリポジトリではありません",
+    );
+    m.insert("plain.activity.excluded_status", "状態を取得できません");
+    m.insert("plain.activity.kind_refresh", "更新");
+    m.insert("plain.activity.kind_fetch", "取得");
+    m.insert("plain.activity.kind_smart_pull", "最新版を取得");
+    m.insert("plain.activity.kind_context_switch", "作業場所を変更");
+    m.insert("plain.activity.kind_freeze", "リリースポイントを記録");
+    m.insert(
+        "plain.activity.kind_freeze_rollback",
+        "リリースポイントを取り消し",
+    );
+    m.insert(
+        "plain.activity.retry_preparing",
+        "再試行のためプロジェクト状態を更新中...",
+    );
+    m.insert(
+        "plain.activity.retry_prepare_failed",
+        "プロジェクト状態を更新できませんでした。",
+    );
     // Keyboard shortcuts hint
     m.insert("shortcut.refresh", "Ctrl+R  更新");
     m.insert("shortcut.context", "Ctrl+K  コンテキスト");

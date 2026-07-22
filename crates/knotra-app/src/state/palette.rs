@@ -34,25 +34,25 @@ const ACTIONS: &[PaletteAction] = &[
     PaletteAction {
         id: "action.fetch_all",
         label_key: "palette.action.check_all",
-        availability: workspace_has_fetchable_project,
+        availability: workspace_has_fetchable_project_unless_busy,
         dispatch: |_| Some(Message::Sync(SyncMessage::BulkFetchAllRequested)),
     },
     PaletteAction {
         id: "action.pull_selected",
         label_key: "plain.get_latest",
-        availability: selection_has_upstream,
+        availability: selection_has_upstream_unless_busy,
         dispatch: |_| Some(Message::Sync(SyncMessage::BulkPullRequested)),
     },
     PaletteAction {
         id: "action.tag_selected",
         label_key: "plain.save_release_point",
-        availability: selection_non_empty,
+        availability: selection_non_empty_unless_busy,
         dispatch: |_| Some(Message::Freezer(FreezerMessage::BulkOpenRequested)),
     },
     PaletteAction {
         id: "action.switch_selected",
         label_key: "plain.change_work_area",
-        availability: selection_exactly_one,
+        availability: selection_exactly_one_unless_busy,
         dispatch: |_| Some(Message::Context(ContextMessage::BulkOpenRequested)),
     },
     PaletteAction {
@@ -150,6 +150,33 @@ const ACTIONS: &[PaletteAction] = &[
         dispatch: |_| Some(Message::KeyEvent(KeyboardMessage::CheatSheetToggled)),
     },
 ];
+
+fn unless_busy(
+    state: &AppState,
+    available: fn(&AppState) -> PaletteAvailability,
+) -> PaletteAvailability {
+    if state.operation_interlock.is_busy() {
+        PaletteAvailability::Disabled("plain.activity.busy")
+    } else {
+        available(state)
+    }
+}
+
+fn workspace_has_fetchable_project_unless_busy(state: &AppState) -> PaletteAvailability {
+    unless_busy(state, workspace_has_fetchable_project)
+}
+
+fn selection_has_upstream_unless_busy(state: &AppState) -> PaletteAvailability {
+    unless_busy(state, selection_has_upstream)
+}
+
+fn selection_non_empty_unless_busy(state: &AppState) -> PaletteAvailability {
+    unless_busy(state, selection_non_empty)
+}
+
+fn selection_exactly_one_unless_busy(state: &AppState) -> PaletteAvailability {
+    unless_busy(state, selection_exactly_one)
+}
 
 #[cfg(test)]
 pub(crate) fn visible_action_ids(state: &AppState) -> Vec<&'static str> {

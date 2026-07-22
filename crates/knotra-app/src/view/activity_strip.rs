@@ -1,25 +1,18 @@
-#![allow(unused_imports, unused_variables, dead_code)]
-//! RFC-0011 — Activity strip view.
-//! RFC-0021 Phase 5 — Undo snackbar for project removal.
-//!
-//! A single-line bar at the very bottom of the window.  Hidden when idle.
-//! Shows progress during an operation and a summary when done.
-//! When a project was just removed, shows an "Undo" snackbar instead.
+//! Activity strip and project-removal undo snackbar.
 
 use iced::{
     Alignment, Element, Length,
     widget::{Space, button, container, row, text},
 };
 
-use knotra_ui::widget::{BUTTON_HEIGHT, FONT_BODY, FONT_SMALL};
+use knotra_ui::widget::FONT_SMALL;
 
 use crate::{
     message::{ActivityMessage, Message, WorkspaceMessage},
-    state::{ActivityStripState, AppState, LatestOpState},
+    state::{ActivityRetryAction, AppState, LatestOpState, RetryAvailability},
 };
 
 pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
-    // Undo snackbar takes priority over the regular activity strip.
     if let Some(removal) = &state.recent_removal {
         let msg = format!(
             "{} {}.",
@@ -47,80 +40,125 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         return Some(snackbar.into());
     }
 
-    let strip = &state.activity;
-    match &strip.latest {
+    match &state.activity.latest {
         LatestOpState::Idle => None,
-        LatestOpState::Running { label, done, total } => {
+        LatestOpState::Running {
+            label, done, total, ..
+        } => {
             let progress_label = if *total > 0 {
                 format!("⟳  {}  {}/{}", label, done, total)
             } else {
                 format!("⟳  {}", label)
             };
-            Some(strip_row_no_extra(progress_label, strip))
+            Some(
+                container(
+                    row![
+                        text(progress_label).size(FONT_SMALL),
+                        Space::new().width(Length::Fill)
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center)
+                    .padding([4, 12]),
+                )
+                .width(Length::Fill)
+                .into(),
+            )
         }
-        LatestOpState::Success { summary, .. } => {
-            let label = format!("ⓘ  {}", summary);
-            Some(strip_row_no_extra(label, strip))
-        }
-        LatestOpState::PartialFailure {
-            summary,
-            failed_names,
-        } => {
-            let names = failed_names.join(", ");
-            let label = format!("⚠  {}  (failed: {})", summary, names);
-            let retry = Some(
-                button(text("Retry").size(FONT_SMALL))
-                    .on_press(Message::Activity(ActivityMessage::RetryRequested)),
+        LatestOpState::Completed { log, retry } => {
+            let succeeded = log.result.successful_projects().len();
+            let failed = log.result.failed_projects().len();
+            let skipped = log.result.skipped_projects().len();
+            let icon = if failed == 0 {
+                "ⓘ"
+            } else if succeeded == 0 {
+                "✗"
+            } else {
+                "⚠"
+            };
+            let mut label = format!(
+                "{}  {}: {} {}, {} {}",
+                icon,
+                operation_kind_label(state, &log.result.kind),
+                succeeded,
+                state.t("plain.activity.succeeded"),
+                failed,
+                state.t("plain.activity.failed"),
             );
-            Some(strip_row(label, retry, strip))
-        }
-        LatestOpState::TotalFailure { summary } => {
-            let label = format!("✗  {}", summary);
-            let retry = Some(
-                button(text("Retry").size(FONT_SMALL))
-                    .on_press(Message::Activity(ActivityMessage::RetryRequested)),
+            if skipped > 0 {
+                label.push_str(&format!(
+                    ", {} {}",
+                    skipped,
+                    state.t("plain.activity.skipped")
+                ));
+            }
+
+            let mut content = row![
+                text(label).size(FONT_SMALL),
+                Space::new().width(Length::Fill)
+            ]
+            .spacing(8)
+            .align_y(Alignment::Center);
+
+            match retry {
+                RetryAvailability::Available(action) => {
+                    let (label, source_operation_id) = match action {
+                        ActivityRetryAction::FetchFailed {
+                            source_operation_id,
+                            ..
+                        } => (
+                            state.t("plain.activity.retry_failed_fetches"),
+                            source_operation_id,
+                        ),
+                        ActivityRetryAction::ReviewSmartPull {
+                            source_operation_id,
+                            ..
+                        } => (state.t("plain.activity.review_retry"), source_operation_id),
+                    };
+                    let retry = (!state.operation_interlock.is_busy()).then_some(
+                        Message::Activity(ActivityMessage::RetryRequested {
+                            source_operation_id: source_operation_id.clone(),
+                        }),
+                    );
+                    content =
+                        content.push(button(text(label).size(FONT_SMALL)).on_press_maybe(retry));
+                    if state.operation_interlock.is_busy() {
+                        content =
+                            content.push(text(state.t("plain.activity.busy")).size(FONT_SMALL));
+                    }
+                }
+                RetryAvailability::Unavailable(reason) => {
+                    content = content.push(text(state.t(reason.i18n_key())).size(FONT_SMALL));
+                }
+                RetryAvailability::NotApplicable => {}
+            }
+
+            content = content.push(
+                button(text(state.t("plain.activity.details")).size(FONT_SMALL)).on_press(
+                    Message::Activity(ActivityMessage::DetailsRequested {
+                        operation_id: log.result.operation_id.clone(),
+                    }),
+                ),
             );
-            Some(strip_row(label, retry, strip))
+            Some(
+                container(content.padding([4, 12]))
+                    .width(Length::Fill)
+                    .into(),
+            )
         }
     }
 }
 
-fn strip_row_no_extra<'a>(label: String, state: &'a ActivityStripState) -> Element<'a, Message> {
-    let details_btn = button(text("› Details").size(FONT_SMALL))
-        .on_press(Message::Activity(ActivityMessage::PopoverToggled));
-    container(
-        row![
-            text(label).size(FONT_SMALL),
-            Space::new().width(Length::Fill),
-            details_btn
-        ]
-        .spacing(8)
-        .align_y(Alignment::Center)
-        .padding([4, 12]),
-    )
-    .width(Length::Fill)
-    .into()
-}
-
-fn strip_row<'a>(
-    label: String,
-    extra: Option<impl Into<Element<'a, Message>>>,
-    state: &'a ActivityStripState,
-) -> Element<'a, Message> {
-    let details_btn = button(text("› Details").size(FONT_SMALL))
-        .on_press(Message::Activity(ActivityMessage::PopoverToggled));
-
-    let mut r = row![
-        text(label).size(FONT_SMALL),
-        Space::new().width(Length::Fill),
-    ]
-    .spacing(8)
-    .align_y(Alignment::Center);
-
-    if let Some(e) = extra {
-        r = r.push(e);
-    }
-    r = r.push(details_btn);
-
-    container(r.padding([4, 12])).width(Length::Fill).into()
+fn operation_kind_label<'a>(
+    state: &'a AppState,
+    kind: &knotra_vcs::model::operation::OperationKind,
+) -> &'a str {
+    use knotra_vcs::model::operation::OperationKind;
+    state.t(match kind {
+        OperationKind::StatusRefresh => "plain.activity.kind_refresh",
+        OperationKind::Fetch => "plain.activity.kind_fetch",
+        OperationKind::SmartPull => "plain.activity.kind_smart_pull",
+        OperationKind::ContextSwitch => "plain.activity.kind_context_switch",
+        OperationKind::Freeze => "plain.activity.kind_freeze",
+        OperationKind::FreezeRollback => "plain.activity.kind_freeze_rollback",
+    })
 }

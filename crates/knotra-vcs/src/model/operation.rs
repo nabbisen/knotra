@@ -79,6 +79,46 @@ pub enum ProjectOperationOutcome {
     Skipped,
 }
 
+/// Stable audit reason for a project excluded from an Activity retry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RetryExclusionReason {
+    NotInActiveWorkspace,
+    ProjectPathMissing,
+    UnsupportedRepository,
+    StatusUnavailable,
+}
+
+impl RetryExclusionReason {
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::NotInActiveWorkspace => "retry:not_in_active_workspace",
+            Self::ProjectPathMissing => "retry:project_path_missing",
+            Self::UnsupportedRepository => "retry:unsupported_repository",
+            Self::StatusUnavailable => "retry:status_unavailable",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<Self> {
+        match code {
+            "retry:not_in_active_workspace" => Some(Self::NotInActiveWorkspace),
+            "retry:project_path_missing" => Some(Self::ProjectPathMissing),
+            "retry:unsupported_repository" => Some(Self::UnsupportedRepository),
+            "retry:status_unavailable" => Some(Self::StatusUnavailable),
+            _ => None,
+        }
+    }
+
+    pub fn i18n_key(self) -> &'static str {
+        match self {
+            Self::NotInActiveWorkspace => "plain.activity.excluded_workspace",
+            Self::ProjectPathMissing => "plain.activity.excluded_missing",
+            Self::UnsupportedRepository => "plain.activity.excluded_unsupported",
+            Self::StatusUnavailable => "plain.activity.excluded_status",
+        }
+    }
+}
+
 impl ProjectOperationOutcome {
     pub fn from_success(success: bool) -> Self {
         if success {
@@ -417,5 +457,48 @@ impl FreezeResult {
             .iter()
             .filter_map(|r| r.recovery_hint.as_ref())
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_exclusion_code_survives_operation_log_json_round_trip() {
+        let reason = RetryExclusionReason::ProjectPathMissing;
+        let now = Utc::now();
+        let log = OperationLog {
+            result: OperationResult {
+                operation_id: OperationId::new(),
+                kind: OperationKind::Fetch,
+                started_at: now,
+                finished_at: now,
+                per_project: vec![ProjectOperationResult {
+                    project_id: ProjectId::new(),
+                    outcome: ProjectOperationOutcome::Skipped,
+                    success: true,
+                    skip_reason: Some(reason.code().to_owned()),
+                    commands_executed: Vec::new(),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: None,
+                }],
+                rollback_attempted: false,
+                rollback_succeeded: None,
+            },
+            recovery_hints: Vec::new(),
+        };
+
+        let json = serde_json::to_string(&log).expect("serialize operation log");
+        let decoded: OperationLog = serde_json::from_str(&json).expect("deserialize operation log");
+        assert_eq!(
+            decoded.result.per_project[0]
+                .skip_reason
+                .as_deref()
+                .and_then(RetryExclusionReason::from_code),
+            Some(reason)
+        );
     }
 }

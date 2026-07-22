@@ -7,7 +7,8 @@ use knotra_vcs::{
     model::workspace::WorkspaceId,
 };
 
-use crate::state::Screen;
+use crate::state::sync::RetryPreparationId;
+use crate::state::{OperationLeaseId, Screen};
 
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -104,7 +105,6 @@ pub enum SyncMessage {
     SmartPullPlanRequested,
     SmartPullConfirmed(SmartPullPlan),
     SmartPullCancelled,
-    RetryFailedRequested,
     BulkPullRequested,
     PlanRequested,
     ExecuteRequested,
@@ -193,15 +193,32 @@ pub enum BackgroundMessage {
     SmartPullCompleted(OperationLog),
     ContextSwitchCompleted(OperationLog),
     FreezeCompleted(OperationLog),
-    SingleFetchCompleted(OperationLog),
-    SmartPullProjectCompleted(SmartPullProgress),
+    SingleFetchCompleted {
+        lease_id: OperationLeaseId,
+        log: OperationLog,
+    },
+    SmartPullProjectCompleted {
+        lease_id: OperationLeaseId,
+        progress: SmartPullProgress,
+    },
+    ActivityFetchRetryProjectCompleted {
+        lease_id: OperationLeaseId,
+        operation_id: OperationId,
+        result: knotra_vcs::model::operation::ProjectOperationResult,
+    },
+    SmartPullRetryStatusReady {
+        request_id: RetryPreparationId,
+        workspace_id: WorkspaceId,
+        lease_id: OperationLeaseId,
+        statuses: Vec<knotra_vcs::ProjectStatus>,
+    },
     SmartPullPlanReady(SmartPullPlan),
     ContextListLoaded(ContextList),
-    ContextSwitchDone(ContextSwitchResult),
     /// Conflict file list loaded.
     ConflictFilesLoaded(knotra_vcs::ProjectConflictDetail),
     /// Conflict mutation completed, with refreshed conflict state.
     ConflictOperationCompleted {
+        lease_id: OperationLeaseId,
         result: knotra_vcs::model::operation::ProjectOperationResult,
         detail: knotra_vcs::ProjectConflictDetail,
     },
@@ -216,15 +233,26 @@ pub enum BackgroundMessage {
     TopologyScanned(knotra_vcs::DependencyGraph),
     /// Tag push completed for all offered projects.
     TagPushCompleted {
+        lease_id: OperationLeaseId,
         success_count: usize,
         fail_count: usize,
     },
     /// Missing repository paths detected at refresh.
     MissingProjectsDetected(Vec<ProjectId>),
     /// Validation phase completed.
-    FreezeValidationDone(FreezeValidation),
+    FreezeValidationDone {
+        lease_id: OperationLeaseId,
+        validation: FreezeValidation,
+    },
     /// Execution phase completed.
-    FreezeExecutionDone(FreezeResult),
+    FreezeExecutionDone {
+        lease_id: OperationLeaseId,
+        result: FreezeResult,
+    },
+    ContextSwitchDone {
+        lease_id: OperationLeaseId,
+        result: ContextSwitchResult,
+    },
     TaskError {
         description: String,
     },
@@ -370,11 +398,8 @@ pub enum SelectionMessage {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum ActivityMessage {
-    Started { label: String, total: usize },
-    Progress { done: usize },
-    Completed { log: OperationLog },
-    PopoverToggled,
-    RetryRequested,
+    RetryRequested { source_operation_id: OperationId },
+    DetailsRequested { operation_id: OperationId },
     Tick,
 }
 

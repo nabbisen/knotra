@@ -39,9 +39,12 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     // Plain-language, goal-oriented labels. Expert terms (Fetch / Pull / Tag /
     // Switch) remain available behind "Show details" in result views.
     let choose_reason = state.t("plain.disabled.choose_one");
-    let fetch_msg = (count > 0 && !summary.fetchable_ids.is_empty())
+    let busy = state.operation_interlock.is_busy();
+    let fetch_msg = (count > 0 && !summary.fetchable_ids.is_empty() && !busy)
         .then_some(Message::Sync(SyncMessage::BulkFetchRequested));
-    let fetch_reason = if count == 0 {
+    let fetch_reason = if busy {
+        Some(state.t("plain.activity.busy"))
+    } else if count == 0 {
         Some(choose_reason)
     } else if summary.fetchable_ids.is_empty() {
         Some(state.t("plain.selection.none_fetchable"))
@@ -50,7 +53,9 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     };
     let fetch_btn = guided_button(state.t("plain.check_for_updates"), fetch_msg, fetch_reason);
 
-    let pull_reason = if count == 0 {
+    let pull_reason = if busy {
+        Some(state.t("plain.activity.busy"))
+    } else if count == 0 {
         Some(choose_reason)
     } else if !summary.has_upstream {
         Some(state.t("plain.disabled.no_upstream"))
@@ -59,21 +64,27 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     };
     let pull_btn = guided_button(
         state.t("plain.get_latest"),
-        (count > 0 && summary.has_upstream)
+        (count > 0 && summary.has_upstream && !busy)
             .then_some(Message::Sync(SyncMessage::BulkPullRequested)),
         pull_reason,
     );
 
     let tag_btn = guided_button(
         state.t("plain.save_release_point"),
-        (count > 0).then_some(Message::Freezer(FreezerMessage::BulkOpenRequested)),
-        (count == 0).then_some(choose_reason),
+        (count > 0 && !busy).then_some(Message::Freezer(FreezerMessage::BulkOpenRequested)),
+        if busy {
+            Some(state.t("plain.activity.busy"))
+        } else {
+            (count == 0).then_some(choose_reason)
+        },
     );
 
     let switch_btn = guided_button(
         state.t("plain.change_work_area"),
-        (count == 1).then_some(Message::Context(ContextMessage::BulkOpenRequested)),
-        if count == 0 {
+        (count == 1 && !busy).then_some(Message::Context(ContextMessage::BulkOpenRequested)),
+        if busy {
+            Some(state.t("plain.activity.busy"))
+        } else if count == 0 {
             Some(choose_reason)
         } else if count > 1 {
             Some(state.t("plain.selection.choose_one_work_area"))

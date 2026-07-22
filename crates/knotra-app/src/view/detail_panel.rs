@@ -127,8 +127,10 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         ProjectMessage::StatusRefreshRequested(id.clone()),
     ));
 
-    let fetch_btn = button(text("Fetch").size(12))
-        .on_press(Message::Project(ProjectMessage::FetchRequested(id.clone())));
+    let fetch_btn = button(text("Fetch").size(12)).on_press_maybe(
+        (!state.operation_interlock.is_busy())
+            .then_some(Message::Project(ProjectMessage::FetchRequested(id.clone()))),
+    );
 
     let remove_btn = button(text("Remove from workspace").size(12)).on_press(Message::Workspace(
         WorkspaceMessage::RemoveProjectRequested(id.clone()),

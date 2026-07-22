@@ -10,8 +10,8 @@ use knotra_vcs::{
     model::{
         operation::{
             ContextSwitchResult, OperationId, OperationKind, OperationLog, OperationResult,
-            ProjectOperationOutcome, ProjectOperationResult, SmartPullDisposition,
-            SmartPullProgress, SmartPullSkipReason,
+            ProjectOperationOutcome, ProjectOperationResult, RetryExclusionReason,
+            SmartPullDisposition, SmartPullProgress, SmartPullSkipReason,
         },
         project::Project,
         workspace::Workspace,
@@ -33,13 +33,14 @@ use crate::{
         save_workspace,
     },
     state::{
-        AddProjectDialog, AppState, AttentionTier, ConfirmRemoveDialog, LeaderKeyState, LoadPhase,
-        PendingTagPush, Screen,
+        ActivityRetryAction, AddProjectDialog, AppState, AttentionTier, ConfirmRemoveDialog,
+        LeaderKeyState, LoadPhase, OperationLeaseId, OperationOwner, PendingTagPush,
+        RetryAvailability, RetryExclusion, RetryUnavailableReason, Screen,
         changelog::ChangelogPhase,
         conflict_ops::ConflictPhase,
         context::ContextPhase,
         freezer::FreezerPhase,
-        sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
+        sync::{ProjectOutcome, SmartPullRetryPreparation, SyncKind, SyncPhase, SyncResult},
         topology::TopologyPhase,
         workspace_mgr::{
             CreateWorkspaceDialog, DeleteWorkspaceDialog, RenameWorkspaceDialog,
@@ -249,8 +250,19 @@ fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
         state.workspace_mgr.rename_dialog = None;
     } else if state.workspace_mgr.confirm_delete.is_some() {
         state.workspace_mgr.confirm_delete = None;
+    } else if matches!(state.active_modal, crate::state::ActiveModal::Pull)
+        && matches!(state.sync.phase, SyncPhase::RetryPreparing)
+    {
+        clear_sync_retry_context(state);
+        state.active_modal = crate::state::ActiveModal::None;
+    } else if matches!(state.active_modal, crate::state::ActiveModal::Tag)
+        && matches!(state.freezer.phase, FreezerPhase::Validating { .. })
+    {
+        cancel_freezer_validation(state);
+        state.active_modal = crate::state::ActiveModal::None;
     } else if smart_pull_is_running(state)
         || freezer_is_running(state)
+        || context_switch_is_running(state)
         || conflict_is_running(state)
     {
         return Task::none();
@@ -270,8 +282,16 @@ fn smart_pull_is_running(state: &AppState) -> bool {
 }
 
 fn freezer_is_running(state: &AppState) -> bool {
-    matches!(state.active_modal, crate::state::ActiveModal::Tag)
-        && matches!(state.freezer.phase, FreezerPhase::Executing)
+    matches!(state.freezer.phase, FreezerPhase::Executing)
+        || state
+            .pending_tag_push
+            .as_ref()
+            .is_some_and(|push| push.is_pushing)
+}
+
+fn context_switch_is_running(state: &AppState) -> bool {
+    matches!(state.active_modal, crate::state::ActiveModal::Switch)
+        && matches!(state.context_ops.phase, ContextPhase::Switching { .. })
 }
 
 fn conflict_is_running(state: &AppState) -> bool {
@@ -657,6 +677,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
 
         WorkspaceMessage::WorkspaceSwitched(id) => {
             if let Some(idx) = state.all_workspaces.iter().position(|ws| ws.id == id) {
+                clear_sync_retry_context(state);
                 state.active_workspace_idx = idx;
                 state.workspace = state.all_workspaces.get(idx).cloned();
                 state.clear_selection_mode();
@@ -702,9 +723,12 @@ fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
             }
         }
         ProjectMessage::FetchRequested(id) => {
-            state.fetching_projects.insert(id.clone());
             let project = find_project(state, &id);
             if let Some(p) = project {
+                let Some(lease_id) = acquire_operation(state, OperationOwner::SingleFetch) else {
+                    return Task::none();
+                };
+                state.fetching_projects.insert(id.clone());
                 Task::perform(
                     async move {
                         let started = chrono::Utc::now();
@@ -723,7 +747,12 @@ fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
                             recovery_hints: vec![],
                         }
                     },
-                    |log| Message::Background(BackgroundMessage::SingleFetchCompleted(log)),
+                    move |log| {
+                        Message::Background(BackgroundMessage::SingleFetchCompleted {
+                            lease_id,
+                            log,
+                        })
+                    },
                 )
             } else {
                 state.fetching_projects.remove(&id);
@@ -740,6 +769,7 @@ fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
 fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
     match msg {
         SyncMessage::OpenRequested => {
+            clear_sync_retry_context(state);
             if let Some(ws) = &state.workspace {
                 state.sync.init_selection(&ws.projects);
             }
@@ -767,6 +797,9 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
         }
 
         SyncMessage::PlanRequested => {
+            if state.sync.retry_preparation.is_none() {
+                state.sync.retry_exclusions.clear();
+            }
             // Open the pull modal and start planning.
             state.active_modal = crate::state::ActiveModal::Pull;
             state.sync.phase = SyncPhase::Planning;
@@ -827,6 +860,11 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
         }
 
         SyncMessage::SmartPullPlanRequested => {
+            let Some(lease_id) = acquire_operation(state, OperationOwner::SmartPullPreparation)
+            else {
+                state.sync.phase = SyncPhase::Idle;
+                return Task::none();
+            };
             state.sync.phase = SyncPhase::Planning;
             // Build the plan synchronously from existing status.
             let selected_projects: Vec<Project> = state
@@ -848,12 +886,17 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
                 .sync
                 .build_plan(&selected_projects, state.workspace_status.as_ref());
             state.sync.phase = SyncPhase::AwaitingConfirm(plan.clone());
+            state.operation_interlock.release_if_matches(lease_id);
             Task::done(Message::Background(BackgroundMessage::SmartPullPlanReady(
                 plan,
             )))
         }
 
         SyncMessage::SmartPullConfirmed(plan) => {
+            let Some(lease_id) = acquire_operation(state, OperationOwner::SmartPullExecution)
+            else {
+                return Task::none();
+            };
             let projects_map: std::collections::HashMap<_, _> = state
                 .workspace
                 .as_ref()
@@ -868,6 +911,7 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
             let entries = plan.entries.clone();
             state.sync.phase = SyncPhase::PullRunning {
                 plan,
+                lease_id,
                 started_at: chrono::Utc::now(),
                 completed: Vec::new(),
             };
@@ -941,49 +985,36 @@ fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
                 }
             });
 
-            Task::run(pull_stream, |progress| {
-                Message::Background(BackgroundMessage::SmartPullProjectCompleted(progress))
+            Task::run(pull_stream, move |progress| {
+                Message::Background(BackgroundMessage::SmartPullProjectCompleted {
+                    lease_id,
+                    progress,
+                })
             })
         }
 
         SyncMessage::SmartPullCancelled => {
+            clear_sync_retry_context(state);
             state.sync.phase = SyncPhase::Idle;
             Task::none()
         }
 
-        SyncMessage::RetryFailedRequested => {
-            // Collect failed project IDs from the last result.
-            let failed_ids: Vec<_> = if let SyncPhase::Done(ref result) = state.sync.phase {
-                result
-                    .per_project
-                    .iter()
-                    .filter(|p| p.outcome == ProjectOperationOutcome::Failed)
-                    .map(|p| p.project_id.clone())
-                    .collect()
-            } else {
-                return Task::none();
-            };
-
-            // Deselect all, then select only failed.
-            for (id, v) in state.sync.project_selection.iter_mut() {
-                *v = failed_ids.contains(id);
-            }
-            state.sync.phase = SyncPhase::Idle;
-            Task::done(Message::Sync(SyncMessage::BulkFetchRequested))
-        }
         SyncMessage::ModalClosed => {
             if !smart_pull_is_running(state) {
+                clear_sync_retry_context(state);
                 state.active_modal = crate::state::ActiveModal::None;
             }
             Task::none()
         }
         SyncMessage::Cancelled => {
             if !smart_pull_is_running(state) {
+                clear_sync_retry_context(state);
                 state.active_modal = crate::state::ActiveModal::None;
             }
             Task::none()
         }
         SyncMessage::BulkPullRequested => {
+            clear_sync_retry_context(state);
             state.active_modal = crate::state::ActiveModal::Pull;
             state.sync.phase = SyncPhase::Planning;
             state.sync.selected_project_ids = state.selection.selected_ids.clone();
@@ -1018,6 +1049,7 @@ fn start_bulk_fetch(
         .unwrap_or_default();
 
     let mut skipped = Vec::new();
+    let mut skipped_results = Vec::new();
     let projects: Vec<_> = fetchable_ids
         .iter()
         .filter_map(|id| project_map.get(id).cloned())
@@ -1028,15 +1060,27 @@ fn start_bulk_fetch(
                 .get(&id)
                 .map(|project| project.name.clone())
                 .unwrap_or_else(|| state.t("plain.project").to_owned());
-            skipped.push(ProjectOutcome {
-                project_id: id,
-                project_name,
+            let result = ProjectOperationResult {
+                project_id: id.clone(),
                 outcome: ProjectOperationOutcome::Skipped,
                 success: true,
                 skip_reason: Some(state.t("plain.fetch.skipped_unavailable").to_owned()),
                 commands_executed: Vec::new(),
                 stdout: String::new(),
                 stderr: String::new(),
+                exit_code: None,
+                error_message: None,
+            };
+            skipped_results.push(result.clone());
+            skipped.push(ProjectOutcome {
+                project_id: id,
+                project_name,
+                outcome: result.effective_outcome(),
+                success: result.success,
+                skip_reason: result.skip_reason,
+                commands_executed: result.commands_executed,
+                stdout: result.stdout,
+                stderr: result.stderr,
                 log_expanded: false,
             });
         }
@@ -1054,10 +1098,18 @@ fn start_bulk_fetch(
         });
         return Task::none();
     }
+    let Some(lease_id) = acquire_operation(state, OperationOwner::BulkFetch) else {
+        return Task::none();
+    };
+    let operation_id = OperationId::new();
     state.sync.phase = SyncPhase::FetchRunning {
+        operation_id,
+        lease_id,
+        started_at: chrono::Utc::now(),
         total,
         done,
         completed: skipped,
+        operation_results: skipped_results,
     };
 
     use iced::futures::stream;
@@ -1065,15 +1117,16 @@ fn start_bulk_fetch(
     let project_stream = stream::iter(projects)
         .then(move |project| async move { VcsAdapter::fetch(&project).await });
 
-    Task::run(project_stream, |per_project_result| {
-        Message::Background(BackgroundMessage::SmartPullProjectCompleted(
-            SmartPullProgress {
+    Task::run(project_stream, move |per_project_result| {
+        Message::Background(BackgroundMessage::SmartPullProjectCompleted {
+            lease_id,
+            progress: SmartPullProgress {
                 project_id: per_project_result.project_id.clone(),
                 project_name: String::new(),
                 result: per_project_result,
                 recovery_hint: None,
             },
-        ))
+        })
     })
 }
 
@@ -1103,28 +1156,216 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
+        BackgroundMessage::ActivityFetchRetryProjectCompleted {
+            lease_id,
+            operation_id,
+            result,
+        } => {
+            let Some(mut run) = state.activity.fetch_retry.take() else {
+                return Task::none();
+            };
+            if run.lease_id != lease_id || run.operation_id != operation_id {
+                state.activity.fetch_retry = Some(run);
+                return Task::none();
+            }
+            run.completed.push(result);
+            let done = run.completed.len() + run.exclusions.len();
+            if let crate::state::LatestOpState::Running {
+                operation_id: active_id,
+                done: active_done,
+                ..
+            } = &mut state.activity.latest
+                && *active_id == operation_id
+            {
+                *active_done = done;
+            }
+            let expected = run.total.saturating_sub(run.exclusions.len());
+            if run.completed.len() < expected {
+                state.activity.fetch_retry = Some(run);
+                return Task::none();
+            }
+
+            let mut per_project = run.completed;
+            per_project.extend(run.exclusions.iter().map(skipped_retry_result));
+            let log = OperationLog {
+                result: OperationResult {
+                    operation_id: run.operation_id,
+                    kind: OperationKind::Fetch,
+                    started_at: run.started_at,
+                    finished_at: chrono::Utc::now(),
+                    per_project,
+                    rollback_attempted: false,
+                    rollback_succeeded: None,
+                },
+                recovery_hints: Vec::new(),
+            };
+            if !state.operation_interlock.release_if_matches(lease_id) {
+                return Task::none();
+            }
+            persist_log(&log, state);
+            state.is_refreshing = true;
+            state.load_phase = LoadPhase::Refreshing;
+            refresh_workspace_task(state)
+        }
+
+        BackgroundMessage::SmartPullRetryStatusReady {
+            request_id,
+            workspace_id,
+            lease_id,
+            statuses,
+        } => {
+            let Some(preparation) = state.sync.retry_preparation.clone() else {
+                return Task::none();
+            };
+            let current_workspace_matches = state
+                .workspace
+                .as_ref()
+                .is_some_and(|workspace| workspace.id == workspace_id);
+            if preparation.id != request_id
+                || preparation.workspace_id != workspace_id
+                || preparation.lease_id != lease_id
+            {
+                return Task::none();
+            }
+            let source_matches = matches!(
+                &state.activity.latest,
+                crate::state::LatestOpState::Completed { log, .. }
+                    if log.result.operation_id == preparation.source_operation_id
+            );
+            let expected_ids: std::collections::HashSet<_> =
+                preparation.eligible_ids.iter().cloned().collect();
+            let returned_ids: std::collections::HashSet<_> = statuses
+                .iter()
+                .map(|status| status.project_id.clone())
+                .collect();
+            let status_ids_match = statuses.len() == expected_ids.len()
+                && returned_ids.len() == statuses.len()
+                && returned_ids == expected_ids;
+            if !source_matches
+                || !status_ids_match
+                || !current_workspace_matches
+                || state.active_modal != crate::state::ActiveModal::Pull
+                || !matches!(state.sync.phase, SyncPhase::RetryPreparing)
+            {
+                state.sync.retry_preparation = None;
+                state.operation_interlock.release_if_matches(lease_id);
+                if state.active_modal == crate::state::ActiveModal::Pull
+                    && current_workspace_matches
+                {
+                    state.sync.phase = SyncPhase::RetryPreparationFailed;
+                }
+                return Task::none();
+            }
+
+            let mut exclusions = preparation.exclusions;
+            let mut readable = Vec::new();
+            for status in statuses {
+                if status.read_error.is_some() {
+                    exclusions.push(RetryExclusion {
+                        project_id: status.project_id.clone(),
+                        reason: RetryExclusionReason::StatusUnavailable,
+                    });
+                } else {
+                    readable.push(status);
+                }
+            }
+            state.sync.retry_preparation = None;
+            state.operation_interlock.release_if_matches(lease_id);
+            state.sync.retry_exclusions = exclusions;
+
+            if readable.is_empty() {
+                state.sync.phase = SyncPhase::RetryPreparationFailed;
+                return Task::none();
+            }
+
+            let readable_ids: std::collections::HashSet<_> = readable
+                .iter()
+                .map(|status| status.project_id.clone())
+                .collect();
+            merge_workspace_status(
+                state,
+                knotra_vcs::WorkspaceStatus {
+                    projects: readable,
+                    last_refresh: Some(chrono::Utc::now()),
+                },
+            );
+            state.sync.selected_project_ids = readable_ids.clone();
+            if let Some(workspace) = &state.workspace {
+                for project in &workspace.projects {
+                    state
+                        .sync
+                        .project_selection
+                        .insert(project.id.clone(), readable_ids.contains(&project.id));
+                }
+            }
+            let selected_projects: Vec<_> = state
+                .workspace
+                .as_ref()
+                .map(|workspace| {
+                    workspace
+                        .projects
+                        .iter()
+                        .filter(|project| readable_ids.contains(&project.id))
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+            let plan = state
+                .sync
+                .build_plan(&selected_projects, state.workspace_status.as_ref());
+            state.sync.phase = SyncPhase::AwaitingConfirm(plan);
+            Task::none()
+        }
+
         BackgroundMessage::SmartPullPlanReady(plan) => {
             // Already set in handle_sync; this message lets the view re-render.
             state.sync.phase = SyncPhase::AwaitingConfirm(plan);
             Task::none()
         }
 
-        BackgroundMessage::SmartPullProjectCompleted(mut progress) => {
+        BackgroundMessage::SmartPullProjectCompleted {
+            lease_id,
+            mut progress,
+        } => {
             // Fill in the project name if missing.
             if progress.project_name.is_empty()
                 && let Some(name) = find_project_name(state, &progress.project_id)
             {
                 progress.project_name = name;
             }
+            let retry_exclusions = state.sync.retry_exclusions.clone();
+            let retry_outcomes: Vec<ProjectOutcome> = retry_exclusions
+                .iter()
+                .map(|exclusion| ProjectOutcome {
+                    project_id: exclusion.project_id.clone(),
+                    project_name: find_project_name(state, &exclusion.project_id)
+                        .unwrap_or_else(|| state.t("plain.project").to_owned()),
+                    outcome: ProjectOperationOutcome::Skipped,
+                    success: true,
+                    skip_reason: Some(exclusion.reason.code().to_owned()),
+                    commands_executed: Vec::new(),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    log_expanded: false,
+                })
+                .collect();
 
             let mut completed_log: Option<OperationLog> = None;
+            let mut completed_lease: Option<OperationLeaseId> = None;
 
             match &mut state.sync.phase {
                 SyncPhase::FetchRunning {
+                    operation_id,
+                    lease_id: phase_lease_id,
+                    started_at,
                     done,
                     total,
                     completed,
+                    operation_results,
                 } => {
+                    if *phase_lease_id != lease_id {
+                        return Task::none();
+                    }
                     *done += 1;
                     let done_val = *done;
                     let total_val = *total;
@@ -1140,26 +1381,40 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                         stderr: progress.result.stderr.clone(),
                         log_expanded: false,
                     };
+                    operation_results.push(progress.result.clone());
                     completed.push(outcome);
 
                     if done_val >= total_val {
                         let per_project = completed.clone();
+                        completed_log = Some(OperationLog {
+                            result: OperationResult {
+                                operation_id: operation_id.clone(),
+                                kind: OperationKind::Fetch,
+                                started_at: *started_at,
+                                finished_at: chrono::Utc::now(),
+                                per_project: operation_results.clone(),
+                                rollback_attempted: false,
+                                rollback_succeeded: None,
+                            },
+                            recovery_hints: Vec::new(),
+                        });
+                        completed_lease = Some(lease_id);
                         state.sync.phase = SyncPhase::Done(SyncResult {
                             kind: SyncKind::Fetch,
                             per_project,
                             recovery_hints: vec![],
                         });
-                        // Trigger status refresh.
-                        state.is_refreshing = true;
-                        state.load_phase = LoadPhase::Refreshing;
-                        return refresh_workspace_task(state);
                     }
                 }
                 SyncPhase::PullRunning {
                     plan,
+                    lease_id: phase_lease_id,
                     started_at,
                     completed,
                 } => {
+                    if *phase_lease_id != lease_id {
+                        return Task::none();
+                    }
                     if let Some(hint) = progress.recovery_hint.clone() {
                         // Recovery hint collected.
                         let _ = hint;
@@ -1170,7 +1425,7 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                     let got = completed.len();
                     if got >= expected {
                         // Build final result from completed.
-                        let outcomes: Vec<ProjectOutcome> = completed
+                        let mut outcomes: Vec<ProjectOutcome> = completed
                             .iter()
                             .map(|p| ProjectOutcome {
                                 project_id: p.project_id.clone(),
@@ -1184,19 +1439,23 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                                 log_expanded: false,
                             })
                             .collect();
+                        outcomes.extend(retry_outcomes);
 
                         let hints: Vec<_> = completed
                             .iter()
                             .filter_map(|p| p.recovery_hint.clone())
                             .collect();
 
+                        let mut logged_results: Vec<_> =
+                            completed.iter().map(|p| p.result.clone()).collect();
+                        logged_results.extend(retry_exclusions.iter().map(skipped_retry_result));
                         completed_log = Some(OperationLog {
                             result: OperationResult {
                                 operation_id: plan.id.clone(),
                                 kind: OperationKind::SmartPull,
                                 started_at: started_at.to_owned(),
                                 finished_at: chrono::Utc::now(),
-                                per_project: completed.iter().map(|p| p.result.clone()).collect(),
+                                per_project: logged_results,
                                 rollback_attempted: false,
                                 rollback_succeeded: None,
                             },
@@ -1208,6 +1467,8 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                             per_project: outcomes,
                             recovery_hints: hints,
                         });
+                        state.sync.retry_exclusions.clear();
+                        completed_lease = Some(lease_id);
 
                         // Trigger status refresh.
                         state.is_refreshing = true;
@@ -1217,13 +1478,21 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
                 _ => {}
             }
             if let Some(log) = completed_log {
+                if let Some(lease_id) = completed_lease {
+                    state.operation_interlock.release_if_matches(lease_id);
+                }
                 persist_log(&log, state);
+                state.is_refreshing = true;
+                state.load_phase = LoadPhase::Refreshing;
                 return refresh_workspace_task(state);
             }
             Task::none()
         }
 
-        BackgroundMessage::SingleFetchCompleted(log) => {
+        BackgroundMessage::SingleFetchCompleted { lease_id, log } => {
+            if !state.operation_interlock.release_if_matches(lease_id) {
+                return Task::none();
+            }
             for r in &log.result.per_project {
                 state.fetching_projects.remove(&r.project_id);
             }
@@ -1275,9 +1544,13 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
         }
 
         BackgroundMessage::TagPushCompleted {
+            lease_id,
             success_count,
             fail_count,
         } => {
+            if !state.operation_interlock.release_if_matches(lease_id) {
+                return Task::none();
+            }
             state.pending_tag_push = None;
             state.status_bar = Some(if fail_count == 0 {
                 format!(
@@ -1314,7 +1587,14 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
-        BackgroundMessage::ConflictOperationCompleted { result, detail } => {
+        BackgroundMessage::ConflictOperationCompleted {
+            lease_id,
+            result,
+            detail,
+        } => {
+            if !state.operation_interlock.release_if_matches(lease_id) {
+                return Task::none();
+            }
             let id = detail.project_id.clone();
             let success = result.success;
             let message = if success {
@@ -1362,12 +1642,29 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
-        BackgroundMessage::FreezeValidationDone(validation) => {
+        BackgroundMessage::FreezeValidationDone {
+            lease_id,
+            validation,
+        } => {
+            if !matches!(
+                state.freezer.phase,
+                FreezerPhase::Validating {
+                    lease_id: active_lease
+                } if active_lease == lease_id
+            ) {
+                return Task::none();
+            }
+            if !state.operation_interlock.release_if_matches(lease_id) {
+                return Task::none();
+            }
             state.freezer.phase = FreezerPhase::ValidationReady(validation);
             Task::none()
         }
 
-        BackgroundMessage::FreezeExecutionDone(result) => {
+        BackgroundMessage::FreezeExecutionDone { lease_id, result } => {
+            if !state.operation_interlock.release_if_matches(lease_id) {
+                return Task::none();
+            }
             use knotra_vcs::model::operation::{OperationKind, OperationLog, OperationResult};
 
             let started_at = state
@@ -1460,7 +1757,10 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
-        BackgroundMessage::ContextSwitchDone(result) => {
+        BackgroundMessage::ContextSwitchDone { lease_id, result } => {
+            if !state.operation_interlock.release_if_matches(lease_id) {
+                return Task::none();
+            }
             use knotra_vcs::model::operation::{OperationKind, OperationLog, OperationResult};
 
             // Build an operation log entry.
@@ -1654,9 +1954,103 @@ fn persist_workspace(paths: &AppPaths, ws: &Workspace) {
 fn persist_log(log: &OperationLog, state: &mut AppState) {
     if let Err(e) = save_operation_log(log, &state.paths) {
         tracing::warn!("failed to save operation log: {e}");
+        state.status_bar = Some(state.t("plain.activity.log_save_failed").to_owned());
     }
     state.operation_logs.insert(0, log.clone());
     state.operation_logs.truncate(state.config.max_log_entries);
+    let failed_ids: Vec<_> = log
+        .result
+        .per_project
+        .iter()
+        .filter(|result| result.effective_outcome() == ProjectOperationOutcome::Failed)
+        .map(|result| result.project_id.clone())
+        .collect();
+    let retry = if failed_ids.is_empty() {
+        RetryAvailability::NotApplicable
+    } else {
+        match log.result.kind {
+            OperationKind::Fetch => {
+                RetryAvailability::Available(ActivityRetryAction::FetchFailed {
+                    source_operation_id: log.result.operation_id.clone(),
+                    project_ids: failed_ids,
+                })
+            }
+            OperationKind::SmartPull => {
+                RetryAvailability::Available(ActivityRetryAction::ReviewSmartPull {
+                    source_operation_id: log.result.operation_id.clone(),
+                    project_ids: failed_ids,
+                })
+            }
+            OperationKind::ContextSwitch => {
+                RetryAvailability::Unavailable(RetryUnavailableReason::ContextSwitch)
+            }
+            OperationKind::Freeze => RetryAvailability::Unavailable(RetryUnavailableReason::Freeze),
+            OperationKind::FreezeRollback => {
+                RetryAvailability::Unavailable(RetryUnavailableReason::FreezeRollback)
+            }
+            OperationKind::StatusRefresh => {
+                RetryAvailability::Unavailable(RetryUnavailableReason::StatusRefresh)
+            }
+        }
+    };
+    state.activity.latest = crate::state::LatestOpState::Completed {
+        log: log.clone(),
+        retry,
+    };
+    state.activity.completed_secs = 0;
+}
+
+fn acquire_operation(state: &mut AppState, owner: OperationOwner) -> Option<OperationLeaseId> {
+    let lease = state.operation_interlock.try_acquire(owner);
+    if lease.is_none() {
+        state.status_bar = Some(state.t("plain.activity.busy").to_owned());
+    }
+    lease
+}
+
+fn split_retry_targets(
+    state: &AppState,
+    ids: &[knotra_vcs::ProjectId],
+) -> (Vec<Project>, Vec<RetryExclusion>) {
+    let mut projects = Vec::new();
+    let mut exclusions = Vec::new();
+    for id in ids {
+        let Some(project) = find_project(state, id) else {
+            exclusions.push(RetryExclusion {
+                project_id: id.clone(),
+                reason: RetryExclusionReason::NotInActiveWorkspace,
+            });
+            continue;
+        };
+        if !Path::new(&project.path).exists() {
+            exclusions.push(RetryExclusion {
+                project_id: id.clone(),
+                reason: RetryExclusionReason::ProjectPathMissing,
+            });
+        } else if !VcsAdapter::repo_exists(&project) {
+            exclusions.push(RetryExclusion {
+                project_id: id.clone(),
+                reason: RetryExclusionReason::UnsupportedRepository,
+            });
+        } else {
+            projects.push(project);
+        }
+    }
+    (projects, exclusions)
+}
+
+fn skipped_retry_result(exclusion: &RetryExclusion) -> ProjectOperationResult {
+    ProjectOperationResult {
+        project_id: exclusion.project_id.clone(),
+        outcome: ProjectOperationOutcome::Skipped,
+        success: true,
+        skip_reason: Some(exclusion.reason.code().to_owned()),
+        commands_executed: Vec::new(),
+        stdout: String::new(),
+        stderr: String::new(),
+        exit_code: None,
+        error_message: None,
+    }
 }
 
 fn git_push_offer_for_freeze(
@@ -1802,7 +2196,6 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
                 Some(p) => p,
                 None => return Task::none(),
             };
-
             let status = state
                 .workspace_status
                 .as_ref()
@@ -1853,6 +2246,9 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
                 Some(p) => p,
                 None => return Task::none(),
             };
+            let Some(lease_id) = acquire_operation(state, OperationOwner::ContextSwitch) else {
+                return Task::none();
+            };
 
             state.context_ops.phase = ContextPhase::Switching {
                 project_id: project_id.clone(),
@@ -1889,7 +2285,9 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
                         recovery_hint: hint,
                     }
                 },
-                |r| Message::Background(BackgroundMessage::ContextSwitchDone(r)),
+                move |result| {
+                    Message::Background(BackgroundMessage::ContextSwitchDone { lease_id, result })
+                },
             )
         }
 
@@ -1933,10 +2331,16 @@ fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<Message> {
             )
         }
         ContextMessage::BulkModalClosed => {
+            if matches!(state.context_ops.phase, ContextPhase::Switching { .. }) {
+                return Task::none();
+            }
             state.active_modal = crate::state::ActiveModal::None;
             Task::none()
         }
         ContextMessage::Cancelled => {
+            if matches!(state.context_ops.phase, ContextPhase::Switching { .. }) {
+                return Task::none();
+            }
             state.active_modal = crate::state::ActiveModal::None;
             Task::none()
         }
@@ -1951,6 +2355,7 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
     #[allow(unreachable_patterns)]
     match msg {
         FreezerMessage::OpenRequested => {
+            cancel_freezer_validation(state);
             // Reinitialise project selection from workspace.
             if let Some(ws) = &state.workspace {
                 let ids: Vec<_> = ws.projects.iter().map(|p| p.id.clone()).collect();
@@ -1964,6 +2369,7 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
         }
 
         FreezerMessage::NameChanged(name) => {
+            cancel_freezer_validation(state);
             state.freezer.freeze_name = name;
             // Reset to Idle when the name changes after validation.
             if matches!(state.freezer.phase, FreezerPhase::ValidationReady(_)) {
@@ -1980,6 +2386,7 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             start_freeze_execution(state)
         }
         FreezerMessage::BulkOpenRequested => {
+            cancel_freezer_validation(state);
             state.active_modal = crate::state::ActiveModal::Tag;
             state.freezer.phase = FreezerPhase::Idle;
             state.freezer.execution_started_at = None;
@@ -1994,14 +2401,16 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::RELEASE_NAME)
         }
         FreezerMessage::BulkModalClosed => {
-            if matches!(state.freezer.phase, FreezerPhase::Executing) {
+            if freezer_is_running(state) {
                 return Task::none();
             }
+            cancel_freezer_validation(state);
             state.active_modal = crate::state::ActiveModal::None;
             Task::none()
         }
 
         FreezerMessage::ProjectToggled(id, included) => {
+            cancel_freezer_validation(state);
             state.freezer.project_selection.insert(id, included);
             // Invalidate validation when selection changes.
             if matches!(state.freezer.phase, FreezerPhase::ValidationReady(_)) {
@@ -2023,36 +2432,53 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             let selection = state.freezer.selected_ids();
             let freeze_name = state.freezer.freeze_name.clone();
             let max = state.config.max_concurrent_reads;
+            let Some(lease_id) = acquire_operation(state, OperationOwner::FreezeValidation) else {
+                return Task::none();
+            };
 
-            state.freezer.phase = FreezerPhase::Validating;
+            state.freezer.phase = FreezerPhase::Validating { lease_id };
             state.freezer.execution_started_at = None;
 
             Task::perform(
                 async move {
                     VcsAdapter::validate_freeze(&projects, &selection, &freeze_name, max).await
                 },
-                |v| Message::Background(BackgroundMessage::FreezeValidationDone(v)),
+                move |validation| {
+                    Message::Background(BackgroundMessage::FreezeValidationDone {
+                        lease_id,
+                        validation,
+                    })
+                },
             )
         }
 
         FreezerMessage::Cancelled => {
-            if matches!(state.freezer.phase, FreezerPhase::Executing) {
+            if freezer_is_running(state) {
                 return Task::none();
             }
+            cancel_freezer_validation(state);
             state.freezer.execution_started_at = None;
             state.freezer.phase = FreezerPhase::Idle;
             Task::none()
         }
 
         FreezerMessage::BackToDashboard => {
-            if matches!(state.freezer.phase, FreezerPhase::Executing) {
+            if freezer_is_running(state) {
                 return Task::none();
             }
+            cancel_freezer_validation(state);
             state.screen = Screen::Dashboard;
             state.freezer.execution_started_at = None;
             state.freezer.phase = FreezerPhase::Idle;
             Task::none()
         }
+    }
+}
+
+fn cancel_freezer_validation(state: &mut AppState) {
+    if let FreezerPhase::Validating { lease_id } = state.freezer.phase {
+        state.operation_interlock.release_if_matches(lease_id);
+        state.freezer.phase = FreezerPhase::Idle;
     }
 }
 
@@ -2073,6 +2499,9 @@ fn start_freeze_execution(state: &mut AppState) -> Task<Message> {
         .unwrap_or_default();
     let tag_message = state.freezer.tag_message.trim().to_owned();
     let tag_message = (!tag_message.is_empty()).then_some(tag_message);
+    let Some(lease_id) = acquire_operation(state, OperationOwner::FreezeExecution) else {
+        return Task::none();
+    };
 
     state.freezer.execution_started_at = Some(chrono::Utc::now());
     state.freezer.phase = FreezerPhase::Executing;
@@ -2083,7 +2512,9 @@ fn start_freeze_execution(state: &mut AppState) -> Task<Message> {
             VcsAdapter::execute_freeze_with_message(&projects, &validation, tag_message.as_deref())
                 .await
         },
-        |result| Message::Background(BackgroundMessage::FreezeExecutionDone(result)),
+        move |result| {
+            Message::Background(BackgroundMessage::FreezeExecutionDone { lease_id, result })
+        },
     )
 }
 
@@ -2250,6 +2681,9 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
                 };
                 return Task::none();
             }
+            let Some(lease_id) = acquire_operation(state, OperationOwner::ConflictMutation) else {
+                return Task::none();
+            };
             state.conflict_ops.phase = ConflictPhase::Operating {
                 project_id: project_id.clone(),
                 action: state.t("plain.resolve.marking").to_owned(),
@@ -2261,8 +2695,9 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
                     let detail = VcsAdapter::list_conflicted_files(&project).await;
                     (result, detail)
                 },
-                |(result, detail)| {
+                move |(result, detail)| {
                     Message::Background(BackgroundMessage::ConflictOperationCompleted {
+                        lease_id,
                         result,
                         detail,
                     })
@@ -2282,23 +2717,27 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
                 };
                 return Task::none();
             }
+            let project = match find_project(state, &id) {
+                Some(p) => p,
+                None => return Task::none(),
+            };
+            let Some(lease_id) = acquire_operation(state, OperationOwner::ConflictMutation) else {
+                return Task::none();
+            };
             state.conflict_ops.phase = ConflictPhase::Operating {
                 project_id: id.clone(),
                 action: state.t("plain.resolve.stopping").to_owned(),
             };
             state.conflict_ops.cached.remove(&id);
-            let project = match find_project(state, &id) {
-                Some(p) => p,
-                None => return Task::none(),
-            };
             Task::perform(
                 async move {
                     let result = VcsAdapter::abort_merge(&project).await;
                     let detail = VcsAdapter::list_conflicted_files(&project).await;
                     (result, detail)
                 },
-                |(result, detail)| {
+                move |(result, detail)| {
                     Message::Background(BackgroundMessage::ConflictOperationCompleted {
+                        lease_id,
                         result,
                         detail,
                     })
@@ -2613,6 +3052,9 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
                 Some(p) => p.clone(),
                 None => return Task::none(),
             };
+            let Some(lease_id) = acquire_operation(state, OperationOwner::TagPush) else {
+                return Task::none();
+            };
             if let Some(ref mut p) = state.pending_tag_push {
                 p.is_pushing = true;
             }
@@ -2650,8 +3092,9 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
                     let failed = results.iter().filter(|r| !r.success).count();
                     (success, failed)
                 },
-                |(success_count, fail_count)| {
+                move |(success_count, fail_count)| {
                     Message::Background(BackgroundMessage::TagPushCompleted {
+                        lease_id,
                         success_count,
                         fail_count,
                     })
@@ -2660,6 +3103,13 @@ fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
         }
 
         TagPushMessage::PushDeclined => {
+            if state
+                .pending_tag_push
+                .as_ref()
+                .is_some_and(|push| push.is_pushing)
+            {
+                return Task::none();
+            }
             state.pending_tag_push = None;
             Task::none()
         }
@@ -2709,73 +3159,175 @@ fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> Task<Message
 
 fn handle_activity(state: &mut AppState, msg: ActivityMessage) -> Task<Message> {
     match msg {
-        ActivityMessage::Started { label, total } => {
-            state.activity.latest = crate::state::LatestOpState::Running {
-                label,
-                done: 0,
-                total,
+        ActivityMessage::RetryRequested {
+            source_operation_id,
+        } => {
+            let action = match &state.activity.latest {
+                crate::state::LatestOpState::Completed {
+                    retry: RetryAvailability::Available(action),
+                    ..
+                } => action.clone(),
+                _ => return Task::none(),
             };
-            state.activity.completed_secs = 0;
-        }
-        ActivityMessage::Progress { done } => {
-            if let crate::state::LatestOpState::Running {
-                done: ref mut d, ..
-            } = state.activity.latest
-            {
-                *d = done;
+            match action {
+                ActivityRetryAction::FetchFailed {
+                    source_operation_id: expected,
+                    project_ids,
+                } if expected == source_operation_id => {
+                    return start_activity_fetch_retry(state, expected, project_ids);
+                }
+                ActivityRetryAction::ReviewSmartPull {
+                    source_operation_id: expected,
+                    project_ids,
+                } if expected == source_operation_id => {
+                    return start_activity_smart_pull_review(state, expected, project_ids);
+                }
+                _ => return Task::none(),
             }
         }
-        ActivityMessage::Completed { log } => {
-            let total = log.result.per_project.len();
-            let failed = log.result.per_project.iter().filter(|p| !p.success).count();
-            let kind = log.result.kind.to_string();
-            if failed == 0 {
-                state.activity.latest = crate::state::LatestOpState::Success {
-                    summary: format!(
-                        "{} {} project{}",
-                        kind,
-                        total,
-                        if total == 1 { "" } else { "s" }
-                    ),
-                    elapsed_secs: 0,
-                };
-            } else if failed < total {
-                let names = log
-                    .result
-                    .per_project
-                    .iter()
-                    .filter(|p| !p.success)
-                    .map(|p| p.project_id.to_string())
-                    .collect();
-                state.activity.latest = crate::state::LatestOpState::PartialFailure {
-                    summary: format!(
-                        "{} {} projects · {} ok, {} failed",
-                        kind,
-                        total,
-                        total - failed,
-                        failed
-                    ),
-                    failed_names: names,
-                };
-            } else {
-                state.activity.latest = crate::state::LatestOpState::TotalFailure {
-                    summary: format!("{} failed for all {} projects", kind, total),
-                };
-            }
-            state.activity.completed_secs = 0;
-        }
-        ActivityMessage::PopoverToggled => {
-            state.activity.popover_open = !state.activity.popover_open;
-        }
-        ActivityMessage::RetryRequested => {
-            // Route to last operation kind — for now navigate to History.
-            return Task::done(Message::Navigate(Screen::History));
+        ActivityMessage::DetailsRequested { operation_id } => {
+            state.history_expanded.insert(operation_id);
+            state.screen = Screen::History;
         }
         ActivityMessage::Tick => {
             state.activity.completed_secs = state.activity.completed_secs.saturating_add(1);
         }
     }
     Task::none()
+}
+
+fn start_activity_fetch_retry(
+    state: &mut AppState,
+    source_operation_id: OperationId,
+    project_ids: Vec<knotra_vcs::ProjectId>,
+) -> Task<Message> {
+    let (projects, exclusions) = split_retry_targets(state, &project_ids);
+    if projects.is_empty() {
+        mark_activity_retry_unavailable(state, &source_operation_id);
+        state.status_bar = Some(state.t("plain.activity.none_available").to_owned());
+        return Task::none();
+    }
+    let Some(lease_id) = acquire_operation(state, OperationOwner::ActivityFetchRetry) else {
+        return Task::none();
+    };
+    let operation_id = OperationId::new();
+    let total = projects.len() + exclusions.len();
+    state.activity.latest = crate::state::LatestOpState::Running {
+        operation_id: operation_id.clone(),
+        label: state.t("plain.activity.retrying_fetch").to_owned(),
+        done: exclusions.len(),
+        total,
+    };
+    state.activity.fetch_retry = Some(crate::state::FetchRetryRun {
+        operation_id: operation_id.clone(),
+        lease_id,
+        started_at: chrono::Utc::now(),
+        total,
+        completed: Vec::new(),
+        exclusions,
+    });
+
+    use iced::futures::stream;
+    let stream = stream::iter(projects)
+        .then(move |project| async move { VcsAdapter::fetch(&project).await });
+    Task::run(stream, move |result| {
+        Message::Background(BackgroundMessage::ActivityFetchRetryProjectCompleted {
+            lease_id,
+            operation_id: operation_id.clone(),
+            result,
+        })
+    })
+}
+
+fn start_activity_smart_pull_review(
+    state: &mut AppState,
+    source_operation_id: OperationId,
+    project_ids: Vec<knotra_vcs::ProjectId>,
+) -> Task<Message> {
+    invalidate_retry_preparation(state);
+    let (projects, exclusions) = split_retry_targets(state, &project_ids);
+    if projects.is_empty() {
+        mark_activity_retry_unavailable(state, &source_operation_id);
+        state.status_bar = Some(state.t("plain.activity.none_available").to_owned());
+        return Task::none();
+    }
+    let Some(workspace_id) = state
+        .workspace
+        .as_ref()
+        .map(|workspace| workspace.id.clone())
+    else {
+        return Task::none();
+    };
+    let Some(lease_id) = acquire_operation(state, OperationOwner::ActivitySmartPullPreparation)
+    else {
+        return Task::none();
+    };
+    let request_id = state.sync.next_retry_preparation_id();
+    let eligible_ids: Vec<_> = projects.iter().map(|project| project.id.clone()).collect();
+    state.sync.selected_project_ids = eligible_ids.iter().cloned().collect();
+    state.sync.project_selection.clear();
+    if let Some(workspace) = &state.workspace {
+        for project in &workspace.projects {
+            state
+                .sync
+                .project_selection
+                .insert(project.id.clone(), eligible_ids.contains(&project.id));
+        }
+    }
+    state.sync.disposition_overrides.clear();
+    state.sync.retry_exclusions = exclusions.clone();
+    state.sync.retry_preparation = Some(SmartPullRetryPreparation {
+        id: request_id,
+        workspace_id: workspace_id.clone(),
+        source_operation_id,
+        lease_id,
+        eligible_ids,
+        exclusions,
+    });
+    state.sync.phase = SyncPhase::RetryPreparing;
+    state.active_modal = crate::state::ActiveModal::Pull;
+
+    Task::perform(
+        async move {
+            let mut statuses = Vec::with_capacity(projects.len());
+            for project in projects {
+                statuses.push(VcsAdapter::read_project_status(&project).await);
+            }
+            statuses
+        },
+        move |statuses| {
+            Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
+                request_id,
+                workspace_id: workspace_id.clone(),
+                lease_id,
+                statuses,
+            })
+        },
+    )
+}
+
+fn mark_activity_retry_unavailable(state: &mut AppState, source_operation_id: &OperationId) {
+    if let crate::state::LatestOpState::Completed { log, retry } = &mut state.activity.latest
+        && &log.result.operation_id == source_operation_id
+    {
+        *retry = RetryAvailability::Unavailable(RetryUnavailableReason::NoEligibleTargets);
+    }
+}
+
+fn invalidate_retry_preparation(state: &mut AppState) {
+    if let Some(preparation) = state.sync.retry_preparation.take() {
+        state
+            .operation_interlock
+            .release_if_matches(preparation.lease_id);
+        if matches!(state.sync.phase, SyncPhase::RetryPreparing) {
+            state.sync.phase = SyncPhase::Idle;
+        }
+    }
+}
+
+fn clear_sync_retry_context(state: &mut AppState) {
+    invalidate_retry_preparation(state);
+    state.sync.retry_exclusions.clear();
 }
 
 // ---------------------------------------------------------------------------

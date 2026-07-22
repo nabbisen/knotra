@@ -3,14 +3,19 @@
 use crate::config::AppConfig;
 use crate::config::AppPaths;
 use crate::message::{
-    BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage, DetailPanelMessage,
-    FilterMessage, FreezerMessage, Message, PaletteMessage, SelectionMessage, ShortcutMessage,
-    SyncMessage, TagPushMessage, WorkspaceMessage,
+    ActivityMessage, BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage,
+    DetailPanelMessage, FilterMessage, FreezerMessage, Message, PaletteMessage, SelectionMessage,
+    ShortcutMessage, SyncMessage, TagPushMessage, WorkspaceMessage,
 };
 use crate::persistence::{load_workspaces, save_workspace};
 use crate::state::{
-    ActiveModal, AddProjectDialog, AppState, Screen, changelog::ChangelogPhase,
-    conflict_ops::ConflictPhase, context::ContextPhase, freezer::FreezerPhase, sync::SyncPhase,
+    ActiveModal, ActivityRetryAction, AddProjectDialog, AppState, LatestOpState, OperationOwner,
+    RetryAvailability, RetryUnavailableReason, Screen,
+    changelog::ChangelogPhase,
+    conflict_ops::ConflictPhase,
+    context::ContextPhase,
+    freezer::FreezerPhase,
+    sync::{RetryPreparationId, SmartPullRetryPreparation, SyncPhase},
 };
 use chrono::Utc;
 use knotra_vcs::{
@@ -19,7 +24,8 @@ use knotra_vcs::{
     model::{
         operation::{
             FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
-            FreezeValidationEntry, OperationKind, ProjectOperationOutcome, ProjectOperationResult,
+            FreezeValidationEntry, OperationKind, OperationLog, OperationResult,
+            ProjectOperationOutcome, ProjectOperationResult, RetryExclusionReason,
             SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
             SmartPullSkipReason,
         },
@@ -57,6 +63,40 @@ fn make_project(name: &str) -> Project {
 
 fn make_project_at(name: &str, path: impl Into<String>) -> Project {
     Project::new(name, path)
+}
+
+fn make_operation_result(
+    project_id: ProjectId,
+    outcome: ProjectOperationOutcome,
+) -> ProjectOperationResult {
+    let success = outcome != ProjectOperationOutcome::Failed;
+    ProjectOperationResult {
+        project_id,
+        outcome,
+        success,
+        skip_reason: None,
+        commands_executed: Vec::new(),
+        stdout: String::new(),
+        stderr: String::new(),
+        exit_code: Some(if success { 0 } else { 1 }),
+        error_message: (!success).then(|| "failed".to_owned()),
+    }
+}
+
+fn make_operation_log(kind: OperationKind, results: Vec<ProjectOperationResult>) -> OperationLog {
+    let now = Utc::now();
+    OperationLog {
+        result: OperationResult {
+            operation_id: OperationId::new(),
+            kind,
+            started_at: now,
+            finished_at: now,
+            per_project: results,
+            rollback_attempted: false,
+            rollback_succeeded: None,
+        },
+        recovery_hints: Vec::new(),
+    }
 }
 
 fn make_project_status(project_id: ProjectId, upstream: Option<&str>) -> knotra_vcs::ProjectStatus {
@@ -678,6 +718,7 @@ fn palette_fetch_all_uses_active_workspace_projects() {
         total,
         done,
         completed,
+        ..
     } = &state.sync.phase
     else {
         panic!("expected active workspace fetch to start");
@@ -1168,16 +1209,22 @@ fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
             disposition: SmartPullDisposition::Excluded,
         }],
     };
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::SmartPullExecution)
+        .expect("acquire smart-pull lease");
     state.sync.phase = SyncPhase::PullRunning {
         plan,
+        lease_id,
         started_at: Utc::now(),
         completed: Vec::new(),
     };
 
     dispatch(
         &mut state,
-        Message::Background(BackgroundMessage::SmartPullProjectCompleted(
-            SmartPullProgress {
+        Message::Background(BackgroundMessage::SmartPullProjectCompleted {
+            lease_id,
+            progress: SmartPullProgress {
                 project_id: project.id.clone(),
                 project_name: project.name.clone(),
                 result: ProjectOperationResult {
@@ -1193,7 +1240,7 @@ fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
                 },
                 recovery_hint: None,
             },
-        )),
+        }),
     );
 
     let SyncPhase::Done(result) = &state.sync.phase else {
@@ -1221,6 +1268,10 @@ fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
 
 fn install_running_smart_pull(state: &mut AppState) {
     let project = make_project("svc");
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::SmartPullExecution)
+        .expect("acquire smart-pull lease");
     state.active_modal = ActiveModal::Pull;
     state.sync.phase = SyncPhase::PullRunning {
         plan: SmartPullPlan {
@@ -1234,6 +1285,7 @@ fn install_running_smart_pull(state: &mut AppState) {
                 disposition: SmartPullDisposition::Pull,
             }],
         },
+        lease_id,
         started_at: Utc::now(),
         completed: Vec::new(),
     };
@@ -1625,24 +1677,31 @@ fn freezer_completion_persists_log_and_offers_git_push() {
         last_refresh: Some(Utc::now()),
     });
     state.freezer.execution_started_at = Some(Utc::now());
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::FreezeExecution)
+        .expect("acquire freezer lease");
 
     dispatch(
         &mut state,
-        Message::Background(BackgroundMessage::FreezeExecutionDone(FreezeResult {
-            freeze_name: "v1.0.0".to_owned(),
-            project_results: vec![FreezeProjectResult {
-                project_id: project.id.clone(),
-                project_name: project.name.clone(),
-                success: true,
-                commands_executed: vec!["git tag v1.0.0".to_owned()],
-                stdout: String::new(),
-                stderr: String::new(),
-                rollback_attempted: false,
-                rollback_succeeded: None,
-                recovery_hint: None,
-            }],
-            outcome: FreezeOutcome::Success,
-        })),
+        Message::Background(BackgroundMessage::FreezeExecutionDone {
+            lease_id,
+            result: FreezeResult {
+                freeze_name: "v1.0.0".to_owned(),
+                project_results: vec![FreezeProjectResult {
+                    project_id: project.id.clone(),
+                    project_name: project.name.clone(),
+                    success: true,
+                    commands_executed: vec!["git tag v1.0.0".to_owned()],
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    rollback_attempted: false,
+                    rollback_succeeded: None,
+                    recovery_hint: None,
+                }],
+                outcome: FreezeOutcome::Success,
+            },
+        }),
     );
 
     assert!(matches!(state.freezer.phase, FreezerPhase::Done(_)));
@@ -1677,24 +1736,31 @@ fn freezer_completion_does_not_offer_jj_push() {
         )],
         last_refresh: Some(Utc::now()),
     });
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::FreezeExecution)
+        .expect("acquire freezer lease");
 
     dispatch(
         &mut state,
-        Message::Background(BackgroundMessage::FreezeExecutionDone(FreezeResult {
-            freeze_name: "v1.0.0".to_owned(),
-            project_results: vec![FreezeProjectResult {
-                project_id: project.id.clone(),
-                project_name: project.name,
-                success: true,
-                commands_executed: vec!["jj bookmark create v1.0.0 -r @".to_owned()],
-                stdout: String::new(),
-                stderr: String::new(),
-                rollback_attempted: false,
-                rollback_succeeded: None,
-                recovery_hint: None,
-            }],
-            outcome: FreezeOutcome::Success,
-        })),
+        Message::Background(BackgroundMessage::FreezeExecutionDone {
+            lease_id,
+            result: FreezeResult {
+                freeze_name: "v1.0.0".to_owned(),
+                project_results: vec![FreezeProjectResult {
+                    project_id: project.id.clone(),
+                    project_name: project.name,
+                    success: true,
+                    commands_executed: vec!["jj bookmark create v1.0.0 -r @".to_owned()],
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    rollback_attempted: false,
+                    rollback_succeeded: None,
+                    recovery_hint: None,
+                }],
+                outcome: FreezeOutcome::Success,
+            },
+        }),
     );
 
     assert!(state.pending_tag_push.is_none());
@@ -1720,24 +1786,31 @@ fn freezer_non_success_result_clears_stale_push_offer() {
         )],
         last_refresh: Some(Utc::now()),
     });
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::FreezeExecution)
+        .expect("acquire freezer lease");
 
     dispatch(
         &mut state,
-        Message::Background(BackgroundMessage::FreezeExecutionDone(FreezeResult {
-            freeze_name: "v1.0.0".to_owned(),
-            project_results: vec![FreezeProjectResult {
-                project_id: project.id.clone(),
-                project_name: project.name,
-                success: false,
-                commands_executed: vec!["git tag v1.0.0".to_owned()],
-                stdout: String::new(),
-                stderr: "failed".to_owned(),
-                rollback_attempted: false,
-                rollback_succeeded: None,
-                recovery_hint: None,
-            }],
-            outcome: FreezeOutcome::RolledBack,
-        })),
+        Message::Background(BackgroundMessage::FreezeExecutionDone {
+            lease_id,
+            result: FreezeResult {
+                freeze_name: "v1.0.0".to_owned(),
+                project_results: vec![FreezeProjectResult {
+                    project_id: project.id.clone(),
+                    project_name: project.name,
+                    success: false,
+                    commands_executed: vec!["git tag v1.0.0".to_owned()],
+                    stdout: String::new(),
+                    stderr: "failed".to_owned(),
+                    rollback_attempted: false,
+                    rollback_succeeded: None,
+                    recovery_hint: None,
+                }],
+                outcome: FreezeOutcome::RolledBack,
+            },
+        }),
     );
 
     assert!(state.pending_tag_push.is_none());
@@ -1903,10 +1976,15 @@ fn conflict_operation_completion_success_refreshes_browsing_detail() {
         note: None,
         read_error: None,
     };
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::ConflictMutation)
+        .expect("acquire conflict lease");
 
     dispatch(
         &mut state,
         Message::Background(BackgroundMessage::ConflictOperationCompleted {
+            lease_id,
             result: ProjectOperationResult {
                 project_id: project.id.clone(),
                 outcome: ProjectOperationOutcome::Succeeded,
@@ -1943,10 +2021,15 @@ fn conflict_operation_completion_failure_keeps_panel_error_visible() {
         note: None,
         read_error: None,
     };
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::ConflictMutation)
+        .expect("acquire conflict lease");
 
     dispatch(
         &mut state,
         Message::Background(BackgroundMessage::ConflictOperationCompleted {
+            lease_id,
             result: ProjectOperationResult {
                 project_id: project.id.clone(),
                 outcome: ProjectOperationOutcome::Failed,
@@ -1981,6 +2064,335 @@ fn conflict_operation_completion_failure_keeps_panel_error_visible() {
     assert_eq!(result.stderr, "failed");
     assert_eq!(result.error_message.as_deref(), Some("failed"));
     assert!(state.conflict_ops.cached.contains_key(&project.id));
+}
+
+#[test]
+fn operation_interlock_rejects_overlap_and_stale_release() {
+    let owners = [
+        OperationOwner::SingleFetch,
+        OperationOwner::BulkFetch,
+        OperationOwner::SmartPullPreparation,
+        OperationOwner::SmartPullExecution,
+        OperationOwner::ContextSwitch,
+        OperationOwner::FreezeValidation,
+        OperationOwner::FreezeExecution,
+        OperationOwner::ConflictMutation,
+        OperationOwner::TagPush,
+        OperationOwner::ActivitySmartPullPreparation,
+    ];
+    for owner in owners {
+        let mut state = make_state();
+        let retry = state
+            .operation_interlock
+            .try_acquire(OperationOwner::ActivityFetchRetry)
+            .expect("retry lease");
+        assert!(state.operation_interlock.try_acquire(owner).is_none());
+        assert!(state.operation_interlock.release_if_matches(retry));
+
+        let ordinary = state
+            .operation_interlock
+            .try_acquire(owner)
+            .expect("ordinary lease");
+        assert!(
+            state
+                .operation_interlock
+                .try_acquire(OperationOwner::ActivityFetchRetry)
+                .is_none()
+        );
+        assert!(state.operation_interlock.release_if_matches(ordinary));
+    }
+
+    let mut state = make_state();
+    let first = state
+        .operation_interlock
+        .try_acquire(OperationOwner::ActivityFetchRetry)
+        .expect("first lease");
+    assert!(state.operation_interlock.release_if_matches(first));
+    let second = state
+        .operation_interlock
+        .try_acquire(OperationOwner::SingleFetch)
+        .expect("second lease");
+    assert!(!state.operation_interlock.release_if_matches(first));
+    assert!(state.operation_interlock.is_busy());
+    assert!(state.operation_interlock.release_if_matches(second));
+}
+
+#[test]
+fn ordinary_fetch_is_rejected_while_activity_retry_owns_interlock() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state
+        .operation_interlock
+        .try_acquire(OperationOwner::ActivityFetchRetry)
+        .expect("activity retry lease");
+
+    dispatch(
+        &mut state,
+        Message::Project(crate::message::ProjectMessage::FetchRequested(
+            project.id.clone(),
+        )),
+    );
+
+    assert!(!state.fetching_projects.contains(&project.id));
+    assert_eq!(
+        state.status_bar.as_deref(),
+        Some("Wait for the current operation to finish.")
+    );
+}
+
+#[test]
+fn palette_mutating_actions_show_busy_reason_during_activity_retry() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state
+        .operation_interlock
+        .try_acquire(OperationOwner::ActivityFetchRetry)
+        .expect("activity retry lease");
+
+    crate::state::palette::update_results(&mut state);
+
+    let fetch = state
+        .palette
+        .results
+        .iter()
+        .find(|entry| entry.payload == "action.fetch_all")
+        .expect("fetch action");
+    assert_eq!(fetch.disabled_reason_key, Some("plain.activity.busy"));
+}
+
+#[test]
+fn legacy_failed_result_enables_typed_fetch_retry() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let mut state = make_state_with_paths(AppPaths::under(tmp.path().to_path_buf()));
+    let project_id = ProjectId::new();
+    let mut legacy = make_operation_result(project_id.clone(), ProjectOperationOutcome::Succeeded);
+    legacy.success = false;
+    let log = make_operation_log(OperationKind::Fetch, vec![legacy]);
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::SingleFetch)
+        .expect("single fetch lease");
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::SingleFetchCompleted { lease_id, log }),
+    );
+
+    let LatestOpState::Completed {
+        retry: RetryAvailability::Available(ActivityRetryAction::FetchFailed { project_ids, .. }),
+        ..
+    } = &state.activity.latest
+    else {
+        panic!("expected typed fetch retry");
+    };
+    assert_eq!(project_ids, &vec![project_id]);
+}
+
+#[test]
+fn activity_details_opens_and_expands_source_history_entry() {
+    let mut state = make_state();
+    let operation_id = OperationId::new();
+
+    dispatch(
+        &mut state,
+        Message::Activity(ActivityMessage::DetailsRequested {
+            operation_id: operation_id.clone(),
+        }),
+    );
+
+    assert_eq!(state.screen, Screen::History);
+    assert!(state.history_expanded.contains(&operation_id));
+}
+
+#[test]
+fn fetch_retry_records_ineligible_source_target_as_skipped() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(tmp.path().join(".git")).expect("git marker");
+    let paths = AppPaths::under(tmp.path().join("state"));
+    let mut state = make_state_with_paths(paths);
+    let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
+    let removed_id = ProjectId::new();
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let source = make_operation_log(
+        OperationKind::Fetch,
+        vec![
+            make_operation_result(project.id.clone(), ProjectOperationOutcome::Failed),
+            make_operation_result(removed_id.clone(), ProjectOperationOutcome::Failed),
+        ],
+    );
+    let source_id = source.result.operation_id.clone();
+    state.activity.latest = LatestOpState::Completed {
+        log: source,
+        retry: RetryAvailability::Available(ActivityRetryAction::FetchFailed {
+            source_operation_id: source_id.clone(),
+            project_ids: vec![project.id.clone(), removed_id.clone()],
+        }),
+    };
+
+    dispatch(
+        &mut state,
+        Message::Activity(ActivityMessage::RetryRequested {
+            source_operation_id: source_id.clone(),
+        }),
+    );
+    let run = state.activity.fetch_retry.clone().expect("fetch retry run");
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::ActivityFetchRetryProjectCompleted {
+            lease_id: run.lease_id,
+            operation_id: run.operation_id,
+            result: make_operation_result(project.id, ProjectOperationOutcome::Succeeded),
+        }),
+    );
+
+    assert_eq!(state.operation_logs.len(), 1);
+    let result = &state.operation_logs[0].result;
+    assert_eq!(result.successful_projects().len(), 1);
+    assert_eq!(result.failed_projects().len(), 0);
+    assert_eq!(result.skipped_projects().len(), 1);
+    let skipped = result.skipped_projects()[0];
+    assert_eq!(skipped.project_id, removed_id);
+    assert_eq!(
+        skipped
+            .skip_reason
+            .as_deref()
+            .and_then(RetryExclusionReason::from_code),
+        Some(RetryExclusionReason::NotInActiveWorkspace)
+    );
+}
+
+#[test]
+fn closing_smart_pull_retry_ignores_late_status_result_and_releases_lease() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(tmp.path().join(".git")).expect("git marker");
+    let mut state = make_state();
+    let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
+    let workspace = Workspace {
+        projects: vec![project.clone()],
+        ..Workspace::new("Main")
+    };
+    let workspace_id = workspace.id.clone();
+    install_workspaces(&mut state, vec![workspace], 0);
+    let source = make_operation_log(
+        OperationKind::SmartPull,
+        vec![make_operation_result(
+            project.id.clone(),
+            ProjectOperationOutcome::Failed,
+        )],
+    );
+    let source_id = source.result.operation_id.clone();
+    state.activity.latest = LatestOpState::Completed {
+        log: source,
+        retry: RetryAvailability::Available(ActivityRetryAction::ReviewSmartPull {
+            source_operation_id: source_id.clone(),
+            project_ids: vec![project.id.clone()],
+        }),
+    };
+
+    dispatch(
+        &mut state,
+        Message::Activity(ActivityMessage::RetryRequested {
+            source_operation_id: source_id.clone(),
+        }),
+    );
+    let preparation = state
+        .sync
+        .retry_preparation
+        .clone()
+        .expect("retry preparation");
+    assert!(state.operation_interlock.is_busy());
+
+    dispatch(&mut state, Message::Sync(SyncMessage::ModalClosed));
+    assert!(!state.operation_interlock.is_busy());
+    assert_eq!(state.active_modal, ActiveModal::None);
+    assert!(matches!(state.sync.phase, SyncPhase::Idle));
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
+            request_id: preparation.id,
+            workspace_id: workspace_id.clone(),
+            lease_id: preparation.lease_id,
+            statuses: vec![make_project_status(project.id.clone(), Some("origin/main"))],
+        }),
+    );
+    assert!(matches!(state.sync.phase, SyncPhase::Idle));
+    assert!(state.sync.retry_preparation.is_none());
+
+    dispatch(
+        &mut state,
+        Message::Activity(ActivityMessage::RetryRequested {
+            source_operation_id: source_id.clone(),
+        }),
+    );
+    let superseded = state
+        .sync
+        .retry_preparation
+        .clone()
+        .expect("superseded preparation");
+    dispatch(
+        &mut state,
+        Message::Activity(ActivityMessage::RetryRequested {
+            source_operation_id: source_id,
+        }),
+    );
+    let current = state
+        .sync
+        .retry_preparation
+        .clone()
+        .expect("current preparation");
+    assert_ne!(superseded.id, current.id);
+    assert_ne!(superseded.lease_id, current.lease_id);
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
+            request_id: superseded.id,
+            workspace_id: workspace_id.clone(),
+            lease_id: superseded.lease_id,
+            statuses: vec![make_project_status(project.id.clone(), Some("origin/main"))],
+        }),
+    );
+    assert_eq!(
+        state.sync.retry_preparation.as_ref().map(|prep| prep.id),
+        Some(current.id)
+    );
+    assert!(matches!(state.sync.phase, SyncPhase::RetryPreparing));
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
+            request_id: current.id,
+            workspace_id,
+            lease_id: current.lease_id,
+            statuses: vec![make_project_status(project.id, Some("origin/main"))],
+        }),
+    );
+    assert!(matches!(state.sync.phase, SyncPhase::AwaitingConfirm(_)));
+    assert!(!state.operation_interlock.is_busy());
 }
 
 #[test]
@@ -2029,4 +2441,369 @@ fn resolve_project_file_path_rejects_symlink_escape() {
         crate::app::resolve_project_file_path(&project, "link.txt").unwrap_err(),
         "plain.resolve.file_outside_project"
     );
+}
+
+#[test]
+fn zero_eligible_fetch_retry_becomes_unavailable_without_task_or_log() {
+    let mut state = make_state();
+    install_workspaces(&mut state, vec![Workspace::new("Main")], 0);
+    let missing_id = ProjectId::new();
+    let source = make_operation_log(
+        OperationKind::Fetch,
+        vec![make_operation_result(
+            missing_id.clone(),
+            ProjectOperationOutcome::Failed,
+        )],
+    );
+    let source_id = source.result.operation_id.clone();
+    state.activity.latest = LatestOpState::Completed {
+        log: source,
+        retry: RetryAvailability::Available(ActivityRetryAction::FetchFailed {
+            source_operation_id: source_id.clone(),
+            project_ids: vec![missing_id],
+        }),
+    };
+
+    dispatch(
+        &mut state,
+        Message::Activity(ActivityMessage::RetryRequested {
+            source_operation_id: source_id,
+        }),
+    );
+
+    assert!(!state.operation_interlock.is_busy());
+    assert!(state.activity.fetch_retry.is_none());
+    assert!(state.operation_logs.is_empty());
+    assert!(matches!(
+        state.activity.latest,
+        LatestOpState::Completed {
+            retry: RetryAvailability::Unavailable(RetryUnavailableReason::NoEligibleTargets),
+            ..
+        }
+    ));
+    assert_eq!(
+        state.status_bar.as_deref(),
+        Some(state.t("plain.activity.none_available"))
+    );
+}
+
+#[test]
+fn zero_eligible_smart_pull_retry_becomes_unavailable_without_task_or_log() {
+    let mut state = make_state();
+    install_workspaces(&mut state, vec![Workspace::new("Main")], 0);
+    let missing_id = ProjectId::new();
+    let source = make_operation_log(
+        OperationKind::SmartPull,
+        vec![make_operation_result(
+            missing_id.clone(),
+            ProjectOperationOutcome::Failed,
+        )],
+    );
+    let source_id = source.result.operation_id.clone();
+    state.activity.latest = LatestOpState::Completed {
+        log: source,
+        retry: RetryAvailability::Available(ActivityRetryAction::ReviewSmartPull {
+            source_operation_id: source_id.clone(),
+            project_ids: vec![missing_id],
+        }),
+    };
+
+    dispatch(
+        &mut state,
+        Message::Activity(ActivityMessage::RetryRequested {
+            source_operation_id: source_id,
+        }),
+    );
+
+    assert!(!state.operation_interlock.is_busy());
+    assert!(state.sync.retry_preparation.is_none());
+    assert!(state.operation_logs.is_empty());
+    assert!(matches!(
+        state.activity.latest,
+        LatestOpState::Completed {
+            retry: RetryAvailability::Unavailable(RetryUnavailableReason::NoEligibleTargets),
+            ..
+        }
+    ));
+    assert_eq!(state.active_modal, ActiveModal::None);
+}
+
+fn install_validating_freezer(state: &mut AppState) -> crate::state::OperationLeaseId {
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::FreezeValidation)
+        .expect("acquire validation lease");
+    state.active_modal = ActiveModal::Tag;
+    state.freezer.phase = FreezerPhase::Validating { lease_id };
+    lease_id
+}
+
+#[test]
+fn freezer_validation_close_cancel_and_escape_release_the_lease() {
+    let mut closed = make_state();
+    install_validating_freezer(&mut closed);
+    dispatch(
+        &mut closed,
+        Message::Freezer(FreezerMessage::BulkModalClosed),
+    );
+    assert!(!closed.operation_interlock.is_busy());
+    assert_eq!(closed.active_modal, ActiveModal::None);
+    assert!(matches!(closed.freezer.phase, FreezerPhase::Idle));
+
+    let mut cancelled = make_state();
+    install_validating_freezer(&mut cancelled);
+    dispatch(&mut cancelled, Message::Freezer(FreezerMessage::Cancelled));
+    assert!(!cancelled.operation_interlock.is_busy());
+    assert!(matches!(cancelled.freezer.phase, FreezerPhase::Idle));
+
+    let mut escaped = make_state();
+    install_validating_freezer(&mut escaped);
+    dispatch(&mut escaped, Message::Shortcut(ShortcutMessage::Close));
+    assert!(!escaped.operation_interlock.is_busy());
+    assert_eq!(escaped.active_modal, ActiveModal::None);
+    assert!(matches!(escaped.freezer.phase, FreezerPhase::Idle));
+}
+
+#[test]
+fn freezer_validation_parameter_changes_release_the_lease() {
+    let mut renamed = make_state();
+    install_validating_freezer(&mut renamed);
+    dispatch(
+        &mut renamed,
+        Message::Freezer(FreezerMessage::NameChanged("v2.0.0".to_owned())),
+    );
+    assert!(!renamed.operation_interlock.is_busy());
+    assert!(matches!(renamed.freezer.phase, FreezerPhase::Idle));
+
+    let mut toggled = make_state();
+    let project_id = ProjectId::new();
+    install_validating_freezer(&mut toggled);
+    dispatch(
+        &mut toggled,
+        Message::Freezer(FreezerMessage::ProjectToggled(project_id.clone(), false)),
+    );
+    assert!(!toggled.operation_interlock.is_busy());
+    assert!(matches!(toggled.freezer.phase, FreezerPhase::Idle));
+    assert_eq!(
+        toggled.freezer.project_selection.get(&project_id),
+        Some(&false)
+    );
+}
+
+#[test]
+fn cancelled_freezer_validation_ignores_late_completion() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    let lease_id = install_validating_freezer(&mut state);
+    dispatch(
+        &mut state,
+        Message::Freezer(FreezerMessage::BulkModalClosed),
+    );
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::FreezeValidationDone {
+            lease_id,
+            validation: ready_freeze_validation(&project, "v1.0.0"),
+        }),
+    );
+
+    assert!(matches!(state.freezer.phase, FreezerPhase::Idle));
+    assert!(!state.operation_interlock.is_busy());
+}
+
+fn install_switching_context(state: &mut AppState) {
+    state
+        .operation_interlock
+        .try_acquire(OperationOwner::ContextSwitch)
+        .expect("acquire context lease");
+    state.active_modal = ActiveModal::Switch;
+    state.context_ops.phase = ContextPhase::Switching {
+        project_id: ProjectId::new(),
+        target: ContextTarget::GitLocalBranch {
+            name: "feature/foo".to_owned(),
+        },
+        target_label: "feature/foo".to_owned(),
+    };
+}
+
+#[test]
+fn context_switch_close_cancel_and_escape_keep_progress_visible() {
+    for message in [
+        Message::Context(ContextMessage::BulkModalClosed),
+        Message::Context(ContextMessage::Cancelled),
+        Message::Shortcut(ShortcutMessage::Close),
+    ] {
+        let mut state = make_state();
+        install_switching_context(&mut state);
+        dispatch(&mut state, message);
+        assert!(state.operation_interlock.is_busy());
+        assert_eq!(state.active_modal, ActiveModal::Switch);
+        assert!(matches!(
+            state.context_ops.phase,
+            ContextPhase::Switching { .. }
+        ));
+    }
+}
+
+fn install_running_tag_push(state: &mut AppState) {
+    state
+        .operation_interlock
+        .try_acquire(OperationOwner::TagPush)
+        .expect("acquire tag-push lease");
+    state.active_modal = ActiveModal::Tag;
+    state.pending_tag_push = Some(crate::state::PendingTagPush {
+        freeze_name: "v1.0.0".to_owned(),
+        project_ids: vec![ProjectId::new()],
+        is_pushing: true,
+    });
+}
+
+#[test]
+fn tag_push_close_decline_and_escape_keep_progress_visible() {
+    for message in [
+        Message::Freezer(FreezerMessage::BulkModalClosed),
+        Message::TagPush(TagPushMessage::PushDeclined),
+        Message::Shortcut(ShortcutMessage::Close),
+    ] {
+        let mut state = make_state();
+        install_running_tag_push(&mut state);
+        dispatch(&mut state, message);
+        assert!(state.operation_interlock.is_busy());
+        assert_eq!(state.active_modal, ActiveModal::Tag);
+        assert!(
+            state
+                .pending_tag_push
+                .as_ref()
+                .is_some_and(|push| push.is_pushing)
+        );
+    }
+}
+
+fn install_correlated_smart_pull_preparation(
+    state: &mut AppState,
+) -> (SmartPullRetryPreparation, Project, Project) {
+    let first = make_project("first");
+    let second = make_project("second");
+    let workspace = Workspace {
+        projects: vec![first.clone(), second.clone()],
+        ..Workspace::new("Main")
+    };
+    let workspace_id = workspace.id.clone();
+    install_workspaces(state, vec![workspace], 0);
+    let source = make_operation_log(
+        OperationKind::SmartPull,
+        vec![
+            make_operation_result(first.id.clone(), ProjectOperationOutcome::Failed),
+            make_operation_result(second.id.clone(), ProjectOperationOutcome::Failed),
+        ],
+    );
+    let source_operation_id = source.result.operation_id.clone();
+    state.activity.latest = LatestOpState::Completed {
+        log: source,
+        retry: RetryAvailability::Available(ActivityRetryAction::ReviewSmartPull {
+            source_operation_id: source_operation_id.clone(),
+            project_ids: vec![first.id.clone(), second.id.clone()],
+        }),
+    };
+    let lease_id = state
+        .operation_interlock
+        .try_acquire(OperationOwner::ActivitySmartPullPreparation)
+        .expect("acquire preparation lease");
+    let preparation = SmartPullRetryPreparation {
+        id: RetryPreparationId(1),
+        workspace_id,
+        source_operation_id,
+        lease_id,
+        eligible_ids: vec![first.id.clone(), second.id.clone()],
+        exclusions: Vec::new(),
+    };
+    state.sync.retry_preparation = Some(preparation.clone());
+    state.sync.phase = SyncPhase::RetryPreparing;
+    state.active_modal = ActiveModal::Pull;
+    (preparation, first, second)
+}
+
+fn complete_smart_pull_preparation(
+    state: &mut AppState,
+    preparation: &SmartPullRetryPreparation,
+    statuses: Vec<knotra_vcs::ProjectStatus>,
+) {
+    dispatch(
+        state,
+        Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
+            request_id: preparation.id,
+            workspace_id: preparation.workspace_id.clone(),
+            lease_id: preparation.lease_id,
+            statuses,
+        }),
+    );
+}
+
+#[test]
+fn smart_pull_retry_rejects_duplicate_missing_and_unexpected_status_ids() {
+    for case in ["duplicate", "missing", "unexpected"] {
+        let mut state = make_state();
+        let (preparation, first, second) = install_correlated_smart_pull_preparation(&mut state);
+        let statuses = match case {
+            "duplicate" => vec![
+                make_project_status(first.id.clone(), Some("origin/main")),
+                make_project_status(first.id.clone(), Some("origin/main")),
+            ],
+            "missing" => vec![make_project_status(first.id.clone(), Some("origin/main"))],
+            "unexpected" => vec![
+                make_project_status(first.id.clone(), Some("origin/main")),
+                make_project_status(ProjectId::new(), Some("origin/main")),
+            ],
+            _ => unreachable!(),
+        };
+        complete_smart_pull_preparation(&mut state, &preparation, statuses);
+        assert!(matches!(
+            state.sync.phase,
+            SyncPhase::RetryPreparationFailed
+        ));
+        assert!(state.sync.retry_preparation.is_none());
+        assert!(!state.operation_interlock.is_busy());
+        assert_ne!(first.id, second.id);
+    }
+}
+
+#[test]
+fn smart_pull_retry_accepts_a_reordered_complete_unique_status_set() {
+    let mut state = make_state();
+    let (preparation, first, second) = install_correlated_smart_pull_preparation(&mut state);
+    complete_smart_pull_preparation(
+        &mut state,
+        &preparation,
+        vec![
+            make_project_status(second.id, Some("origin/main")),
+            make_project_status(first.id, Some("origin/main")),
+        ],
+    );
+
+    assert!(matches!(state.sync.phase, SyncPhase::AwaitingConfirm(_)));
+    assert!(state.sync.retry_preparation.is_none());
+    assert!(!state.operation_interlock.is_busy());
+}
+
+#[test]
+fn smart_pull_retry_escape_releases_lease_and_ignores_late_completion() {
+    let mut state = make_state();
+    let (preparation, first, second) = install_correlated_smart_pull_preparation(&mut state);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+    assert_eq!(state.active_modal, ActiveModal::None);
+    assert!(matches!(state.sync.phase, SyncPhase::Idle));
+    assert!(!state.operation_interlock.is_busy());
+
+    complete_smart_pull_preparation(
+        &mut state,
+        &preparation,
+        vec![
+            make_project_status(first.id, Some("origin/main")),
+            make_project_status(second.id, Some("origin/main")),
+        ],
+    );
+    assert!(matches!(state.sync.phase, SyncPhase::Idle));
+    assert_eq!(state.active_modal, ActiveModal::None);
 }

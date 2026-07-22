@@ -4,6 +4,8 @@ use std::collections::HashSet;
 
 use knotra_vcs::{FreezeResult, FreezeValidation, ProjectId};
 
+use super::OperationLeaseId;
+
 // ---------------------------------------------------------------------------
 // Phase FSM
 // ---------------------------------------------------------------------------
@@ -15,7 +17,7 @@ pub enum FreezerPhase {
     #[default]
     Idle,
     /// Validation in progress.
-    Validating,
+    Validating { lease_id: OperationLeaseId },
     /// Validation complete — awaiting user confirmation.
     ValidationReady(FreezeValidation),
     /// Execution in progress.

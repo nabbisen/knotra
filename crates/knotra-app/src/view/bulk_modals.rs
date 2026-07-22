@@ -86,6 +86,42 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
         .spacing(8)
         .into(),
 
+        SyncPhase::RetryPreparing => column![
+            text(state.t("plain.activity.retry_preparing")).size(FONT_BODY),
+            text(state.t("plain.get_latest.preparing_hint")).size(FONT_SMALL),
+        ]
+        .spacing(8)
+        .into(),
+
+        SyncPhase::RetryPreparationFailed => {
+            let retry_message = match &state.activity.latest {
+                crate::state::LatestOpState::Completed {
+                    log,
+                    retry:
+                        crate::state::RetryAvailability::Available(
+                            crate::state::ActivityRetryAction::ReviewSmartPull { .. },
+                        ),
+                } => Some(Message::Activity(
+                    crate::message::ActivityMessage::RetryRequested {
+                        source_operation_id: log.result.operation_id.clone(),
+                    },
+                )),
+                _ => None,
+            };
+            column![
+                text(state.t("plain.activity.retry_prepare_failed")).size(FONT_BODY),
+                row![
+                    guided_button(state.t("plain.activity.review_retry"), retry_message, None,),
+                    Space::new().width(Length::Fill),
+                    button(text(state.t("action.close")).size(FONT_BODY))
+                        .on_press(Message::Sync(SyncMessage::ModalClosed)),
+                ]
+                .align_y(Alignment::Center),
+            ]
+            .spacing(12)
+            .into()
+        }
+
         // ── Step 1: Review the plan ───────────────────────────────────────
         SyncPhase::AwaitingConfirm(plan) => {
             let mut rows: Vec<Element<'_, Message>> = Vec::new();
@@ -159,13 +195,43 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 );
             }
 
-            let can_start = plan
+            for exclusion in &sync.retry_exclusions {
+                let name = state
+                    .workspace
+                    .as_ref()
+                    .and_then(|workspace| {
+                        workspace
+                            .projects
+                            .iter()
+                            .find(|project| project.id == exclusion.project_id)
+                    })
+                    .map(|project| project.name.as_str())
+                    .unwrap_or_else(|| state.t("plain.project"));
+                rows.push(
+                    row![
+                        text(name).size(FONT_BODY).width(Length::FillPortion(3)),
+                        text(state.t("plain.activity.skipped"))
+                            .size(FONT_BODY)
+                            .width(Length::FillPortion(2)),
+                        text(state.t(exclusion.reason.i18n_key()))
+                            .size(FONT_SMALL)
+                            .width(Length::FillPortion(3)),
+                    ]
+                    .spacing(8)
+                    .into(),
+                );
+            }
+
+            let has_work = plan
                 .entries
                 .iter()
                 .any(|e| !matches!(e.disposition, SmartPullDisposition::Excluded));
+            let can_start = has_work && !state.operation_interlock.is_busy();
 
             let start_reason = if can_start {
                 None
+            } else if state.operation_interlock.is_busy() {
+                Some(state.t("plain.activity.busy"))
             } else {
                 Some(state.t("plain.disabled.choose_one"))
             };
@@ -466,7 +532,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
 
     let inner: Element<'_, Message> = match &freezer.phase {
         // ── Input + auto-validation ───────────────────────────────────────
-        FreezerPhase::Idle | FreezerPhase::Validating => {
+        FreezerPhase::Idle | FreezerPhase::Validating { .. } => {
             let name_error: Option<&str> = if freezer.freeze_name.is_empty() {
                 None // no error until user has typed
             } else if !freezer.freeze_name_is_valid() {
@@ -493,16 +559,20 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
             );
 
             let validate_or_spinner: Element<'_, Message> =
-                if matches!(freezer.phase, FreezerPhase::Validating) {
+                if matches!(freezer.phase, FreezerPhase::Validating { .. }) {
                     text(state.t("plain.release.checking"))
                         .size(FONT_BODY)
                         .into()
                 } else if freezer.freeze_name_is_valid() {
-                    button(text(state.t("plain.release.check_readiness")).size(FONT_BODY))
-                        .height(BUTTON_HEIGHT)
-                        .padding([0, 18])
-                        .on_press(Message::Freezer(FreezerMessage::ValidateRequested))
-                        .into()
+                    guided_button(
+                        state.t("plain.release.check_readiness"),
+                        (!state.operation_interlock.is_busy())
+                            .then_some(Message::Freezer(FreezerMessage::ValidateRequested)),
+                        state
+                            .operation_interlock
+                            .is_busy()
+                            .then_some(state.t("plain.activity.busy")),
+                    )
                 } else {
                     Space::new().into()
                 };
@@ -516,7 +586,8 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         FreezerPhase::ValidationReady(validation) => {
             let blocked_count = validation.blocked_count();
             let ready_count = validation.ready_count();
-            let can_save = validation.all_ready() && ready_count > 0;
+            let can_save =
+                validation.all_ready() && ready_count > 0 && !state.operation_interlock.is_busy();
 
             let val_rows: Vec<Element<'_, Message>> = validation
                 .entries
@@ -550,7 +621,9 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 })
                 .collect();
 
-            let save_reason: Option<&str> = if can_save {
+            let save_reason: Option<&str> = if state.operation_interlock.is_busy() {
+                Some(state.t("plain.activity.busy"))
+            } else if can_save {
                 None
             } else if ready_count == 0 && blocked_count == 0 {
                 Some(state.t("plain.disabled.choose_one"))
@@ -593,6 +666,10 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
 
         // ── Result ────────────────────────────────────────────────────────
         FreezerPhase::Done(result) => {
+            let push_is_running = state
+                .pending_tag_push
+                .as_ref()
+                .is_some_and(|push| push.is_pushing);
             let outcome_title = match result.outcome {
                 FreezeOutcome::Success => state.t("plain.release.outcome_success"),
                 FreezeOutcome::RolledBack => state.t("plain.release.outcome_undone"),
@@ -672,7 +749,11 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                                 button(text(state.t("plain.release.share_action")).size(FONT_BODY))
                                     .height(BUTTON_HEIGHT)
                                     .padding([0, 18])
-                                    .on_press(Message::TagPush(TagPushMessage::PushConfirmed)),
+                                    .on_press_maybe(
+                                        (!state.operation_interlock.is_busy()).then_some(
+                                            Message::TagPush(TagPushMessage::PushConfirmed),
+                                        )
+                                    ),
                                 button(
                                     text(state.t("plain.release.share_decline")).size(FONT_BODY)
                                 )
@@ -699,7 +780,10 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 button(text(state.t("action.close")).size(FONT_BODY))
                     .height(BUTTON_HEIGHT)
                     .padding([0, 18])
-                    .on_press(Message::Freezer(FreezerMessage::BulkModalClosed)),
+                    .on_press_maybe(
+                        (!push_is_running)
+                            .then_some(Message::Freezer(FreezerMessage::BulkModalClosed,))
+                    ),
             ]
             .align_y(Alignment::Center);
 
@@ -715,7 +799,12 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         }
     };
 
-    let close_msg = if matches!(freezer.phase, FreezerPhase::Executing) {
+    let close_msg = if matches!(freezer.phase, FreezerPhase::Executing)
+        || state
+            .pending_tag_push
+            .as_ref()
+            .is_some_and(|push| push.is_pushing)
+    {
         None
     } else {
         Some(Message::Freezer(FreezerMessage::BulkModalClosed))
@@ -842,14 +931,18 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
             } else {
                 state.t("plain.no_next_step")
             };
-            let switch_msg = disabled_reason_key
-                .is_none()
-                .then_some(Message::Context(ContextMessage::SwitchConfirmed));
+            let switch_msg = (disabled_reason_key.is_none()
+                && !state.operation_interlock.is_busy())
+            .then_some(Message::Context(ContextMessage::SwitchConfirmed));
             let footer = row![
                 guided_button(
                     state.t("plain.change_work_area"),
                     switch_msg,
-                    disabled_reason_key.map(|key| state.t(key)),
+                    if state.operation_interlock.is_busy() {
+                        Some(state.t("plain.activity.busy"))
+                    } else {
+                        disabled_reason_key.map(|key| state.t(key))
+                    },
                 ),
                 Space::new().width(Length::Fill),
                 button(text(state.t("action.cancel")).size(FONT_BODY))
@@ -932,11 +1025,9 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
         }
     };
 
-    modal_shell(
-        state.t("plain.change_work_area"),
-        Some(Message::Context(ContextMessage::BulkModalClosed)),
-        inner,
-    )
+    let close_msg = (!matches!(ctx.phase, ContextPhase::Switching { .. }))
+        .then_some(Message::Context(ContextMessage::BulkModalClosed));
+    modal_shell(state.t("plain.change_work_area"), close_msg, inner)
 }
 
 // ---------------------------------------------------------------------------

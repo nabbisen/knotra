@@ -16,8 +16,12 @@ use std::collections::HashSet;
 use knotra_ui::KnotraTheme;
 use knotra_ui::i18n::Catalog;
 use knotra_vcs::{
-    WorkspaceStatus,
-    model::{operation::OperationLog, project::ProjectId, workspace::Workspace},
+    OperationId, WorkspaceStatus,
+    model::{
+        operation::{OperationLog, ProjectOperationResult, RetryExclusionReason},
+        project::ProjectId,
+        workspace::Workspace,
+    },
 };
 
 use crate::{
@@ -248,31 +252,133 @@ pub enum LatestOpState {
     #[default]
     Idle,
     Running {
+        operation_id: OperationId,
         label: String,
         done: usize,
         total: usize,
     },
-    Success {
-        summary: String,
-        #[allow(dead_code)]
-        elapsed_secs: u32,
+    Completed {
+        log: OperationLog,
+        retry: RetryAvailability,
     },
-    PartialFailure {
-        summary: String,
-        failed_names: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ActivityRetryAction {
+    FetchFailed {
+        source_operation_id: OperationId,
+        project_ids: Vec<ProjectId>,
     },
-    TotalFailure {
-        summary: String,
+    ReviewSmartPull {
+        source_operation_id: OperationId,
+        project_ids: Vec<ProjectId>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetryUnavailableReason {
+    NoEligibleTargets,
+    ContextSwitch,
+    Freeze,
+    FreezeRollback,
+    StatusRefresh,
+}
+
+impl RetryUnavailableReason {
+    pub fn i18n_key(self) -> &'static str {
+        match self {
+            Self::NoEligibleTargets => "plain.activity.none_available",
+            Self::ContextSwitch => "plain.activity.retry_context_again",
+            Self::Freeze | Self::FreezeRollback => "plain.activity.retry_freeze_again",
+            Self::StatusRefresh => "plain.activity.retry_refresh_again",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum RetryAvailability {
+    Available(ActivityRetryAction),
+    Unavailable(RetryUnavailableReason),
+    NotApplicable,
+}
+
+#[derive(Debug, Clone)]
+pub struct RetryExclusion {
+    pub project_id: ProjectId,
+    pub reason: RetryExclusionReason,
+}
+
+#[derive(Debug, Clone)]
+pub struct FetchRetryRun {
+    pub operation_id: OperationId,
+    pub lease_id: OperationLeaseId,
+    pub started_at: chrono::DateTime<chrono::Utc>,
+    pub total: usize,
+    pub completed: Vec<ProjectOperationResult>,
+    pub exclusions: Vec<RetryExclusion>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ActivityStripState {
     pub latest: LatestOpState,
-    /// When true, the full-history popover is shown.
-    pub popover_open: bool,
     /// Seconds since the last operation completed (for auto-fade).
     pub completed_secs: u32,
+    pub fetch_retry: Option<FetchRetryRun>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OperationLeaseId(pub u64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperationOwner {
+    SingleFetch,
+    BulkFetch,
+    SmartPullPreparation,
+    SmartPullExecution,
+    ContextSwitch,
+    FreezeValidation,
+    FreezeExecution,
+    ConflictMutation,
+    TagPush,
+    ActivityFetchRetry,
+    ActivitySmartPullPreparation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OperationLease {
+    pub id: OperationLeaseId,
+    pub owner: OperationOwner,
+}
+
+#[derive(Debug, Default)]
+pub struct OperationInterlock {
+    active: Option<OperationLease>,
+    next_id: u64,
+}
+
+impl OperationInterlock {
+    pub fn try_acquire(&mut self, owner: OperationOwner) -> Option<OperationLeaseId> {
+        if self.active.is_some() {
+            return None;
+        }
+        self.next_id = self.next_id.checked_add(1)?;
+        let id = OperationLeaseId(self.next_id);
+        self.active = Some(OperationLease { id, owner });
+        Some(id)
+    }
+
+    pub fn release_if_matches(&mut self, id: OperationLeaseId) -> bool {
+        if self.active.is_some_and(|lease| lease.id == id) {
+            self.active = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_busy(&self) -> bool {
+        self.active.is_some()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -455,6 +561,8 @@ pub struct AppState {
     pub missing_projects: std::collections::HashSet<knotra_vcs::ProjectId>,
     /// Post-freeze: offer to push tags to remote.
     pub pending_tag_push: Option<PendingTagPush>,
+    /// Global ownership guard for VCS launch paths.
+    pub operation_interlock: OperationInterlock,
     /// File-system change poller (used by the FS-watch Subscription).
     pub fs_poller: knotra_vcs::FsPoller,
     // ------------------------------------------------------------------
@@ -538,6 +646,7 @@ impl AppState {
             workspace_mgr: workspace_mgr::WorkspaceMgrState::default(),
             missing_projects: std::collections::HashSet::new(),
             pending_tag_push: None,
+            operation_interlock: OperationInterlock::default(),
             fs_poller: knotra_vcs::FsPoller::default(),
             selection: SelectionState::default(),
             activity: ActivityStripState::default(),

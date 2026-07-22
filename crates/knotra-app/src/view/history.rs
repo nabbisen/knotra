@@ -151,7 +151,7 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
                 };
                 text_parts.push(format!("  {} [{}]", pr.project_id, ok));
                 if let Some(reason) = &pr.skip_reason {
-                    text_parts.push(format!("    {}", reason));
+                    text_parts.push(format!("    {}", skip_reason_text(state, reason)));
                 }
                 for cmd in &pr.commands_executed {
                     text_parts.push(format!("    $ {}", cmd));
@@ -208,7 +208,11 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
         };
         rows.push(text(format!("  {icon} {}", pr.project_id)).size(12).into());
         if let Some(reason) = &pr.skip_reason {
-            rows.push(text(format!("    {reason}")).size(10).into());
+            rows.push(
+                text(format!("    {}", skip_reason_text(state, reason)))
+                    .size(10)
+                    .into(),
+            );
         }
 
         // Commands (transparency).
@@ -238,6 +242,12 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
     }
 
     column(rows).spacing(2).padding([4, 12]).into()
+}
+
+fn skip_reason_text<'a>(state: &'a AppState, reason: &'a str) -> &'a str {
+    knotra_vcs::model::operation::RetryExclusionReason::from_code(reason)
+        .map(|reason| state.t(reason.i18n_key()))
+        .unwrap_or(reason)
 }
 
 // ---------------------------------------------------------------------------

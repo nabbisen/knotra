@@ -460,13 +460,15 @@ fn view_project_card<'a>(
     } else {
         state.t("card.action.fetch")
     };
-    let fetch_btn = button(text(fetch_label).size(11)).on_press_maybe(if is_fetching {
-        None
-    } else {
-        Some(Message::Project(ProjectMessage::FetchRequested(
-            project.id.clone(),
-        )))
-    });
+    let fetch_btn = button(text(fetch_label).size(11)).on_press_maybe(
+        if is_fetching || state.operation_interlock.is_busy() {
+            None
+        } else {
+            Some(Message::Project(ProjectMessage::FetchRequested(
+                project.id.clone(),
+            )))
+        },
+    );
 
     let remove_btn = button(text(state.t("card.action.remove")).size(11)).on_press(
         Message::Workspace(WorkspaceMessage::RemoveProjectRequested(project.id.clone())),
