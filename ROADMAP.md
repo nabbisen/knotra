@@ -273,7 +273,7 @@ Primary evidence:
 - [x] Draft RFC: Selection mode and bulk-selection completion
 - [x] Draft RFC: Command palette action completion
 - [x] Draft RFC: Typed context switching and context switch modal completion
-- [ ] Draft RFC: Changelog modal completion
+- [x] Draft RFC: Changelog modal completion
 - [ ] Draft RFC: Activity retry semantics
 - [ ] Draft RFC: Dashboard grouping, sorting, and tier-density implementation
 - [ ] Draft RFC: Per-project VCS history for Git and jj

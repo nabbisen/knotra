@@ -25,6 +25,7 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [030](./proposed/030-changelog-modal-completion.md) | Changelog modal completion | Production Readiness Reset | High |
 
 ---
 
