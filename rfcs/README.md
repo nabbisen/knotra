@@ -25,7 +25,6 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [030](./proposed/030-changelog-modal-completion.md) | Changelog modal completion | Production Readiness Reset | High |
 
 ---
 
@@ -38,6 +37,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [030](./done/030-changelog-modal-completion.md) | Changelog modal completion | working tree; pending commit |
 | [029](./done/029-typed-context-switching-and-context-switch-modal-completion.md) | Typed context switching and context switch modal completion | main: 9821bef |
 | [028](./done/028-command-palette-action-completion.md) | Command palette action completion | main: 3699bad |
 | [027](./done/027-selection-mode-and-bulk-selection-completion.md) | Selection mode and bulk-selection completion | main: 0fd1e22 |

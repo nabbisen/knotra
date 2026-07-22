@@ -3,19 +3,19 @@
 use crate::config::AppConfig;
 use crate::config::AppPaths;
 use crate::message::{
-    BackgroundMessage, ConflictOpsMessage, ContextMessage, DetailPanelMessage, FilterMessage,
-    FreezerMessage, Message, PaletteMessage, SelectionMessage, ShortcutMessage, SyncMessage,
-    TagPushMessage, WorkspaceMessage,
+    BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage, DetailPanelMessage,
+    FilterMessage, FreezerMessage, Message, PaletteMessage, SelectionMessage, ShortcutMessage,
+    SyncMessage, TagPushMessage, WorkspaceMessage,
 };
 use crate::persistence::{load_workspaces, save_workspace};
 use crate::state::{
-    ActiveModal, AddProjectDialog, AppState, Screen, conflict_ops::ConflictPhase,
-    context::ContextPhase, freezer::FreezerPhase, sync::SyncPhase,
+    ActiveModal, AddProjectDialog, AppState, Screen, changelog::ChangelogPhase,
+    conflict_ops::ConflictPhase, context::ContextPhase, freezer::FreezerPhase, sync::SyncPhase,
 };
 use chrono::Utc;
 use knotra_vcs::{
-    ConflictMarker, ConflictedFile, ContextTarget, OperationId, Project, ProjectConflictDetail,
-    ProjectId, Workspace, WorkspaceStatus,
+    ChangelogDraft, CommitEntry, ConflictMarker, ConflictedFile, ContextTarget, OperationId,
+    Project, ProjectCommits, ProjectConflictDetail, ProjectId, Workspace, WorkspaceStatus,
     model::{
         operation::{
             FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
@@ -94,6 +94,29 @@ fn make_project_status_with_kind(
         conflict: ConflictStatus::default(),
         refreshed_at: Utc::now(),
         read_error: None,
+    }
+}
+
+fn make_changelog_draft(project: &Project, entries: Vec<CommitEntry>) -> ChangelogDraft {
+    ChangelogDraft {
+        release_name: "v1.2.0".to_owned(),
+        generated_at: Utc::now(),
+        projects: vec![ProjectCommits {
+            project_id: project.id.clone(),
+            project_name: project.name.clone(),
+            since_ref: "v1.1.0".to_owned(),
+            entries,
+            error: None,
+        }],
+    }
+}
+
+fn make_commit(hash: &str, subject: &str) -> CommitEntry {
+    CommitEntry {
+        hash: hash.to_owned(),
+        subject: subject.to_owned(),
+        author: "Maintainer".to_owned(),
+        date: Utc::now(),
     }
 }
 
@@ -517,19 +540,23 @@ fn palette_visible_action_rows_do_not_noop() {
 }
 
 #[test]
-fn palette_hidden_actions_are_not_listed() {
+fn palette_changelog_action_is_disabled_until_projects_are_selected() {
     let mut state = make_state();
 
     state.palette.query = "changelog".to_owned();
     crate::state::palette::update_results(&mut state);
-    assert!(
-        state
-            .palette
-            .results
-            .iter()
-            .all(|entry| entry.payload != "action.changelog_selected")
-    );
+    let entry = state
+        .palette
+        .results
+        .iter()
+        .find(|entry| entry.payload == "action.changelog_selected")
+        .expect("changelog palette action is listed");
+    assert_eq!(entry.disabled_reason_key, Some("plain.disabled.choose_one"));
+}
 
+#[test]
+fn palette_toggle_theme_action_is_not_listed() {
+    let mut state = make_state();
     state.palette.query = "toggle theme".to_owned();
     crate::state::palette::update_results(&mut state);
     assert!(
@@ -539,6 +566,30 @@ fn palette_hidden_actions_are_not_listed() {
             .iter()
             .all(|entry| entry.payload != "action.toggle_theme")
     );
+}
+
+#[test]
+fn palette_changelog_action_dispatches_selected_project_modal() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection_mode = true;
+    state.selection.selected_ids.insert(project.id.clone());
+    highlight_palette_payload(&mut state, "changelog", "action.changelog_selected");
+
+    assert!(matches!(
+        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::PaletteDispatch::Dispatched(Message::Changelog(
+            ChangelogMessage::BulkOpenRequested
+        ))
+    ));
 }
 
 #[test]
@@ -1238,6 +1289,220 @@ fn freezer_bulk_open_initializes_dashboard_selection() {
         Some(&true)
     );
     assert!(!state.freezer.project_selection.contains_key(&other.id));
+}
+
+#[test]
+fn changelog_bulk_open_initializes_dashboard_selection() {
+    let mut state = make_state();
+    let selected = make_project("selected");
+    let other = make_project("other");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![selected.clone(), other.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection.selected_ids.insert(selected.id.clone());
+
+    dispatch(
+        &mut state,
+        Message::Changelog(ChangelogMessage::BulkOpenRequested),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::Changelog));
+    assert!(matches!(state.changelog.phase, ChangelogPhase::Idle));
+    assert_eq!(state.changelog.project_selection.len(), 1);
+    assert_eq!(
+        state.changelog.project_selection.get(&selected.id),
+        Some(&true)
+    );
+    assert!(!state.changelog.project_selection.contains_key(&other.id));
+}
+
+#[test]
+fn changelog_bulk_open_rejects_empty_selection() {
+    let mut state = make_state();
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![make_project("svc")],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::Changelog(ChangelogMessage::BulkOpenRequested),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::None));
+    assert!(state.changelog.project_selection.is_empty());
+}
+
+#[test]
+fn changelog_late_background_result_is_ignored_after_close() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state
+        .changelog
+        .project_selection
+        .insert(project.id.clone(), true);
+    state.changelog.since_ref = "v1.1.0".to_owned();
+    let request_id = state.changelog.begin_collection();
+
+    dispatch(
+        &mut state,
+        Message::Changelog(ChangelogMessage::ModalClosed),
+    );
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::ChangelogDraftReady {
+            request_id,
+            draft: make_changelog_draft(&project, vec![make_commit("abcdef123456", "Add notes")]),
+        }),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::None));
+    assert!(!matches!(state.changelog.phase, ChangelogPhase::Ready(_)));
+}
+
+#[test]
+fn changelog_since_edit_during_collection_returns_to_idle_and_ignores_late_result() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state
+        .changelog
+        .project_selection
+        .insert(project.id.clone(), true);
+    state.changelog.since_ref = "v1.1.0".to_owned();
+    let request_id = state.changelog.begin_collection();
+
+    dispatch(
+        &mut state,
+        Message::Changelog(ChangelogMessage::SinceRefChanged("v1.2.0".to_owned())),
+    );
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::ChangelogDraftReady {
+            request_id,
+            draft: make_changelog_draft(&project, vec![make_commit("abcdef123456", "Add notes")]),
+        }),
+    );
+
+    assert_eq!(state.changelog.since_ref, "v1.2.0");
+    assert!(matches!(state.changelog.phase, ChangelogPhase::Idle));
+    assert_eq!(state.changelog.active_request_id, None);
+}
+
+#[test]
+fn changelog_background_result_sets_ready_for_active_request() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    let request_id = state.changelog.begin_collection();
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::ChangelogDraftReady {
+            request_id,
+            draft: make_changelog_draft(&project, vec![make_commit("abcdef123456", "Add notes")]),
+        }),
+    );
+
+    assert!(matches!(state.changelog.phase, ChangelogPhase::Ready(_)));
+    assert_eq!(state.changelog.active_request_id, None);
+}
+
+#[test]
+fn changelog_copy_requested_uses_localized_status_feedback() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    state.changelog.phase = ChangelogPhase::Ready(make_changelog_draft(
+        &project,
+        vec![make_commit("abcdef123456", "Add notes")],
+    ));
+
+    dispatch(
+        &mut state,
+        Message::Changelog(ChangelogMessage::CopyRequested),
+    );
+
+    let status = state.status_bar.as_deref().unwrap_or_default();
+    assert!(status.starts_with(state.t("plain.changelog.copied_prefix")));
+    assert!(status.ends_with(state.t("plain.changelog.copied_suffix")));
+}
+
+#[test]
+fn changelog_preview_uses_markdown_not_debug_output() {
+    let project = make_project("svc");
+    let draft = make_changelog_draft(&project, vec![make_commit("abcdef123456", "Add notes")]);
+
+    let preview = crate::view::bulk_modals::changelog_markdown_preview(&draft);
+
+    assert!(preview.contains("# Changelog"));
+    assert!(preview.contains("## svc"));
+    assert!(preview.contains("Add notes"));
+    assert!(!preview.contains("ChangelogDraft"));
+    assert!(!preview.contains("ProjectCommits"));
+}
+
+#[test]
+fn changelog_result_counts_include_no_change_and_error_projects() {
+    let ok_project = make_project("ok");
+    let empty_project = make_project("empty");
+    let failed_project = make_project("failed");
+    let draft = ChangelogDraft {
+        release_name: "v1.2.0".to_owned(),
+        generated_at: Utc::now(),
+        projects: vec![
+            ProjectCommits {
+                project_id: ok_project.id,
+                project_name: ok_project.name,
+                since_ref: "v1.1.0".to_owned(),
+                entries: vec![make_commit("abcdef123456", "Add notes")],
+                error: None,
+            },
+            ProjectCommits {
+                project_id: empty_project.id,
+                project_name: empty_project.name,
+                since_ref: "v1.1.0".to_owned(),
+                entries: Vec::new(),
+                error: None,
+            },
+            ProjectCommits {
+                project_id: failed_project.id,
+                project_name: failed_project.name,
+                since_ref: "v1.1.0".to_owned(),
+                entries: Vec::new(),
+                error: Some("bad ref".to_owned()),
+            },
+        ],
+    };
+
+    let counts = crate::view::bulk_modals::changelog_result_counts(&draft);
+
+    assert_eq!(counts.total_commits, 1);
+    assert_eq!(counts.projects_with_commits, 1);
+    assert_eq!(counts.projects_without_changes, 1);
+    assert_eq!(counts.projects_with_errors, 1);
 }
 
 #[test]

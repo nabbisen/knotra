@@ -1339,8 +1339,11 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
             Task::none()
         }
 
-        BackgroundMessage::ChangelogDraftReady(draft) => {
-            state.changelog.phase = ChangelogPhase::Ready(draft);
+        BackgroundMessage::ChangelogDraftReady { request_id, draft } => {
+            if state.changelog.active_request_id == Some(request_id) {
+                state.changelog.active_request_id = None;
+                state.changelog.phase = ChangelogPhase::Ready(draft);
+            }
             Task::none()
         }
 
@@ -2366,6 +2369,7 @@ fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage) -> Task<Me
 fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message> {
     match msg {
         ChangelogMessage::OpenRequested => {
+            state.changelog.invalidate_collection();
             if let Some(ws) = &state.workspace {
                 let ids: Vec<_> = ws.projects.iter().map(|p| p.id.clone()).collect();
                 state.changelog.init_selection(&ids);
@@ -2375,16 +2379,36 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
             Task::none()
         }
 
+        ChangelogMessage::BulkOpenRequested => {
+            let selected = state.selection_summary().selected_ids;
+            if selected.is_empty() {
+                return Task::none();
+            }
+            state.changelog.invalidate_collection();
+            state.changelog.project_selection = selected.into_iter().map(|id| (id, true)).collect();
+            state.changelog.phase = ChangelogPhase::Idle;
+            state.active_modal = crate::state::ActiveModal::Changelog;
+            Task::none()
+        }
+
         ChangelogMessage::SinceRefChanged(s) => {
             state.changelog.since_ref = s;
-            if matches!(state.changelog.phase, ChangelogPhase::Ready(_)) {
+            if matches!(
+                state.changelog.phase,
+                ChangelogPhase::Ready(_) | ChangelogPhase::Collecting
+            ) {
                 state.changelog.phase = ChangelogPhase::Idle;
             }
+            state.changelog.invalidate_collection();
             Task::none()
         }
 
         ChangelogMessage::ProjectToggled(id, v) => {
             state.changelog.project_selection.insert(id, v);
+            if matches!(state.changelog.phase, ChangelogPhase::Ready(_)) {
+                state.changelog.phase = ChangelogPhase::Idle;
+            }
+            state.changelog.invalidate_collection();
             Task::none()
         }
 
@@ -2404,6 +2428,9 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
         }
 
         ChangelogMessage::GenerateRequested => {
+            if !state.changelog.is_ready_to_collect() {
+                return Task::none();
+            }
             let selected_ids = state.changelog.selected_ids();
             let projects: Vec<_> = state
                 .workspace
@@ -2416,13 +2443,21 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
                         .collect()
                 })
                 .unwrap_or_default();
+            if projects.is_empty() {
+                return Task::none();
+            }
             let since = state.changelog.since_ref.clone();
             let max_cl = state.config.max_concurrent_reads;
-            state.changelog.phase = ChangelogPhase::Collecting;
+            let request_id = state.changelog.begin_collection();
 
             Task::perform(
                 async move { VcsAdapter::collect_changelog(&projects, &since, max_cl).await },
-                |draft| Message::Background(BackgroundMessage::ChangelogDraftReady(draft)),
+                move |draft| {
+                    Message::Background(BackgroundMessage::ChangelogDraftReady {
+                        request_id,
+                        draft,
+                    })
+                },
             )
         }
 
@@ -2430,8 +2465,10 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
             if let ChangelogPhase::Ready(ref draft) = state.changelog.phase {
                 let md = draft.to_markdown();
                 state.status_bar = Some(format!(
-                    "Changelog ({} chars) — copied to clipboard.",
-                    md.len()
+                    "{} {} {}",
+                    state.t("plain.changelog.copied_prefix"),
+                    md.len(),
+                    state.t("plain.changelog.copied_suffix")
                 ));
                 return clipboard::write(md);
             }
@@ -2447,6 +2484,7 @@ fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message
             Task::done(Message::Changelog(ChangelogMessage::GenerateRequested))
         }
         ChangelogMessage::ModalClosed => {
+            state.changelog.invalidate_collection();
             state.active_modal = crate::state::ActiveModal::None;
             Task::none()
         }

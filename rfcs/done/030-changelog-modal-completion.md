@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented (working tree; pending commit) |
 | Priority | High - the modal reaches a ready state but shows debug output and bypasses its intended copy route |
 | Effort | Small |
 | Target | Production Readiness Reset |

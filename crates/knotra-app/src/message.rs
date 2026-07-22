@@ -206,7 +206,10 @@ pub enum BackgroundMessage {
         detail: knotra_vcs::ProjectConflictDetail,
     },
     /// Changelog draft generated.
-    ChangelogDraftReady(knotra_vcs::ChangelogDraft),
+    ChangelogDraftReady {
+        request_id: u64,
+        draft: knotra_vcs::ChangelogDraft,
+    },
     /// Available tags loaded for changelog since-selector.
     TagsLoaded(Vec<String>),
     /// Topology graph scanned.
@@ -290,6 +293,7 @@ pub enum ConflictOpsMessage {
 #[allow(dead_code)]
 pub enum ChangelogMessage {
     OpenRequested,
+    BulkOpenRequested,
     SinceRefChanged(String),
     ProjectToggled(ProjectId, bool),
     LoadTagsRequested,

@@ -2,8 +2,8 @@
 
 use crate::{
     message::{
-        ContextMessage, DetailPanelMessage, FreezerMessage, KeyboardMessage, Message,
-        SelectionMessage, SyncMessage, WorkspaceMessage,
+        ChangelogMessage, ContextMessage, DetailPanelMessage, FreezerMessage, KeyboardMessage,
+        Message, SelectionMessage, SyncMessage, WorkspaceMessage,
     },
     state::{AppState, PaletteEntry, PaletteEntryKind, Screen},
 };
@@ -58,8 +58,8 @@ const ACTIONS: &[PaletteAction] = &[
     PaletteAction {
         id: "action.changelog_selected",
         label_key: "palette.action.changelog_selected",
-        availability: |_| PaletteAvailability::Hidden,
-        dispatch: |_| None,
+        availability: selection_non_empty,
+        dispatch: |_| Some(Message::Changelog(ChangelogMessage::BulkOpenRequested)),
     },
     PaletteAction {
         id: "action.add_project",

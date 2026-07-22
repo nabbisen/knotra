@@ -444,6 +444,32 @@ fn en_strings() -> HashMap<Key, &'static str> {
     );
     m.insert("plain.changelog.collecting", "Collecting notes…");
     m.insert("plain.changelog.copy", "Copy to clipboard");
+    m.insert("plain.changelog.projects_label", "Projects");
+    m.insert("plain.changelog.no_projects", "No projects available.");
+    m.insert("plain.changelog.summary_commits", "commits");
+    m.insert("plain.changelog.summary_with_notes", "projects with notes");
+    m.insert("plain.changelog.summary_no_changes", "no changes");
+    m.insert("plain.changelog.summary_failed", "could not be checked");
+    m.insert("plain.changelog.ready", "Notes are ready.");
+    m.insert("plain.changelog.no_changes_found", "No changes found.");
+    m.insert(
+        "plain.changelog.some_failed",
+        "Some projects could not be checked.",
+    );
+    m.insert(
+        "plain.changelog.all_failed",
+        "No projects could be checked.",
+    );
+    m.insert("plain.changelog.no_change_projects", "No changes:");
+    m.insert(
+        "plain.changelog.project_failed",
+        "This project could not be checked.",
+    );
+    m.insert("plain.changelog.copied_prefix", "Copied notes");
+    m.insert(
+        "plain.changelog.copied_suffix",
+        "characters to the clipboard.",
+    );
 
     // --- Phase 5: guided setup, empty states, undo -------------------------
     m.insert("plain.add_project.title", "Add project folder");
@@ -1054,6 +1080,38 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     );
     m.insert("plain.changelog.collecting", "収集中…");
     m.insert("plain.changelog.copy", "クリップボードにコピー");
+    m.insert("plain.changelog.projects_label", "プロジェクト");
+    m.insert(
+        "plain.changelog.no_projects",
+        "利用できるプロジェクトがありません。",
+    );
+    m.insert("plain.changelog.summary_commits", "件のコミット");
+    m.insert("plain.changelog.summary_with_notes", "件にノートあり");
+    m.insert("plain.changelog.summary_no_changes", "件は変更なし");
+    m.insert("plain.changelog.summary_failed", "件は確認できませんでした");
+    m.insert("plain.changelog.ready", "ノートの準備ができました。");
+    m.insert(
+        "plain.changelog.no_changes_found",
+        "変更は見つかりませんでした。",
+    );
+    m.insert(
+        "plain.changelog.some_failed",
+        "一部のプロジェクトを確認できませんでした。",
+    );
+    m.insert(
+        "plain.changelog.all_failed",
+        "プロジェクトを確認できませんでした。",
+    );
+    m.insert("plain.changelog.no_change_projects", "変更なし:");
+    m.insert(
+        "plain.changelog.project_failed",
+        "このプロジェクトを確認できませんでした。",
+    );
+    m.insert("plain.changelog.copied_prefix", "ノート");
+    m.insert(
+        "plain.changelog.copied_suffix",
+        "文字をクリップボードにコピーしました。",
+    );
 
     // --- Phase 5 (ja) ------------------------------------------------------
     m.insert("plain.add_project.title", "プロジェクトフォルダーを追加");
