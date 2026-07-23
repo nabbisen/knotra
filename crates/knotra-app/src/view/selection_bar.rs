@@ -1,4 +1,3 @@
-#![allow(unused_imports, unused_variables, dead_code)]
 //! RFC-0009 — Selection bar view.
 //!
 //! Rendered as a sticky row at the bottom of the main content area whenever
@@ -6,15 +5,13 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, container, row, text},
+    widget::{Space, button, column, container, row, text},
 };
 
 use knotra_ui::widget::{BUTTON_HEIGHT, guided_button};
 
 use crate::{
-    message::{
-        ActivityMessage, ContextMessage, FreezerMessage, Message, SelectionMessage, SyncMessage,
-    },
+    message::{ContextMessage, FreezerMessage, Message, SelectionMessage, SyncMessage},
     state::AppState,
 };
 
@@ -97,21 +94,22 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         .height(BUTTON_HEIGHT)
         .on_press(Message::Selection(SelectionMessage::ModeExited));
 
-    let bar = container(
-        row![
-            text(label).size(13),
-            Space::new().width(Length::Fill),
-            fetch_btn,
-            pull_btn,
-            tag_btn,
-            switch_btn,
-            clear_btn,
-        ]
-        .spacing(8)
-        .align_y(Alignment::Center)
-        .padding([6, 12]),
-    )
-    .width(Length::Fill);
+    let command_row = row![
+        text(label).size(13),
+        Space::new().width(Length::Fill),
+        clear_btn,
+    ]
+    .align_y(Alignment::Center);
+    let action_row = row![
+        container(fetch_btn).width(Length::FillPortion(1)),
+        container(pull_btn).width(Length::FillPortion(1)),
+        container(tag_btn).width(Length::FillPortion(1)),
+        container(switch_btn).width(Length::FillPortion(1)),
+    ]
+    .spacing(8)
+    .align_y(Alignment::Start);
+    let bar =
+        container(column![command_row, action_row].spacing(6).padding([6, 12])).width(Length::Fill);
 
     Some(bar.into())
 }

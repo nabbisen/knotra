@@ -20,22 +20,22 @@ use knotra_vcs::{
 
 #[allow(unused_imports)]
 use crate::{
-    config::{AppPaths, load_config, save_config},
+    config::{AppPaths, DashboardGrouping, load_config, save_config},
     fs_watcher::fs_watch_subscription,
     message::{
         ActivityMessage, BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage,
-        FreezerMessage, HistoryMessage, KeyboardMessage, LaunchMessage, Message, PaletteMessage,
-        ProjectMessage, SelectionMessage, SettingsMessage, ShortcutMessage, SyncMessage,
-        TagPushMessage, TierMessage, TopologyMessage, WorkspaceMessage,
+        DashboardMessage, FreezerMessage, HistoryMessage, KeyboardMessage, LaunchMessage, Message,
+        PaletteMessage, ProjectMessage, SelectionMessage, SettingsMessage, ShortcutMessage,
+        SyncMessage, TagPushMessage, TopologyMessage, WorkspaceMessage,
     },
     persistence::{
         delete_workspace_file, load_recent_logs, load_workspaces, save_operation_log,
         save_workspace,
     },
     state::{
-        ActivityRetryAction, AddProjectDialog, AppState, AttentionTier, ConfirmRemoveDialog,
-        LeaderKeyState, LoadPhase, OperationLeaseId, OperationOwner, PendingTagPush,
-        RetryAvailability, RetryExclusion, RetryUnavailableReason, Screen,
+        ActivityRetryAction, AddProjectDialog, AppState, ConfirmRemoveDialog, LeaderKeyState,
+        LoadPhase, OperationLeaseId, OperationOwner, PendingTagPush, RetryAvailability,
+        RetryExclusion, RetryUnavailableReason, Screen,
         changelog::ChangelogPhase,
         conflict_ops::ConflictPhase,
         context::ContextPhase,
@@ -145,6 +145,7 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         Message::Background(msg) => handle_background(state, msg),
         Message::Filter(msg) => {
             state.apply_filter(msg);
+            state.reconcile_selection_with_display();
             Task::none()
         }
         Message::ConflictOps(msg) => handle_conflict_ops(state, msg),
@@ -169,9 +170,9 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         Message::Palette(pal) => handle_palette(state, pal),
 
         // ---------------------------------------------------------------
-        // RFC-0010 — Tier grouping
+        // RFC-032 — Dashboard display controls
         // ---------------------------------------------------------------
-        Message::Tier(tier) => handle_tier(state, tier),
+        Message::Dashboard(msg) => handle_dashboard(state, msg),
 
         // ---------------------------------------------------------------
         // RFC-0016 — Keyboard events
@@ -307,6 +308,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
     match msg {
         WorkspaceMessage::RefreshRequested => {
             if !state.is_refreshing {
+                state.dashboard_error_details_open = false;
                 state.is_refreshing = true;
                 state.load_phase = LoadPhase::Refreshing;
                 state.status_bar = Some(state.t("status.refreshing").to_owned());
@@ -370,6 +372,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 ws.add_project(project);
                 persist_workspace(&paths, ws);
             }
+            state.reconcile_selection_with_display();
             state.is_refreshing = true;
             state.load_phase = LoadPhase::Refreshing;
             refresh_workspace_task(state)
@@ -439,7 +442,10 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 ws_status.projects.retain(|s| s.project_id != id);
             }
             state.fetching_projects.remove(&id);
-            state.prune_selection_to_active_workspace();
+            state.reconcile_selection_with_display();
+            if state.selection.selected_ids.is_empty() {
+                state.selection_mode = false;
+            }
 
             // Store undo opportunity. Cleared by next user action or explicit dismiss.
             if let Some(project) = removed_project {
@@ -466,6 +472,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 {
                     ws_status.projects.push(snap);
                 }
+                state.reconcile_selection_with_display();
             }
             Task::none()
         }
@@ -519,6 +526,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             state.workspace = state.all_workspaces.last().cloned();
             state.clear_selection_mode();
             state.workspace_status = None;
+            state.dashboard_error_details_open = false;
             state.load_phase = LoadPhase::Refreshing;
             state.is_refreshing = true;
             state.workspace_mgr.create_dialog = None;
@@ -659,6 +667,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 .cloned();
             state.clear_selection_mode();
             state.workspace_status = None;
+            state.dashboard_error_details_open = false;
             let active_ids: Vec<knotra_vcs::ProjectId> = state
                 .workspace
                 .as_ref()
@@ -689,6 +698,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                     .unwrap_or_default();
                 state.fs_poller.prune(&active_ids);
                 state.workspace_status = None;
+                state.dashboard_error_details_open = false;
                 state.load_phase = LoadPhase::Refreshing;
                 state.is_refreshing = true;
                 return refresh_workspace_task(state);
@@ -1137,6 +1147,7 @@ fn start_bulk_fetch(
 fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Message> {
     match msg {
         BackgroundMessage::WorkspaceStatusRefreshed(new_status) => {
+            state.dashboard_error_details_open = false;
             // Detect missing-path projects.
             if let Some(ws) = &state.workspace {
                 let missing: Vec<_> = ws
@@ -1574,6 +1585,7 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
 
         BackgroundMessage::MissingProjectsDetected(ids) => {
             state.missing_projects = ids.into_iter().collect();
+            state.reconcile_selection_with_display();
             Task::none()
         }
 
@@ -1805,7 +1817,8 @@ fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Messa
         BackgroundMessage::TaskError { description } => {
             state.load_phase = LoadPhase::Error(description.clone());
             state.is_refreshing = false;
-            state.status_bar = Some(description);
+            state.dashboard_error_details_open = false;
+            state.status_bar = Some(state.t("dashboard.load_failed").to_owned());
             Task::none()
         }
     }
@@ -1943,6 +1956,7 @@ fn merge_workspace_status(state: &mut AppState, new: knotra_vcs::WorkspaceStatus
     } else {
         state.workspace_status = Some(new);
     }
+    state.reconcile_selection_with_display();
 }
 
 fn persist_workspace(paths: &AppPaths, ws: &Workspace) {
@@ -3380,23 +3394,57 @@ fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<Message> {
 }
 
 // ---------------------------------------------------------------------------
-// RFC-0010 — Tier handler
+// RFC-032 — Dashboard display handler
 // ---------------------------------------------------------------------------
 
-fn handle_tier(state: &mut AppState, msg: TierMessage) -> Task<Message> {
+fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> Task<Message> {
     match msg {
-        TierMessage::Toggled(tier) => match tier {
-            AttentionTier::NeedsAttention => {
-                state.tier_collapse.needs_attention = !state.tier_collapse.needs_attention
+        DashboardMessage::GroupingChanged(grouping) => {
+            state.config.dashboard_grouping = grouping;
+            persist_dashboard_preferences(state);
+            state.reconcile_selection_with_display();
+        }
+        DashboardMessage::SortChanged(sort) => {
+            state.config.dashboard_sort = sort;
+            persist_dashboard_preferences(state);
+        }
+        DashboardMessage::TierToggled(tier) => {
+            if state.config.dashboard_grouping == DashboardGrouping::Attention {
+                match tier {
+                    crate::state::dashboard::DashboardTier::NeedsHelp => {}
+                    crate::state::dashboard::DashboardTier::InProgress => {
+                        state.config.dashboard_in_progress_collapsed =
+                            !state.config.dashboard_in_progress_collapsed;
+                    }
+                    crate::state::dashboard::DashboardTier::AllSet => {
+                        state.config.dashboard_all_set_collapsed =
+                            !state.config.dashboard_all_set_collapsed;
+                    }
+                }
+                persist_dashboard_preferences(state);
+                state.reconcile_selection_with_display();
             }
-            AttentionTier::Active => state.tier_collapse.active = !state.tier_collapse.active,
-            AttentionTier::Clean => state.tier_collapse.clean = !state.tier_collapse.clean,
-        },
-        TierMessage::GroupingModeChanged(mode) => {
-            state.grouping_mode = mode;
+        }
+        DashboardMessage::ErrorDetailsToggled => {
+            if matches!(state.load_phase, LoadPhase::Error(_)) {
+                state.dashboard_error_details_open = !state.dashboard_error_details_open;
+            }
+        }
+        DashboardMessage::ErrorRetryRequested => {
+            if matches!(state.load_phase, LoadPhase::Error(_)) && state.workspace.is_some() {
+                state.is_refreshing = false;
+                return handle_workspace(state, WorkspaceMessage::RefreshRequested);
+            }
         }
     }
     Task::none()
+}
+
+fn persist_dashboard_preferences(state: &mut AppState) {
+    if let Err(error) = save_config(&state.config, &state.paths) {
+        tracing::warn!("failed to persist dashboard preferences: {error}");
+        state.status_bar = Some(state.t("dashboard.preference_save_failed").to_owned());
+    }
 }
 
 // ---------------------------------------------------------------------------

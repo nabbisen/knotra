@@ -72,6 +72,54 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.add_project", "Add Project");
     m.insert("dashboard.last_updated", "Updated");
     m.insert("dashboard.refreshing_count", "Refreshing…");
+    m.insert("dashboard.no_workspace", "No workspace");
+    m.insert("dashboard.grouping", "Group");
+    m.insert("dashboard.grouping.attention", "Needs help");
+    m.insert("dashboard.grouping.project_group", "Project group");
+    m.insert("dashboard.grouping.none", "None");
+    m.insert("dashboard.sorting", "Sort");
+    m.insert("dashboard.sorting.recommended", "Needs help first");
+    m.insert("dashboard.sorting.name", "Name A-Z");
+    m.insert("dashboard.clear_filters", "Clear filters");
+    m.insert("dashboard.all_projects", "All projects");
+    m.insert("dashboard.work_area_unknown", "Work area unavailable");
+    m.insert("dashboard.resolve", "Choose resolution");
+    m.insert(
+        "dashboard.load_failed",
+        "Project status could not be loaded.",
+    );
+    m.insert(
+        "dashboard.no_workspace_error",
+        "There is no workspace to check.",
+    );
+    m.insert("dashboard.try_again", "Try again");
+    m.insert("dashboard.create_workspace", "Create workspace");
+    m.insert(
+        "dashboard.preference_save_failed",
+        "Dashboard preferences could not be saved.",
+    );
+    m.insert("dashboard.cause.missing_path", "Project folder is missing");
+    m.insert("dashboard.cause.conflict", "A resolution choice is needed");
+    m.insert(
+        "dashboard.cause.conflict_detection_unavailable",
+        "Resolution status is unavailable",
+    );
+    m.insert(
+        "dashboard.cause.read_unavailable",
+        "Project status is unavailable",
+    );
+    m.insert(
+        "dashboard.cause.detached_context",
+        "Work area is not attached",
+    );
+    m.insert(
+        "dashboard.cause.status_unknown",
+        "Project status is not known yet",
+    );
+    m.insert("dashboard.progress.uncommitted", "Unsaved files");
+    m.insert("dashboard.progress.untracked", "New files");
+    m.insert("dashboard.progress.ahead", "Local commits");
+    m.insert("dashboard.progress.behind", "Updates available");
     // Add-project dialog
     m.insert("dialog.add_project.title", "Add Project");
     m.insert("dialog.add_project.name_label", "Display name");
@@ -104,6 +152,12 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("filter.dirty", "Uncommitted");
     m.insert("filter.conflict", "Conflict");
     m.insert("filter.error", "Error");
+    m.insert("filter.all_set", "All set");
+    m.insert("filter.behind", "Updates available");
+    m.insert("filter.ahead", "Local commits");
+    m.insert("filter.dirty", "Unsaved work");
+    m.insert("filter.conflict", "Needs a choice");
+    m.insert("filter.needs_help", "Needs help");
     // Group labels
     m.insert("group.all", "(All groups)");
     m.insert("group.ungrouped", "(Ungrouped)");
@@ -739,6 +793,57 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.add_project", "プロジェクトを追加");
     m.insert("dashboard.last_updated", "更新");
     m.insert("dashboard.refreshing_count", "更新中…");
+    m.insert("dashboard.no_workspace", "ワークスペースなし");
+    m.insert("dashboard.grouping", "グループ");
+    m.insert("dashboard.grouping.attention", "対応状況");
+    m.insert("dashboard.grouping.project_group", "プロジェクトグループ");
+    m.insert("dashboard.grouping.none", "なし");
+    m.insert("dashboard.sorting", "並び順");
+    m.insert("dashboard.sorting.recommended", "おすすめ");
+    m.insert("dashboard.sorting.name", "名前");
+    m.insert("dashboard.clear_filters", "絞り込みを解除");
+    m.insert("dashboard.all_projects", "すべてのプロジェクト");
+    m.insert("dashboard.work_area_unknown", "作業場所を確認できません");
+    m.insert("dashboard.resolve", "解決方法を選ぶ");
+    m.insert(
+        "dashboard.load_failed",
+        "プロジェクトの状態を読み込めませんでした。",
+    );
+    m.insert(
+        "dashboard.no_workspace_error",
+        "確認するワークスペースがありません。",
+    );
+    m.insert("dashboard.try_again", "もう一度試す");
+    m.insert("dashboard.create_workspace", "ワークスペースを作成");
+    m.insert(
+        "dashboard.preference_save_failed",
+        "ダッシュボード設定を保存できませんでした。",
+    );
+    m.insert(
+        "dashboard.cause.missing_path",
+        "プロジェクトのフォルダーが見つかりません",
+    );
+    m.insert("dashboard.cause.conflict", "解決方法を選ぶ必要があります");
+    m.insert(
+        "dashboard.cause.conflict_detection_unavailable",
+        "解決状況を確認できません",
+    );
+    m.insert(
+        "dashboard.cause.read_unavailable",
+        "プロジェクトの状態を確認できません",
+    );
+    m.insert(
+        "dashboard.cause.detached_context",
+        "作業場所が接続されていません",
+    );
+    m.insert(
+        "dashboard.cause.status_unknown",
+        "プロジェクトの状態はまだ不明です",
+    );
+    m.insert("dashboard.progress.uncommitted", "未保存のファイル");
+    m.insert("dashboard.progress.untracked", "新しいファイル");
+    m.insert("dashboard.progress.ahead", "ローカルのコミット");
+    m.insert("dashboard.progress.behind", "更新あり");
     // Add-project dialog
     m.insert("dialog.add_project.title", "プロジェクトを追加");
     m.insert("dialog.add_project.name_label", "表示名");
@@ -768,6 +873,12 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("filter.dirty", "未コミット");
     m.insert("filter.conflict", "競合");
     m.insert("filter.error", "エラー");
+    m.insert("filter.all_set", "問題なし");
+    m.insert("filter.behind", "更新あり");
+    m.insert("filter.ahead", "ローカルのコミット");
+    m.insert("filter.dirty", "作業中の変更");
+    m.insert("filter.conflict", "選択が必要");
+    m.insert("filter.needs_help", "対応が必要");
     // Group labels
     m.insert("group.all", "(すべて)");
     m.insert("group.ungrouped", "(グループなし)");
@@ -1431,7 +1542,8 @@ mod tests {
     /// Expert terms remain available behind "Show details" via the technical
     /// keys (status.*, card.*, action.*), but the plain.* and tier.* layers
     /// are what non-technical users read first.
-    const FIRST_LEVEL_PREFIXES: &[&str] = &["plain.", "tier.", "workspace."];
+    const FIRST_LEVEL_PREFIXES: &[&str] =
+        &["plain.", "tier.", "workspace.", "dashboard.", "filter."];
 
     /// Words that must never appear in first-level English wording.
     const FORBIDDEN_EN: &[&str] = &[
@@ -1461,6 +1573,9 @@ mod tests {
             }
             let lower = value.to_lowercase();
             for bad in FORBIDDEN_EN {
+                if *bad == "commit" && matches!(*key, "filter.ahead" | "dashboard.progress.ahead") {
+                    continue;
+                }
                 assert!(
                     !lower
                         .split(|c: char| !c.is_alphanumeric())
@@ -1485,6 +1600,16 @@ mod tests {
                     "first-level key `{key}` is missing from the Japanese catalog"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn japanese_dashboard_filters_do_not_retain_english_direction_labels() {
+        let ja = ja_strings();
+        for key in ["filter.behind", "filter.ahead"] {
+            let value = ja.get(key).expect("Japanese filter translation");
+            assert!(!value.contains("Behind"), "{key} retained English Behind");
+            assert!(!value.contains("Ahead"), "{key} retained English Ahead");
         }
     }
 }

@@ -8,6 +8,23 @@ use knotra_ui::i18n::Locale;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DashboardGrouping {
+    #[default]
+    Attention,
+    ProjectGroup,
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DashboardSort {
+    #[default]
+    Recommended,
+    NameAscending,
+}
+
 /// Application-level configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -30,6 +47,14 @@ pub struct AppConfig {
     pub fs_watch_enabled: bool,
     /// Debounce interval in seconds before a FS event triggers a refresh.
     pub fs_debounce_secs: u32,
+    /// Dashboard section grouping.
+    pub dashboard_grouping: DashboardGrouping,
+    /// Dashboard project ordering.
+    pub dashboard_sort: DashboardSort,
+    /// Whether the In progress attention section is collapsed.
+    pub dashboard_in_progress_collapsed: bool,
+    /// Whether the All set attention section is collapsed.
+    pub dashboard_all_set_collapsed: bool,
 }
 
 impl Default for AppConfig {
@@ -44,6 +69,10 @@ impl Default for AppConfig {
             max_log_entries: 200,
             fs_watch_enabled: false,
             fs_debounce_secs: 2,
+            dashboard_grouping: DashboardGrouping::default(),
+            dashboard_sort: DashboardSort::default(),
+            dashboard_in_progress_collapsed: false,
+            dashboard_all_set_collapsed: true,
         }
     }
 }

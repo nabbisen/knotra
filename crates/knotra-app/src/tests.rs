@@ -1,11 +1,10 @@
 //! Integration-level tests for knotra-app.
 
-use crate::config::AppConfig;
-use crate::config::AppPaths;
+use crate::config::{AppConfig, AppPaths, DashboardGrouping, DashboardSort, load_config};
 use crate::message::{
     ActivityMessage, BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage,
-    DetailPanelMessage, FilterMessage, FreezerMessage, Message, PaletteMessage, SelectionMessage,
-    ShortcutMessage, SyncMessage, TagPushMessage, WorkspaceMessage,
+    DashboardMessage, DetailPanelMessage, FilterMessage, FreezerMessage, Message, PaletteMessage,
+    SelectionMessage, ShortcutMessage, StatusFilter, SyncMessage, TagPushMessage, WorkspaceMessage,
 };
 use crate::persistence::{load_workspaces, save_workspace};
 use crate::state::{
@@ -217,6 +216,193 @@ fn default_config_has_sensible_values() {
     let cfg = AppConfig::default();
     assert!(cfg.max_concurrent_reads > 0);
     assert!(cfg.max_log_entries > 0);
+}
+
+#[test]
+fn legacy_config_uses_dashboard_serde_defaults() {
+    let config: AppConfig = toml::from_str("").expect("empty legacy config");
+    assert_eq!(config.dashboard_grouping, DashboardGrouping::Attention);
+    assert_eq!(config.dashboard_sort, DashboardSort::Recommended);
+    assert!(!config.dashboard_in_progress_collapsed);
+    assert!(config.dashboard_all_set_collapsed);
+}
+
+#[test]
+fn dashboard_preferences_persist_and_round_trip() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = AppPaths::under(tmp.path().to_path_buf());
+    let mut state = make_state_with_paths(paths.clone());
+
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::GroupingChanged(
+            DashboardGrouping::ProjectGroup,
+        )),
+    );
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::SortChanged(DashboardSort::NameAscending)),
+    );
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::GroupingChanged(
+            DashboardGrouping::Attention,
+        )),
+    );
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::TierToggled(
+            crate::state::dashboard::DashboardTier::InProgress,
+        )),
+    );
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::TierToggled(
+            crate::state::dashboard::DashboardTier::AllSet,
+        )),
+    );
+
+    let (loaded, error) = load_config(&paths);
+    assert!(error.is_none(), "{error:?}");
+    assert_eq!(loaded.dashboard_grouping, DashboardGrouping::Attention);
+    assert_eq!(loaded.dashboard_sort, DashboardSort::NameAscending);
+    assert!(loaded.dashboard_in_progress_collapsed);
+    assert!(!loaded.dashboard_all_set_collapsed);
+}
+
+#[test]
+fn dashboard_preference_save_failure_keeps_session_choice_and_warns() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let blocked_parent = tmp.path().join("blocked");
+    std::fs::write(&blocked_parent, "not a directory").expect("blocking file");
+    let paths = AppPaths {
+        config_file: blocked_parent.join("config.toml"),
+        workspaces_dir: tmp.path().join("workspaces"),
+        history_dir: tmp.path().join("history"),
+    };
+    let mut state = make_state_with_paths(paths);
+
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::GroupingChanged(DashboardGrouping::None)),
+    );
+
+    assert_eq!(state.config.dashboard_grouping, DashboardGrouping::None);
+    assert_eq!(
+        state.status_bar.as_deref(),
+        Some(state.t("dashboard.preference_save_failed"))
+    );
+}
+
+#[test]
+fn attention_collapse_prunes_hidden_selection_but_needs_help_cannot_collapse() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let mut state = make_state_with_paths(AppPaths::under(tmp.path().to_path_buf()));
+    let project = make_project("work");
+    let mut workspace = Workspace::new("Main");
+    workspace.projects.push(project.clone());
+    install_workspaces(&mut state, vec![workspace], 0);
+    let mut project_status = make_project_status(project.id.clone(), Some("origin/main"));
+    project_status.working_tree.uncommitted_count = 1;
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![project_status],
+        last_refresh: None,
+    });
+    state.selection_mode = true;
+    state.selection.toggle(project.id.clone());
+
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::TierToggled(
+            crate::state::dashboard::DashboardTier::InProgress,
+        )),
+    );
+    assert!(state.selection.selected_ids.is_empty());
+    assert!(state.selection_mode);
+
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::TierToggled(
+            crate::state::dashboard::DashboardTier::NeedsHelp,
+        )),
+    );
+    assert!(state.config.dashboard_in_progress_collapsed);
+    assert!(state.config.dashboard_all_set_collapsed);
+}
+
+#[test]
+fn filter_changes_prune_selection_and_summary_defensively_intersects_visibility() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = false;
+    let project = make_project("api");
+    let mut workspace = Workspace::new("Main");
+    workspace.projects.push(project.clone());
+    install_workspaces(&mut state, vec![workspace], 0);
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![make_project_status(project.id.clone(), None)],
+        last_refresh: None,
+    });
+    state.selection.toggle(project.id.clone());
+
+    dispatch(
+        &mut state,
+        Message::Filter(FilterMessage::StatusFilterToggled(StatusFilter::NeedsHelp)),
+    );
+    assert!(state.selection.selected_ids.is_empty());
+
+    state.selection.selected_ids.insert(project.id.clone());
+    let summary = state.selection_summary();
+    assert_eq!(summary.selected_count, 0);
+    assert!(summary.selected_ids.is_empty());
+}
+
+#[test]
+fn dashboard_error_details_and_retry_follow_workspace_guard() {
+    let mut no_workspace = make_state();
+    no_workspace.show_op_details = true;
+    dispatch(
+        &mut no_workspace,
+        Message::Background(BackgroundMessage::TaskError {
+            description: "adapter path detail".to_owned(),
+        }),
+    );
+    assert!(!no_workspace.dashboard_error_details_open);
+    assert_eq!(
+        no_workspace.status_bar.as_deref(),
+        Some(no_workspace.t("dashboard.load_failed"))
+    );
+    dispatch(
+        &mut no_workspace,
+        Message::Dashboard(DashboardMessage::ErrorDetailsToggled),
+    );
+    assert!(no_workspace.dashboard_error_details_open);
+    assert!(no_workspace.show_op_details);
+    dispatch(
+        &mut no_workspace,
+        Message::Dashboard(DashboardMessage::ErrorRetryRequested),
+    );
+    assert!(matches!(
+        no_workspace.load_phase,
+        crate::state::LoadPhase::Error(_)
+    ));
+    assert!(!no_workspace.is_refreshing);
+
+    let mut loaded = make_state();
+    let workspace = Workspace::new("Main");
+    install_workspaces(&mut loaded, vec![workspace], 0);
+    loaded.load_phase = crate::state::LoadPhase::Error("again".to_owned());
+    loaded.dashboard_error_details_open = true;
+    loaded.is_refreshing = true;
+    dispatch(
+        &mut loaded,
+        Message::Dashboard(DashboardMessage::ErrorRetryRequested),
+    );
+    assert!(matches!(
+        loaded.load_phase,
+        crate::state::LoadPhase::Refreshing
+    ));
+    assert!(loaded.is_refreshing);
+    assert!(!loaded.dashboard_error_details_open);
 }
 
 #[test]

@@ -24,25 +24,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .map(|(i, ws)| {
             let is_active = i == state.active_workspace_idx;
 
-            let attention = state
-                .workspace_status
-                .as_ref()
-                .filter(|_| is_active)
-                .map(|wss| {
-                    let missing = &state.missing_projects;
-                    ws.projects
-                        .iter()
-                        .filter(|p| {
-                            if missing.contains(&p.id) {
-                                return true;
-                            }
-                            let status = wss.projects.iter().find(|ps| ps.project_id == p.id);
-                            let (tier, _) = crate::state::tier::compute_tier(status, true);
-                            tier == crate::state::AttentionTier::NeedsAttention
-                        })
-                        .count()
-                })
-                .unwrap_or(0);
+            let attention = if is_active {
+                state
+                    .dashboard_display()
+                    .sections
+                    .iter()
+                    .flat_map(|section| section.entries.iter())
+                    .filter(|entry| entry.tier == crate::state::dashboard::DashboardTier::NeedsHelp)
+                    .count()
+            } else {
+                0
+            };
 
             let label = if attention > 0 {
                 format!("{} ({})", ws.name, attention)

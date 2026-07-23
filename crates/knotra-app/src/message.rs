@@ -34,7 +34,7 @@ pub enum Message {
     Selection(SelectionMessage),
     Activity(ActivityMessage),
     Palette(PaletteMessage),
-    Tier(TierMessage),
+    Dashboard(DashboardMessage),
     KeyEvent(KeyboardMessage),
     DetailPanel(DetailPanelMessage),
     /// Periodic tick from the FS-watch subscription.
@@ -271,25 +271,34 @@ pub enum FilterMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum StatusFilter {
-    Healthy,
+    AllSet,
     Behind,
     Ahead,
     Dirty,
     Conflict,
-    Error,
+    NeedsHelp,
 }
 #[allow(dead_code)]
 impl StatusFilter {
     pub fn label_key(&self) -> &'static str {
         match self {
-            StatusFilter::Healthy => "filter.healthy",
+            StatusFilter::AllSet => "filter.all_set",
             StatusFilter::Behind => "filter.behind",
             StatusFilter::Ahead => "filter.ahead",
             StatusFilter::Dirty => "filter.dirty",
             StatusFilter::Conflict => "filter.conflict",
-            StatusFilter::Error => "filter.error",
+            StatusFilter::NeedsHelp => "filter.needs_help",
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum DashboardMessage {
+    GroupingChanged(crate::config::DashboardGrouping),
+    SortChanged(crate::config::DashboardSort),
+    TierToggled(crate::state::dashboard::DashboardTier),
+    ErrorDetailsToggled,
+    ErrorRetryRequested,
 }
 
 // --- Conflict resolution ---
@@ -416,16 +425,6 @@ pub enum PaletteMessage {
     MoveDown,
     Confirmed,
     EntryClicked(usize),
-}
-
-// ---------------------------------------------------------------------------
-// RFC-0010 — Attention tier messages
-// ---------------------------------------------------------------------------
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub enum TierMessage {
-    Toggled(crate::state::AttentionTier),
-    GroupingModeChanged(crate::state::GroupingMode),
 }
 
 // ---------------------------------------------------------------------------

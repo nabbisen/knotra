@@ -7,7 +7,6 @@ pub mod dashboard;
 pub mod freezer;
 pub mod palette;
 pub mod sync;
-pub mod tier;
 pub mod topology;
 pub mod workspace_mgr;
 
@@ -427,44 +426,6 @@ impl PaletteState {
 }
 
 // ---------------------------------------------------------------------------
-// RFC-0010 — Attention tiers
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
-#[allow(dead_code)]
-pub enum AttentionTier {
-    NeedsAttention,
-    Active,
-    Clean,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum GroupingMode {
-    #[default]
-    Auto, // RFC-0010 tier grouping
-    Legacy, // Original filter-chip grouping
-}
-
-/// Whether each tier header is collapsed in the UI.
-#[derive(Debug, Clone)]
-pub struct TierCollapseState {
-    pub needs_attention: bool,
-    pub active: bool,
-    pub clean: bool, // defaults to collapsed
-}
-
-impl Default for TierCollapseState {
-    fn default() -> Self {
-        TierCollapseState {
-            needs_attention: false,
-            active: false,
-            clean: true,
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // RFC-0014 — Project detail panel state
 // ---------------------------------------------------------------------------
 
@@ -577,12 +538,6 @@ pub struct AppState {
     // RFC-0012 command palette
     // ------------------------------------------------------------------
     pub palette: PaletteState,
-    // ------------------------------------------------------------------
-    // RFC-0010 attention tiers
-    // ------------------------------------------------------------------
-    pub grouping_mode: GroupingMode,
-    pub tier_collapse: TierCollapseState,
-    // ------------------------------------------------------------------
     // RFC-0016 keyboard state
     // ------------------------------------------------------------------
     pub keyboard: KeyboardState,
@@ -600,6 +555,8 @@ pub struct AppState {
     /// Whether to show technical command details in modal result views.
     /// Toggled by the "Show details" / "Hide details" button in result screens.
     pub show_op_details: bool,
+    /// Whether to disclose the raw dashboard refresh error.
+    pub dashboard_error_details_open: bool,
     /// A recently removed project eligible for undo (cleared by next action or timeout).
     pub recent_removal: Option<UndoableRemoval>,
 }
@@ -651,13 +608,12 @@ impl AppState {
             selection: SelectionState::default(),
             activity: ActivityStripState::default(),
             palette: PaletteState::default(),
-            grouping_mode: GroupingMode::default(),
-            tier_collapse: TierCollapseState::default(),
             keyboard: KeyboardState::default(),
             detail_panel: DetailPanelState::default(),
             active_modal: ActiveModal::default(),
             selection_mode: false,
             show_op_details: false,
+            dashboard_error_details_open: false,
             recent_removal: None,
             paths,
             config,
@@ -684,43 +640,34 @@ impl AppState {
     }
 
     pub fn visible_project_ids(&self) -> Vec<knotra_vcs::ProjectId> {
+        self.dashboard_display().ordered_selectable_ids
+    }
+
+    pub fn dashboard_display(&self) -> dashboard::DashboardDisplay<'_> {
         let projects = self
             .workspace
             .as_ref()
             .map(|ws| ws.projects.as_slice())
             .unwrap_or(&[]);
-        crate::state::dashboard::build_display_groups(
+        dashboard::build_dashboard_display(
             projects,
             self.workspace_status.as_ref(),
+            &self.missing_projects,
             &self.filter,
+            dashboard::DashboardDisplayOptions {
+                grouping: self.config.dashboard_grouping,
+                sort: self.config.dashboard_sort,
+                in_progress_collapsed: self.config.dashboard_in_progress_collapsed,
+                all_set_collapsed: self.config.dashboard_all_set_collapsed,
+            },
         )
-        .into_iter()
-        .flat_map(|group| {
-            group
-                .entries
-                .into_iter()
-                .map(|entry| entry.project.id.clone())
-                .collect::<Vec<_>>()
-        })
-        .collect()
     }
 
     pub fn selection_summary(&self) -> SelectionSummary {
-        let active_ids: HashSet<_> = self
-            .workspace
-            .as_ref()
-            .map(|ws| {
-                ws.projects
-                    .iter()
-                    .map(|project| project.id.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
-        let selected_ids: Vec<_> = self
-            .selection
-            .selected_ids
+        let visible_ids = self.visible_project_ids();
+        let selected_ids: Vec<_> = visible_ids
             .iter()
-            .filter(|id| active_ids.contains(*id))
+            .filter(|id| self.selection.selected_ids.contains(*id))
             .cloned()
             .collect();
 
@@ -741,27 +688,15 @@ impl AppState {
         SelectionSummary {
             selected_count: selected_ids.len(),
             selected_ids,
-            visible_ids: self.visible_project_ids(),
+            visible_ids,
             fetchable_ids,
             has_upstream,
         }
     }
 
-    pub fn prune_selection_to_active_workspace(&mut self) {
-        let active_ids: HashSet<_> = self
-            .workspace
-            .as_ref()
-            .map(|ws| {
-                ws.projects
-                    .iter()
-                    .map(|project| project.id.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.selection.retain_ids(&active_ids);
-        if self.selection.selected_ids.is_empty() {
-            self.selection_mode = false;
-        }
+    pub fn reconcile_selection_with_display(&mut self) {
+        let visible_ids: HashSet<_> = self.visible_project_ids().into_iter().collect();
+        self.selection.retain_ids(&visible_ids);
     }
 
     pub fn clear_selection_mode(&mut self) {
