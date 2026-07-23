@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (working tree; pending commit) |
+| Status | Implemented (main: 7b1f689) |
 | Priority | High - a visible failure action does not retry and currently navigates somewhere unrelated |
 | Effort | Medium |
 | Target | Production Readiness Reset |
