@@ -1605,7 +1605,11 @@ mod tests {
     /// The resolved-map assertions above can't see this class of defect
     /// (they only ever observe the map's, i.e. the *last* insert's, value),
     /// so this test scans the source text directly for a key inserted twice
-    /// within the same catalog function.
+    /// within the same catalog function. Each function's body is bounded by
+    /// its own closing brace (`\n}`), not by the next `fn`, because
+    /// `ja_strings` is the last top-level function in the file — bounding on
+    /// `\nfn ` would run to end-of-file and misattribute duplicates found
+    /// inside this test module to `ja_strings`.
     #[test]
     fn catalog_functions_insert_each_key_only_once() {
         let source = include_str!("i18n.rs");
@@ -1615,7 +1619,13 @@ mod tests {
                 .find(&marker)
                 .unwrap_or_else(|| panic!("could not locate fn {fn_name}"));
             let body = &source[start..];
-            let body = &body[..body.find("\nfn ").unwrap_or(body.len())];
+            let body = &body[..body.find("\n}").unwrap_or(body.len())];
+            if fn_name == "ja_strings" {
+                assert!(
+                    !body.contains("mod tests"),
+                    "ja_strings body escaped its function"
+                );
+            }
 
             let mut seen = std::collections::HashSet::new();
             let mut duplicates = Vec::new();
