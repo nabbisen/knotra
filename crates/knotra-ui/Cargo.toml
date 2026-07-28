@@ -9,6 +9,7 @@ authors.workspace       = true
 
 [dependencies]
 iced                        = { workspace = true }
+snora                       = { workspace = true }
 
 serde                       = { workspace = true }
 tracing                     = { workspace = true }

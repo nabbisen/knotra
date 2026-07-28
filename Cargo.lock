@@ -3267,6 +3267,7 @@ version = "0.23.0"
 dependencies = [
  "iced",
  "serde",
+ "snora",
  "tracing",
 ]
 
@@ -3451,6 +3452,15 @@ name = "lru"
 version = "0.16.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f66e8d5d03f609abc3a39e6f08e4164ebf1447a732906d39eb9b99b7919ef39"
+
+[[package]]
+name = "lucide-icons"
+version = "1.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "029a7582875d762cacb18cb1255779e8efb2fc78081a4fc1ddc65b49b4d42aa0"
+dependencies = [
+ "iced",
+]
 
 [[package]]
 name = "lyon"
@@ -5204,7 +5214,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f47d50efb07f533144ef4824121a31f7a02c56539eb5ab83cafdcef69836450"
 dependencies = [
  "iced",
+ "lucide-icons",
  "snora-core",
+ "snora-design",
  "snora-widgets",
 ]
 
@@ -5213,6 +5225,15 @@ name = "snora-core"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b814c3b433fb45f9803ab83ee0baebfaa7813fcf0aca54a5e1251289ea565bee"
+dependencies = [
+ "lucide-icons",
+]
+
+[[package]]
+name = "snora-design"
+version = "0.25.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64496e65f4a9511c92f816e8c18b875b46a4f35509361dabef0f54bb53964c76"
 
 [[package]]
 name = "snora-widgets"
@@ -5221,7 +5242,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80d5a64cc6c03a010954efc9df0f99faf30a68aefc57731a48a5a0527d5c52c8"
 dependencies = [
  "iced",
+ "lucide-icons",
  "snora-core",
+ "snora-design",
 ]
 
 [[package]]
