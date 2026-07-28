@@ -5209,9 +5209,9 @@ dependencies = [
 
 [[package]]
 name = "snora"
-version = "0.25.0"
+version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f47d50efb07f533144ef4824121a31f7a02c56539eb5ab83cafdcef69836450"
+checksum = "c9462363b7d6b86e54a7be6b44e3c5e8650e23e1e699118cf14fd7c9aac0e0a5"
 dependencies = [
  "iced",
  "lucide-icons",
@@ -6361,7 +6361,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

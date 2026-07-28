@@ -1,0 +1,26 @@
+//! Common widget helpers built on top of `iced` and `snora::design`.
+//!
+//! These are thin wrappers that enforce consistent spacing, typography, and
+//! accessible defaults across all screens without embedding business logic.
+//! Split from a single `widget.rs` file in RFC-034: this `mod.rs` re-exports
+//! every path the rest of the workspace already imports, so the split itself
+//! changes no call site.
+
+mod buttons;
+mod field;
+mod focus;
+pub mod icon;
+mod layout;
+pub mod overlay;
+
+pub use buttons::{
+    danger, danger_maybe, ghost, ghost_maybe, guided_button, icon_button_maybe, primary,
+    primary_maybe, secondary, secondary_maybe,
+};
+pub use field::{guided_field, guided_field_focused};
+pub use focus::{focus_id, focus_input};
+pub use layout::{
+    Alignment, BUTTON_HEIGHT, CARD_GAP, CARD_MIN_WIDTH, CARD_PADDING, CARD_RADIUS, Color, Column,
+    Element, FONT_BODY, FONT_SMALL, Length, Padding, Row, SIDEBAR_WIDTH, SMALL_BUTTON_HEIGHT,
+    button, column, container, row, scrollable, text, text_input,
+};

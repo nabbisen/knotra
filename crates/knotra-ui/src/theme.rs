@@ -51,11 +51,16 @@ impl StatusColor {
 /// The application's iced `Theme` extension carrying knotra-specific tokens.
 ///
 /// Wraps the built-in `iced::Theme` so that both the light and dark system
-/// preferences are respected while adding semantic status colours.
+/// preferences are respected while adding semantic status colours and the
+/// Snora Design token set (RFC-034 D1/R3).
 #[derive(Debug, Clone)]
 pub struct KnotraTheme {
     pub base: iced::Theme,
     pub dark: bool,
+    /// Snora Design token bundle: palette, spacing, typography, radius, and
+    /// focus tokens (RFC-033 D7). `KnotraTheme::light()`/`dark()` map to
+    /// `Tokens::light()`/`dark()` one-to-one.
+    pub tokens: snora::design::Tokens,
 }
 
 impl KnotraTheme {
@@ -63,6 +68,7 @@ impl KnotraTheme {
         KnotraTheme {
             base: iced::Theme::Light,
             dark: false,
+            tokens: snora::design::Tokens::light(),
         }
     }
 
@@ -70,16 +76,189 @@ impl KnotraTheme {
         KnotraTheme {
             base: iced::Theme::Dark,
             dark: true,
+            tokens: snora::design::Tokens::dark(),
         }
     }
 
     pub fn status_color(&self, status: StatusColor) -> Color {
         status.to_color(self.dark)
     }
+
+    // -- D7 colour role accessors -------------------------------------------
+    // Thin accessors over `self.tokens.palette`, converted to `iced::Color`.
+    // Application view code reads roles through these, never through
+    // `snora::design` directly (RFC-034 R2).
+
+    pub fn background(&self) -> Color {
+        to_iced(self.tokens.palette.background)
+    }
+
+    pub fn surface(&self) -> Color {
+        to_iced(self.tokens.palette.surface)
+    }
+
+    pub fn surface_raised(&self) -> Color {
+        to_iced(self.tokens.palette.surface_raised)
+    }
+
+    pub fn border(&self) -> Color {
+        to_iced(self.tokens.palette.border)
+    }
+
+    pub fn text_primary(&self) -> Color {
+        to_iced(self.tokens.palette.text_primary)
+    }
+
+    pub fn text_secondary(&self) -> Color {
+        to_iced(self.tokens.palette.text_secondary)
+    }
+
+    pub fn text_muted(&self) -> Color {
+        to_iced(self.tokens.palette.text_muted)
+    }
+
+    pub fn focus(&self) -> Color {
+        to_iced(self.tokens.palette.focus)
+    }
+
+    pub fn accent(&self) -> Color {
+        to_iced(self.tokens.palette.accent)
+    }
+
+    pub fn accent_text(&self) -> Color {
+        to_iced(self.tokens.palette.accent_text)
+    }
+
+    pub fn danger(&self) -> Color {
+        to_iced(self.tokens.palette.danger)
+    }
+
+    pub fn danger_text(&self) -> Color {
+        to_iced(self.tokens.palette.danger_text)
+    }
+
+    pub fn warning(&self) -> Color {
+        to_iced(self.tokens.palette.warning)
+    }
+
+    pub fn warning_text(&self) -> Color {
+        to_iced(self.tokens.palette.warning_text)
+    }
+
+    pub fn success(&self) -> Color {
+        to_iced(self.tokens.palette.success)
+    }
+
+    pub fn success_text(&self) -> Color {
+        to_iced(self.tokens.palette.success_text)
+    }
+}
+
+fn to_iced(color: snora::design::Color) -> Color {
+    snora::design::style::color::to_iced_color(color)
 }
 
 impl Default for KnotraTheme {
     fn default() -> Self {
         KnotraTheme::dark()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `snora_design::contrast::contrast_ratio` takes `snora_design::Color`,
+    /// which is deliberately not `iced::Color` (snora-design stays iced-free).
+    /// `snora_widgets` only ships the opposite conversion
+    /// (`to_iced_color`), so this test provides its own reverse conversion —
+    /// a lossless field copy, same as the one-way helper it mirrors.
+    fn from_iced(c: Color) -> snora::design::Color {
+        snora::design::Color::rgba(c.r, c.g, c.b, c.a)
+    }
+
+    const AA_NORMAL: f32 = 4.5;
+    /// AA-large threshold, for the one documented exception below.
+    const AA_LARGE: f32 = 3.0;
+
+    /// R5: every `StatusColor` against its intended surface — the plain
+    /// application background, since no card in the current codebase styles
+    /// its own background (RFC-034 Background section) — meets WCAG AA in
+    /// both themes, with one carried-forward exception.
+    #[test]
+    fn status_colors_meet_wcag_aa_against_background_in_both_themes() {
+        let cases: [(&str, StatusColor); 6] = [
+            ("Healthy", StatusColor::Healthy),
+            ("Behind", StatusColor::Behind),
+            ("Ahead", StatusColor::Ahead),
+            ("Dirty", StatusColor::Dirty),
+            ("Conflict", StatusColor::Conflict),
+            ("Unknown", StatusColor::Unknown),
+        ];
+
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let background = from_iced(theme.background());
+
+            for (label, status) in cases {
+                let color = from_iced(status.to_color(theme.dark));
+                let ratio = snora::design::contrast::contrast_ratio(color, background);
+
+                // Documented exception, carried forward from RFC-021 Phase 6:
+                // `Unknown` on the dark background meets AA-large only. It is
+                // used solely as a secondary label alongside an icon, never as
+                // the sole indicator of state (module doc comment above).
+                let threshold = if theme_name == "dark" && label == "Unknown" {
+                    AA_LARGE
+                } else {
+                    AA_NORMAL
+                };
+
+                assert!(
+                    ratio >= threshold,
+                    "{theme_name} StatusColor::{label} vs background: {ratio:.2}:1 \
+                     is below the required {threshold}:1"
+                );
+            }
+        }
+    }
+
+    /// R5: every mandatory-contrast text role (`text_primary`,
+    /// `text_secondary`) meets WCAG AA against every surface role it can
+    /// render on, in both themes. `text_muted` is intentionally excluded —
+    /// `snora_design::Palette`'s own documentation marks it exempt from the
+    /// mandatory body-text check.
+    #[test]
+    fn text_roles_meet_wcag_aa_against_every_surface_role_in_both_themes() {
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let surfaces: [(&str, Color); 3] = [
+                ("background", theme.background()),
+                ("surface", theme.surface()),
+                ("surface_raised", theme.surface_raised()),
+            ];
+            let texts: [(&str, Color); 2] = [
+                ("text_primary", theme.text_primary()),
+                ("text_secondary", theme.text_secondary()),
+            ];
+
+            for (text_label, text_color) in texts {
+                for (surface_label, surface_color) in surfaces {
+                    let ratio = snora::design::contrast::contrast_ratio(
+                        from_iced(text_color),
+                        from_iced(surface_color),
+                    );
+                    assert!(
+                        ratio >= AA_NORMAL,
+                        "{theme_name} {text_label} on {surface_label}: {ratio:.2}:1 \
+                         is below the required {AA_NORMAL}:1"
+                    );
+                }
+            }
+        }
     }
 }
