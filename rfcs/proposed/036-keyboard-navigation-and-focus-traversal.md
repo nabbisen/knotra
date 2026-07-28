@@ -204,7 +204,16 @@ refresh, palette, Settings), and every overlay migrated under RFC-034 (the
 workspace-manager dialogs) is reachable via Tab/Shift-Tab.
 
 R3. Enter or Space activates the control currently holding knotra-focus,
-matching what a pointer click on that control would dispatch.
+dispatching exactly the `Message` a pointer click on that control would.
+
+R3a. **Activation keys are gated on text-input focus, on the same rule as R4.**
+When knotra-focus holds a text input, Space types a literal space and must not
+activate anything; Enter is delivered to the input (submitting only where that
+input's own handler already defines a submit action) and must not activate an
+unrelated control. Only when knotra-focus is on a non-text-input target do
+Enter and Space act as activation keys. Without this, the workspace-name field
+becomes unable to accept a space character - an immediately visible
+regression.
 
 R4. Bare `/` (no modifier) focuses the dashboard search field, per RFC-0016's
 original specification, when no text input currently holds focus (so `/`
@@ -358,6 +367,20 @@ the current `FocusTarget` and dispatches whatever `Message` a pointer click
 on that same control would produce - the same message, not a parallel path,
 so behaviour cannot diverge between pointer and keyboard.
 
+**R3 constrains the representation, and this is not a free choice.** A bare
+index or key held in `AppState` cannot satisfy R3 on its own, because nothing
+maps position 3 back to the `Message` that control would dispatch. The focus
+order must therefore be built **at view time, carrying each target's
+activation message alongside it** - concretely a `Vec<(FocusTarget, Option<Message>)>`
+or equivalent, produced by the same view code that renders the controls, so a
+control and its keyboard activation cannot drift apart. `AppState` holds only
+the current *position* within that order; the order itself is derived per
+frame from the view, exactly as `DashboardDisplay` is (RFC-032).
+
+`Option<Message>` rather than `Message`: a disabled control is still a
+traversal stop (the user must be able to Tab to it and see why it is
+unavailable, per RFC-033 D6), but activating it must do nothing.
+
 ### Reconciling with iced's text-input focus (R12)
 
 Whenever a `FocusTarget` transition lands on (or leaves) a text input, the
@@ -412,6 +435,11 @@ presentation and input-routing only.
   from the first wraps to the last.
 - Enter/Space on the current `FocusTarget` dispatches the same `Message` a
   pointer click on that control would.
+- **Space with knotra-focus on a text input types a space and activates
+  nothing; Enter with focus on a text input does not activate an unrelated
+  control (R3a).** This is the gating twin of the bare-`/` test below.
+- A disabled control is still a Tab stop but activating it dispatches nothing
+  (the `Option<Message>` case in the view-built order).
 - Opening an overlay sets knotra-focus to its first control (R6); closing it
   by each of Escape, scrim click, and header close returns focus to the
   opener (R7), and `close_topmost_layer`'s existing phase-aware branch order
@@ -466,6 +494,8 @@ grep -rn 'FocusTokens' crates/knotra-ui/src/widget/mod.rs   # must show the re-e
       reading order.
 - [ ] Enter/Space activates the currently focused control identically to a
       pointer click (R3).
+- [ ] Space types a literal space, and Enter does not activate an unrelated
+      control, while knotra-focus holds a text input (R3a).
 - [ ] Bare `/` focuses search when no text input holds focus; `Ctrl+/` still
       works (R4).
 - [ ] Tab is confined within an open overlay (R5); focus enters at the first
@@ -544,11 +574,13 @@ capability it describes actually exists.
 
 ## Open Questions
 
-1. **Exact `FocusTarget` representation.** A per-screen enum versus a flat
-   ordered `Vec<Id>`/key list built at view time. Both satisfy every
-   requirement here; the developer should pick based on what keeps focus
-   order colocated with the view that declares it, and report which and why,
-   since RFC-037/038 will need the same choice.
+1. **Exact `FocusTarget` key type.** The *shape* is settled by R3 (see
+   Internal Design): a view-built order carrying each target's activation
+   message, with `AppState` holding only the current position. What remains
+   open is the key itself - a per-screen enum versus a stable string/`Id` -
+   and the developer should pick based on which keeps the order colocated
+   with the view that declares it, then report the choice, since RFC-037/038
+   inherit it.
 
 2. **Does overlay focus context need its own `AppState` field, or can it
    reuse the dashboard's with a stack discipline?** R5's confinement needs
