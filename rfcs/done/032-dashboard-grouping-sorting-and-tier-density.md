@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (working tree; pending commit) |
+| Status | Implemented (main: d98374a) |
 | Priority | High - the visible grouping control is inert and the active dashboard does not implement its promised information hierarchy |
 | Effort | Medium |
 | Target | Production Readiness Reset |

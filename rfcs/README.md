@@ -37,7 +37,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
-| [032](./done/032-dashboard-grouping-sorting-and-tier-density.md) | Dashboard grouping, sorting, and tier density | working tree; pending commit |
+| [032](./done/032-dashboard-grouping-sorting-and-tier-density.md) | Dashboard grouping, sorting, and tier density | main: d98374a |
 | [031](./done/031-activity-retry-semantics.md) | Activity retry semantics | main: 7b1f689 |
 | [030](./done/030-changelog-modal-completion.md) | Changelog modal completion | main: f22dc5e |
 | [029](./done/029-typed-context-switching-and-context-switch-modal-completion.md) | Typed context switching and context switch modal completion | main: 9821bef |
