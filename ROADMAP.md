@@ -263,6 +263,7 @@ Primary evidence:
 
 - `.git-exclude/reviewed/008-basic-function-rfc-overview-amended.md`
 - `.git-exclude/reviewed/010-reviewed-artifacts-consolidation.md`
+- `.git-exclude/reviewed/062-current-gui-ui-ux-audit.md` (July 2026 GUI audit)
 
 ### RFC drafting track
 
@@ -276,22 +277,51 @@ Primary evidence:
 - [x] Draft RFC: Changelog modal completion
 - [x] Draft RFC: Activity retry semantics
 - [x] Draft RFC: Dashboard grouping, sorting, and tier-density implementation
-- [ ] Draft RFC: Per-project VCS history for Git and jj
+- [ ] Draft RFC-038: Per-project VCS history for Git and jj (sequenced after
+      RFC-037, so it can reuse the record-list pattern — see RFC-033)
+
+### UI/UX foundation track
+
+A second audit (`.git-exclude/reviewed/062-current-gui-ui-ux-audit.md`) found
+the GUI is not production-ready as an *interaction and visual system* — a
+distinct problem from the inert-control findings above. RFC-033 decides the
+shared contracts; the rest implement them.
+
+- [x] RFC-033 — UI/UX foundation, shell, and overlay contracts (umbrella) — `Accepted (main: 71b4796)`
+- [x] RFC-034 — Design foundation, application shell, and overlay host — `main: 0f5c0c5`
+- [ ] RFC-035 — Dashboard and selection migration
+- [ ] RFC-036 — Mutating workflow overlays and remaining ad hoc layers
+- [ ] RFC-037 — Settings and History
 
 ### Implementation and verification track
 
+Ticked items were verified on 2026-07-28 at `9b66e09`; evidence is recorded in
+`.git-exclude/reviewed/`. Unticked items are genuinely open, with the reason
+given.
+
 - [ ] Every visible control either works, is disabled with a clear reason, or is hidden
-- [ ] Dashboard uses the intended tier-specific information density in the active render path
+      — functionally addressed by RFC-023..032; the visual/affordance half is
+      RFC-035..037 (audit findings 3 and 5)
+- [x] Dashboard uses the intended tier-specific information density in the active render path
+      — RFC-032 R10, verified in `060`
 - [ ] All primary workflows have complete validation, confirmation, progress, result, error, and recovery states
+      — implemented across RFC-024..031; not yet systematically re-verified as a whole
 - [ ] User-facing strings are routed through the i18n catalog where production UI renders them
+      — `view/settings.rs` still carries hardcoded English; RFC-037
 - [ ] UI contract tests or smoke tests prove visible controls reach the intended message handler, task, and result state
+      — substantial coverage added per RFC; not yet complete across all surfaces
 - [ ] Git integration tests are hermetic against global/user Git config
-- [ ] `cargo +1.91 fmt --check` passes
-- [ ] `cargo +1.91 clippy --workspace --all-targets` passes
-- [ ] `cargo +1.91 test -p knotra-vcs`, `cargo +1.91 test -p knotra-ui`, and `cargo +1.91 test -p knotra` pass in the documented release environment
+      — still requires externally supplied `GIT_CONFIG_*` / `GIT_EDITOR` / `TMPDIR`;
+      the harness is not self-isolating
+- [ ] `guided_button` and `guided_field` deleted; no legacy control helper remains
+      — the RFC-034 R7 parallel-systems window; closes when RFC-035..037 migrate
+      their last call sites
+- [x] `cargo +1.91 fmt --check` passes
+- [x] `cargo +1.91 clippy --workspace --all-targets` passes
+- [x] `cargo +1.91 test -p knotra-vcs`, `cargo +1.91 test -p knotra-ui`, and `cargo +1.91 test -p knotra` pass in the documented release environment
 
 ### Release gate
 
-Production release remains **No-Go** until the RFC drafting track is complete,
-the accepted RFCs are implemented, and the verification track passes with
-current evidence.
+Production release remains **No-Go** until **both** the RFC drafting track and
+the UI/UX foundation track are complete, the accepted RFCs are implemented, and
+the verification track passes with current evidence.
