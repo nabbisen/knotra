@@ -39,6 +39,7 @@ use crate::{
         changelog::ChangelogPhase,
         conflict_ops::ConflictPhase,
         context::ContextPhase,
+        focus,
         freezer::FreezerPhase,
         sync::{ProjectOutcome, SmartPullRetryPreparation, SyncKind, SyncPhase, SyncResult},
         topology::TopologyPhase,
@@ -104,6 +105,16 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
             let ctrl = modifiers.control() || modifiers.command();
             let shortcut = match &key {
                 keyboard::Key::Named(Named::Escape) => Some(ShortcutMessage::Close),
+                // RFC-036 R1: Tab/Shift-Tab traversal.
+                keyboard::Key::Named(Named::Tab) if modifiers.shift() => {
+                    Some(ShortcutMessage::FocusPrevious)
+                }
+                keyboard::Key::Named(Named::Tab) => Some(ShortcutMessage::FocusNext),
+                // RFC-036 R3/R3a: Enter/Space activate the focused control,
+                // gated in `handle_shortcut` so a focused text input still
+                // receives the keystroke instead of activating a control.
+                keyboard::Key::Named(Named::Enter) => Some(ShortcutMessage::ActivateFocused),
+                keyboard::Key::Named(Named::Space) => Some(ShortcutMessage::ActivateFocused),
                 keyboard::Key::Character(c) => match c.as_str() {
                     "r" | "R" if ctrl => Some(ShortcutMessage::Refresh),
                     "k" | "K" if ctrl => Some(ShortcutMessage::OpenContextOps),
@@ -247,6 +258,53 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             }
             close_topmost_layer(state)
         }
+        ShortcutMessage::FocusNext => advance_focus(state, focus::Direction::Next),
+        ShortcutMessage::FocusPrevious => advance_focus(state, focus::Direction::Previous),
+        ShortcutMessage::ActivateFocused => activate_focused(state),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RFC-036 — keyboard focus traversal (Stage 1: mechanism only)
+// ---------------------------------------------------------------------------
+
+/// Stage 1 stub: no view yet builds a real focus order (Stage 2 wires the
+/// shell/dashboard toolbar; Stage 4 adds dashboard rows), so Tab/Enter/Space
+/// have no visible effect yet. The traversal, activation, and reconciliation
+/// mechanism below is fully wired and exercised by `state::focus`'s own unit
+/// tests; only the order's content is still a placeholder.
+fn dashboard_focus_order(_state: &AppState) -> focus::FocusOrder<Message> {
+    Vec::new()
+}
+
+fn advance_focus(state: &mut AppState, direction: focus::Direction) -> Task<Message> {
+    let order = dashboard_focus_order(state);
+    let previous = state.dashboard_focus.clone();
+    let next = focus::advance(&order, previous.as_ref(), direction).cloned();
+    state.dashboard_focus = next.clone();
+    reconciliation_task(focus::reconcile(previous.as_ref(), next.as_ref()))
+}
+
+fn activate_focused(state: &mut AppState) -> Task<Message> {
+    let order = dashboard_focus_order(state);
+    if focus::is_text_input_focused(&order, state.dashboard_focus.as_ref()) {
+        // R3a: a focused text input receives Enter/Space as a keystroke; it
+        // must not also activate whatever control the ring last sat on.
+        return Task::none();
+    }
+    focus::activation_message(&order, state.dashboard_focus.as_ref())
+        .map(Task::done)
+        .unwrap_or_else(Task::none)
+}
+
+/// Applies a `focus::Reconciliation` by issuing the matching iced text-input
+/// operation (R12). This is the one place `operation::focus`/
+/// `clear_input_focus` is called on knotra-focus's behalf — see Guardrail 2.
+fn reconciliation_task(reconciliation: focus::Reconciliation) -> Task<Message> {
+    match reconciliation {
+        focus::Reconciliation::None => Task::none(),
+        focus::Reconciliation::FocusTextInput(id) => knotra_ui::widget::focus_input(&id),
+        focus::Reconciliation::ClearTextInputFocus => knotra_ui::widget::clear_input_focus(),
     }
 }
 

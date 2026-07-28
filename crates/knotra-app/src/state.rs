@@ -4,6 +4,7 @@ pub mod changelog;
 pub mod conflict_ops;
 pub mod context;
 pub mod dashboard;
+pub mod focus;
 pub mod freezer;
 pub mod palette;
 pub mod sync;
@@ -559,6 +560,19 @@ pub struct AppState {
     pub dashboard_error_details_open: bool,
     /// A recently removed project eligible for undo (cleared by next action or timeout).
     pub recent_removal: Option<UndoableRemoval>,
+    // ------------------------------------------------------------------
+    // RFC-036 keyboard focus traversal
+    // ------------------------------------------------------------------
+    /// Current knotra-focus target for the dashboard/shell context.
+    /// Presentation state only — not persisted, not in `AppConfig`.
+    pub dashboard_focus: Option<focus::FocusTarget>,
+    /// Current knotra-focus target while an overlay is open. Kept separate
+    /// from `dashboard_focus` because R5 confines Tab/Shift-Tab to the
+    /// overlay while it is open, and R7 needs `dashboard_focus` untouched
+    /// underneath so focus can return to it when the overlay closes.
+    /// Unread until Stage 3 wires overlay trap/return.
+    #[allow(dead_code)]
+    pub overlay_focus: Option<focus::FocusTarget>,
 }
 
 impl AppState {
@@ -615,6 +629,8 @@ impl AppState {
             show_op_details: false,
             dashboard_error_details_open: false,
             recent_removal: None,
+            dashboard_focus: None,
+            overlay_focus: None,
             paths,
             config,
         }

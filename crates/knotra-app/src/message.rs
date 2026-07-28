@@ -384,6 +384,12 @@ pub enum ShortcutMessage {
     OpenFreezer,
     FocusSearch,
     Close,
+    /// RFC-036 R1: Tab.
+    FocusNext,
+    /// RFC-036 R1: Shift-Tab.
+    FocusPrevious,
+    /// RFC-036 R3/R3a: Enter or Space, gated on text-input focus.
+    ActivateFocused,
 }
 
 // ---------------------------------------------------------------------------
