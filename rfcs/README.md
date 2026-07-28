@@ -25,6 +25,8 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [036](./proposed/036-keyboard-navigation-and-focus-traversal.md) | Keyboard navigation and focus traversal | Production Readiness Reset | High |
+| [035](./proposed/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | Production Readiness Reset | High |
 
 ---
 
