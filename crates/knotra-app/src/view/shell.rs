@@ -72,7 +72,27 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         let t = tokens.clone();
         button(text(label.to_owned()).size(FONT_BODY))
             .on_press_maybe((!active).then_some(Message::Navigate(target)))
-            .style(move |_theme, status| snora::design::style::button::ghost(&t, status))
+            .style(move |_theme, status| {
+                if active {
+                    // R12: the current destination must be the *most*
+                    // salient item, not the least. `on_press` is
+                    // deliberately `None` here (you can't navigate to
+                    // where you already are), but that makes iced report
+                    // `Status::Disabled`, which fades whatever style runs
+                    // through it. Feed the style function a fixed `Active`
+                    // status instead, so the current destination always
+                    // renders at full strength regardless of iced's
+                    // interaction status — this is the RFC-033 D4
+                    // anti-pattern (selected-but-disabled reads as least
+                    // salient) that review 066 found here.
+                    snora::design::style::button::secondary(
+                        &t,
+                        iced::widget::button::Status::Active,
+                    )
+                } else {
+                    snora::design::style::button::ghost(&t, status)
+                }
+            })
     };
 
     let status_text: Element<'_, Message> = if state.is_refreshing {
