@@ -133,6 +133,60 @@ pub fn danger_maybe<'a, Message: Clone + 'a>(
     snora::design::button::danger_maybe(tokens, label, on_press)
 }
 
+/// `iced` style functions for the semantic button variants, for callers that
+/// build their own `button(...)` rather than using the `Element` constructors
+/// above — e.g. because the content is not a plain label, or because a fixed
+/// [`iced::widget::button::Status`] is needed (see [`current_or`]).
+pub mod style {
+    use iced::widget::button::{Status, Style};
+    use snora::design::Tokens;
+
+    pub fn primary(tokens: &Tokens, status: Status) -> Style {
+        snora::design::style::button::primary(tokens, status)
+    }
+
+    pub fn secondary(tokens: &Tokens, status: Status) -> Style {
+        snora::design::style::button::secondary(tokens, status)
+    }
+
+    pub fn ghost(tokens: &Tokens, status: Status) -> Style {
+        snora::design::style::button::ghost(tokens, status)
+    }
+
+    pub fn danger(tokens: &Tokens, status: Status) -> Style {
+        snora::design::style::button::danger(tokens, status)
+    }
+}
+
+/// Style a control that is *current* rather than pressable: the active
+/// variant always renders at full strength, never faded by iced's
+/// `Status::Disabled` (RFC-033 D4; RFC-034 R12).
+///
+/// `on_press`-suppression and visual state are independent concerns for a
+/// "you are here" indicator, but iced conflates them by default — a button
+/// with no `on_press` reports `Status::Disabled`, which every style function
+/// fades. This feeds the *active* branch a fixed `Status::Active` so it
+/// always renders at full strength regardless of interactivity, while the
+/// *inactive* branch keeps the real `status` so hover/press feedback still
+/// works on it.
+///
+/// ```rust,ignore
+/// button(text(label))
+///     .on_press_maybe((!active).then_some(message))
+///     .style(move |_theme, status| current_or(active, &tokens, status))
+/// ```
+pub fn current_or(
+    active: bool,
+    tokens: &snora::design::Tokens,
+    status: iced::widget::button::Status,
+) -> iced::widget::button::Style {
+    if active {
+        style::secondary(tokens, iced::widget::button::Status::Active)
+    } else {
+        style::ghost(tokens, status)
+    }
+}
+
 /// Icon-only button for familiar global commands (refresh, settings, close,
 /// overflow). Always carries an `accessible_label`, shown as a hover tooltip,
 /// so the control's purpose is never conveyed by the icon glyph alone.
@@ -154,11 +208,11 @@ pub fn icon_button_maybe<'a, Message: Clone + 'a>(
         .width(Length::Fixed(BUTTON_HEIGHT))
         .height(Length::Fixed(BUTTON_HEIGHT))
         .on_press_maybe(on_press)
-        .style(move |_theme, status| snora::design::style::button::ghost(&t, status));
+        .style(move |_theme, status| style::ghost(&t, status));
 
     tooltip(
         btn,
-        snora::design::card::raised(tokens, text(accessible_label.into()).size(FONT_SMALL)),
+        super::overlay::raised_card(tokens, text(accessible_label.into()).size(FONT_SMALL)),
         tooltip::Position::Bottom,
     )
     .into()

@@ -12,7 +12,7 @@ use iced::{
     Alignment, Element, Length,
     widget::{Space, button, column, container, row, text},
 };
-use knotra_ui::widget::{self, FONT_BODY, FONT_SMALL, icon, icon_button_maybe};
+use knotra_ui::widget::{self, FONT_BODY, FONT_SMALL, Tokens, icon, icon_button_maybe};
 
 use crate::{
     message::{Message, WorkspaceMessage},
@@ -62,36 +62,21 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .on_press(Message::Workspace(WorkspaceMessage::SwitcherToggled))
     .style({
         let t = tokens.clone();
-        move |_theme, status| snora::design::style::button::ghost(&t, status)
+        move |_theme, status| widget::style::ghost(&t, status)
     });
 
     let dashboard_active = matches!(state.screen, Screen::Dashboard);
     let history_active = matches!(state.screen, Screen::History);
 
-    let nav_button = |label: &str, active: bool, target: Screen, tokens: &snora::design::Tokens| {
+    let nav_button = |label: &str, active: bool, target: Screen, tokens: &Tokens| {
         let t = tokens.clone();
         button(text(label.to_owned()).size(FONT_BODY))
             .on_press_maybe((!active).then_some(Message::Navigate(target)))
             .style(move |_theme, status| {
-                if active {
-                    // R12: the current destination must be the *most*
-                    // salient item, not the least. `on_press` is
-                    // deliberately `None` here (you can't navigate to
-                    // where you already are), but that makes iced report
-                    // `Status::Disabled`, which fades whatever style runs
-                    // through it. Feed the style function a fixed `Active`
-                    // status instead, so the current destination always
-                    // renders at full strength regardless of iced's
-                    // interaction status — this is the RFC-033 D4
-                    // anti-pattern (selected-but-disabled reads as least
-                    // salient) that review 066 found here.
-                    snora::design::style::button::secondary(
-                        &t,
-                        iced::widget::button::Status::Active,
-                    )
-                } else {
-                    snora::design::style::button::ghost(&t, status)
-                }
+                // R12: the current destination must be the *most* salient
+                // item, not the least — see `current_or`'s own doc comment
+                // for why a fixed status is fed in (RFC-033 D4; review 066).
+                widget::current_or(active, &t, status)
             })
     };
 
@@ -179,17 +164,17 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
                 .on_press_maybe((!is_active).then_some(Message::Workspace(
                     WorkspaceMessage::WorkspaceSwitched(ws.id.clone()),
                 )))
-                .style(move |_theme, status| snora::design::style::button::ghost(&t, status)),
+                .style(move |_theme, status| widget::style::ghost(&t, status)),
         );
     }
 
     let can_delete = state.all_workspaces.len() > 1;
-    let menu_action = |label: &str, msg: Message, tokens: &snora::design::Tokens| {
+    let menu_action = |label: &str, msg: Message, tokens: &Tokens| {
         let t = tokens.clone();
         button(text(label.to_owned()).size(FONT_BODY))
             .width(Length::Fill)
             .on_press(msg)
-            .style(move |_theme, status| snora::design::style::button::ghost(&t, status))
+            .style(move |_theme, status| widget::style::ghost(&t, status))
     };
 
     let content = column![
@@ -215,7 +200,7 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
     .spacing(2)
     .width(Length::Fixed(SWITCHER_WIDTH));
 
-    let surface = snora::design::card::raised(tokens, content);
+    let surface = widget::overlay::raised_card(tokens, content);
 
     Some(
         container(surface)
@@ -231,13 +216,13 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
 fn danger_menu_action<'a>(
     label: &'a str,
     on_press: Option<Message>,
-    tokens: &snora::design::Tokens,
+    tokens: &Tokens,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
     button(text(label).size(FONT_BODY))
         .width(Length::Fill)
         .on_press_maybe(on_press)
-        .style(move |_theme, status| snora::design::style::button::danger(&t, status))
+        .style(move |_theme, status| widget::style::danger(&t, status))
         .into()
 }
 

@@ -76,7 +76,7 @@ pub fn surface<'a, Message: Clone + 'a>(
         header = header.push(
             button(icon::icon_element(&icon::close()))
                 .on_press(close_msg)
-                .style(move |_theme, status| snora::design::style::button::ghost(&t, status)),
+                .style(move |_theme, status| super::buttons::style::ghost(&t, status)),
         );
     }
 
@@ -87,5 +87,18 @@ pub fn surface<'a, Message: Clone + 'a>(
 
     let sized = container(content).width(Length::Fixed(width.pixels()));
 
-    snora::design::card::raised(tokens, sized)
+    raised_card(tokens, sized)
+}
+
+/// A raised, opaque card surface — thin wrapper around
+/// `snora::design::card::raised`. Used for [`surface`] above and for
+/// free-standing floating content (e.g. a dropdown menu, a tooltip) that
+/// needs the same opaque, elevated treatment without the header/body/footer
+/// structure.
+#[must_use]
+pub fn raised_card<'a, Message: 'a>(
+    tokens: &Tokens,
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    snora::design::card::raised(tokens, content)
 }

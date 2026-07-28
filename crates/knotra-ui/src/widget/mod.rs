@@ -14,8 +14,8 @@ mod layout;
 pub mod overlay;
 
 pub use buttons::{
-    danger, danger_maybe, ghost, ghost_maybe, guided_button, icon_button_maybe, primary,
-    primary_maybe, secondary, secondary_maybe,
+    current_or, danger, danger_maybe, ghost, ghost_maybe, guided_button, icon_button_maybe,
+    primary, primary_maybe, secondary, secondary_maybe, style,
 };
 pub use field::{guided_field, guided_field_focused};
 pub use focus::{focus_id, focus_input};
@@ -24,3 +24,6 @@ pub use layout::{
     Element, FONT_BODY, FONT_SMALL, Length, Padding, Row, SIDEBAR_WIDTH, SMALL_BUTTON_HEIGHT,
     button, column, container, row, scrollable, text, text_input,
 };
+/// Snora Design token bundle. Re-exported so view-layer signatures can name
+/// `Tokens` without importing `snora::design` directly (RFC-034 R2).
+pub use snora::design::Tokens;
