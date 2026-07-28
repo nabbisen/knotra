@@ -37,7 +37,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
-| [034](./done/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | working tree; pending commit |
+| [034](./done/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | main: 0f5c0c5 |
 | [033](./done/033-ui-ux-foundation-shell-and-overlay-contracts.md) | UI/UX foundation, shell, and overlay contracts (umbrella) | main: 71b4796 |
 | [032](./done/032-dashboard-grouping-sorting-and-tier-density.md) | Dashboard grouping, sorting, and tier density | main: d98374a |
 | [031](./done/031-activity-retry-semantics.md) | Activity retry semantics | main: 7b1f689 |
