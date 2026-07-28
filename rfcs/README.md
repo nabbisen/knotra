@@ -25,6 +25,7 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [034](./proposed/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | Production Readiness Reset | High |
 
 ---
 
