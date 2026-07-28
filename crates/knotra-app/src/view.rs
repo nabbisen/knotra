@@ -26,9 +26,10 @@ use iced::Element;
 /// ```text
 /// snora::render(AppLayout)          ← skeleton + modal overlays + snora close sinks
 ///   ├─ body: (tabs + screen + sel_bar + activity_strip + detail_panel)
-///   ├─ dialog / sheet: ActiveModal (Pull / Tag / Switch / Changelog / Resolve)
+///   ├─ dialog: workspace-manager (RFC-034 R9) *or* ActiveModal (Pull / Tag /
+///   │          Switch / Changelog) — `AppLayout::dialog` is a single slot
+///   ├─ sheet: ActiveModal::Resolve
 ///   └─ on_close_modals: Message::Shortcut(ShortcutMessage::Close)
-/// workspace_manager_layer           ← knotra-specific workspace dialogs
 /// add_project_layer                 ← knotra-specific, own state channel
 /// palette_layer                     ← knotra-specific, own state channel
 /// shortcuts_layer                   ← knotra-specific, own state channel
@@ -36,7 +37,11 @@ use iced::Element;
 ///
 /// Command palette, shortcuts overlay, and add-project modal are pushed as
 /// stack layers above `render(layout)` because they have their own state
-/// channels and are not standard modal-close-sink overlays.
+/// channels and are not standard modal-close-sink overlays (RFC-036 migrates
+/// them). Workspace-manager dialogs moved off this ad hoc stack in RFC-034 —
+/// they now render as an opaque surface through `AppLayout::dialog`, so they
+/// get the engine's scrim and input blocking, which the ad hoc stack never
+/// provided.
 pub fn app_view(state: &AppState) -> Element<'_, Message> {
     use crate::message::ShortcutMessage;
     use crate::state::ActiveModal;
@@ -80,6 +85,13 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // -----------------------------------------------------------------------
     // snora AppLayout: skeleton + standard modal overlays (RFC-0013).
     //
+    // `AppLayout::dialog` is a single slot (last write wins), so at most one
+    // dialog builder below may run. Workspace-manager dialogs (RFC-034 R9,
+    // the overlay-host validating migration) take priority over `ActiveModal`
+    // dialogs, matching `close_topmost_layer`'s existing branch order in
+    // `app.rs` (workspace_mgr dialogs are checked, and so close, before the
+    // active_modal cases) — rendering priority and close priority agree.
+    //
     // ActiveModal variants map to snora overlay slots:
     //   Centred dialogs  → AppLayout::dialog(Dialog::new(el))
     //   Right-docked panel → AppLayout::sheet(Sheet::new(el).at(SheetEdge::End))
@@ -91,29 +103,33 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
         .direction(LayoutDirection::Ltr)
         .on_close_modals(Message::Shortcut(ShortcutMessage::Close));
 
-    match &state.active_modal {
-        ActiveModal::None => {}
+    if let Some(el) = workspace_manager::view(state) {
+        layout = layout.dialog(Dialog::new(el));
+    } else {
+        match &state.active_modal {
+            ActiveModal::None => {}
 
-        ActiveModal::Pull => {
-            let el: Element<'_, Message> = bulk_modals::pull_modal(state);
-            layout = layout.dialog(Dialog::new(el));
-        }
-        ActiveModal::Tag => {
-            let el: Element<'_, Message> = bulk_modals::tag_modal(state);
-            layout = layout.dialog(Dialog::new(el));
-        }
-        ActiveModal::Switch => {
-            let el: Element<'_, Message> = bulk_modals::switch_modal(state);
-            layout = layout.dialog(Dialog::new(el));
-        }
-        ActiveModal::Changelog => {
-            let el: Element<'_, Message> = bulk_modals::changelog_modal(state);
-            layout = layout.dialog(Dialog::new(el));
-        }
-        ActiveModal::Resolve(pid) => {
-            // Right-docked resolve panel → snora Sheet anchored to the End edge.
-            let el: Element<'_, Message> = bulk_modals::resolve_panel(state, pid);
-            layout = layout.sheet(Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half));
+            ActiveModal::Pull => {
+                let el: Element<'_, Message> = bulk_modals::pull_modal(state);
+                layout = layout.dialog(Dialog::new(el));
+            }
+            ActiveModal::Tag => {
+                let el: Element<'_, Message> = bulk_modals::tag_modal(state);
+                layout = layout.dialog(Dialog::new(el));
+            }
+            ActiveModal::Switch => {
+                let el: Element<'_, Message> = bulk_modals::switch_modal(state);
+                layout = layout.dialog(Dialog::new(el));
+            }
+            ActiveModal::Changelog => {
+                let el: Element<'_, Message> = bulk_modals::changelog_modal(state);
+                layout = layout.dialog(Dialog::new(el));
+            }
+            ActiveModal::Resolve(pid) => {
+                // Right-docked resolve panel → snora Sheet anchored to the End edge.
+                let el: Element<'_, Message> = bulk_modals::resolve_panel(state, pid);
+                layout = layout.sheet(Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half));
+            }
         }
     }
 
@@ -122,7 +138,7 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // -----------------------------------------------------------------------
     // Knotra-specific overlays (own state channels; not wired to
     // on_close_modals — they are pushed as iced stack layers above snora's
-    // layer composition).
+    // layer composition). RFC-034 non-goal: migrating these is RFC-036.
     // -----------------------------------------------------------------------
     let palette_layer: Option<Element<'_, Message>> = if state.palette.open {
         Some(
@@ -137,9 +153,6 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     let add_project_layer: Option<Element<'_, Message>> =
         add_project_modal::view(state).map(|m| container(m).center(Length::Fill).into());
 
-    let workspace_manager_layer: Option<Element<'_, Message>> =
-        workspace_manager::view(state).map(|m| container(m).center(Length::Fill).into());
-
     let shortcuts_layer: Option<Element<'_, Message>> = if state.keyboard.cheat_sheet_open {
         Some(
             container(shortcuts_overlay::view(state))
@@ -150,15 +163,8 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
         None
     };
 
-    if palette_layer.is_some()
-        || add_project_layer.is_some()
-        || workspace_manager_layer.is_some()
-        || shortcuts_layer.is_some()
-    {
+    if palette_layer.is_some() || add_project_layer.is_some() || shortcuts_layer.is_some() {
         let mut layers: Vec<Element<'_, Message>> = vec![snora_layer];
-        if let Some(w) = workspace_manager_layer {
-            layers.push(w);
-        }
         if let Some(a) = add_project_layer {
             layers.push(a);
         }

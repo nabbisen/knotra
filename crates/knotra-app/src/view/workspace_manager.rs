@@ -1,12 +1,19 @@
 //! Workspace management dialogs.
+//!
+//! RFC-034 R9: these three dialogs are the validating migration for the
+//! overlay host. Content is unchanged from RFC-023; only the surrounding
+//! surface (opaque, via [`knotra_ui::widget::overlay`]) and its routing
+//! (through `AppLayout::dialog` in `view.rs`, giving the scrim and input
+//! blocking) changed.
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, column, container, row, text},
+    widget::{Space, button, column, row, text},
 };
 
 use knotra_ui::widget::{
     BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button, guided_field_focused,
+    overlay::{OverlayWidth, surface},
 };
 
 use crate::{
@@ -56,11 +63,6 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
         ),
     };
 
-    let close_btn = button(text("x").size(FONT_BODY))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 12])
-        .on_press(Message::Workspace(cancel.clone()));
-
     let field = match dialog {
         NameDialog::Create(_) => guided_field_focused(
             state.t("workspace.name_label"),
@@ -96,33 +98,25 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
         button(text(state.t("action.cancel")).size(FONT_BODY))
             .height(BUTTON_HEIGHT)
             .padding([0, 18])
-            .on_press(Message::Workspace(cancel)),
+            .on_press(Message::Workspace(cancel.clone())),
     ]
     .align_y(Alignment::Center);
 
-    container(
-        column![
-            row![
-                text(title).size(FONT_BODY + 2.0),
-                Space::new().width(Length::Fill),
-                close_btn,
-            ]
-            .align_y(Alignment::Center),
-            field,
-            footer,
-        ]
-        .spacing(16)
-        .padding(24),
+    surface(
+        &state.theme.tokens,
+        OverlayWidth::Standard,
+        title,
+        Some(Message::Workspace(cancel)),
+        field,
+        footer,
     )
-    .width(Length::Fixed(460.0))
-    .into()
 }
 
 fn delete_dialog<'a>(
     state: &'a AppState,
     dialog: &'a crate::state::workspace_mgr::DeleteWorkspaceDialog,
 ) -> Element<'a, Message> {
-    let body = format!(
+    let body_text = format!(
         "{} \"{}\". {}",
         state.t("workspace.delete.body_prefix"),
         dialog.workspace_name,
@@ -159,26 +153,20 @@ fn delete_dialog<'a>(
     ]
     .align_y(Alignment::Center);
 
-    container(
-        column![
-            row![
-                text(state.t("workspace.delete.title")).size(FONT_BODY + 2.0),
-                Space::new().width(Length::Fill),
-                button(text("x").size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 12])
-                    .on_press(Message::Workspace(
-                        WorkspaceMessage::DeleteWorkspaceCancelled
-                    )),
-            ]
-            .align_y(Alignment::Center),
-            text(body).size(FONT_BODY),
-            text(project_count).size(FONT_SMALL),
-            footer,
-        ]
-        .spacing(16)
-        .padding(24),
+    let body = column![
+        text(body_text).size(FONT_BODY),
+        text(project_count).size(FONT_SMALL),
+    ]
+    .spacing(8);
+
+    surface(
+        &state.theme.tokens,
+        OverlayWidth::Standard,
+        state.t("workspace.delete.title"),
+        Some(Message::Workspace(
+            WorkspaceMessage::DeleteWorkspaceCancelled,
+        )),
+        body,
+        footer,
     )
-    .width(Length::Fixed(500.0))
-    .into()
 }
