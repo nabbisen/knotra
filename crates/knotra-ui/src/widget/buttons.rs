@@ -156,6 +156,34 @@ pub mod style {
     pub fn danger(tokens: &Tokens, status: Status) -> Style {
         snora::design::style::button::danger(tokens, status)
     }
+
+    /// Composes a visible focus ring (RFC-033 D7 `FocusTokens`) onto an
+    /// already-computed style, when `is_focused` is true.
+    ///
+    /// iced's `button::Status` has no `Focused` variant (RFC-036 D1) — only
+    /// `text_input` gets that from iced. The application must therefore know
+    /// a control is focused independently and pass it in here; this function
+    /// does not read any ambient focus state.
+    ///
+    /// `FocusTokens::ring_offset` (the gap between the control edge and the
+    /// ring) is not applied: `iced::widget::button::Style` has only a single
+    /// flush `border`, with no outer/offset ring primitive. The ring is drawn
+    /// as a border override instead — a knotra-specific simplification, not
+    /// a workaround copied from anywhere upstream.
+    pub fn with_focus_ring(tokens: &Tokens, is_focused: bool, style: Style) -> Style {
+        if !is_focused {
+            return style;
+        }
+        let ring = tokens.focus;
+        Style {
+            border: iced::Border {
+                color: snora::design::style::color::to_iced_color(ring.ring_color),
+                width: ring.ring_width,
+                radius: style.border.radius,
+            },
+            ..style
+        }
+    }
 }
 
 /// Style a control that is *current* rather than pressable: the active
@@ -173,18 +201,20 @@ pub mod style {
 /// ```rust,ignore
 /// button(text(label))
 ///     .on_press_maybe((!active).then_some(message))
-///     .style(move |_theme, status| current_or(active, &tokens, status))
+///     .style(move |_theme, status| current_or(active, &tokens, status, is_focused))
 /// ```
 pub fn current_or(
     active: bool,
     tokens: &snora::design::Tokens,
     status: iced::widget::button::Status,
+    is_focused: bool,
 ) -> iced::widget::button::Style {
-    if active {
+    let base = if active {
         style::secondary(tokens, iced::widget::button::Status::Active)
     } else {
         style::ghost(tokens, status)
-    }
+    };
+    style::with_focus_ring(tokens, is_focused, base)
 }
 
 /// Icon-only button for familiar global commands (refresh, settings, close,
@@ -194,12 +224,16 @@ pub fn current_or(
 /// There is no non-`_maybe` form: an icon-only control with no way to
 /// indicate why it is inert would give the user no explanation at all, so
 /// callers always thread their disabled state through `on_press`.
+///
+/// `is_focused` draws the RFC-036 focus ring when true — see
+/// [`style::with_focus_ring`].
 #[must_use]
 pub fn icon_button_maybe<'a, Message: Clone + 'a>(
     tokens: &Tokens,
     icon: &snora::Icon,
     accessible_label: impl Into<String>,
     on_press: Option<Message>,
+    is_focused: bool,
 ) -> Element<'a, Message> {
     use iced::widget::{button, text, tooltip};
 
@@ -208,7 +242,9 @@ pub fn icon_button_maybe<'a, Message: Clone + 'a>(
         .width(Length::Fixed(BUTTON_HEIGHT))
         .height(Length::Fixed(BUTTON_HEIGHT))
         .on_press_maybe(on_press)
-        .style(move |_theme, status| style::ghost(&t, status));
+        .style(move |_theme, status| {
+            style::with_focus_ring(&t, is_focused, style::ghost(&t, status))
+        });
 
     tooltip(
         btn,

@@ -16,8 +16,70 @@ use knotra_ui::widget::{self, FONT_BODY, FONT_SMALL, Tokens, icon, icon_button_m
 
 use crate::{
     message::{Message, WorkspaceMessage},
-    state::{AppState, Screen},
+    state::{
+        AppState, Screen,
+        focus::{FocusOrder, FocusTarget},
+    },
 };
+
+/// Stable keys for the shell's `FocusTarget`s (RFC-036), shared between
+/// [`focus_order`] (Tab/Shift-Tab + activation) and `view` (which control
+/// currently draws the ring). Kept as one list so the two cannot drift.
+mod focus_target {
+    pub const WORKSPACE_SWITCHER: &str = "shell.workspace_switcher";
+    pub const NAV_DASHBOARD: &str = "shell.nav.dashboard";
+    pub const NAV_HISTORY: &str = "shell.nav.history";
+    pub const REFRESH: &str = "shell.refresh";
+    pub const PALETTE: &str = "shell.palette";
+    pub const SETTINGS: &str = "shell.settings";
+}
+
+/// The shell's Tab/Shift-Tab focus order (RFC-036 R1/R2), each target paired
+/// with the `Message` a pointer click on it would dispatch right now —
+/// `None` where a click currently does nothing (e.g. the already-active nav
+/// destination), so keyboard activation cannot diverge from pointer
+/// activation (R3).
+pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
+    let dashboard_active = matches!(state.screen, Screen::Dashboard);
+    let history_active = matches!(state.screen, Screen::History);
+
+    vec![
+        (
+            FocusTarget::control(focus_target::WORKSPACE_SWITCHER),
+            Some(Message::Workspace(WorkspaceMessage::SwitcherToggled)),
+        ),
+        (
+            FocusTarget::control(focus_target::NAV_DASHBOARD),
+            (!dashboard_active).then_some(Message::Navigate(Screen::Dashboard)),
+        ),
+        (
+            FocusTarget::control(focus_target::NAV_HISTORY),
+            (!history_active).then_some(Message::Navigate(Screen::History)),
+        ),
+        (
+            FocusTarget::control(focus_target::REFRESH),
+            (!state.is_refreshing)
+                .then_some(Message::Workspace(WorkspaceMessage::RefreshRequested)),
+        ),
+        (
+            FocusTarget::control(focus_target::PALETTE),
+            Some(Message::Palette(crate::message::PaletteMessage::Opened)),
+        ),
+        (
+            FocusTarget::control(focus_target::SETTINGS),
+            Some(Message::Navigate(Screen::Settings)),
+        ),
+    ]
+}
+
+/// Whether the shell control keyed `key` currently draws the RFC-036 focus
+/// ring — plain equality against `state.dashboard_focus`, not
+/// `focus::resolve`'s stale-target fallback: rendering shows a ring only
+/// where knotra-focus genuinely and currently sits, never a guessed
+/// substitute (`resolve`'s fallback is for Tab/activation, not display).
+fn is_focused(state: &AppState, key: &'static str) -> bool {
+    state.dashboard_focus.as_ref() == Some(&FocusTarget::control(key))
+}
 
 /// Height of the persistent shell bar (RFC-033 D7: 48-52px). Also used to
 /// position the switcher dropdown (`header_menu`) directly beneath it, since
@@ -62,13 +124,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .on_press(Message::Workspace(WorkspaceMessage::SwitcherToggled))
     .style({
         let t = tokens.clone();
-        move |_theme, status| widget::style::ghost(&t, status)
+        let focused = is_focused(state, focus_target::WORKSPACE_SWITCHER);
+        move |_theme, status| {
+            widget::style::with_focus_ring(&t, focused, widget::style::ghost(&t, status))
+        }
     });
 
     let dashboard_active = matches!(state.screen, Screen::Dashboard);
     let history_active = matches!(state.screen, Screen::History);
 
-    let nav_button = |label: &str, active: bool, target: Screen, tokens: &Tokens| {
+    let nav_button = |label: &str, active: bool, target: Screen, tokens: &Tokens, focused: bool| {
         let t = tokens.clone();
         button(text(label.to_owned()).size(FONT_BODY))
             .on_press_maybe((!active).then_some(Message::Navigate(target)))
@@ -76,7 +141,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 // R12: the current destination must be the *most* salient
                 // item, not the least — see `current_or`'s own doc comment
                 // for why a fixed status is fed in (RFC-033 D4; review 066).
-                widget::current_or(active, &t, status)
+                widget::current_or(active, &t, status, focused)
             })
     };
 
@@ -93,6 +158,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         &icon::refresh(),
         state.t("plain.check_now"),
         (!state.is_refreshing).then_some(Message::Workspace(WorkspaceMessage::RefreshRequested)),
+        is_focused(state, focus_target::REFRESH),
     );
 
     let palette_button = icon_button_maybe(
@@ -100,6 +166,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         &icon::command_palette(),
         state.t("palette.title"),
         Some(Message::Palette(crate::message::PaletteMessage::Opened)),
+        is_focused(state, focus_target::PALETTE),
     );
 
     let settings_button = icon_button_maybe(
@@ -107,6 +174,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         &icon::settings(),
         state.t("nav.settings"),
         Some(Message::Navigate(Screen::Settings)),
+        is_focused(state, focus_target::SETTINGS),
     );
 
     let bar = row![
@@ -115,13 +183,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             state.t("nav.dashboard"),
             dashboard_active,
             Screen::Dashboard,
-            tokens
+            tokens,
+            is_focused(state, focus_target::NAV_DASHBOARD)
         ),
         nav_button(
             state.t("nav.history"),
             history_active,
             Screen::History,
-            tokens
+            tokens,
+            is_focused(state, focus_target::NAV_HISTORY)
         ),
         Space::new().width(Length::Fill),
         status_text,

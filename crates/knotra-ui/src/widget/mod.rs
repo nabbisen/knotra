@@ -24,6 +24,9 @@ pub use layout::{
     Element, FONT_BODY, FONT_SMALL, Length, Padding, Row, SIDEBAR_WIDTH, SMALL_BUTTON_HEIGHT,
     button, column, container, row, scrollable, text, text_input,
 };
+/// Focus-ring tokens (RFC-033 D7). Re-exported for the same reason as
+/// `Tokens` above — RFC-036 R11 is the first consumer.
+pub use snora::design::FocusTokens;
 /// Snora Design token bundle. Re-exported so view-layer signatures can name
 /// `Tokens` without importing `snora::design` directly (RFC-034 R2).
 pub use snora::design::Tokens;

@@ -48,7 +48,7 @@ use crate::{
             next_active_index_after_delete, validate_workspace_name,
         },
     },
-    view::app_view,
+    view::{app_view, shell},
 };
 
 // ---------------------------------------------------------------------------
@@ -268,13 +268,14 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
 // RFC-036 — keyboard focus traversal (Stage 1: mechanism only)
 // ---------------------------------------------------------------------------
 
-/// Stage 1 stub: no view yet builds a real focus order (Stage 2 wires the
-/// shell/dashboard toolbar; Stage 4 adds dashboard rows), so Tab/Enter/Space
-/// have no visible effect yet. The traversal, activation, and reconciliation
-/// mechanism below is fully wired and exercised by `state::focus`'s own unit
-/// tests; only the order's content is still a placeholder.
-fn dashboard_focus_order(_state: &AppState) -> focus::FocusOrder<Message> {
-    Vec::new()
+/// The current context's focus order (RFC-036 R1/R2). Stage 2 wires the
+/// shell's real order; the dashboard toolbar's own controls are still the
+/// pre-RFC-035 legacy helpers (`choice_button`/`filter_button`, no `Tokens`
+/// styling at all) that RFC-035 is chartered to replace, so they are not
+/// wired here yet — see the Stage 2 review request. Stage 4 adds dashboard
+/// rows.
+fn dashboard_focus_order(state: &AppState) -> focus::FocusOrder<Message> {
+    shell::focus_order(state)
 }
 
 fn advance_focus(state: &mut AppState, direction: focus::Direction) -> Task<Message> {
