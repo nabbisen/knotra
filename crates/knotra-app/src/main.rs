@@ -24,6 +24,7 @@ fn main() -> iced::Result {
     iced::application(app::init, app::update, app::view)
         .title(|_: &state::AppState| String::from("knotra"))
         .subscription(app::subscription)
+        .theme(|state: &state::AppState| state.theme.base.clone())
         .font(knotra_ui::widget::icon::FONT_BYTES)
         .window(iced::window::Settings {
             size: iced::Size::new(1100.0, 720.0),
