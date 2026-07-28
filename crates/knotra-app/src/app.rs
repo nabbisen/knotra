@@ -234,7 +234,19 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             state.screen = Screen::Dashboard;
             Task::none()
         }
-        ShortcutMessage::Close => close_topmost_layer(state),
+        ShortcutMessage::Close => {
+            // The workspace switcher (RFC-034 R12) is an `AppLayout::header_menu`,
+            // not a `dialog`/`sheet`, so it is deliberately outside
+            // `close_topmost_layer`'s branch ordering (that function's contract
+            // is unchanged). It is still the topmost visible layer when open,
+            // so Escape must close it — checked here, one level above, rather
+            // than by adding a branch to that function.
+            if state.workspace_mgr.switcher_open {
+                state.workspace_mgr.switcher_open = false;
+                return Task::none();
+            }
+            close_topmost_layer(state)
+        }
     }
 }
 
