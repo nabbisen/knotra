@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (working tree; pending commit) |
+| Status | Accepted (main: 71b4796) |
 | Priority | High - the GUI is not production-ready as an interaction system, and every downstream screen RFC needs these contracts to exist first |
 | Effort | Medium (this RFC decides; child RFCs implement) |
 | Target | Production Readiness Reset |
