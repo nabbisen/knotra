@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented (working tree; pending commit) |
 | Priority | High - no overlay in the application has an opaque surface, and the shell decision gates every remaining UI/UX RFC |
 | Effort | Medium |
 | Target | Production Readiness Reset |

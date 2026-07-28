@@ -11,6 +11,11 @@ pub struct WorkspaceMgrState {
     pub rename_dialog: Option<RenameWorkspaceDialog>,
     /// Dialog for confirming workspace deletion.
     pub confirm_delete: Option<DeleteWorkspaceDialog>,
+    /// Whether the shell's workspace-switcher dropdown (RFC-034 R12) is open.
+    /// This is a `snora::AppLayout::header_menu`, not a `dialog` — it is
+    /// dismissed by `on_close_menus` (click outside) or by choosing an item,
+    /// not by `close_topmost_layer`'s Escape-driven stack.
+    pub switcher_open: bool,
 }
 
 #[derive(Debug, Clone, Default)]

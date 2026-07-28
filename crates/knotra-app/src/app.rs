@@ -483,6 +483,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
 
         // --- Multi-workspace management ---
         WorkspaceMessage::CreateWorkspaceDialogOpened => {
+            state.workspace_mgr.switcher_open = false;
             state.workspace_mgr.create_dialog = Some(CreateWorkspaceDialog::default());
             knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::WORKSPACE_NAME)
         }
@@ -538,6 +539,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
         }
 
         WorkspaceMessage::RenameWorkspaceDialogOpened => {
+            state.workspace_mgr.switcher_open = false;
             let current = state
                 .workspace
                 .as_ref()
@@ -606,6 +608,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
         }
 
         WorkspaceMessage::DeleteWorkspaceRequested => {
+            state.workspace_mgr.switcher_open = false;
             if state.all_workspaces.len() <= 1 {
                 if let Some(ws) = state.workspace.as_ref() {
                     state.workspace_mgr.confirm_delete = Some(DeleteWorkspaceDialog {
@@ -684,7 +687,12 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             Task::none()
         }
 
+        WorkspaceMessage::SwitcherToggled => {
+            state.workspace_mgr.switcher_open = !state.workspace_mgr.switcher_open;
+            Task::none()
+        }
         WorkspaceMessage::WorkspaceSwitched(id) => {
+            state.workspace_mgr.switcher_open = false;
             if let Some(idx) = state.all_workspaces.iter().position(|ws| ws.id == id) {
                 clear_sync_retry_context(state);
                 state.active_workspace_idx = idx;

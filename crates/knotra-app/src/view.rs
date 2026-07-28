@@ -8,9 +8,9 @@ pub mod bulk_modals;
 pub mod command_palette;
 pub mod detail_panel;
 pub mod selection_bar;
+pub mod shell;
 pub mod shortcuts_overlay;
 pub mod workspace_manager;
-pub mod workspace_tabs;
 
 pub mod dashboard;
 pub mod history;
@@ -25,7 +25,11 @@ use iced::Element;
 ///
 /// ```text
 /// snora::render(AppLayout)          ← skeleton + modal overlays + snora close sinks
-///   ├─ body: (tabs + screen + sel_bar + activity_strip + detail_panel)
+///   ├─ header: shell (RFC-034 R12) — workspace switcher, Dashboard/History
+///   │          nav, right cluster (status, refresh, palette, settings)
+///   ├─ body: (screen + sel_bar + activity_strip + detail_panel)
+///   ├─ header_menu: shell::switcher_menu, when open — dismissed by
+///   │               on_close_menus, independent of the dialog/sheet group
 ///   ├─ dialog: workspace-manager (RFC-034 R9) *or* ActiveModal (Pull / Tag /
 ///   │          Switch / Changelog) — `AppLayout::dialog` is a single slot
 ///   ├─ sheet: ActiveModal::Resolve
@@ -38,22 +42,22 @@ use iced::Element;
 /// Command palette, shortcuts overlay, and add-project modal are pushed as
 /// stack layers above `render(layout)` because they have their own state
 /// channels and are not standard modal-close-sink overlays (RFC-036 migrates
-/// them). Workspace-manager dialogs moved off this ad hoc stack in RFC-034 —
-/// they now render as an opaque surface through `AppLayout::dialog`, so they
-/// get the engine's scrim and input blocking, which the ad hoc stack never
-/// provided.
+/// them). Workspace-manager dialogs and the workspace-tab strip moved off
+/// this ad hoc stack in RFC-034 — the former renders as an opaque surface
+/// through `AppLayout::dialog`, the latter through the shell `header` /
+/// `header_menu` slots, so both get the engine's scrim/backdrop and input
+/// blocking, which the ad hoc stack never provided.
 pub fn app_view(state: &AppState) -> Element<'_, Message> {
-    use crate::message::ShortcutMessage;
+    use crate::message::{ShortcutMessage, WorkspaceMessage};
     use crate::state::ActiveModal;
     use iced::Length;
     use iced::widget::{column, container, row, stack};
     use snora::{AppLayout, Dialog, LayoutDirection, Sheet, SheetEdge, SheetSize, render};
 
     // -----------------------------------------------------------------------
-    // Body: workspace tabs + screen content + selection bar + activity strip.
+    // Body: screen content + selection bar + activity strip. The persistent
+    // workspace-tab strip moved into the shell header (RFC-034 R12/R13).
     // -----------------------------------------------------------------------
-    let tabs = workspace_tabs::view(state);
-
     let screen_content: Element<'_, Message> = match state.screen {
         crate::state::Screen::Dashboard => dashboard::view(state),
         crate::state::Screen::History => history::view(state),
@@ -63,7 +67,7 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     let sel_bar = selection_bar::view(state);
     let activity = activity_strip::view(state);
 
-    let mut main_col = column![tabs, screen_content].height(Length::Fill);
+    let mut main_col = column![screen_content].height(Length::Fill);
     if let Some(bar) = sel_bar {
         main_col = main_col.push(bar);
     }
@@ -100,8 +104,20 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // closes exactly one topmost visible layer per close action.
     // -----------------------------------------------------------------------
     let mut layout = AppLayout::new(body)
+        .header(shell::view(state))
         .direction(LayoutDirection::Ltr)
         .on_close_modals(Message::Shortcut(ShortcutMessage::Close));
+
+    // Switcher dropdown: a `header_menu` layer, distinct from the
+    // dialog/sheet modal group above. Dismissed by `on_close_menus`
+    // (click-outside) or by choosing a menu item — never by
+    // `close_topmost_layer`'s Escape-driven stack (RFC-034 R11 leaves that
+    // function's branch ordering untouched; this menu is not part of it).
+    if let Some(menu) = shell::switcher_menu(state) {
+        layout = layout
+            .header_menu(menu)
+            .on_close_menus(Message::Workspace(WorkspaceMessage::SwitcherToggled));
+    }
 
     if let Some(el) = workspace_manager::view(state) {
         layout = layout.dialog(Dialog::new(el));

@@ -21,14 +21,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 }
 
 fn view_header(state: &AppState) -> Element<'_, Message> {
-    row![
-        button(text("← Dashboard")).on_press(Message::Settings(SettingsMessage::BackToDashboard)),
-        text(state.t("settings.title")).size(20),
-    ]
-    .spacing(12)
-    .align_y(Alignment::Center)
-    .padding(Padding::new(12.0))
-    .into()
+    // RFC-034 R13: per-screen back navigation removed — Dashboard/History are
+    // reached through the persistent shell now, not a screen-owned button.
+    row![text(state.t("settings.title")).size(20)]
+        .spacing(12)
+        .align_y(Alignment::Center)
+        .padding(Padding::new(12.0))
+        .into()
 }
 
 fn view_body(state: &AppState) -> Element<'_, Message> {

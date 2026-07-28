@@ -52,6 +52,8 @@ pub enum Message {
 pub enum WorkspaceMessage {
     RefreshRequested,
     WorkspaceSwitched(WorkspaceId),
+    /// Open/close the shell's workspace-switcher dropdown (RFC-034 R12).
+    SwitcherToggled,
     // Project management
     AddProjectDialogOpened,
     AddProjectNameChanged(String),

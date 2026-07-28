@@ -42,11 +42,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 }
 
 fn view_header(state: &AppState) -> Element<'_, Message> {
-    let workspace_name = state
-        .workspace
-        .as_ref()
-        .map(|workspace| workspace.name.as_str())
-        .unwrap_or_else(|| state.t("dashboard.no_workspace"));
+    // RFC-034 R13/R14: the workspace name lives in the shell switcher now,
+    // not repeated here. This is the RFC's one migrated page header; the
+    // toolbar below (grouping/sorting/filtering/selection) is RFC-035.
     let refresh: Element<'_, Message> = if state.is_refreshing {
         text(state.t("plain.status.checking")).size(13).into()
     } else {
@@ -55,14 +53,7 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
             .into()
     };
 
-    row![
-        text(workspace_name).size(18),
-        Space::new().width(Length::Fill),
-        refresh,
-    ]
-    .align_y(Alignment::Center)
-    .padding([8, 14])
-    .into()
+    crate::view::shell::page_header(state.t("nav.dashboard"), refresh)
 }
 
 fn view_toolbar(state: &AppState) -> Element<'_, Message> {
