@@ -145,13 +145,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("status.refreshing", "Refreshing…");
     m.insert("status.error", "Error");
     // Filter chip labels
-    m.insert("filter.all", "All");
-    m.insert("filter.healthy", "Synced");
-    m.insert("filter.behind", "Behind");
-    m.insert("filter.ahead", "Ahead");
-    m.insert("filter.dirty", "Uncommitted");
-    m.insert("filter.conflict", "Conflict");
-    m.insert("filter.error", "Error");
     m.insert("filter.all_set", "All set");
     m.insert("filter.behind", "Updates available");
     m.insert("filter.ahead", "Local commits");
@@ -866,13 +859,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("status.refreshing", "更新中…");
     m.insert("status.error", "エラー");
     // Filter chip labels
-    m.insert("filter.all", "すべて");
-    m.insert("filter.healthy", "同期済み");
-    m.insert("filter.behind", "Behind");
-    m.insert("filter.ahead", "Ahead");
-    m.insert("filter.dirty", "未コミット");
-    m.insert("filter.conflict", "競合");
-    m.insert("filter.error", "エラー");
     m.insert("filter.all_set", "問題なし");
     m.insert("filter.behind", "更新あり");
     m.insert("filter.ahead", "ローカルのコミット");
@@ -1610,6 +1596,46 @@ mod tests {
             let value = ja.get(key).expect("Japanese filter translation");
             assert!(!value.contains("Behind"), "{key} retained English Behind");
             assert!(!value.contains("Ahead"), "{key} retained English Ahead");
+        }
+    }
+
+    /// `en_strings`/`ja_strings` build their catalog with repeated `m.insert`
+    /// calls into a `HashMap`, so a re-inserted key silently overwrites the
+    /// earlier value instead of failing to compile or panicking at runtime.
+    /// The resolved-map assertions above can't see this class of defect
+    /// (they only ever observe the map's, i.e. the *last* insert's, value),
+    /// so this test scans the source text directly for a key inserted twice
+    /// within the same catalog function.
+    #[test]
+    fn catalog_functions_insert_each_key_only_once() {
+        let source = include_str!("i18n.rs");
+        for fn_name in ["en_strings", "ja_strings"] {
+            let marker = format!("fn {fn_name}(");
+            let start = source
+                .find(&marker)
+                .unwrap_or_else(|| panic!("could not locate fn {fn_name}"));
+            let body = &source[start..];
+            let body = &body[..body.find("\nfn ").unwrap_or(body.len())];
+
+            let mut seen = std::collections::HashSet::new();
+            let mut duplicates = Vec::new();
+            let mut rest = body;
+            while let Some(pos) = rest.find("m.insert(") {
+                rest = &rest[pos + "m.insert(".len()..];
+                if let Some(key) = rest
+                    .trim_start()
+                    .strip_prefix('"')
+                    .and_then(|after_quote| after_quote.find('"').map(|end| &after_quote[..end]))
+                    && !seen.insert(key)
+                {
+                    duplicates.push(key.to_owned());
+                }
+            }
+
+            assert!(
+                duplicates.is_empty(),
+                "{fn_name} inserts these keys more than once: {duplicates:?}"
+            );
         }
     }
 }

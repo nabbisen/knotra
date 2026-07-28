@@ -252,9 +252,12 @@ fn matches_status_filter(entry: &DashboardEntry<'_>, filter: &StatusFilter) -> b
                     .status
                     .is_some_and(|status| status.working_tree.is_dirty())
         }
-        StatusFilter::Conflict => entry
-            .status
-            .is_some_and(|status| status.conflict.has_conflict),
+        StatusFilter::Conflict => {
+            usable_status_facts
+                && entry
+                    .status
+                    .is_some_and(|status| status.conflict.has_conflict)
+        }
         StatusFilter::NeedsHelp => entry.tier == DashboardTier::NeedsHelp,
     }
 }
@@ -494,6 +497,19 @@ mod tests {
         let mut cases = Vec::new();
         cases.push((
             entry_for(&project, Some(&observed), true),
+            [false, false, false, false, false, true],
+        ));
+
+        let mut missing_with_stale_conflict = observed.clone();
+        missing_with_stale_conflict.conflict.has_conflict = true;
+        let missing_conflict_entry = entry_for(&project, Some(&missing_with_stale_conflict), true);
+        assert_eq!(missing_conflict_entry.tier, DashboardTier::NeedsHelp);
+        assert_eq!(
+            missing_conflict_entry.cause,
+            Some(DashboardCause::MissingPath)
+        );
+        cases.push((
+            missing_conflict_entry,
             [false, false, false, false, false, true],
         ));
 
