@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (main: 0f5c0c5) |
+| Status | Implemented (main: ce05a44) |
 | Priority | High - no overlay in the application has an opaque surface, and the shell decision gates every remaining UI/UX RFC |
 | Effort | Medium |
 | Target | Production Readiness Reset |
@@ -41,7 +41,7 @@ host must supply both the scrim and the surface.
 
 ### What RFC-033 decided
 
-RFC-033 is accepted (`Accepted (main: 71b4796)`). Its decisions D1 through D8
+RFC-033 is accepted (`Accepted (main: bf07f1c)`). Its decisions D1 through D8
 are settled and are consumed, not relitigated, here. D1 was accepted on measured
 evidence recorded in `.git-exclude/reviewed/063-...md`: adopting snora's design
 layer grows the dependency graph by exactly two packages, costs roughly 33

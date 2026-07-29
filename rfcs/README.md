@@ -39,11 +39,11 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
-| [034](./done/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | main: 0f5c0c5 |
-| [033](./done/033-ui-ux-foundation-shell-and-overlay-contracts.md) | UI/UX foundation, shell, and overlay contracts (umbrella) | main: 71b4796 |
-| [032](./done/032-dashboard-grouping-sorting-and-tier-density.md) | Dashboard grouping, sorting, and tier density | main: d98374a |
-| [031](./done/031-activity-retry-semantics.md) | Activity retry semantics | main: 7b1f689 |
-| [030](./done/030-changelog-modal-completion.md) | Changelog modal completion | main: f22dc5e |
+| [034](./done/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | main: ce05a44 |
+| [033](./done/033-ui-ux-foundation-shell-and-overlay-contracts.md) | UI/UX foundation, shell, and overlay contracts (umbrella) | main: bf07f1c |
+| [032](./done/032-dashboard-grouping-sorting-and-tier-density.md) | Dashboard grouping, sorting, and tier density | main: 43bace5 |
+| [031](./done/031-activity-retry-semantics.md) | Activity retry semantics | main: 0936345 |
+| [030](./done/030-changelog-modal-completion.md) | Changelog modal completion | main: fb551ae |
 | [029](./done/029-typed-context-switching-and-context-switch-modal-completion.md) | Typed context switching and context switch modal completion | main: 9821bef |
 | [028](./done/028-command-palette-action-completion.md) | Command palette action completion | main: 3699bad |
 | [027](./done/027-selection-mode-and-bulk-selection-completion.md) | Selection mode and bulk-selection completion | main: 0fd1e22 |

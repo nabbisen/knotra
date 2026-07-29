@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented (main: 7b1f689) |
+| Status | Implemented (main: 0936345) |
 | Priority | High - a visible failure action does not retry and currently navigates somewhere unrelated |
 | Effort | Medium |
 | Target | Production Readiness Reset |
