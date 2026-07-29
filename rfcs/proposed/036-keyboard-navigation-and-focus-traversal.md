@@ -532,8 +532,17 @@ Nothing renders differently yet; this stage is inert without Stage 2.
 ### Stage 2 - visible ring
 
 Add `is_focused` to `knotra-ui`'s style functions, re-export `FocusTokens`,
-and render the ring for the shell and dashboard toolbar. This is the first
-stage a screenshot can evidence.
+and render the ring for the shell. This is the first stage a screenshot can
+evidence.
+
+**Amended after Stage 2 (review `077`):** this stage originally also named the
+dashboard toolbar. That was an error in this RFC, not an unmet requirement.
+`filter_button`/`choice_button` carry no `.style()` at all, so ringing them
+would mean styling them for the first time - and *which* styling is RFC-035
+R1/R2's decision (`chip::filter`, select menus), on controls RFC-035 replaces
+rather than restyles. This RFC's Stage 4 covers dashboard **rows**, not the
+toolbar. The toolbar receives its ring from RFC-035. Recorded here rather than
+silently dropped, so the amendment is auditable.
 
 ### Stage 3 - overlay trap and return
 
