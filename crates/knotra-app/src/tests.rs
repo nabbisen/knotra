@@ -1139,6 +1139,29 @@ fn tab_from_a_stale_row_target_lands_on_the_second_entry_r9() {
 }
 
 #[test]
+fn ctrl_slash_now_actually_focuses_search_not_only_the_screen() {
+    // Regression test required by `.git-exclude/reviewed/079-rfc-036-stage-4-review.md`
+    // review focus 3: `Ctrl+/`'s handler previously only switched screens
+    // and never called `focus_input` at all - the pre-existing gap fixed
+    // as part of Stage 4's `focus_search()` sharing. Without this test, a
+    // future change reintroducing that gap would ship silently, exactly as
+    // it did the first time.
+    let mut state = make_state();
+    state.screen = Screen::Settings;
+    assert_eq!(state.dashboard_focus, None);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusSearch));
+
+    assert_eq!(state.screen, Screen::Dashboard);
+    assert_eq!(
+        state.dashboard_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::SEARCH.clone()
+        ))
+    );
+}
+
+#[test]
 fn bare_slash_focuses_search_with_no_text_input_focused_r4() {
     let mut state = make_state();
     assert_eq!(state.dashboard_focus, None);
