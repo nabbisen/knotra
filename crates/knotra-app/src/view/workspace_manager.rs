@@ -18,8 +18,104 @@ use knotra_ui::widget::{
 
 use crate::{
     message::{Message, WorkspaceMessage},
-    state::{AppState, workspace_mgr},
+    state::{
+        AppState,
+        focus::{FocusOrder, FocusTarget},
+        workspace_mgr,
+    },
 };
+
+/// Stable keys for the non-text-input `FocusTarget`s these dialogs share
+/// (RFC-036 Stage 3), kept alongside [`focus_order`] so the order and the
+/// dialog it describes cannot drift apart.
+mod focus_target {
+    pub const CONFIRM: &str = "workspace_mgr.dialog.confirm";
+    pub const CANCEL: &str = "workspace_mgr.dialog.cancel";
+    pub const CLOSE: &str = "workspace_mgr.dialog.close";
+}
+
+/// The focus order for whichever workspace-manager dialog is open, or
+/// `None` if none is (RFC-036 R5/R6/R7). Each target's activation `Message`
+/// mirrors the same view's own `on_press`/`on_press_maybe` gating exactly
+/// (R3), and the order's first entry is that dialog's entry point (R6): the
+/// name field for create/rename, matching `focus_input`'s existing
+/// auto-focus; `Cancel` — the safe action — for delete, which has no field.
+pub fn focus_order(state: &AppState) -> Option<FocusOrder<Message>> {
+    if let Some(dialog) = &state.workspace_mgr.create_dialog {
+        return Some(name_dialog_focus_order(
+            dialog.name.trim().is_empty(),
+            WorkspaceMessage::CreateWorkspaceConfirmed,
+            WorkspaceMessage::CreateWorkspaceCancelled,
+        ));
+    }
+    if let Some(dialog) = &state.workspace_mgr.rename_dialog {
+        return Some(name_dialog_focus_order(
+            dialog.new_name.trim().is_empty(),
+            WorkspaceMessage::RenameWorkspaceConfirmed,
+            WorkspaceMessage::RenameWorkspaceCancelled,
+        ));
+    }
+    if let Some(dialog) = &state.workspace_mgr.confirm_delete {
+        let can_delete = state.all_workspaces.len() > 1 && dialog.error.is_none();
+        return Some(delete_dialog_focus_order(can_delete));
+    }
+    None
+}
+
+/// Shared shape for the create and rename dialogs: field (entry), Confirm
+/// (gated on a non-empty name, exactly like the view's own
+/// `guided_button` call), Cancel, header close — the last two dispatch the
+/// same `cancel` message the view wires to both controls.
+fn name_dialog_focus_order(
+    name_is_empty: bool,
+    confirm: WorkspaceMessage,
+    cancel: WorkspaceMessage,
+) -> FocusOrder<Message> {
+    vec![
+        (
+            FocusTarget::text_input(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone()),
+            None,
+        ),
+        (
+            FocusTarget::control(focus_target::CONFIRM),
+            (!name_is_empty).then_some(Message::Workspace(confirm)),
+        ),
+        (
+            FocusTarget::control(focus_target::CANCEL),
+            Some(Message::Workspace(cancel.clone())),
+        ),
+        (
+            FocusTarget::control(focus_target::CLOSE),
+            Some(Message::Workspace(cancel)),
+        ),
+    ]
+}
+
+/// Delete has no text field, so Cancel — not Confirm — is the entry point
+/// (R6): a destructive dialog should not default focus onto its destructive
+/// action.
+fn delete_dialog_focus_order(can_delete: bool) -> FocusOrder<Message> {
+    vec![
+        (
+            FocusTarget::control(focus_target::CANCEL),
+            Some(Message::Workspace(
+                WorkspaceMessage::DeleteWorkspaceCancelled,
+            )),
+        ),
+        (
+            FocusTarget::control(focus_target::CONFIRM),
+            can_delete.then_some(Message::Workspace(
+                WorkspaceMessage::DeleteWorkspaceConfirmed,
+            )),
+        ),
+        (
+            FocusTarget::control(focus_target::CLOSE),
+            Some(Message::Workspace(
+                WorkspaceMessage::DeleteWorkspaceCancelled,
+            )),
+        ),
+    ]
+}
 
 pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     if let Some(dialog) = &state.workspace_mgr.create_dialog {

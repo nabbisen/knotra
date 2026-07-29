@@ -570,8 +570,6 @@ pub struct AppState {
     /// from `dashboard_focus` because R5 confines Tab/Shift-Tab to the
     /// overlay while it is open, and R7 needs `dashboard_focus` untouched
     /// underneath so focus can return to it when the overlay closes.
-    /// Unread until Stage 3 wires overlay trap/return.
-    #[allow(dead_code)]
     pub overlay_focus: Option<focus::FocusTarget>,
 }
 

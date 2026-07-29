@@ -13,6 +13,7 @@ use crate::state::{
     changelog::ChangelogPhase,
     conflict_ops::ConflictPhase,
     context::ContextPhase,
+    focus::{self, FocusTarget},
     freezer::FreezerPhase,
     sync::{RetryPreparationId, SmartPullRetryPreparation, SyncPhase},
 };
@@ -650,6 +651,245 @@ fn delete_workspace_failure_keeps_state_and_dialog() {
             .as_ref()
             .and_then(|d| d.error.as_deref())
             .is_some_and(|error| error.starts_with("We could not remove this workspace."))
+    );
+}
+
+// ---------------------------------------------------------------------------
+// RFC-036 Stage 3 — overlay focus trap, entry, and return
+// ---------------------------------------------------------------------------
+
+/// A stand-in for "the shell control that had knotra-focus before the
+/// dialog opened" — the exact key `view/shell.rs` mints for the workspace
+/// switcher trigger. Using the real key (not an arbitrary test string)
+/// means this test would still catch a rename of that key breaking R7.
+fn shell_switcher_target() -> FocusTarget {
+    FocusTarget::control("shell.workspace_switcher")
+}
+
+#[test]
+fn create_dialog_open_enters_focus_at_the_name_field_r6() {
+    let mut state = make_state();
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
+    );
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::WORKSPACE_NAME.clone()
+        ))
+    );
+}
+
+#[test]
+fn create_dialog_tab_wraps_within_the_dialog_and_never_touches_shell_focus_r5() {
+    let mut state = make_state();
+    // Simulate the workspace switcher having had keyboard focus before the
+    // dialog opened, so an untouched `dashboard_focus` is a meaningful
+    // assertion rather than trivially `None` either way.
+    state.dashboard_focus = Some(shell_switcher_target());
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
+    );
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceNameChanged(
+            "Lab".to_owned(),
+        )),
+    );
+
+    let name_field = FocusTarget::text_input(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone());
+    let confirm = FocusTarget::control("workspace_mgr.dialog.confirm");
+    let cancel = FocusTarget::control("workspace_mgr.dialog.cancel");
+    let close = FocusTarget::control("workspace_mgr.dialog.close");
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert_eq!(state.overlay_focus, Some(confirm));
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert_eq!(state.overlay_focus, Some(cancel));
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert_eq!(state.overlay_focus, Some(close));
+    // R5: from the dialog's last target, Tab wraps back to its first —
+    // never into any shell target.
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert_eq!(state.overlay_focus, Some(name_field));
+
+    // R7's precondition: the shell's own focus was never touched while the
+    // dialog held it, regardless of how many times Tab moved within it.
+    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
+}
+
+#[test]
+fn create_dialog_escape_closes_and_returns_focus_to_the_opener_r7() {
+    let mut state = make_state();
+    state.dashboard_focus = Some(shell_switcher_target());
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
+    );
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+
+    assert!(state.workspace_mgr.create_dialog.is_none());
+    assert_eq!(state.overlay_focus, None);
+    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
+}
+
+#[test]
+fn create_dialog_scrim_click_closes_and_returns_focus_to_the_opener_r7() {
+    // `view.rs` wires `AppLayout`'s scrim click to the exact same
+    // `Message::Shortcut(ShortcutMessage::Close)` Escape dispatches
+    // (`.on_close_modals(...)`), so this exercises the identical code path
+    // as the Escape test above — kept as its own test, per the Handoff,
+    // because the two routes are conceptually distinct even though this
+    // codebase happens to converge them onto one message today.
+    let mut state = make_state();
+    state.dashboard_focus = Some(shell_switcher_target());
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
+    );
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+
+    assert!(state.workspace_mgr.create_dialog.is_none());
+    assert_eq!(state.overlay_focus, None);
+    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
+}
+
+#[test]
+fn create_dialog_header_close_returns_focus_to_the_opener_r7() {
+    // The header close button dispatches `CreateWorkspaceCancelled`
+    // directly (see `overlay::surface`'s `on_close`), bypassing
+    // `close_topmost_layer` entirely — a genuinely different code path from
+    // the Escape/scrim tests above.
+    let mut state = make_state();
+    state.dashboard_focus = Some(shell_switcher_target());
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
+    );
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceCancelled),
+    );
+
+    assert!(state.workspace_mgr.create_dialog.is_none());
+    assert_eq!(state.overlay_focus, None);
+    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
+}
+
+#[test]
+fn delete_dialog_entry_is_cancel_not_the_destructive_action_r6() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = AppPaths::under(tmp.path().to_path_buf());
+    let mut state = make_state_with_paths(paths);
+    install_workspaces(
+        &mut state,
+        vec![Workspace::new("Main"), Workspace::new("Lab")],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::DeleteWorkspaceRequested),
+    );
+
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::control("workspace_mgr.dialog.cancel"))
+    );
+}
+
+#[test]
+fn seven_site_fix_dialog_open_paths_set_knotra_focus_alongside_iced_focus_r12() {
+    // Regression test for `.git-exclude/reviewed/076-...md`'s finding: the
+    // seven pre-existing `focus_input` dialog-open call sites moved iced
+    // focus without moving knotra-focus. Each must now also set
+    // `overlay_focus` to the exact same text-input target — the state half
+    // of the invariant `state::focus::tests` already proves `reconcile`
+    // upholds in isolation (`reconcile(_, Some(TextInput)) =>
+    // FocusTextInput`). `Task` itself isn't inspectable from these
+    // integration tests, so this is the strongest assertion available
+    // short of driving a real iced runtime.
+    let mut add_project_state = make_state();
+    dispatch(
+        &mut add_project_state,
+        Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
+    );
+    assert_eq!(
+        add_project_state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone()
+        ))
+    );
+
+    let mut palette_state = make_state();
+    dispatch(&mut palette_state, Message::Palette(PaletteMessage::Opened));
+    assert_eq!(
+        palette_state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::PALETTE_QUERY.clone()
+        ))
+    );
+
+    let mut freezer_state = make_state();
+    dispatch(
+        &mut freezer_state,
+        Message::Freezer(FreezerMessage::BulkOpenRequested),
+    );
+    assert_eq!(
+        freezer_state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::RELEASE_NAME.clone()
+        ))
+    );
+}
+
+#[test]
+fn non_cancellable_overlay_does_not_leak_tab_to_the_shell() {
+    // Smart Pull running (RFC-029/031's non-cancellable phase) is
+    // explicitly out of this stage's order-building scope (RFC-037's), but
+    // Tab must still not reach shell controls hidden beneath it. An empty
+    // overlay order makes Tab a safe no-op instead of leaking through.
+    let mut state = make_state();
+    state.dashboard_focus = Some(shell_switcher_target());
+    state.active_modal = ActiveModal::Tag;
+    state.freezer.phase = FreezerPhase::Executing;
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+
+    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
+    assert_eq!(state.overlay_focus, None);
+
+    // Escape is inert during the non-cancellable phase (existing
+    // `close_topmost_layer` behaviour, unchanged) — confirm the wrapper
+    // added around it does not reset overlay focus while the overlay is
+    // still legitimately open.
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+    assert_eq!(state.active_modal, ActiveModal::Tag);
+    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
+}
+
+#[test]
+fn delete_dialog_open_does_not_affect_focus_traversal_pure_function_tests() {
+    // Sanity check that Stage 1's pure-function tests in `state::focus`
+    // still hold unmodified — this stage adds no new arms to `resolve`,
+    // `advance`, or `reconcile` themselves, only new callers.
+    let order: focus::FocusOrder<Message> = vec![(
+        FocusTarget::control("a"),
+        Some(Message::Shortcut(ShortcutMessage::Refresh)),
+    )];
+    assert_eq!(
+        focus::advance(&order, None, focus::Direction::Next),
+        Some(&FocusTarget::control("a"))
     );
 }
 

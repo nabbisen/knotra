@@ -48,7 +48,7 @@ use crate::{
             next_active_index_after_delete, validate_workspace_name,
         },
     },
-    view::{app_view, shell},
+    view::{app_view, shell, workspace_manager},
 };
 
 // ---------------------------------------------------------------------------
@@ -256,7 +256,18 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
                 state.workspace_mgr.switcher_open = false;
                 return Task::none();
             }
-            close_topmost_layer(state)
+            // R7: capture whether an in-scope overlay (the three
+            // workspace-manager dialogs) was open before Escape/scrim closes
+            // it, so focus return only fires on an actual open->closed
+            // transition — not when a non-cancellable overlay (out of this
+            // stage's order-building scope) absorbs the close and stays up.
+            let was_open = workspace_dialog_open(state);
+            let task = close_topmost_layer(state);
+            if was_open && !workspace_dialog_open(state) {
+                Task::batch([task, close_overlay_focus(state)])
+            } else {
+                task
+            }
         }
         ShortcutMessage::FocusNext => advance_focus(state, focus::Direction::Next),
         ShortcutMessage::FocusPrevious => advance_focus(state, focus::Direction::Previous),
@@ -265,35 +276,96 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
 }
 
 // ---------------------------------------------------------------------------
-// RFC-036 — keyboard focus traversal (Stage 1: mechanism only)
+// RFC-036 — keyboard focus traversal
 // ---------------------------------------------------------------------------
 
-/// The current context's focus order (RFC-036 R1/R2). Stage 2 wires the
-/// shell's real order; the dashboard toolbar's own controls are still the
-/// pre-RFC-035 legacy helpers (`choice_button`/`filter_button`, no `Tokens`
-/// styling at all) that RFC-035 is chartered to replace, so they are not
-/// wired here yet — see the Stage 2 review request. Stage 4 adds dashboard
-/// rows.
-fn dashboard_focus_order(state: &AppState) -> focus::FocusOrder<Message> {
-    shell::focus_order(state)
+/// Whether Tab/Shift-Tab/Enter operate on an overlay's order right now, and
+/// if so, which one (R5's confinement). `None` falls through to the
+/// shell/dashboard context.
+///
+/// Only the three workspace-manager dialogs get a real, multi-target order
+/// this stage (Stage 3's explicit change scope). Every other overlay this
+/// app can show — the mutating-workflow overlays RFC-037 owns, the
+/// add-project dialog, the command palette, the shortcuts cheat sheet, the
+/// confirm-remove dialog, and the switcher menu — gets an *empty* order
+/// here instead of `None`. That is a deliberate safety net, not an
+/// oversight: without it, Tab pressed while one of those covers the screen
+/// would fall through to the shell/dashboard underneath, and Enter could
+/// activate a hidden background control the user cannot see. An empty order
+/// makes Tab/Enter safe no-ops there instead. Each of those overlays still
+/// gets the seven-site R12 fix at its own focus_input call site — see
+/// `open_overlay_focus` — so knotra-focus and iced-focus never diverge for
+/// them either; what they don't get is a navigable order, which RFC-037 (or
+/// a later RFC-036 stage, for the palette/add-project/cheat-sheet layers
+/// `view.rs` already notes this RFC is expected to migrate) can add without
+/// touching this function's shape.
+fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<Message>> {
+    if let Some(order) = workspace_manager::focus_order(state) {
+        return Some(order);
+    }
+    if any_other_overlay_is_open(state) {
+        return Some(Vec::new());
+    }
+    None
+}
+
+fn any_other_overlay_is_open(state: &AppState) -> bool {
+    !matches!(state.active_modal, crate::state::ActiveModal::None)
+        || state.add_project_dialog.is_some()
+        || state.palette.open
+        || state.keyboard.cheat_sheet_open
+        || state.confirm_remove_dialog.is_some()
+        || state.workspace_mgr.switcher_open
+}
+
+/// Whether one of the three workspace-manager dialogs specifically is open —
+/// the subset of overlays this stage gives a real order, trap, and focus
+/// return to.
+fn workspace_dialog_open(state: &AppState) -> bool {
+    state.workspace_mgr.create_dialog.is_some()
+        || state.workspace_mgr.rename_dialog.is_some()
+        || state.workspace_mgr.confirm_delete.is_some()
 }
 
 fn advance_focus(state: &mut AppState, direction: focus::Direction) -> Task<Message> {
-    let order = dashboard_focus_order(state);
-    let previous = state.dashboard_focus.clone();
-    let next = focus::advance(&order, previous.as_ref(), direction).cloned();
-    state.dashboard_focus = next.clone();
-    reconciliation_task(focus::reconcile(previous.as_ref(), next.as_ref()))
+    if let Some(order) = overlay_focus_order(state) {
+        advance_in(&order, &mut state.overlay_focus, direction)
+    } else {
+        let order = shell::focus_order(state);
+        advance_in(&order, &mut state.dashboard_focus, direction)
+    }
 }
 
 fn activate_focused(state: &mut AppState) -> Task<Message> {
-    let order = dashboard_focus_order(state);
-    if focus::is_text_input_focused(&order, state.dashboard_focus.as_ref()) {
+    if let Some(order) = overlay_focus_order(state) {
+        activate_in(&order, &state.overlay_focus)
+    } else {
+        let order = shell::focus_order(state);
+        activate_in(&order, &state.dashboard_focus)
+    }
+}
+
+fn advance_in(
+    order: &focus::FocusOrder<Message>,
+    current: &mut Option<focus::FocusTarget>,
+    direction: focus::Direction,
+) -> Task<Message> {
+    let previous = current.clone();
+    let next = focus::advance(order, previous.as_ref(), direction).cloned();
+    *current = next.clone();
+    reconciliation_task(focus::reconcile(previous.as_ref(), next.as_ref()))
+}
+
+fn activate_in(
+    order: &focus::FocusOrder<Message>,
+    current: &Option<focus::FocusTarget>,
+) -> Task<Message> {
+    if focus::is_text_input_focused(order, current.as_ref()) {
         // R3a: a focused text input receives Enter/Space as a keystroke; it
         // must not also activate whatever control the ring last sat on.
         return Task::none();
     }
-    focus::activation_message(&order, state.dashboard_focus.as_ref())
+    focus::activation_message(order, current.as_ref())
         .map(Task::done)
         .unwrap_or_else(Task::none)
 }
@@ -307,6 +379,41 @@ fn reconciliation_task(reconciliation: focus::Reconciliation) -> Task<Message> {
         focus::Reconciliation::FocusTextInput(id) => knotra_ui::widget::focus_input(&id),
         focus::Reconciliation::ClearTextInputFocus => knotra_ui::widget::clear_input_focus(),
     }
+}
+
+/// R6: sets knotra-focus to `target`, reconciling iced's text-input focus in
+/// the same `Task` (R12). This is the one path every overlay-open call site
+/// uses to move focus onto its opening target — the "seven-site" fix.
+fn open_overlay_focus(state: &mut AppState, target: focus::FocusTarget) -> Task<Message> {
+    let previous = state.overlay_focus.replace(target.clone());
+    reconciliation_task(focus::reconcile(previous.as_ref(), Some(&target)))
+}
+
+/// R6: sets knotra-focus to the first target in the *current* overlay's
+/// declared order — used by the three workspace-manager dialogs, whose
+/// order-builders deliberately place the desired entry control first (the
+/// name field for create/rename, Cancel — the safe action — for delete).
+/// A no-op if no overlay order applies right now.
+fn enter_overlay_focus(state: &mut AppState) -> Task<Message> {
+    let Some(order) = overlay_focus_order(state) else {
+        return Task::none();
+    };
+    let Some((entry, _)) = order.first().cloned() else {
+        return Task::none();
+    };
+    open_overlay_focus(state, entry)
+}
+
+/// R7: focus return. Clears `overlay_focus`; `dashboard_focus` was never
+/// touched while the overlay held focus (Tab/Enter routed to
+/// `overlay_focus` the whole time via `overlay_focus_order`), so it is
+/// already exactly what it was when the overlay opened — return happens by
+/// construction, not by capturing and restoring a separate value. If the
+/// overlay's last target was a text input, this also clears iced's own
+/// text-input focus (R12), since nothing else will.
+fn close_overlay_focus(state: &mut AppState) -> Task<Message> {
+    let previous = state.overlay_focus.take();
+    reconciliation_task(focus::reconcile(previous.as_ref(), None))
 }
 
 fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
@@ -391,7 +498,12 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
 
         WorkspaceMessage::AddProjectDialogOpened => {
             state.add_project_dialog = Some(AddProjectDialog::default());
-            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::ADD_PROJECT_PATH)
+            open_overlay_focus(
+                state,
+                focus::FocusTarget::text_input(
+                    knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
+                ),
+            )
         }
         WorkspaceMessage::AddProjectNameChanged(s) => {
             if let Some(d) = &mut state.add_project_dialog {
@@ -417,7 +529,12 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                     d.step = crate::state::AddProjectStep::NameProject;
                 }
             }
-            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::ADD_PROJECT_NAME)
+            open_overlay_focus(
+                state,
+                focus::FocusTarget::text_input(
+                    knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
+                ),
+            )
         }
         WorkspaceMessage::AddProjectConfirmed => {
             let dialog = match state.add_project_dialog.take() {
@@ -477,7 +594,12 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 // Auto-advance to step 2 once a folder is chosen.
                 d.step = crate::state::AddProjectStep::NameProject;
             }
-            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::ADD_PROJECT_NAME)
+            open_overlay_focus(
+                state,
+                focus::FocusTarget::text_input(
+                    knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
+                ),
+            )
         }
         WorkspaceMessage::RemoveProjectRequested(id) => {
             let name = state
@@ -556,7 +678,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
         WorkspaceMessage::CreateWorkspaceDialogOpened => {
             state.workspace_mgr.switcher_open = false;
             state.workspace_mgr.create_dialog = Some(CreateWorkspaceDialog::default());
-            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::WORKSPACE_NAME)
+            enter_overlay_focus(state)
         }
         WorkspaceMessage::CreateWorkspaceNameChanged(s) => {
             if let Some(d) = &mut state.workspace_mgr.create_dialog {
@@ -602,11 +724,11 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             state.load_phase = LoadPhase::Refreshing;
             state.is_refreshing = true;
             state.workspace_mgr.create_dialog = None;
-            refresh_workspace_task(state)
+            Task::batch([refresh_workspace_task(state), close_overlay_focus(state)])
         }
         WorkspaceMessage::CreateWorkspaceCancelled => {
             state.workspace_mgr.create_dialog = None;
-            Task::none()
+            close_overlay_focus(state)
         }
 
         WorkspaceMessage::RenameWorkspaceDialogOpened => {
@@ -620,7 +742,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 new_name: current,
                 error: None,
             });
-            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::WORKSPACE_NAME)
+            enter_overlay_focus(state)
         }
         WorkspaceMessage::RenameWorkspaceNameChanged(s) => {
             if let Some(d) = &mut state.workspace_mgr.rename_dialog {
@@ -671,11 +793,11 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                 *entry = renamed;
             }
             state.workspace_mgr.rename_dialog = None;
-            Task::none()
+            close_overlay_focus(state)
         }
         WorkspaceMessage::RenameWorkspaceCancelled => {
             state.workspace_mgr.rename_dialog = None;
-            Task::none()
+            close_overlay_focus(state)
         }
 
         WorkspaceMessage::DeleteWorkspaceRequested => {
@@ -689,7 +811,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                         error: Some(state.t("workspace.delete.disabled_last").to_owned()),
                     });
                 }
-                return Task::none();
+                return enter_overlay_focus(state);
             }
 
             if let Some(ws) = state.workspace.as_ref() {
@@ -700,7 +822,7 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
                     error: None,
                 });
             }
-            Task::none()
+            enter_overlay_focus(state)
         }
         WorkspaceMessage::DeleteWorkspaceConfirmed => {
             if state.all_workspaces.len() <= 1 {
@@ -751,11 +873,11 @@ fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> Task<Message
             state.load_phase = LoadPhase::Refreshing;
             state.is_refreshing = true;
             state.workspace_mgr.confirm_delete = None;
-            refresh_workspace_task(state)
+            Task::batch([refresh_workspace_task(state), close_overlay_focus(state)])
         }
         WorkspaceMessage::DeleteWorkspaceCancelled => {
             state.workspace_mgr.confirm_delete = None;
-            Task::none()
+            close_overlay_focus(state)
         }
 
         WorkspaceMessage::SwitcherToggled => {
@@ -2491,7 +2613,10 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
                 .iter()
                 .map(|id| (id.clone(), true))
                 .collect();
-            knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::RELEASE_NAME)
+            open_overlay_focus(
+                state,
+                focus::FocusTarget::text_input(knotra_ui::widget::focus_id::RELEASE_NAME.clone()),
+            )
         }
         FreezerMessage::BulkModalClosed => {
             if freezer_is_running(state) {
@@ -3432,7 +3557,10 @@ fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<Message> {
         PaletteMessage::Opened => {
             state.palette.open_palette();
             crate::state::palette::update_results(state);
-            return knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::PALETTE_QUERY);
+            return open_overlay_focus(
+                state,
+                focus::FocusTarget::text_input(knotra_ui::widget::focus_id::PALETTE_QUERY.clone()),
+            );
         }
         PaletteMessage::Closed => state.palette.close(),
         PaletteMessage::QueryChanged(q) => {

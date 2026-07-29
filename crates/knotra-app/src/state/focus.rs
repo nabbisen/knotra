@@ -9,12 +9,6 @@
 use std::borrow::Cow;
 
 /// A single position in a view's keyboard focus order.
-///
-/// Stage 1 (RFC-036) introduces this type with no production caller yet —
-/// `Control` and `TextInput` are minted by the per-view focus-order
-/// builders Stage 2 (shell/dashboard toolbar) and Stage 4 (dashboard rows)
-/// add. Exercised today by this module's own unit tests.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FocusTarget {
     /// A control iced cannot focus on its own — button, chip, checkbox,
@@ -28,12 +22,14 @@ pub enum FocusTarget {
     TextInput(iced::widget::Id),
 }
 
-#[allow(dead_code)] // Stage 2/4 callers; see FocusTarget's doc comment.
 impl FocusTarget {
     pub const fn control(key: &'static str) -> Self {
         FocusTarget::Control(Cow::Borrowed(key))
     }
 
+    /// Stage 4 callers: dynamic per-row keys (e.g. a project ID baked into
+    /// the key) that `control`'s `&'static str` cannot express.
+    #[allow(dead_code)]
     pub fn control_dynamic(key: String) -> Self {
         FocusTarget::Control(Cow::Owned(key))
     }
