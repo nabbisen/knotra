@@ -3515,21 +3515,3 @@ fn smart_pull_retry_escape_releases_lease_and_ignores_late_completion() {
     assert!(matches!(state.sync.phase, SyncPhase::Idle));
     assert_eq!(state.active_modal, ActiveModal::None);
 }
-
-#[test]
-fn debug_activate_probe() {
-    let mut state = make_state();
-    let (alpha_id, _, _) = install_dashboard_projects(&mut state);
-    eprintln!("screen={:?}", state.screen);
-    let mut order = crate::view::shell::focus_order(&state);
-    order.extend(crate::view::dashboard::focus_order(&state));
-    for (t, m) in &order {
-        eprintln!("target={t:?} msg_present={}", m.is_some());
-    }
-    let target = FocusTarget::control_dynamic(format!("dashboard.row.{alpha_id}.action"));
-    eprintln!("looking for: {target:?}");
-    eprintln!(
-        "found in order: {}",
-        order.iter().any(|(t, _)| t == &target)
-    );
-}
