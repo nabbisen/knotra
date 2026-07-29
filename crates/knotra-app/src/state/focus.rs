@@ -27,9 +27,8 @@ impl FocusTarget {
         FocusTarget::Control(Cow::Borrowed(key))
     }
 
-    /// Stage 4 callers: dynamic per-row keys (e.g. a project ID baked into
-    /// the key) that `control`'s `&'static str` cannot express.
-    #[allow(dead_code)]
+    /// Dynamic per-row keys (e.g. a project ID baked into the key) that
+    /// `control`'s `&'static str` cannot express.
     pub fn control_dynamic(key: String) -> Self {
         FocusTarget::Control(Cow::Owned(key))
     }

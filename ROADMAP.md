@@ -78,7 +78,13 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 **Goal:** Accessible, consistent, keyboard-navigable UI.
 
 - [x] Keyboard shortcuts (⌘/Ctrl+R refresh, ⌘/Ctrl+K context switch, …)
-- [x] Full keyboard navigation (tab order, focus visibility)
+- [ ] Full keyboard navigation (tab order, focus visibility) — RFC-036
+      Stages 1-4 deliver Tab/Shift-Tab traversal, overlay entry/trap/return,
+      and a visible focus ring for the shell; dashboard card-to-card arrow
+      movement and Enter-to-open the detail panel are RFC-035's, not built
+      here; the three workspace-manager dialogs have entry/trap/return but
+      no visible ring yet, pending an open ring-mechanism decision
+      (`.git-exclude/reviewed/078-rfc-036-stage-3-review.md` Finding 1)
 - [x] WCAG AA contrast verification
 - [x] Unified status vocabulary audit
 - [x] Settings screen (all config values exposed)

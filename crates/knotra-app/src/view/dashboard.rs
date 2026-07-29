@@ -16,8 +16,76 @@ use crate::{
             DashboardCause, DashboardEntry, DashboardSection, DashboardSectionKey, DashboardTier,
             ProgressKind,
         },
+        focus::{FocusOrder, FocusTarget},
     },
 };
+
+/// Tab/Shift-Tab focus targets for the dashboard's rows (RFC-036 R2, Stage 4):
+/// collapsible section headers, row checkboxes (selection mode only), and
+/// row actions. Card-to-card `↑`/`↓`/`j`/`k` movement is not this - that is
+/// RFC-035's.
+///
+/// Iterates `DashboardDisplay::sections` in the exact order and with the
+/// exact `!collapsed` filter `build_dashboard_display` used to compute
+/// `ordered_selectable_ids` - this is that same computation's row targets,
+/// not a second ordering (RFC-036 Stage 4 change scope). A dedicated test
+/// asserts the two ID sequences are identical.
+pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
+    let display = state.dashboard_display();
+    let mut order = Vec::new();
+
+    for section in &display.sections {
+        if let DashboardSectionKey::Tier(tier) = section.key
+            && tier != DashboardTier::NeedsHelp
+        {
+            order.push((
+                FocusTarget::control_dynamic(format!("dashboard.section.{tier:?}")),
+                Some(Message::Dashboard(DashboardMessage::TierToggled(tier))),
+            ));
+        }
+
+        if section.collapsed {
+            continue;
+        }
+
+        for entry in &section.entries {
+            let id = &entry.project.id;
+
+            if state.selection_mode {
+                order.push((
+                    FocusTarget::control_dynamic(format!("dashboard.row.{id}.checkbox")),
+                    Some(Message::Selection(SelectionMessage::Toggled(id.clone()))),
+                ));
+            }
+
+            // The name/detail-link button - present on every row regardless
+            // of tier, and the most common row interaction.
+            order.push((
+                FocusTarget::control_dynamic(format!("dashboard.row.{id}.name")),
+                Some(Message::DetailPanel(DetailPanelMessage::Opened(id.clone()))),
+            ));
+
+            // The tier-specific action button. Only NeedsHelp rows render
+            // one (`view_project_row`'s `action` slot is a plain `Space`,
+            // not a button, for InProgress/AllSet).
+            if entry.tier == DashboardTier::NeedsHelp {
+                let action_message = if entry.cause == Some(DashboardCause::Conflict) {
+                    (!state.operation_interlock.is_busy()).then_some(Message::ConflictOps(
+                        ConflictOpsMessage::OpenRequested(Some(id.clone())),
+                    ))
+                } else {
+                    Some(Message::DetailPanel(DetailPanelMessage::Opened(id.clone())))
+                };
+                order.push((
+                    FocusTarget::control_dynamic(format!("dashboard.row.{id}.action")),
+                    action_message,
+                ));
+            }
+        }
+    }
+
+    order
+}
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let mut body = column![view_header(state), view_toolbar(state)]

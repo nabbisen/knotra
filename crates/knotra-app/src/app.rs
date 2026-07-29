@@ -48,7 +48,7 @@ use crate::{
             next_active_index_after_delete, validate_workspace_name,
         },
     },
-    view::{app_view, shell, workspace_manager},
+    view::{app_view, dashboard, shell, workspace_manager},
 };
 
 // ---------------------------------------------------------------------------
@@ -120,6 +120,10 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
                     "k" | "K" if ctrl => Some(ShortcutMessage::OpenContextOps),
                     "t" | "T" if ctrl => Some(ShortcutMessage::OpenFreezer),
                     "/" if ctrl => Some(ShortcutMessage::FocusSearch),
+                    // RFC-036 R4: bare `/` (no modifier) — gated in
+                    // `handle_shortcut`, not here, since only `AppState`
+                    // knows whether a text input currently holds focus.
+                    "/" => Some(ShortcutMessage::FocusSearchBare),
                     _ => None,
                 },
                 _ => None,
@@ -241,9 +245,17 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             handle_context(state, ContextMessage::OpenRequested(None))
         }
         ShortcutMessage::OpenFreezer => handle_freezer(state, FreezerMessage::OpenRequested),
-        ShortcutMessage::FocusSearch => {
-            state.screen = Screen::Dashboard;
-            Task::none()
+        ShortcutMessage::FocusSearch => focus_search(state),
+        ShortcutMessage::FocusSearchBare => {
+            // R4: a bare `/` must not shadow a literal `/` being typed into
+            // a field that already holds knotra-focus. `Ctrl+/` is
+            // unconditional (unchanged from before RFC-036) because a
+            // modified `/` was never a literal-typing conflict in the first
+            // place.
+            if current_target_is_text_input(state) {
+                return Task::none();
+            }
+            focus_search(state)
         }
         ShortcutMessage::Close => {
             // The workspace switcher (RFC-034 R12) is an `AppLayout::header_menu`,
@@ -331,7 +343,7 @@ fn advance_focus(state: &mut AppState, direction: focus::Direction) -> Task<Mess
     if let Some(order) = overlay_focus_order(state) {
         advance_in(&order, &mut state.overlay_focus, direction)
     } else {
-        let order = shell::focus_order(state);
+        let order = shell_and_dashboard_focus_order(state);
         advance_in(&order, &mut state.dashboard_focus, direction)
     }
 }
@@ -340,9 +352,21 @@ fn activate_focused(state: &mut AppState) -> Task<Message> {
     if let Some(order) = overlay_focus_order(state) {
         activate_in(&order, &state.overlay_focus)
     } else {
-        let order = shell::focus_order(state);
+        let order = shell_and_dashboard_focus_order(state);
         activate_in(&order, &state.dashboard_focus)
     }
+}
+
+/// The shell's order, plus dashboard-row targets (RFC-036 R2, Stage 4) when
+/// the dashboard is the active screen. The toolbar (filter chips, group/sort,
+/// search, select) is not included - it stays RFC-035's, unstyled and
+/// unwired, matching Stage 2's precedent.
+fn shell_and_dashboard_focus_order(state: &AppState) -> focus::FocusOrder<Message> {
+    let mut order = shell::focus_order(state);
+    if matches!(state.screen, Screen::Dashboard) {
+        order.extend(dashboard::focus_order(state));
+    }
+    order
 }
 
 fn advance_in(
@@ -414,6 +438,34 @@ fn enter_overlay_focus(state: &mut AppState) -> Task<Message> {
 fn close_overlay_focus(state: &mut AppState) -> Task<Message> {
     let previous = state.overlay_focus.take();
     reconciliation_task(focus::reconcile(previous.as_ref(), None))
+}
+
+/// R4: switches to the dashboard and moves knotra-focus (and iced's own
+/// text-input focus, in the same `Task`) onto the search field. The search
+/// field is not part of any declared `FocusOrder` (the toolbar stays
+/// RFC-035's, per Stage 2/4's scope), so this sets `dashboard_focus`
+/// directly rather than going through `advance`/`enter_overlay_focus`.
+fn focus_search(state: &mut AppState) -> Task<Message> {
+    state.screen = Screen::Dashboard;
+    let target = focus::FocusTarget::text_input(knotra_ui::widget::focus_id::SEARCH.clone());
+    let previous = state.dashboard_focus.replace(target.clone());
+    reconciliation_task(focus::reconcile(previous.as_ref(), Some(&target)))
+}
+
+/// Whether the *current* context's knotra-focus target is a text input,
+/// checked directly rather than through `focus::resolve` — the search field
+/// is not a member of any declared order, so `resolve`'s "is this target
+/// still in the order" fallback would (wrongly) say no even while the field
+/// genuinely holds focus. R3a's gate can stay order-relative because
+/// activation always needs an order to look an activation message up in;
+/// this gate only needs to know what was last explicitly focused.
+fn current_target_is_text_input(state: &AppState) -> bool {
+    let current = if overlay_focus_order(state).is_some() {
+        &state.overlay_focus
+    } else {
+        &state.dashboard_focus
+    };
+    matches!(current, Some(focus::FocusTarget::TextInput(_)))
 }
 
 fn close_topmost_layer(state: &mut AppState) -> Task<Message> {

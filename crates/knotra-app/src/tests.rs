@@ -893,6 +893,288 @@ fn delete_dialog_open_does_not_affect_focus_traversal_pure_function_tests() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// RFC-036 Stage 4 — dashboard-row focus targets and bare `/`
+// ---------------------------------------------------------------------------
+
+/// Three projects, one per tier under the default `Attention` grouping:
+/// Alpha (NeedsHelp, missing path), Beta (InProgress, one uncommitted
+/// change), Gamma (AllSet, clean). Returns their ids in that order.
+fn install_dashboard_projects(state: &mut AppState) -> (ProjectId, ProjectId, ProjectId) {
+    let alpha = make_project("Alpha");
+    let beta = make_project("Beta");
+    let gamma = make_project("Gamma");
+    let (alpha_id, beta_id, gamma_id) = (alpha.id.clone(), beta.id.clone(), gamma.id.clone());
+
+    let mut workspace = Workspace::new("Main");
+    workspace.projects = vec![alpha, beta, gamma];
+    install_workspaces(state, vec![workspace], 0);
+
+    state.missing_projects.insert(alpha_id.clone());
+
+    let mut beta_status = make_project_status(beta_id.clone(), None);
+    beta_status.working_tree.uncommitted_count = 1;
+    let gamma_status = make_project_status(gamma_id.clone(), None);
+
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![beta_status, gamma_status],
+        last_refresh: Some(Utc::now()),
+    });
+    state.load_phase = crate::state::LoadPhase::Ready;
+    // `AppConfig::default()` collapses AllSet by default; expand both
+    // collapsible tiers so all three projects are selectable/visible unless
+    // a specific test re-collapses one deliberately.
+    state.config.dashboard_in_progress_collapsed = false;
+    state.config.dashboard_all_set_collapsed = false;
+
+    (alpha_id, beta_id, gamma_id)
+}
+
+fn name_target_ids(order: &focus::FocusOrder<Message>) -> Vec<String> {
+    order
+        .iter()
+        .map(|(t, _)| format!("{t:?}"))
+        .filter(|debug| debug.ends_with(".name\")"))
+        .collect()
+}
+
+#[test]
+fn dashboard_row_order_matches_ordered_selectable_ids_r2() {
+    let mut state = make_state();
+    let (alpha_id, beta_id, gamma_id) = install_dashboard_projects(&mut state);
+
+    let expected: Vec<String> = state
+        .dashboard_display()
+        .ordered_selectable_ids
+        .iter()
+        .map(|id| {
+            format!(
+                "{:?}",
+                FocusTarget::control_dynamic(format!("dashboard.row.{id}.name"))
+            )
+        })
+        .collect();
+    assert_eq!(
+        expected,
+        vec![
+            format!(
+                "{:?}",
+                FocusTarget::control_dynamic(format!("dashboard.row.{alpha_id}.name"))
+            ),
+            format!(
+                "{:?}",
+                FocusTarget::control_dynamic(format!("dashboard.row.{beta_id}.name"))
+            ),
+            format!(
+                "{:?}",
+                FocusTarget::control_dynamic(format!("dashboard.row.{gamma_id}.name"))
+            ),
+        ],
+        "sanity: NeedsHelp, InProgress, AllSet is the expected tier order"
+    );
+
+    let order = crate::view::dashboard::focus_order(&state);
+    assert_eq!(name_target_ids(&order), expected);
+}
+
+#[test]
+fn dashboard_row_order_matches_ordered_selectable_ids_project_group_grouping_r2() {
+    let mut state = make_state();
+    let (alpha_id, beta_id, gamma_id) = install_dashboard_projects(&mut state);
+    state.config.dashboard_grouping = DashboardGrouping::ProjectGroup;
+
+    let expected: Vec<String> = state
+        .dashboard_display()
+        .ordered_selectable_ids
+        .iter()
+        .map(|id| {
+            format!(
+                "{:?}",
+                FocusTarget::control_dynamic(format!("dashboard.row.{id}.name"))
+            )
+        })
+        .collect();
+    // Sanity: all three still present under a different grouping, in
+    // whatever order `ordered_selectable_ids` itself gives (its own
+    // ordering logic is not this test's concern - only that row targets
+    // follow it exactly).
+    assert_eq!(expected.len(), 3);
+    let _ = (alpha_id, beta_id, gamma_id);
+
+    let order = crate::view::dashboard::focus_order(&state);
+    assert_eq!(name_target_ids(&order), expected);
+}
+
+#[test]
+fn collapsed_section_contributes_no_row_targets_but_keeps_its_header() {
+    let mut state = make_state();
+    let (_, _, gamma_id) = install_dashboard_projects(&mut state);
+    state.config.dashboard_all_set_collapsed = true;
+
+    let order = crate::view::dashboard::focus_order(&state);
+    let debug: Vec<String> = order.iter().map(|(t, _)| format!("{t:?}")).collect();
+
+    assert!(
+        debug.iter().any(|d| d.contains("dashboard.section.AllSet")),
+        "collapsed section's header must remain a Tab stop so it can be reopened"
+    );
+    assert!(
+        !debug.iter().any(|d| d.contains(&gamma_id.to_string())),
+        "a collapsed section's rows must not appear (it renders no rows)"
+    );
+}
+
+#[test]
+fn needs_help_header_is_never_a_collapse_target() {
+    let mut state = make_state();
+    install_dashboard_projects(&mut state);
+
+    let order = crate::view::dashboard::focus_order(&state);
+    assert!(
+        !order
+            .iter()
+            .any(|(t, _)| format!("{t:?}").contains("dashboard.section.NeedsHelp")),
+        "NeedsHelp has no chevron and must not be a focus target"
+    );
+}
+
+#[test]
+fn tab_reaches_section_header_checkbox_and_row_action() {
+    let mut state = make_state();
+    let (alpha_id, _, _) = install_dashboard_projects(&mut state);
+    state.selection_mode = true;
+
+    let order = crate::view::dashboard::focus_order(&state);
+    let debug: Vec<String> = order.iter().map(|(t, _)| format!("{t:?}")).collect();
+
+    assert!(debug.iter().any(|d| d.contains("dashboard.section.")));
+    assert!(
+        debug
+            .iter()
+            .any(|d| d.contains(&format!("dashboard.row.{alpha_id}.checkbox")))
+    );
+    assert!(
+        debug
+            .iter()
+            .any(|d| d.contains(&format!("dashboard.row.{alpha_id}.action")))
+    );
+}
+
+#[test]
+fn enter_on_a_row_action_dispatches_the_same_message_a_click_would_r3() {
+    // `activate_focused` returns a `Task::done(msg)` for a non-text-input
+    // activation, which this integration harness (like every other Stage
+    // 1-3 Task-producing test) cannot run through to a second `update()`
+    // call - `dispatch` only executes one `update()`, and `Task` is not
+    // otherwise inspectable. So this asserts the pure decision
+    // (`focus::activation_message`) yields exactly the `Message` the
+    // pointer-click path (`view_project_row`'s non-conflict action button)
+    // would dispatch, which is the same guarantee Stage 3's
+    // `seven_site_fix_...` test relies on for the same reason.
+    let mut state = make_state();
+    let (alpha_id, _, _) = install_dashboard_projects(&mut state);
+
+    let mut order = crate::view::shell::focus_order(&state);
+    order.extend(crate::view::dashboard::focus_order(&state));
+
+    // Alpha's cause is MissingPath, not Conflict, so its action button opens
+    // the detail panel (see `view_project_row`'s non-conflict branch).
+    let target = FocusTarget::control_dynamic(format!("dashboard.row.{alpha_id}.action"));
+    match focus::activation_message(&order, Some(&target)) {
+        Some(Message::DetailPanel(DetailPanelMessage::Opened(id))) => {
+            assert_eq!(id, alpha_id);
+        }
+        other => panic!("expected DetailPanel::Opened({alpha_id}), got {other:?}"),
+    }
+}
+
+#[test]
+fn tab_from_a_stale_row_target_lands_on_the_second_entry_r9() {
+    // Deliberate choice (RFC-036 Stage 4 R9 decision): `resolve()`'s
+    // fallback treats the first live target in the *current combined order*
+    // as the effective "current" position even when the stored target has
+    // vanished, so `advance`'s `Next` moves *past* it to the second entry -
+    // the same uniform rule Stage 1 already uses for a freshly-opened,
+    // never-focused context, not a special case invented for rows.
+    //
+    // Because Tab traverses one flat shell-then-rows order, "the second
+    // entry" here is the shell's second target (`shell.nav.dashboard`), not
+    // a second row - falling all the way back to the shell is the honest
+    // consequence of there being one order, not two, and is recorded here
+    // rather than glossed over. Rationale: one fallback rule for "no
+    // defined current position" everywhere is simpler than adding a
+    // row-scoped variant that only kicks in once rows can disappear out
+    // from under focus.
+    let mut state = make_state();
+    let (_, beta_id, _) = install_dashboard_projects(&mut state);
+
+    state.dashboard_focus = Some(FocusTarget::control_dynamic(format!(
+        "dashboard.row.{beta_id}.name"
+    )));
+
+    // Beta is removed outright - its target vanishes from the
+    // next-computed order (a stronger stand-in for "filtered/refreshed
+    // away" than a text filter, and avoids a filter substring accidentally
+    // also matching Beta's own name).
+    state
+        .workspace
+        .as_mut()
+        .expect("workspace installed")
+        .projects
+        .retain(|p| p.id != beta_id);
+
+    let expected_order = {
+        let mut order = crate::view::shell::focus_order(&state);
+        order.extend(crate::view::dashboard::focus_order(&state));
+        order
+    };
+    let expected_second = expected_order
+        .get(1)
+        .map(|(t, _)| t.clone())
+        .expect("at least two targets remain");
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+
+    assert_eq!(state.dashboard_focus, Some(expected_second));
+}
+
+#[test]
+fn bare_slash_focuses_search_with_no_text_input_focused_r4() {
+    let mut state = make_state();
+    assert_eq!(state.dashboard_focus, None);
+
+    dispatch(
+        &mut state,
+        Message::Shortcut(ShortcutMessage::FocusSearchBare),
+    );
+
+    assert_eq!(state.screen, Screen::Dashboard);
+    assert_eq!(
+        state.dashboard_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::SEARCH.clone()
+        ))
+    );
+}
+
+#[test]
+fn bare_slash_types_a_literal_character_when_a_text_input_already_holds_focus_r4() {
+    let mut state = make_state();
+    let already_focused =
+        FocusTarget::text_input(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone());
+    state.dashboard_focus = Some(already_focused.clone());
+
+    dispatch(
+        &mut state,
+        Message::Shortcut(ShortcutMessage::FocusSearchBare),
+    );
+
+    // Gated: knotra-focus must not have been redirected to search, so the
+    // literal `/` iced delivers separately reaches the field that was
+    // actually focused, not a jump to search.
+    assert_eq!(state.dashboard_focus, Some(already_focused));
+}
+
 #[test]
 fn delete_last_workspace_is_not_allowed() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -3232,4 +3514,22 @@ fn smart_pull_retry_escape_releases_lease_and_ignores_late_completion() {
     );
     assert!(matches!(state.sync.phase, SyncPhase::Idle));
     assert_eq!(state.active_modal, ActiveModal::None);
+}
+
+#[test]
+fn debug_activate_probe() {
+    let mut state = make_state();
+    let (alpha_id, _, _) = install_dashboard_projects(&mut state);
+    eprintln!("screen={:?}", state.screen);
+    let mut order = crate::view::shell::focus_order(&state);
+    order.extend(crate::view::dashboard::focus_order(&state));
+    for (t, m) in &order {
+        eprintln!("target={t:?} msg_present={}", m.is_some());
+    }
+    let target = FocusTarget::control_dynamic(format!("dashboard.row.{alpha_id}.action"));
+    eprintln!("looking for: {target:?}");
+    eprintln!(
+        "found in order: {}",
+        order.iter().any(|(t, _)| t == &target)
+    );
 }

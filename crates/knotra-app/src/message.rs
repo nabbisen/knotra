@@ -382,6 +382,7 @@ pub enum ShortcutMessage {
     Refresh,
     OpenContextOps,
     OpenFreezer,
+    /// `Ctrl`/`Cmd`+`/` — unconditional, unchanged from before RFC-036.
     FocusSearch,
     Close,
     /// RFC-036 R1: Tab.
@@ -390,6 +391,9 @@ pub enum ShortcutMessage {
     FocusPrevious,
     /// RFC-036 R3/R3a: Enter or Space, gated on text-input focus.
     ActivateFocused,
+    /// RFC-036 R4: bare `/`, gated on text-input focus so a literal `/`
+    /// typed into a field is never intercepted.
+    FocusSearchBare,
 }
 
 // ---------------------------------------------------------------------------
