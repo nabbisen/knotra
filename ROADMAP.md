@@ -293,8 +293,8 @@ the GUI is not production-ready as an *interaction and visual system* — a
 distinct problem from the inert-control findings above. RFC-033 decides the
 shared contracts; the rest implement them.
 
-- [x] RFC-033 — UI/UX foundation, shell, and overlay contracts (umbrella) — `Accepted (main: 71b4796)`
-- [x] RFC-034 — Design foundation, application shell, and overlay host — `main: 0f5c0c5`
+- [x] RFC-033 — UI/UX foundation, shell, and overlay contracts (umbrella) — `Accepted (main: bf07f1c)`
+- [x] RFC-034 — Design foundation, application shell, and overlay host — `main: ce05a44`
 - [ ] RFC-035 — Dashboard and selection migration
 - [ ] RFC-036 — Mutating workflow overlays and remaining ad hoc layers
 - [ ] RFC-037 — Settings and History
