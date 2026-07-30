@@ -157,6 +157,30 @@ pub mod style {
         snora::design::style::button::danger(tokens, status)
     }
 
+    /// Converts an `iced::Color` back to `snora::design::Color` — the
+    /// reverse of `to_iced_color`. Needed here, and only here, to run
+    /// contrast math on a button style's already-computed background
+    /// (RFC-036 Stage 6); `snora-widgets` only ships the one-way conversion,
+    /// same reason `knotra-ui/src/theme.rs`'s tests define their own.
+    fn from_iced_color(c: iced::Color) -> snora::design::Color {
+        snora::design::Color::rgba(c.r, c.g, c.b, c.a)
+    }
+
+    /// Returns the style's background color only when it is opaque enough to
+    /// be a genuine filled control (`primary`/`danger`) rather than
+    /// `ghost`/`secondary`'s transparent-at-rest or lightly-tinted
+    /// hover/press background (max observed alpha there is 0.14). The 0.5
+    /// threshold sits between that and a filled control's own disabled-state
+    /// alpha (0.45, `disabled_alpha`) so a disabled filled control keeps the
+    /// plain ring color unchanged rather than picking a contrast winner
+    /// against a half-faded background.
+    fn filled_background(background: Option<iced::Background>) -> Option<iced::Color> {
+        match background {
+            Some(iced::Background::Color(c)) if c.a > 0.5 => Some(c),
+            _ => None,
+        }
+    }
+
     /// Composes a visible focus ring (RFC-033 D7 `FocusTokens`) onto an
     /// already-computed style, when `is_focused` is true.
     ///
@@ -170,14 +194,44 @@ pub mod style {
     /// flush `border`, with no outer/offset ring primitive. The ring is drawn
     /// as a border override instead — a knotra-specific simplification, not
     /// a workaround copied from anywhere upstream.
+    ///
+    /// **RFC-036 Stage 6 (D7 fix):** `tokens.focus.ring_color` is not
+    /// automatically high-contrast against every background — in both
+    /// presets it sits close in luminance to `accent` (and, in the light
+    /// preset, is the *same* color), so a `primary` button's own ring was
+    /// unreadable. When the incoming style has an opaque (filled) background,
+    /// this picks whichever of `ring_color` or `accent_text` — the palette
+    /// role already defined to read on top of `accent` — has the higher
+    /// measured contrast against that specific background, rather than
+    /// assuming which one wins by control type. `ghost`/`secondary` never
+    /// have an opaque background (ghost/secondary's own rest/hover/press
+    /// backgrounds top out at alpha 0.14), so they always keep the plain
+    /// `ring_color`, unchanged from Stage 2.
     pub fn with_focus_ring(tokens: &Tokens, is_focused: bool, style: Style) -> Style {
         if !is_focused {
             return style;
         }
         let ring = tokens.focus;
+        let default_ring_color = snora::design::style::color::to_iced_color(ring.ring_color);
+
+        let ring_color = match filled_background(style.background) {
+            Some(bg) => {
+                let bg = from_iced_color(bg);
+                let default_contrast = snora::design::contrast::contrast_ratio(ring.ring_color, bg);
+                let alt_contrast =
+                    snora::design::contrast::contrast_ratio(tokens.palette.accent_text, bg);
+                if alt_contrast > default_contrast {
+                    snora::design::style::color::to_iced_color(tokens.palette.accent_text)
+                } else {
+                    default_ring_color
+                }
+            }
+            None => default_ring_color,
+        };
+
         Style {
             border: iced::Border {
-                color: snora::design::style::color::to_iced_color(ring.ring_color),
+                color: ring_color,
                 width: ring.ring_width,
                 radius: style.border.radius,
             },
@@ -252,4 +306,79 @@ pub fn icon_button_maybe<'a, Message: Clone + 'a>(
         tooltip::Position::Bottom,
     )
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::style::with_focus_ring;
+    use iced::widget::button::Status;
+    use snora::design::Tokens;
+
+    /// RFC-036 Stage 6: a filled-accent (`primary`) style must not receive
+    /// the same ring color as a transparent (`ghost`/`secondary`) one, in
+    /// either theme — that sameness (or near-sameness) was Finding 1's root
+    /// cause.
+    #[test]
+    fn filled_accent_style_gets_a_different_ring_color_than_a_transparent_one() {
+        for tokens in [Tokens::dark(), Tokens::light()] {
+            let filled = super::style::primary(&tokens, Status::Active);
+            let transparent = super::style::ghost(&tokens, Status::Active);
+
+            let filled_ring = with_focus_ring(&tokens, true, filled).border.color;
+            let transparent_ring = with_focus_ring(&tokens, true, transparent).border.color;
+
+            assert_ne!(
+                filled_ring, transparent_ring,
+                "primary and ghost rings must differ once the primary background \
+                 is close enough in luminance to the plain ring color to need a winner"
+            );
+        }
+    }
+
+    /// `is_focused: false` must never touch the ring color decision at all —
+    /// same guarantee Stage 2 established, re-asserted here now that the
+    /// decision has a branch.
+    #[test]
+    fn unfocused_style_is_untouched() {
+        let tokens = Tokens::dark();
+        let base = super::style::primary(&tokens, Status::Active);
+        let result = with_focus_ring(&tokens, false, base);
+        assert_eq!(result.border, base.border);
+    }
+
+    /// `ghost` and `secondary` never have an opaque background at any
+    /// status (`Active`/`Hovered`/`Pressed` top out at alpha 0.14,
+    /// `Disabled` is fully transparent), so Stage 6's contrast branch must
+    /// never fire for them — their ring stays exactly
+    /// `tokens.focus.ring_color`, byte-identical to the pre-Stage-6
+    /// unconditional formula, in both themes. Backs the acceptance
+    /// criterion that ghost/secondary rendering is unchanged.
+    #[test]
+    fn ghost_and_secondary_ring_color_is_unchanged_by_the_contrast_branch() {
+        for tokens in [Tokens::dark(), Tokens::light()] {
+            let expected = snora::design::style::color::to_iced_color(tokens.focus.ring_color);
+
+            for status in [
+                Status::Active,
+                Status::Hovered,
+                Status::Pressed,
+                Status::Disabled,
+            ] {
+                let ghost_ring =
+                    with_focus_ring(&tokens, true, super::style::ghost(&tokens, status))
+                        .border
+                        .color;
+                let secondary_ring =
+                    with_focus_ring(&tokens, true, super::style::secondary(&tokens, status))
+                        .border
+                        .color;
+
+                assert_eq!(ghost_ring, expected, "ghost ring changed for {status:?}");
+                assert_eq!(
+                    secondary_ring, expected,
+                    "secondary ring changed for {status:?}"
+                );
+            }
+        }
+    }
 }

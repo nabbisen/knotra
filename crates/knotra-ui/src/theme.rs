@@ -261,4 +261,52 @@ mod tests {
             }
         }
     }
+
+    /// RFC-036 Stage 6 (D7 fix): the ring `with_focus_ring` actually draws
+    /// meets WCAG AA against every background it can be drawn on, in both
+    /// themes — mechanically enforced rather than judged by eye. `ghost`/
+    /// `secondary` are checked against `surface`, since their own background
+    /// is transparent and `surface` is what shows through; `primary` and
+    /// `danger` are checked against their own opaque background directly,
+    /// since that is what the ring is drawn over.
+    #[test]
+    fn focus_ring_meets_wcag_aa_against_every_background_it_can_be_drawn_on() {
+        use crate::widget::style::{danger, ghost, primary, with_focus_ring};
+        use iced::widget::button::{Status, Style};
+
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let tokens = &theme.tokens;
+            let cases: [(&str, Style, Color); 3] = [
+                (
+                    "ghost/secondary on surface",
+                    ghost(tokens, Status::Active),
+                    theme.surface(),
+                ),
+                (
+                    "primary on accent",
+                    primary(tokens, Status::Active),
+                    theme.accent(),
+                ),
+                (
+                    "danger on danger",
+                    danger(tokens, Status::Active),
+                    theme.danger(),
+                ),
+            ];
+
+            for (label, style, background) in cases {
+                let ring = with_focus_ring(tokens, true, style).border.color;
+                let ratio =
+                    snora::design::contrast::contrast_ratio(from_iced(ring), from_iced(background));
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} focus ring against {label}: {ratio:.2}:1 \
+                     is below the required {AA_NORMAL}:1"
+                );
+            }
+        }
+    }
 }
