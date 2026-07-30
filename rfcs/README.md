@@ -25,7 +25,6 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [036](./proposed/036-keyboard-navigation-and-focus-traversal.md) | Keyboard navigation and focus traversal | Production Readiness Reset | High |
 | [035](./proposed/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | Production Readiness Reset | High |
 
 ---
@@ -39,6 +38,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [036](./done/036-keyboard-navigation-and-focus-traversal.md) | Keyboard navigation and focus traversal | main: d20c7be |
 | [034](./done/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | main: ce05a44 |
 | [033](./done/033-ui-ux-foundation-shell-and-overlay-contracts.md) | UI/UX foundation, shell, and overlay contracts (umbrella) | main: bf07f1c |
 | [032](./done/032-dashboard-grouping-sorting-and-tier-density.md) | Dashboard grouping, sorting, and tier density | main: 43bace5 |

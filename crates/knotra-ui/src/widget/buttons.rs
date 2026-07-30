@@ -166,17 +166,28 @@ pub mod style {
         snora::design::Color::rgba(c.r, c.g, c.b, c.a)
     }
 
-    /// Returns the style's background color only when it is opaque enough to
-    /// be a genuine filled control (`primary`/`danger`) rather than
-    /// `ghost`/`secondary`'s transparent-at-rest or lightly-tinted
-    /// hover/press background (max observed alpha there is 0.14). The 0.5
-    /// threshold sits between that and a filled control's own disabled-state
-    /// alpha (0.45, `disabled_alpha`) so a disabled filled control keeps the
-    /// plain ring color unchanged rather than picking a contrast winner
-    /// against a half-faded background.
+    /// Returns the style's background color only when it is fully opaque —
+    /// a genuine filled control (`primary`/`danger` at `Active`/`Hovered`/
+    /// `Pressed`, all alpha `1.0`) rather than `ghost`/`secondary`'s
+    /// transparent-at-rest or lightly-tinted hover/press background (max
+    /// observed alpha there is 0.14), or a filled control's own
+    /// disabled-state background (alpha 0.45, `disabled_alpha`).
+    ///
+    /// This must be exact opacity, not merely "high": `contrast_ratio`
+    /// ignores alpha entirely (per `snora_design::contrast`'s own module
+    /// docs, which say to `composite_over` first for a translucent color) —
+    /// so a hypothetical future style at, say, alpha 0.7 would silently have
+    /// its contrast winner computed against the raw, un-composited color if
+    /// this let it through. Requiring `1.0` makes that impossible by
+    /// construction rather than by a threshold that has to stay
+    /// comfortably clear of every real alpha value in play (RFC-036 Stage 6
+    /// closure, `.git-exclude/reviewed/083-...md` Finding 4). The disabled
+    /// exclusion falls out of this definition rather than needing its own
+    /// justification — see `theme.rs`'s WCAG test for why disabled controls
+    /// specifically must not take this branch.
     fn filled_background(background: Option<iced::Background>) -> Option<iced::Color> {
         match background {
-            Some(iced::Background::Color(c)) if c.a > 0.5 => Some(c),
+            Some(iced::Background::Color(c)) if c.a >= 1.0 => Some(c),
             _ => None,
         }
     }

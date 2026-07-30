@@ -2,13 +2,27 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented (main: d20c7be) |
 | Priority | High - blocks RFC-035 R22/R23, and RFC-033 D3's focus trap/return for every overlay |
 | Effort | Large |
 | Target | Production Readiness Reset |
 | Related files | `crates/knotra-app/src/app.rs`, `crates/knotra-app/src/message.rs`, `crates/knotra-app/src/state.rs`, `crates/knotra-ui/src/widget/focus.rs`, `crates/knotra-ui/src/widget/buttons.rs`, `crates/knotra-ui/src/widget/overlay.rs`, `crates/knotra-app/src/view.rs`, `crates/knotra-app/src/view/dashboard.rs`, `crates/knotra-app/src/view/workspace_manager.rs` |
 | Related RFCs | `rfcs/done/033-ui-ux-foundation-shell-and-overlay-contracts.md` (D3 focus entry/trap/return, D7 `FocusTokens`), `rfcs/done/034-design-foundation-shell-and-overlay-host.md` (overlay host this reconciles with), `rfcs/proposed/035-dashboard-and-selection-migration.md` (R22/R23 depend on this; card arrow-navigation and Enter-to-open are that RFC's own scope, not this one's), `rfcs/done/0016-keyboard-shortcuts.md` (the "complete keyboard scheme" this closes the gap in) |
 | Related audit evidence | `.git-exclude/reviewed/073-tab-navigation-gap-and-light-theme-resolution-review.md`, `.git-exclude/reviewed/074-rfc-036-draft-plan-review.md` |
+
+## Implementation Record
+
+The first six-stage RFC in the project. Each hash resolves on `main`:
+
+| Stage | Commit | Delivered |
+|---|---|---|
+| 1 | `1a9d481` | Focus infrastructure and reconciliation |
+| 2 | `21609b8` | Visible focus ring, shell focus order |
+| 3 | `e2d2d6c` | Overlay focus trap, entry, and return |
+| 4 | `a7c354c` | Dashboard rows, bare `/`, D8 evidence |
+| 4a | `429ca4a` | `Ctrl+/` regression test held under the Stage 4 commit freeze |
+| 5 | `347f429` | Dialog focus rings |
+| 6 | `d20c7be` | High-contrast focus ring on filled controls |
 
 ## Summary
 
@@ -400,6 +414,17 @@ exactly one function that ever calls `operation::focus`.
 the underlying `Status`-driven style already produces. `FocusTokens` is
 re-exported from `knotra_ui::widget` (R11), following `Tokens`'s existing
 re-export pattern in `widget/mod.rs`.
+
+> **Correction to review `080` (recorded per review `083` Finding 1).** Review
+> `080` stated that only `primary` controls collided with the focus ring and that
+> `danger` "takes a light-blue ring with strong contrast." That was wrong.
+> Measured WCAG ratios are `ring_color` vs `danger` = **1.27:1** (dark) and
+> **1.03:1** (light) — as poor as `primary`'s 1.27:1 and 1.00:1. WCAG contrast is
+> a luminance ratio and ignores hue, so the dark preset's red `danger` and blue
+> `accent`, which look very different, have almost identical luminance. Stage 6's
+> background-driven mechanism therefore corrected `danger` as well as `primary`.
+> `.git-exclude/reviewed/` artifacts are immutable, so `080` is not amended; the
+> correction lives in `083` and here.
 
 ### Overlay trap and return (R5-R7)
 

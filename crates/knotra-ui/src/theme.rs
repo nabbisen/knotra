@@ -262,50 +262,83 @@ mod tests {
         }
     }
 
-    /// RFC-036 Stage 6 (D7 fix): the ring `with_focus_ring` actually draws
-    /// meets WCAG AA against every background it can be drawn on, in both
-    /// themes — mechanically enforced rather than judged by eye. `ghost`/
+    /// RFC-036 Stage 6 (D7 fix), widened per
+    /// `.git-exclude/reviewed/083-rfc-036-stage-6-review.md` Finding 3: the
+    /// ring `with_focus_ring` actually draws meets WCAG AA against every
+    /// background it can be drawn on, in both themes, across every *enabled*
+    /// status — mechanically enforced rather than judged by eye. `ghost`/
     /// `secondary` are checked against `surface`, since their own background
-    /// is transparent and `surface` is what shows through; `primary` and
-    /// `danger` are checked against their own opaque background directly,
-    /// since that is what the ring is drawn over.
+    /// is transparent-or-lightly-tinted and `surface` is what shows through;
+    /// `primary` and `danger` are checked against **the background that
+    /// status actually renders** (`Hovered` lightens by 0.06, `Pressed`
+    /// darkens by 0.06, per `snora-widgets`' `button.rs`), read directly out
+    /// of the same `Style` passed to `with_focus_ring`, not a flat palette
+    /// role — asserting against flat `accent`/`danger` at `Hovered`/`Pressed`
+    /// would measure a pairing that never renders.
+    ///
+    /// **`Disabled` is deliberately excluded.** `filled_background`'s
+    /// `>= 1.0` gate never fires there (`disabled_alpha` scales the
+    /// background's alpha to 0.45), so a focused-but-disabled `primary`/
+    /// `danger` control keeps the plain `ring_color`, which measures
+    /// 2.99-3.33:1 against its disabled background — meeting WCAG 1.4.11
+    /// Non-text Contrast (3:1, the criterion that actually applies to a
+    /// focus indicator, not the 4.5:1 text threshold this test otherwise
+    /// uses) in dark but not quite in light. No colour choice improves this:
+    /// `083` Finding 2 computed that `accent_text` measures *worse* than
+    /// `ring_color` there in all four theme/control combinations. Recorded
+    /// as a known limitation, not asserted here.
     #[test]
     fn focus_ring_meets_wcag_aa_against_every_background_it_can_be_drawn_on() {
         use crate::widget::style::{danger, ghost, primary, with_focus_ring};
         use iced::widget::button::{Status, Style};
+
+        /// Pulls the solid colour back out of a style's background — the
+        /// actual rendered pairing, not an assumption about which palette
+        /// role produced it.
+        fn rendered_background(style: Style) -> Color {
+            match style.background {
+                Some(iced::Background::Color(c)) => c,
+                other => panic!("expected a solid Background::Color, got {other:?}"),
+            }
+        }
 
         for (theme_name, theme) in [
             ("light", KnotraTheme::light()),
             ("dark", KnotraTheme::dark()),
         ] {
             let tokens = &theme.tokens;
-            let cases: [(&str, Style, Color); 3] = [
-                (
-                    "ghost/secondary on surface",
-                    ghost(tokens, Status::Active),
-                    theme.surface(),
-                ),
-                (
-                    "primary on accent",
-                    primary(tokens, Status::Active),
-                    theme.accent(),
-                ),
-                (
-                    "danger on danger",
-                    danger(tokens, Status::Active),
-                    theme.danger(),
-                ),
-            ];
 
-            for (label, style, background) in cases {
-                let ring = with_focus_ring(tokens, true, style).border.color;
-                let ratio =
-                    snora::design::contrast::contrast_ratio(from_iced(ring), from_iced(background));
-                assert!(
-                    ratio >= AA_NORMAL,
-                    "{theme_name} focus ring against {label}: {ratio:.2}:1 \
-                     is below the required {AA_NORMAL}:1"
-                );
+            for status in [Status::Active, Status::Hovered, Status::Pressed] {
+                let ghost_style = ghost(tokens, status);
+                let primary_style = primary(tokens, status);
+                let danger_style = danger(tokens, status);
+
+                let cases: [(&str, Style, Color); 3] = [
+                    ("ghost/secondary on surface", ghost_style, theme.surface()),
+                    (
+                        "primary on its own rendered background",
+                        primary_style,
+                        rendered_background(primary_style),
+                    ),
+                    (
+                        "danger on its own rendered background",
+                        danger_style,
+                        rendered_background(danger_style),
+                    ),
+                ];
+
+                for (label, style, background) in cases {
+                    let ring = with_focus_ring(tokens, true, style).border.color;
+                    let ratio = snora::design::contrast::contrast_ratio(
+                        from_iced(ring),
+                        from_iced(background),
+                    );
+                    assert!(
+                        ratio >= AA_NORMAL,
+                        "{theme_name} {status:?} focus ring against {label}: {ratio:.2}:1 \
+                         is below the required {AA_NORMAL}:1"
+                    );
+                }
             }
         }
     }
