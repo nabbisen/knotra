@@ -113,8 +113,8 @@ Create `crates/knotra-app/src/app/` with one submodule per message domain,
 mirroring the `Message` enum:
 
 ```
-app.rs                  -> app/mod.rs      lifecycle + update dispatch + view
-app/focus.rs                               the RFC-036 focus block (lines 314-528)
+app.rs                  (parent)           lifecycle + update dispatch + view
+app/focus_ops.rs                           the RFC-036 focus block (lines 314-528)
 app/shared.rs                              lease, persistence, lookup helpers
 app/workspace.rs                           handle_workspace          (426 lines)
 app/background.rs                          handle_background         (679 lines)
@@ -170,7 +170,7 @@ Not one commit. Ordered by increasing risk:
 
 | Stage | Content | Rationale |
 |---|---|---|
-| 1 | `app/focus.rs` | Contiguous, self-contained, recently reviewed - proves the mechanism |
+| 1 | `app/focus_ops.rs` | Contiguous, self-contained, recently reviewed - proves the mechanism |
 | 2 | `app/shared.rs` | Establishes what "shared" means before handlers move onto it |
 | 3 | `misc.rs`, `changelog`, `freezer`, `activity`, `context`, `conflict_ops`, `sync` | The bulk; each is a whole-function move |
 | 4 | `workspace.rs` | 426 lines, more state interaction |
@@ -182,7 +182,8 @@ Every stage: all 166 + 10 + 42 tests pass **unedited**, all five gates green.
 
 | # | Requirement |
 |---|---|
-| R1 | `app.rs` becomes `app/mod.rs`; no file in `crates/knotra-app/src/app/` exceeds 500 ELOC, except as permitted by R2 |
+| R1 | Submodules live in `crates/knotra-app/src/app/`; no file there exceeds 500 ELOC, except as permitted by R2. The parent may stay `app.rs` alongside the directory (Rust 2018+ style, smaller diff) or become `app/mod.rs` — either satisfies this |
+| R1a | The new focus submodule must **not** be named `focus`. `app.rs` already has `use crate::state::{… focus …}`, so `mod focus;` in the same scope is a "name defined multiple times" error. Rename the new module, not the long-established `state::focus` import that other modules also use |
 | R2 | `handle_background` is split by event, **or** the review request states why it could not be split without changing behaviour |
 | R3 | `app::update` and `app::resolve_project_file_path` keep their current paths and visibility |
 | R4 | `crates/knotra-app/src/tests.rs` is **not edited** - not one line, including imports |
