@@ -26,5 +26,8 @@ Click status chips to filter cards. Use the search box to filter by project name
 
 ## Keyboard shortcuts
 
-`Ctrl+R` refresh · `Ctrl+K` context switch · `Ctrl+T` tag/freeze · `Ctrl+/` search · `Esc` close modal  
-Selection mode: `f` fetch · `p` pull · `t` tag · `b` switch · `Space` toggle selection
+- Move focus: `Tab` / `Shift+Tab` · activate: `Enter` or `Space` · close modal: `Esc`
+- `Ctrl+R` refresh · `Ctrl+K` context switch · `Ctrl+T` tag/freeze · `/` or `Ctrl+/` search
+
+Focus moves through the Dashboard but is not yet drawn there — see
+[Keyboard Shortcuts](../reference/keyboard.md) for what is and is not covered.

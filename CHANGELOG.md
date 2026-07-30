@@ -7,11 +7,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased] — proposed as 0.24.0
-
-> Version number and release date are the project owner's decision and are not
-> yet set. Scope, traceability, and gate evidence for this entry are recorded in
-> `.git-exclude/reviewed/082-release-0.24.0-scope-and-readiness-report.md`.
+## [0.24.0] — 2026-07-30
 
 **The Production Readiness Reset release.** Twelve RFCs, closing the gap between
 what knotra's interface advertised and what it actually did. The rule the reset
@@ -125,6 +121,11 @@ Documented rather than omitted:
   iced 0.14, which exposes no accessibility API.
 - **A delete-dialog sentence renders a stray period**, and its Japanese
   translation inherits a Latin full stop.
+- **User-supplied names are passed to `git` without a `--` separator.** A tag
+  name, branch name, or manually typed switch target beginning with `-` would be
+  read by `git` as an option rather than a name. Local and self-inflicted only —
+  no remote-controlled value reaches an argument position, and `fetch` uses fixed
+  arguments — but it is unguarded. Pre-existing; hardening is scheduled.
 
 ### Compatibility
 
