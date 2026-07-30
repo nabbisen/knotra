@@ -1,0 +1,125 @@
+name: Release Executables
+
+# Builds the knotra binary for each supported platform and attaches the
+# archives to a GitHub Release.
+#
+# `workflow_dispatch` is offered so assets can be (re)built for a tag that
+# already has a Release — the usual case when a build needed fixing after the
+# Release was published.
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and attach assets to
+        required: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BIN_NAME: knotra
+  # Matches the toolchain the project's gates are pinned to.
+  TOOLCHAIN: "1.91"
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing should not hide whether the others work.
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux-x64-gnu
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            bin_ext: ""
+            archive_ext: .tar.gz
+          - name: macOS-aarch64
+            target: aarch64-apple-darwin
+            os: macos-latest
+            bin_ext: ""
+            archive_ext: .zip
+          - name: Windows-x64
+            target: x86_64-pc-windows-msvc
+            os: windows-latest
+            bin_ext: .exe
+            archive_ext: .zip
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve tag
+        run: echo "TAG=${{ github.event.release.tag_name || inputs.tag }}" >> "$GITHUB_ENV"
+
+      # knotra is an iced/wgpu GUI application; on Linux it needs Wayland,
+      # xkbcommon, and GL headers present at build time.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install "$TOOLCHAIN" --profile minimal
+          rustup target add ${{ matrix.target }} --toolchain "$TOOLCHAIN"
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-release-
+
+      - name: Build release binary
+        run: |
+          cargo "+$TOOLCHAIN" build \
+            --release \
+            --locked \
+            --target ${{ matrix.target }} \
+            --bin "$BIN_NAME"
+
+      # Files are staged flat and archived from inside `dist`, so they unpack
+      # straight into the extraction destination with no intermediate parent
+      # directory — same rule the source tarball follows.
+      # LICENSE and NOTICE ship with the binary, as Apache-2.0 section 4
+      # requires.
+      - name: Stage archive contents
+        run: |
+          ASSET="${BIN_NAME}@${{ matrix.name }}-${TAG}${{ matrix.archive_ext }}"
+          echo "ASSET=${ASSET}" >> "$GITHUB_ENV"
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/${BIN_NAME}${{ matrix.bin_ext }}" dist/
+          cp LICENSE NOTICE README.md dist/
+
+      - name: Create archive (tar.gz)
+        if: matrix.archive_ext == '.tar.gz'
+        run: tar czf "${ASSET}" -C dist .
+
+      - name: Create archive (zip)
+        if: matrix.archive_ext == '.zip'
+        run: |
+          cd dist
+          7z a "../${ASSET}" .
+
+      - name: Attach archive to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${TAG}" "${ASSET}" --clobber
