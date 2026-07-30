@@ -123,9 +123,6 @@ Documented rather than omitted:
   colour choice improves this; it needs a second visual channel.
 - **No screen-reader or ARIA support**, and none is planned while knotra targets
   iced 0.14, which exposes no accessibility API.
-- **Documentation is stale.** `docs/src/guide/{sync_center,context_ops,freezer}.md`
-  describe screens removed in RFC-017, and `architecture.md` cites an outdated
-  `endringer` version.
 - **A delete-dialog sentence renders a stray period**, and its Japanese
   translation inherits a Latin full stop.
 

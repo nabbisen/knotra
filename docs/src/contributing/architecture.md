@@ -19,7 +19,7 @@ Local Persistence Layer (knotra-app)
 
 ## Crates
 
-- **`knotra-vcs`** — VCS facade: `VcsAdapter`, domain models, `FsPoller`. Reads delegate to `endringer-{core,git,jj,async}` 0.19.2 (crates.io); writes use the VCS CLI.
+- **`knotra-vcs`** — VCS facade: `VcsAdapter`, domain models, `FsPoller`. Reads delegate to `endringer-{core,git,jj,async}` 0.33.2 (crates.io); writes use the VCS CLI.
 - **`knotra-ui`** — knotra UI foundation: `KnotraTheme`, `StatusColor`, i18n catalog, layout tokens.
 - **`knotra-app`** — GUI binary (iced Elm architecture, snora layout engine).
 
