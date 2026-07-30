@@ -78,13 +78,24 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 **Goal:** Accessible, consistent, keyboard-navigable UI.
 
 - [x] Keyboard shortcuts (⌘/Ctrl+R refresh, ⌘/Ctrl+K context switch, …)
-- [ ] Full keyboard navigation (tab order, focus visibility) — RFC-036
-      Stages 1-4 deliver Tab/Shift-Tab traversal, overlay entry/trap/return,
-      and a visible focus ring for the shell; dashboard card-to-card arrow
-      movement and Enter-to-open the detail panel are RFC-035's, not built
-      here; the three workspace-manager dialogs have entry/trap/return but
-      no visible ring yet, pending an open ring-mechanism decision
-      (`.git-exclude/reviewed/078-rfc-036-stage-3-review.md` Finding 1)
+- [ ] Full keyboard navigation (tab order, focus visibility) — **RFC-036 is
+      complete** (`rfcs/done/036-keyboard-navigation-and-focus-traversal.md`,
+      `main: d20c7be`): Tab/Shift-Tab traversal, overlay focus
+      entry/trap/return, bare `/` for search, and a focus ring verified
+      against WCAG AA by test on the shell and all three workspace-manager
+      dialogs, in both themes. **This stays unchecked because three gaps
+      remain, all outside RFC-036's scope:** (1) dashboard section headers,
+      row checkboxes, row name buttons, and NeedsHelp actions are all in the
+      focus order but draw no ring, so Tab traverses the primary screen with
+      no visible indication — RFC-035 owns their styling; (2) dashboard
+      card-to-card arrow movement and Enter-to-open, specified in
+      `rfcs/done/0016-keyboard-shortcuts.md` as `↑`/`↓`/`j`/`k`/`Enter`, are
+      RFC-035's and are not built; (3) a focused *disabled* filled control
+      renders its ring at ~3.0-3.3:1, meeting WCAG 1.4.11 non-text contrast
+      (3:1) in dark but not light — recorded limitation, no colour choice
+      improves it (`.git-exclude/reviewed/083-rfc-036-stage-6-review.md`
+      Finding 2). No screen-reader/ARIA layer exists and none is planned;
+      iced 0.14 exposes no accessibility API (RFC-033 non-goal)
 - [x] WCAG AA contrast verification
 - [x] Unified status vocabulary audit
 - [x] Settings screen (all config values exposed)

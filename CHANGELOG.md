@@ -7,6 +7,136 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased] — proposed as 0.24.0
+
+> Version number and release date are the project owner's decision and are not
+> yet set. Scope, traceability, and gate evidence for this entry are recorded in
+> `.git-exclude/reviewed/082-release-0.24.0-scope-and-readiness-report.md`.
+
+**The Production Readiness Reset release.** Twelve RFCs, closing the gap between
+what knotra's interface advertised and what it actually did. The rule the reset
+enforced: every visible control must complete its action, be disabled with a
+stated reason, or be hidden.
+
+### Fixed — every visible control now completes its action (RFC-023 – RFC-032)
+
+Before this release many controls rendered but did not reach a working code path.
+Each item below was a visible button, menu entry, or modal that did not do what
+it said.
+
+- **Workspace management** (RFC-023, `main: 02e1481`) — `+ New workspace` opened
+  nothing, because the create/rename/delete dialogs were never rendered by the
+  active view stack. Create, rename, delete, name validation, persistence,
+  active-workspace switching, and keyboard close now all work.
+- **Smart Pull** (RFC-024, `main: 4362a2e`) — `Get latest safely` did not
+  reliably connect to plan generation, reviewed execution, operation logging, or
+  result persistence. The full plan → review → progress → result flow now runs.
+- **Save release point** (RFC-025, `main: d9f687a`) — the modal's primary action
+  was not wired to execution. Validation, tag/bookmark creation, rollback on
+  failure, and Git tag push are now reachable from the button.
+- **Conflict resolution** (RFC-026, `main: 1cde97d`) — `Open in editor`,
+  `Mark done`, and `Stop this fix attempt` did not consistently reach their
+  backend paths. **Security fix in the same change:** the direct editor path
+  built a shell command from user-controlled text and ran it through `sh -c`.
+  That path is removed; editors are launched without a shell.
+- **Selection mode** (RFC-027, `main: 0fd1e22`) — selection state, card
+  checkboxes, the selection bar, and the bulk actions existed as disconnected
+  pieces. Selection mode now has defined entry and exit and drives the bulk
+  workflows coherently.
+- **Command palette** (RFC-028, `main: 3699bad`) — several action keys and all
+  project rows dispatched nothing, and the palette closed anyway, so it appeared
+  to have acted. Every advertised entry now executes or is absent.
+- **Context switching** (RFC-029, `main: 9821bef`) — `Change work area` offered
+  a mostly free-text field, flattened candidate metadata into a `String`, and
+  guessed "remote branch" from whether the target contained a `/`. Candidates are
+  now typed and reviewable, and remote branches are identified rather than
+  inferred.
+- **Changelog modal** (RFC-030, `main: fb551ae`) — the ready state rendered
+  `format!("{:?}", draft)` and the copy button copied that Rust debug string to
+  the clipboard. It now renders and copies the intended Markdown.
+- **Activity retry** (RFC-031, `main: 0936345`) — `Retry` appeared on every
+  failure but only navigated to History. Retry now carries the operation's
+  identity, kind, failed project IDs, and parameters, and is offered only where
+  replay is safe.
+- **Dashboard grouping and sorting** (RFC-032, `main: 43bace5`) — `Group by` was
+  inert and two render paths competed. Grouping (attention / project group /
+  none) and sorting (urgency / name) are now independent, visible, and persisted
+  in your configuration.
+
+### Added — UI/UX foundation (RFC-033, RFC-034)
+
+- **Design foundation, application shell, and overlay host** (RFC-034,
+  `main: ce05a44`), under the RFC-033 umbrella (`main: bf07f1c`): a persistent
+  application shell, a single overlay host, a semantic control vocabulary, three
+  responsive layout modes, and a shared token set. Minimum supported window size
+  is now **800×600**.
+
+### Added — keyboard navigation and focus traversal (RFC-036)
+
+`main: d20c7be`. Before this, Tab did nothing anywhere in knotra and there was no
+focus indication at all — iced 0.14 implements focus only for text inputs, so
+knotra now owns its own focus model.
+
+- Tab / Shift-Tab traversal across the shell and dialogs.
+- Overlay focus entry, trap, and return-to-opener.
+- A 2px focus ring, verified against WCAG AA by test in both themes, on the shell
+  and all three workspace-manager dialogs. Destructive dialogs enter with focus
+  on Cancel, never on the destructive action.
+- Bare `/` focuses search. `Ctrl+/`, previously the only way to do this, still
+  works.
+
+See Known limitations below for what this does **not** yet cover.
+
+### Changed — adopted snora's design system (reverses a prior deferral)
+
+knotra now enables `snora`'s `design` and `lucide-icons` features. Release 0.23.0
+evaluated and explicitly deferred this, on the grounds that `knotra-ui` already had
+an equivalent layer; measurement during RFC-033 put the cost at two additional
+packages and the earlier decision was reversed. `snora`'s presets are consumed
+unmodified.
+
+The migration is **incomplete by design**: the previous `guided_button` /
+`guided_field` helpers are still in use alongside the new semantic controls, so
+two control systems coexist in this release. Retiring the older one is scheduled
+work, not an oversight — see Known limitations.
+
+### Fixed — dark mode did not reach every widget
+
+`config.dark_theme` was never applied as iced's ambient theme, so widgets using
+default styling stayed light regardless of the setting. The theme is now applied
+at the application root.
+
+### Known limitations in this release
+
+Documented rather than omitted:
+
+- **Dashboard rows and toolbar carry no focus ring.** They are in the Tab order,
+  so keyboard focus moves through the main screen with no visible indication.
+  Their styling belongs to the next release's dashboard migration.
+- **Two control systems coexist.** The `guided_button` / `guided_field` helpers
+  remain alongside the new semantic controls; the dashboard has not yet been
+  migrated off them.
+- **No dashboard card-to-card arrow movement or Enter-to-open**, despite being
+  specified in `rfcs/done/0016-keyboard-shortcuts.md`.
+- **A focused *disabled* filled button's ring measures ~3.0–3.3:1** — it meets
+  WCAG 1.4.11 non-text contrast (3:1) in dark theme but not quite in light. No
+  colour choice improves this; it needs a second visual channel.
+- **No screen-reader or ARIA support**, and none is planned while knotra targets
+  iced 0.14, which exposes no accessibility API.
+- **Documentation is stale.** `docs/src/guide/{sync_center,context_ops,freezer}.md`
+  describe screens removed in RFC-017, and `architecture.md` cites an outdated
+  `endringer` version.
+- **A delete-dialog sentence renders a stray period**, and its Japanese
+  translation inherits a Latin full stop.
+
+### Compatibility
+
+No user action required. Four dashboard preference fields were added to the
+configuration with defaults, so existing `config.toml` files load unchanged.
+Workspace and history persistence formats are untouched.
+
+---
+
 ## [0.23.0] — 2026-06-11
 
 ### Changed — Migrate to snora 0.25.0 (RFC-0022)
