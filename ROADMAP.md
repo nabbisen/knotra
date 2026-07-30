@@ -283,8 +283,8 @@ Primary evidence:
 - [x] Draft RFC: Changelog modal completion
 - [x] Draft RFC: Activity retry semantics
 - [x] Draft RFC: Dashboard grouping, sorting, and tier-density implementation
-- [ ] Draft RFC-038: Per-project VCS history for Git and jj (sequenced after
-      RFC-037, so it can reuse the record-list pattern — see RFC-033)
+- [ ] Draft RFC-039: Per-project VCS history for Git and jj (sequenced after
+      RFC-038, so it can reuse the record-list pattern — see RFC-033)
 
 ### UI/UX foundation track
 
@@ -295,9 +295,54 @@ shared contracts; the rest implement them.
 
 - [x] RFC-033 — UI/UX foundation, shell, and overlay contracts (umbrella) — `Accepted (main: bf07f1c)`
 - [x] RFC-034 — Design foundation, application shell, and overlay host — `main: ce05a44`
+- [ ] RFC-036 — Keyboard navigation and focus traversal (Stages 1-6 implemented; closing)
 - [ ] RFC-035 — Dashboard and selection migration
-- [ ] RFC-036 — Mutating workflow overlays and remaining ad hoc layers
-- [ ] RFC-037 — Settings and History
+- [ ] RFC-037 — Mutating workflow overlays and remaining ad hoc layers
+- [ ] RFC-038 — Settings and History
+
+RFC-036 was inserted ahead of RFC-035 after the July 2026 spike found no Tab
+traversal existed anywhere in the application (`.git-exclude/reviewed/073`);
+RFC-035's R22/R23 depend on it. Numbers are identifiers, not sequence — the
+implementation order is recorded in "Sequencing" below.
+
+### Operational hygiene track
+
+Added 2026-07-30 on the owner's approval, from
+`.git-exclude/reviewed/081-preparation-review-044-carry-forward-audit.md`. These
+are the release-gate items the reset declared and then routed around: three of
+`044`'s five findings were still unresolved twelve days later, and one had grown
+34%. Scheduled as their own theme rather than folded into RFC-035, so they are
+not deferred again.
+
+- [ ] **RFC-040 — `app.rs` decomposition.** 3,255 ELOC, 6.5x the project's own
+      500-ELOC strong-split threshold, growing ~90 ELOC per RFC because every RFC
+      adds message handlers there. Needs a real RFC: module boundaries by message
+      family. **Must land before RFC-035**, so the four remaining UI RFCs land
+      into a structure that absorbs them rather than requiring a later untangle.
+- [ ] Supporting: committed CI workflow (fmt, clippy, three test suites). The
+      clippy gate is called non-negotiable (N-9/DEC-007) yet rests on manual
+      discipline; this is what let the earlier 540-diff `fmt` drift accumulate.
+- [ ] Supporting: `docs/src/guide/` refresh — `sync_center.md`, `context_ops.md`,
+      and `freezer.md` still document the five full-screen views RFC-017 removed;
+      `docs/src/contributing/architecture.md` still cites `endringer 0.19.2`
+      against an actual `0.33.2`.
+- [ ] Supporting: Git integration test hermeticity — the harness is not
+      self-isolating, so `cargo test -p knotra-vcs` hangs on an inherited editor
+      unless the operator remembers four environment variables.
+
+The three supporting items carry no product design decisions and are tracked as
+Developer Handoffs rather than standalone RFCs, per the governance policy's
+allowance for supporting work outside an RFC where the relationship is explicit
+and approved. They may run in parallel with RFC-040; they touch different files.
+
+### Sequencing
+
+1. Close RFC-036 (Stage 6 awaiting review).
+2. **RFC-040 — `app.rs` decomposition.**
+3. RFC-035 — Dashboard and selection migration.
+4. RFC-037, RFC-038, then RFC-039 (per-project VCS history).
+
+Supporting hygiene items run alongside from step 2 onward.
 
 ### Implementation and verification track
 
@@ -318,7 +363,8 @@ given.
       — substantial coverage added per RFC; not yet complete across all surfaces
 - [ ] Git integration tests are hermetic against global/user Git config
       — still requires externally supplied `GIT_CONFIG_*` / `GIT_EDITOR` / `TMPDIR`;
-      the harness is not self-isolating
+      the harness is not self-isolating. Scheduled in the Operational hygiene
+      track above.
 - [ ] `guided_button` and `guided_field` deleted; no legacy control helper remains
       — the RFC-034 R7 parallel-systems window; closes when RFC-035..037 migrate
       their last call sites
