@@ -25,6 +25,7 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [040](./proposed/040-app-module-decomposition.md) | `app.rs` module decomposition | Production Readiness Reset | High |
 | [035](./proposed/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | Production Readiness Reset | High |
 
 ---

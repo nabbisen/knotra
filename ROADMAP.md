@@ -327,21 +327,34 @@ not deferred again.
 
 - [ ] **RFC-040 — `app.rs` decomposition.** 3,255 ELOC, 6.5x the project's own
       500-ELOC strong-split threshold, growing ~90 ELOC per RFC because every RFC
-      adds message handlers there. Needs a real RFC: module boundaries by message
-      family. **Must land before RFC-035**, so the four remaining UI RFCs land
-      into a structure that absorbs them rather than requiring a later untangle.
-- [ ] Supporting: committed CI workflow (fmt, clippy, three test suites). The
-      clippy gate is called non-negotiable (N-9/DEC-007) yet rests on manual
-      discipline; this is what let the earlier 540-diff `fmt` drift accumulate.
-- [ ] Supporting: `docs/src/guide/` refresh — `sync_center.md`, `context_ops.md`,
-      and `freezer.md` still document the five full-screen views RFC-017 removed;
-      `docs/src/contributing/architecture.md` still cites `endringer 0.19.2`
-      against an actual `0.33.2`.
+      adds message handlers there. **Drafted 2026-07-31**
+      (`rfcs/proposed/040-app-module-decomposition.md`), awaiting acceptance.
+      Splits by message domain in five stages; `tests.rs` names only two symbols
+      from `app.rs`, so 166 tests guard the move unedited. **Must land before
+      RFC-035**, so the four remaining UI RFCs land into a structure that absorbs
+      them rather than requiring a later untangle.
+- [ ] Supporting: committed CI gate workflow (fmt, clippy, three test suites).
+      The clippy gate is called non-negotiable (N-9/DEC-007) yet rests on manual
+      discipline; this is what let the earlier 540-diff `fmt` drift accumulate,
+      and it is why trailing whitespace reached a commit during the 0.24.0
+      release. Handoff `011-ci-gate-workflow.md`. Note
+      `.github/workflows/release.yaml` (added 2026-07-30) covers release
+      artifacts only and runs no gate.
+- [x] Supporting: `docs/` accuracy. **Closed 2026-07-31, smaller than scoped.**
+      The `docs/src/guide/` claim was wrong — `b5e1c81` updated those three pages
+      in the same commit that removed the views, and they describe the current
+      modal architecture correctly; the error is recorded in
+      `.git-exclude/reviewed/085-...md`. The real defects found and fixed were
+      `docs/src/contributing/architecture.md`'s stale `endringer` version
+      (`7cbd3fc`) and `docs/src/reference/keyboard.md`, which claimed full
+      keyboard accessibility and documented four unbound keys (`37e607f`).
 - [ ] Supporting: Git integration test hermeticity — the harness is not
       self-isolating, so `cargo test -p knotra-vcs` hangs on an inherited editor
-      unless the operator remembers four environment variables.
+      unless the operator remembers six environment variables. 79 call sites go
+      through a helper that sets author identity but no config isolation, and 13
+      more bypass it entirely. Handoff `012-git-test-hermeticity.md`.
 
-The three supporting items carry no product design decisions and are tracked as
+The supporting items carry no product design decisions and are tracked as
 Developer Handoffs rather than standalone RFCs, per the governance policy's
 allowance for supporting work outside an RFC where the relationship is explicit
 and approved. They may run in parallel with RFC-040; they touch different files.
