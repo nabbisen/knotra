@@ -55,12 +55,17 @@ const BODY_MAX_HEIGHT: f32 = 420.0;
 /// Every dialog this RFC migrates passes `Some`; RFC-034 R8.4/security review
 /// requires at least one keyboard route to close except where a
 /// non-cancellable operation deliberately owns the surface.
+///
+/// `is_close_focused` draws the RFC-036 focus ring on the close button when
+/// true (RFC-036 Stage 5 R8) — ignored when `on_close` is `None`, since
+/// there is no close button to ring.
 #[must_use]
 pub fn surface<'a, Message: Clone + 'a>(
     tokens: &Tokens,
     width: OverlayWidth,
     title: impl Into<String>,
     on_close: Option<Message>,
+    is_close_focused: bool,
     body: impl Into<Element<'a, Message>>,
     footer: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
@@ -76,7 +81,13 @@ pub fn surface<'a, Message: Clone + 'a>(
         header = header.push(
             button(icon::icon_element(&icon::close()))
                 .on_press(close_msg)
-                .style(move |_theme, status| super::buttons::style::ghost(&t, status)),
+                .style(move |_theme, status| {
+                    super::buttons::style::with_focus_ring(
+                        &t,
+                        is_close_focused,
+                        super::buttons::style::ghost(&t, status),
+                    )
+                }),
         );
     }
 

@@ -808,6 +808,126 @@ fn delete_dialog_entry_is_cancel_not_the_destructive_action_r6() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// RFC-036 Stage 5 — focus rings on the workspace-dialog controls
+// ---------------------------------------------------------------------------
+
+#[test]
+fn delete_dialog_ring_is_on_cancel_not_remove_on_open() {
+    // The safety property Stage 5 exists for (Handoff 007 §7.5): a keyboard
+    // user must see the ring on Cancel, not on the destructive action, the
+    // moment the dialog opens.
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = AppPaths::under(tmp.path().to_path_buf());
+    let mut state = make_state_with_paths(paths);
+    install_workspaces(
+        &mut state,
+        vec![Workspace::new("Main"), Workspace::new("Lab")],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::DeleteWorkspaceRequested),
+    );
+
+    assert!(crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.cancel"
+    ));
+    assert!(!crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.confirm"
+    ));
+    assert!(!crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.close"
+    ));
+}
+
+#[test]
+fn ring_follows_tab_through_a_name_dialog_field_confirm_cancel_close() {
+    let mut state = make_state();
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
+    );
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceNameChanged(
+            "Lab".to_owned(),
+        )),
+    );
+
+    // Entry: the field. Neither button target is ringed while the field is
+    // knotra-focused, since `overlay_focus` holds a `TextInput`, not either
+    // `Control`.
+    assert!(!crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.confirm"
+    ));
+    assert!(!crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.cancel"
+    ));
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert!(crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.confirm"
+    ));
+    assert!(!crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.cancel"
+    ));
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert!(!crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.confirm"
+    ));
+    assert!(crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.cancel"
+    ));
+    assert!(!crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.close"
+    ));
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert!(!crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.cancel"
+    ));
+    assert!(crate::view::workspace_manager::is_focused(
+        &state,
+        "workspace_mgr.dialog.close"
+    ));
+}
+
+#[test]
+fn confirm_reason_shown_only_while_genuinely_disabled() {
+    // Reproduces `guided_button`'s own rule directly (RFC-036 Stage 5):
+    // this codebase's tests have no way to inspect rendered output, so the
+    // extracted decision is what's asserted, matching how Stage 3/4 tested
+    // `Task`-producing decisions they also couldn't observe by side effect.
+    assert!(crate::view::workspace_manager::confirm_shows_reason(
+        false,
+        Some("empty name")
+    ));
+    assert!(!crate::view::workspace_manager::confirm_shows_reason(
+        false, None
+    ));
+    assert!(!crate::view::workspace_manager::confirm_shows_reason(
+        true,
+        Some("empty name")
+    ));
+    assert!(!crate::view::workspace_manager::confirm_shows_reason(
+        true, None
+    ));
+}
+
 #[test]
 fn seven_site_fix_dialog_open_paths_set_knotra_focus_alongside_iced_focus_r12() {
     // Regression test for `.git-exclude/reviewed/076-...md`'s finding: the

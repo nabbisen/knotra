@@ -12,8 +12,9 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button, guided_field_focused,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_field_focused,
     overlay::{OverlayWidth, surface},
+    style,
 };
 
 use crate::{
@@ -32,6 +33,27 @@ mod focus_target {
     pub const CONFIRM: &str = "workspace_mgr.dialog.confirm";
     pub const CANCEL: &str = "workspace_mgr.dialog.cancel";
     pub const CLOSE: &str = "workspace_mgr.dialog.close";
+}
+
+/// Whether the control keyed `key` currently draws the RFC-036 focus ring —
+/// plain equality against `state.overlay_focus`, not `focus::resolve`'s
+/// stale-target fallback (RFC-036 Stage 5): rendering shows a ring only
+/// where knotra-focus genuinely and currently sits, matching `shell.rs`'s
+/// `is_focused` precedent from Stage 2. `pub(crate)` so tests can assert
+/// against the exact function the view uses, not a re-implementation of it.
+pub(crate) fn is_focused(state: &AppState, key: &'static str) -> bool {
+    state.overlay_focus.as_ref() == Some(&FocusTarget::control(key))
+}
+
+/// Whether the Confirm button's disabled-reason text should render.
+/// Reproduces `guided_button`'s own rule verbatim: the reason shows only
+/// while the button is genuinely disabled. Neither dialog builder calls
+/// `guided_button` any more (RFC-036 Stage 5), so this behaviour has to be
+/// preserved explicitly rather than inherited — `pub(crate)` so it can be
+/// tested directly rather than by inspecting rendered output, which this
+/// codebase's test suite has no existing way to do.
+pub(crate) fn confirm_shows_reason(has_on_press: bool, reason: Option<&str>) -> bool {
+    !has_on_press && reason.is_some()
 }
 
 /// The focus order for whichever workspace-manager dialog is open, or
@@ -184,25 +206,52 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
         None
     };
 
-    let footer = row![
-        guided_button(
-            confirm_label,
-            (!value.trim().is_empty()).then_some(Message::Workspace(confirm)),
-            reason,
-        ),
-        Space::new().width(Length::Fill),
+    let tokens = &state.theme.tokens;
+    let confirm_on_press = (!value.trim().is_empty()).then_some(Message::Workspace(confirm));
+    let confirm_focused = is_focused(state, focus_target::CONFIRM);
+    let confirm_btn = {
+        let t = tokens.clone();
+        button(text(confirm_label).size(FONT_BODY))
+            .height(BUTTON_HEIGHT)
+            .padding([0, 18])
+            .on_press_maybe(confirm_on_press.clone())
+            .style(move |_theme, status| {
+                style::with_focus_ring(&t, confirm_focused, style::primary(&t, status))
+            })
+    };
+    let confirm: Element<'_, Message> = if confirm_shows_reason(confirm_on_press.is_some(), reason)
+    {
+        column![
+            confirm_btn,
+            text(reason.unwrap_or_default()).size(FONT_SMALL)
+        ]
+        .spacing(6)
+        .into()
+    } else {
+        confirm_btn.into()
+    };
+
+    let cancel_focused = is_focused(state, focus_target::CANCEL);
+    let cancel_btn = {
+        let t = tokens.clone();
         button(text(state.t("action.cancel")).size(FONT_BODY))
             .height(BUTTON_HEIGHT)
             .padding([0, 18])
-            .on_press(Message::Workspace(cancel.clone())),
-    ]
-    .align_y(Alignment::Center);
+            .on_press(Message::Workspace(cancel.clone()))
+            .style(move |_theme, status| {
+                style::with_focus_ring(&t, cancel_focused, style::secondary(&t, status))
+            })
+    };
+
+    let footer =
+        row![confirm, Space::new().width(Length::Fill), cancel_btn].align_y(Alignment::Center);
 
     surface(
-        &state.theme.tokens,
+        tokens,
         OverlayWidth::Standard,
         title,
         Some(Message::Workspace(cancel)),
+        is_focused(state, focus_target::CLOSE),
         field,
         footer,
     )
@@ -231,23 +280,49 @@ fn delete_dialog<'a>(
         dialog.error.as_deref()
     };
 
-    let footer = row![
-        guided_button(
-            state.t("workspace.delete.confirm"),
-            can_delete.then_some(Message::Workspace(
-                WorkspaceMessage::DeleteWorkspaceConfirmed
-            )),
-            reason,
-        ),
-        Space::new().width(Length::Fill),
+    let tokens = &state.theme.tokens;
+    let confirm_on_press = can_delete.then_some(Message::Workspace(
+        WorkspaceMessage::DeleteWorkspaceConfirmed,
+    ));
+    let confirm_focused = is_focused(state, focus_target::CONFIRM);
+    let confirm_btn = {
+        let t = tokens.clone();
+        button(text(state.t("workspace.delete.confirm")).size(FONT_BODY))
+            .height(BUTTON_HEIGHT)
+            .padding([0, 18])
+            .on_press_maybe(confirm_on_press.clone())
+            .style(move |_theme, status| {
+                style::with_focus_ring(&t, confirm_focused, style::danger(&t, status))
+            })
+    };
+    let confirm: Element<'_, Message> = if confirm_shows_reason(confirm_on_press.is_some(), reason)
+    {
+        column![
+            confirm_btn,
+            text(reason.unwrap_or_default()).size(FONT_SMALL)
+        ]
+        .spacing(6)
+        .into()
+    } else {
+        confirm_btn.into()
+    };
+
+    let cancel_focused = is_focused(state, focus_target::CANCEL);
+    let cancel_btn = {
+        let t = tokens.clone();
         button(text(state.t("action.cancel")).size(FONT_BODY))
             .height(BUTTON_HEIGHT)
             .padding([0, 18])
             .on_press(Message::Workspace(
-                WorkspaceMessage::DeleteWorkspaceCancelled
-            )),
-    ]
-    .align_y(Alignment::Center);
+                WorkspaceMessage::DeleteWorkspaceCancelled,
+            ))
+            .style(move |_theme, status| {
+                style::with_focus_ring(&t, cancel_focused, style::secondary(&t, status))
+            })
+    };
+
+    let footer =
+        row![confirm, Space::new().width(Length::Fill), cancel_btn].align_y(Alignment::Center);
 
     let body = column![
         text(body_text).size(FONT_BODY),
@@ -256,12 +331,13 @@ fn delete_dialog<'a>(
     .spacing(8);
 
     surface(
-        &state.theme.tokens,
+        tokens,
         OverlayWidth::Standard,
         state.t("workspace.delete.title"),
         Some(Message::Workspace(
             WorkspaceMessage::DeleteWorkspaceCancelled,
         )),
+        is_focused(state, focus_target::CLOSE),
         body,
         footer,
     )
