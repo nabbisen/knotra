@@ -1,20 +1,14 @@
-name: Release Executables
+name: Release
 
-# Builds the knotra binary for each supported platform and attaches the
-# archives to a GitHub Release.
-#
-# `workflow_dispatch` is offered so assets can be (re)built for a tag that
-# already has a Release — the usual case when a build needed fixing after the
-# Release was published.
+# Pushing a version tag produces the whole release: this creates the GitHub
+# Release from the matching CHANGELOG section, then attaches a built
+# executable for each supported platform.
 
 on:
-  release:
-    types: [created]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing tag to build and attach assets to
-        required: true
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-*"
 
 permissions:
   contents: write
@@ -29,8 +23,40 @@ env:
   TOOLCHAIN: "1.91"
 
 jobs:
+  create-release:
+    name: Create release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # The release notes are the CHANGELOG section for this exact version,
+      # so the published notes and the changelog cannot drift apart. A tag
+      # with no matching section fails here rather than publishing an empty
+      # release.
+      - name: Extract release notes from CHANGELOG
+        run: |
+          awk -v tag="$GITHUB_REF_NAME" '
+            index($0, "## [" tag "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGELOG.md has no '## [$GITHUB_REF_NAME]' section"
+            exit 1
+          fi
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md
+
   build:
     name: ${{ matrix.name }}
+    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       # One platform failing should not hide whether the others work.
@@ -56,9 +82,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Resolve tag
-        run: echo "TAG=${{ github.event.release.tag_name || inputs.tag }}" >> "$GITHUB_ENV"
 
       # knotra is an iced/wgpu GUI application; on Linux it needs Wayland,
       # xkbcommon, and GL headers present at build time.
@@ -98,12 +121,11 @@ jobs:
 
       # Files are staged flat and archived from inside `dist`, so they unpack
       # straight into the extraction destination with no intermediate parent
-      # directory — same rule the source tarball follows.
-      # LICENSE and NOTICE ship with the binary, as Apache-2.0 section 4
-      # requires.
+      # directory — the same rule the source tarball follows. LICENSE and
+      # NOTICE ship with the binary, as Apache-2.0 section 4 requires.
       - name: Stage archive contents
         run: |
-          ASSET="${BIN_NAME}@${{ matrix.name }}-${TAG}${{ matrix.archive_ext }}"
+          ASSET="${BIN_NAME}@${{ matrix.name }}-${GITHUB_REF_NAME}${{ matrix.archive_ext }}"
           echo "ASSET=${ASSET}" >> "$GITHUB_ENV"
           mkdir -p dist
           cp "target/${{ matrix.target }}/release/${BIN_NAME}${{ matrix.bin_ext }}" dist/
@@ -122,4 +144,4 @@ jobs:
       - name: Attach archive to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${TAG}" "${ASSET}" --clobber
+        run: gh release upload "$GITHUB_REF_NAME" "${ASSET}"
