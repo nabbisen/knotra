@@ -1,9 +1,11 @@
 //! Top-level Elm-architecture implementation for knotra.
 
+mod activity;
 mod changelog;
 mod focus_ops;
 mod shared;
 
+use activity::handle_activity;
 use changelog::handle_changelog;
 use focus_ops::{
     activate_focused, advance_focus, close_overlay_focus, close_topmost_layer,
@@ -12,7 +14,7 @@ use focus_ops::{
 };
 use shared::{
     acquire_operation, cancel_freezer_validation, clear_sync_retry_context, find_project,
-    invalidate_retry_preparation, refresh_workspace_task,
+    refresh_workspace_task,
 };
 
 use iced::futures::StreamExt;
@@ -37,10 +39,10 @@ use crate::{
     config::{AppPaths, DashboardGrouping, load_config, save_config},
     fs_watcher::fs_watch_subscription,
     message::{
-        ActivityMessage, BackgroundMessage, ConflictOpsMessage, ContextMessage, DashboardMessage,
-        FreezerMessage, HistoryMessage, KeyboardMessage, LaunchMessage, Message, PaletteMessage,
-        ProjectMessage, SelectionMessage, SettingsMessage, ShortcutMessage, SyncMessage,
-        TagPushMessage, TopologyMessage, WorkspaceMessage,
+        BackgroundMessage, ConflictOpsMessage, ContextMessage, DashboardMessage, FreezerMessage,
+        HistoryMessage, KeyboardMessage, LaunchMessage, Message, PaletteMessage, ProjectMessage,
+        SelectionMessage, SettingsMessage, ShortcutMessage, SyncMessage, TagPushMessage,
+        TopologyMessage, WorkspaceMessage,
     },
     persistence::{
         delete_workspace_file, load_recent_logs, load_workspaces, save_operation_log,
@@ -55,7 +57,7 @@ use crate::{
         context::ContextPhase,
         focus,
         freezer::FreezerPhase,
-        sync::{ProjectOutcome, SmartPullRetryPreparation, SyncKind, SyncPhase, SyncResult},
+        sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
         topology::TopologyPhase,
         workspace_mgr::{
             CreateWorkspaceDialog, DeleteWorkspaceDialog, RenameWorkspaceDialog,
@@ -2031,37 +2033,6 @@ fn persist_log(log: &OperationLog, state: &mut AppState) {
     state.activity.completed_secs = 0;
 }
 
-fn split_retry_targets(
-    state: &AppState,
-    ids: &[knotra_vcs::ProjectId],
-) -> (Vec<Project>, Vec<RetryExclusion>) {
-    let mut projects = Vec::new();
-    let mut exclusions = Vec::new();
-    for id in ids {
-        let Some(project) = find_project(state, id) else {
-            exclusions.push(RetryExclusion {
-                project_id: id.clone(),
-                reason: RetryExclusionReason::NotInActiveWorkspace,
-            });
-            continue;
-        };
-        if !Path::new(&project.path).exists() {
-            exclusions.push(RetryExclusion {
-                project_id: id.clone(),
-                reason: RetryExclusionReason::ProjectPathMissing,
-            });
-        } else if !VcsAdapter::repo_exists(&project) {
-            exclusions.push(RetryExclusion {
-                project_id: id.clone(),
-                reason: RetryExclusionReason::UnsupportedRepository,
-            });
-        } else {
-            projects.push(project);
-        }
-    }
-    (projects, exclusions)
-}
-
 fn skipped_retry_result(exclusion: &RetryExclusion) -> ProjectOperationResult {
     ProjectOperationResult {
         project_id: exclusion.project_id.clone(),
@@ -3029,167 +3000,6 @@ fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> Task<Message
         SelectionMessage::FocusMoved(_) => {} // focus tracking only
     }
     Task::none()
-}
-
-// ---------------------------------------------------------------------------
-// RFC-0011 — Activity strip handler
-// ---------------------------------------------------------------------------
-
-fn handle_activity(state: &mut AppState, msg: ActivityMessage) -> Task<Message> {
-    match msg {
-        ActivityMessage::RetryRequested {
-            source_operation_id,
-        } => {
-            let action = match &state.activity.latest {
-                crate::state::LatestOpState::Completed {
-                    retry: RetryAvailability::Available(action),
-                    ..
-                } => action.clone(),
-                _ => return Task::none(),
-            };
-            match action {
-                ActivityRetryAction::FetchFailed {
-                    source_operation_id: expected,
-                    project_ids,
-                } if expected == source_operation_id => {
-                    return start_activity_fetch_retry(state, expected, project_ids);
-                }
-                ActivityRetryAction::ReviewSmartPull {
-                    source_operation_id: expected,
-                    project_ids,
-                } if expected == source_operation_id => {
-                    return start_activity_smart_pull_review(state, expected, project_ids);
-                }
-                _ => return Task::none(),
-            }
-        }
-        ActivityMessage::DetailsRequested { operation_id } => {
-            state.history_expanded.insert(operation_id);
-            state.screen = Screen::History;
-        }
-        ActivityMessage::Tick => {
-            state.activity.completed_secs = state.activity.completed_secs.saturating_add(1);
-        }
-    }
-    Task::none()
-}
-
-fn start_activity_fetch_retry(
-    state: &mut AppState,
-    source_operation_id: OperationId,
-    project_ids: Vec<knotra_vcs::ProjectId>,
-) -> Task<Message> {
-    let (projects, exclusions) = split_retry_targets(state, &project_ids);
-    if projects.is_empty() {
-        mark_activity_retry_unavailable(state, &source_operation_id);
-        state.status_bar = Some(state.t("plain.activity.none_available").to_owned());
-        return Task::none();
-    }
-    let Some(lease_id) = acquire_operation(state, OperationOwner::ActivityFetchRetry) else {
-        return Task::none();
-    };
-    let operation_id = OperationId::new();
-    let total = projects.len() + exclusions.len();
-    state.activity.latest = crate::state::LatestOpState::Running {
-        operation_id: operation_id.clone(),
-        label: state.t("plain.activity.retrying_fetch").to_owned(),
-        done: exclusions.len(),
-        total,
-    };
-    state.activity.fetch_retry = Some(crate::state::FetchRetryRun {
-        operation_id: operation_id.clone(),
-        lease_id,
-        started_at: chrono::Utc::now(),
-        total,
-        completed: Vec::new(),
-        exclusions,
-    });
-
-    use iced::futures::stream;
-    let stream = stream::iter(projects)
-        .then(move |project| async move { VcsAdapter::fetch(&project).await });
-    Task::run(stream, move |result| {
-        Message::Background(BackgroundMessage::ActivityFetchRetryProjectCompleted {
-            lease_id,
-            operation_id: operation_id.clone(),
-            result,
-        })
-    })
-}
-
-fn start_activity_smart_pull_review(
-    state: &mut AppState,
-    source_operation_id: OperationId,
-    project_ids: Vec<knotra_vcs::ProjectId>,
-) -> Task<Message> {
-    invalidate_retry_preparation(state);
-    let (projects, exclusions) = split_retry_targets(state, &project_ids);
-    if projects.is_empty() {
-        mark_activity_retry_unavailable(state, &source_operation_id);
-        state.status_bar = Some(state.t("plain.activity.none_available").to_owned());
-        return Task::none();
-    }
-    let Some(workspace_id) = state
-        .workspace
-        .as_ref()
-        .map(|workspace| workspace.id.clone())
-    else {
-        return Task::none();
-    };
-    let Some(lease_id) = acquire_operation(state, OperationOwner::ActivitySmartPullPreparation)
-    else {
-        return Task::none();
-    };
-    let request_id = state.sync.next_retry_preparation_id();
-    let eligible_ids: Vec<_> = projects.iter().map(|project| project.id.clone()).collect();
-    state.sync.selected_project_ids = eligible_ids.iter().cloned().collect();
-    state.sync.project_selection.clear();
-    if let Some(workspace) = &state.workspace {
-        for project in &workspace.projects {
-            state
-                .sync
-                .project_selection
-                .insert(project.id.clone(), eligible_ids.contains(&project.id));
-        }
-    }
-    state.sync.disposition_overrides.clear();
-    state.sync.retry_exclusions = exclusions.clone();
-    state.sync.retry_preparation = Some(SmartPullRetryPreparation {
-        id: request_id,
-        workspace_id: workspace_id.clone(),
-        source_operation_id,
-        lease_id,
-        eligible_ids,
-        exclusions,
-    });
-    state.sync.phase = SyncPhase::RetryPreparing;
-    state.active_modal = crate::state::ActiveModal::Pull;
-
-    Task::perform(
-        async move {
-            let mut statuses = Vec::with_capacity(projects.len());
-            for project in projects {
-                statuses.push(VcsAdapter::read_project_status(&project).await);
-            }
-            statuses
-        },
-        move |statuses| {
-            Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
-                request_id,
-                workspace_id: workspace_id.clone(),
-                lease_id,
-                statuses,
-            })
-        },
-    )
-}
-
-fn mark_activity_retry_unavailable(state: &mut AppState, source_operation_id: &OperationId) {
-    if let crate::state::LatestOpState::Completed { log, retry } = &mut state.activity.latest
-        && &log.result.operation_id == source_operation_id
-    {
-        *retry = RetryAvailability::Unavailable(RetryUnavailableReason::NoEligibleTargets);
-    }
 }
 
 // ---------------------------------------------------------------------------
