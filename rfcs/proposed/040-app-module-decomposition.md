@@ -164,6 +164,29 @@ It sits on the crate import block today. After the split each module declares
 what it uses, so the suppression should not be reinstated. If removing it
 produces warnings, those are real and were being hidden.
 
+### D6. Unqualified imports during the split, qualified once at the end
+
+Added 2026-07-31 from `.git-exclude/reviewed/086-rfc-040-stage-1-review.md`,
+review focus 1.
+
+Each stage brings its module's cross-boundary functions into `app.rs` with
+`use self::<module>::{…}`, leaving existing call sites untouched. That is what
+keeps a stage a *provable* move: the diff stays near-symmetric (R10) and a
+reviewer does not have to confirm that dozens of mechanical call-site edits
+changed nothing. Stage 1 had 11 functions across 30 call sites; qualifying them
+would have tripled its diff for no behavioural gain.
+
+**This does not scale to the finished structure.** With roughly ten submodules,
+`app.rs` would import ~50 unqualified names and a reader seeing `advance_focus(…)`
+could not tell which module owns it - trading a size problem for a provenance
+problem.
+
+So it is resolved once, at the end, rather than drifting stage by stage: **Stage
+6** qualifies cross-module calls after the module set is complete and stable. A
+single mechanical commit, tests unedited, no behaviour change - and by then the
+final module boundaries are known, so the churn is paid once rather than being
+rewritten as later stages move functions around.
+
 ### D5. The split lands in stages, each independently green
 
 Not one commit. Ordered by increasing risk:
@@ -174,7 +197,8 @@ Not one commit. Ordered by increasing risk:
 | 2 | `app/shared.rs` | Establishes what "shared" means before handlers move onto it |
 | 3 | `misc.rs`, `changelog`, `freezer`, `activity`, `context`, `conflict_ops`, `sync` | The bulk; each is a whole-function move |
 | 4 | `workspace.rs` | 426 lines, more state interaction |
-| 5 | `background.rs` (+ D2) | Largest and most concurrency-sensitive; last, when the pattern is established |
+| 5 | `background.rs` (+ D2) | Largest and most concurrency-sensitive; done when the pattern is established |
+| 6 | Qualify cross-module calls (D6) | Mechanical; deferred until the module set is final so the churn is paid once |
 
 Every stage: all 166 + 10 + 42 tests pass **unedited**, all five gates green.
 
