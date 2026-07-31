@@ -187,6 +187,38 @@ single mechanical commit, tests unedited, no behaviour change - and by then the
 final module boundaries are known, so the churn is paid once rather than being
 rewritten as later stages move functions around.
 
+### D7. Dependency direction, not a blanket ban on handler-to-handler calls
+
+Added 2026-07-31 from
+`.git-exclude/reviewed/089-rfc-040-stage-3-commits-0-6-and-handler-coupling-ruling.md`.
+
+This RFC's risk table originally justified "handlers must not import each other"
+with "does not compile." **That premise is false** - Rust modules within a crate
+may reference each other cyclically. The prohibition was written against a
+failure mode that does not exist as stated, and it blocked correct work at Stage
+3 commit 7, where `handle_shortcut` legitimately calls `handle_context` and
+`handle_freezer`.
+
+The real concern is dependency *direction*, not adjacency:
+
+- **`shared.rs` must never depend on a handler module.** This inversion is the
+  genuine hazard: `shared.rs` exists to be depended upon.
+- **`focus_ops.rs` must not depend on a handler module**, for the same reason one
+  level out. Handler → `focus_ops` → `shared` is a clean layering and is allowed.
+- **A handler module may call another handler** where the domain genuinely
+  requires it, provided the dependency graph stays **acyclic** and the call is
+  documented at the import site.
+
+Promoting a domain entry point into `shared.rs` to satisfy the old rule is
+**worse** than the import it avoids: `shared.rs` holds helpers with no single
+domain owner, and a `handle_*` is by definition its domain's entry point.
+
+**Routers are not handlers.** `handle_shortcut` delegates in every arm and owns
+no domain state - it is a routing table from keyboard shortcut to domain action,
+structurally what `update` is for messages. It stays in the parent alongside
+`update`, which already imports every handler module because dispatch requires
+it. Placement follows role, not size.
+
 ### D5. The split lands in stages, each independently green
 
 Not one commit. Ordered by increasing risk:
@@ -239,7 +271,7 @@ because it does not know `app.rs`'s internals exist.
 | Risk | Impact | Mitigation |
 |---|---|---|
 | A move quietly changes behaviour | Regression in a shipped path | R5 forbids body edits; R10 catches rewriting by size; 166 tests unedited |
-| Circular imports between handler modules | Does not compile | `shared.rs` lands before the handlers (D5 stage 2); handlers must not import each other |
+| Inverted dependency — `shared.rs` or `focus_ops.rs` importing a handler | The layering the split exists to create is lost; `shared.rs` stops being safe to depend on | `shared.rs` lands before the handlers (D5 stage 2); **D7** states the direction rule. Note the original entry here claimed circular imports "does not compile" — that was **false**, and D7 replaces it |
 | `handle_background` split changes concurrency behaviour | Hard-to-reproduce defects in the most sensitive code | D2 permits deferral; it is scheduled last |
 | Visibility widens to make it compile | Encapsulation quietly lost | R6; anything becoming `pub` fails review |
 | The split stalls half-done | Two structures instead of one | D5 stages are each independently green and shippable |
