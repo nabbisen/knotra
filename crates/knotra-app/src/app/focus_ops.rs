@@ -13,7 +13,7 @@ use crate::{
     view::{dashboard, shell, workspace_manager},
 };
 
-use super::{cancel_freezer_validation, clear_sync_retry_context};
+use super::shared::{cancel_freezer_validation, clear_sync_retry_context};
 
 /// Whether Tab/Shift-Tab/Enter operate on an overlay's order right now, and
 /// if so, which one (R5's confinement). `None` falls through to the

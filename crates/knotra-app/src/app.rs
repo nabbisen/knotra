@@ -8,7 +8,10 @@ use focus_ops::{
     current_target_is_text_input, enter_overlay_focus, focus_search, freezer_is_running,
     open_overlay_focus, smart_pull_is_running, workspace_dialog_open,
 };
-use shared::{acquire_operation, find_project};
+use shared::{
+    acquire_operation, cancel_freezer_validation, clear_sync_retry_context, find_project,
+    invalidate_retry_preparation, refresh_workspace_task,
+};
 
 use iced::futures::StreamExt;
 use iced::{Element, Subscription, Task, clipboard, keyboard, time};
@@ -2115,18 +2118,6 @@ fn smart_pull_skip_reason_text(reason: &SmartPullSkipReason) -> &'static str {
     }
 }
 
-fn refresh_workspace_task(state: &AppState) -> Task<Message> {
-    let workspace = match &state.workspace {
-        Some(ws) => ws.clone(),
-        None => return Task::none(),
-    };
-    let max = state.config.max_concurrent_reads;
-    Task::perform(
-        async move { VcsAdapter::read_workspace_status(&workspace, max).await },
-        |s| Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(s)),
-    )
-}
-
 fn context_switch_disabled_reason(
     status: Option<&knotra_vcs::ProjectStatus>,
 ) -> Option<&'static str> {
@@ -2493,13 +2484,6 @@ fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
             state.freezer.phase = FreezerPhase::Idle;
             Task::none()
         }
-    }
-}
-
-fn cancel_freezer_validation(state: &mut AppState) {
-    if let FreezerPhase::Validating { lease_id } = state.freezer.phase {
-        state.operation_interlock.release_if_matches(lease_id);
-        state.freezer.phase = FreezerPhase::Idle;
     }
 }
 
@@ -3333,22 +3317,6 @@ fn mark_activity_retry_unavailable(state: &mut AppState, source_operation_id: &O
     {
         *retry = RetryAvailability::Unavailable(RetryUnavailableReason::NoEligibleTargets);
     }
-}
-
-fn invalidate_retry_preparation(state: &mut AppState) {
-    if let Some(preparation) = state.sync.retry_preparation.take() {
-        state
-            .operation_interlock
-            .release_if_matches(preparation.lease_id);
-        if matches!(state.sync.phase, SyncPhase::RetryPreparing) {
-            state.sync.phase = SyncPhase::Idle;
-        }
-    }
-}
-
-fn clear_sync_retry_context(state: &mut AppState) {
-    invalidate_retry_preparation(state);
-    state.sync.retry_exclusions.clear();
 }
 
 // ---------------------------------------------------------------------------
