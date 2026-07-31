@@ -7,7 +7,7 @@
 | Effort | Medium-Large |
 | Target | Production Readiness Reset |
 | Related files | `crates/knotra-app/src/view/dashboard.rs`, `crates/knotra-app/src/view/selection_bar.rs`, `crates/knotra-app/src/view/activity_strip.rs`, `crates/knotra-app/src/message.rs`, `crates/knotra-ui/src/widget/`, `crates/knotra-ui/src/i18n.rs` |
-| Related RFCs | `rfcs/proposed/036-...md` (focus model and Tab traversal R22/R23 depend on; not yet accepted), `rfcs/done/033-...md` (D4/D5/D6/D7/D8), `rfcs/done/034-...md` (foundation this consumes), `rfcs/done/032-...md` (display semantics this must preserve), `rfcs/done/031-...md` (activity/lease semantics), `rfcs/done/027-...md` (selection semantics) |
+| Related RFCs | `rfcs/done/036-...md` (focus model and Tab traversal R22/R23 depend on; **implemented, `main: d20c7be`**), `rfcs/proposed/040-...md` (`app.rs` decomposition; lands first, so this RFC's handler edits land in `app/misc.rs` rather than `app.rs`), `rfcs/done/033-...md` (D4/D5/D6/D7/D8), `rfcs/done/034-...md` (foundation this consumes), `rfcs/done/032-...md` (display semantics this must preserve), `rfcs/done/031-...md` (activity/lease semantics), `rfcs/done/027-...md` (selection semantics) |
 | Related audit evidence | `.git-exclude/reviewed/062-current-gui-ui-ux-audit.md` findings 3, 4, 5; `.git-exclude/reviewed/060`, `066`, `068` |
 
 ## Summary
@@ -199,16 +199,32 @@ needed. WCAG AA in both themes.
 R22. Keyboard: every control the dashboard renders is reachable and operable
 without a pointer, including select menus, chips, checkboxes, and section
 disclosures. Section disclosure keyboard activation uses the same message path
-as pointer activation (D3/R20 of RFC-033). **This requirement depends on
-RFC-036**, which owns the underlying focus model, Tab/Shift-Tab traversal, and
-visible focus ring - none of which exist today. Given that foundation, this
-RFC additionally covers the dashboard-specific interaction RFC-036 explicitly
-excludes from its own scope: `↑`/`↓`/`j`/`k` moving focus between cards, and
-`Enter` opening the detail panel for the focused card.
+as pointer activation (D3/R20 of RFC-033).
+
+**RFC-036 is implemented (`main: d20c7be`), so this requirement is now partly
+satisfied. Measured against the tree on 2026-07-31
+(`.git-exclude/reviewed/088-rfc-035-staleness-audit.md`):**
+
+| Element | State | This RFC's obligation |
+|---|---|---|
+| Dashboard controls reachable by Tab | **done** — `dashboard::focus_order` covers section disclosures, row checkboxes, row names, and NeedsHelp actions | preserve |
+| `Enter` opens the focused card's detail panel | **done** — the row-name target carries `DetailPanelMessage::Opened`, which `activate_focused` fires | **preserve, do not rebuild** |
+| Visible focus ring on dashboard controls | **missing** — `with_focus_ring` is used only in `shell.rs` and `workspace_manager.rs` | **build** |
+| `↑`/`↓`/`j`/`k` between cards | **missing** — no `Named::Up`/`Named::Down` bindings exist | **build** |
+
+**The ring is the urgent half.** Tab now moves focus across the dashboard and
+nothing renders it, so the primary screen currently shows no focus indication at
+all — a worse state than before RFC-036, when Tab did nothing and no user could
+form a false expectation. This shipped in 0.24.0 as a documented known issue and
+this RFC is what closes it.
+
+Card arrow-navigation is the dashboard-specific interaction RFC-036 explicitly
+excluded from its own scope, and remains this RFC's to build.
 
 R23. Evidence per RFC-033 D8 for every surface touched, including keyboard
-focus order. **This evidence cannot be produced until RFC-036 lands** - there
-is no Tab traversal or visible focus indication to evidence today.
+focus order. The tooling and the focus model both exist now, so this evidence is
+producible; capture per
+`.git-exclude/reference/002-keyboard-evidence-runbook.md`.
 
 R24. Existing gates pass: `fmt --all --check`,
 `clippy --workspace --all-targets -- -D warnings`, and the three test suites.
@@ -391,14 +407,20 @@ a held interlock, the no-projects empty state, the no-match empty state, and the
 load-error notice. Plus keyboard focus order for the toolbar and one row, and
 card-to-card arrow-key navigation with Enter-to-open.
 
-**RFC-036 must be accepted and implemented before this evidence can be
-produced.** The keyboard-evidence tooling spike
-(`.git-exclude/tasks/developer/004-keyboard-evidence-tooling-spike.md`) closed
-having found the capture *method* works but the application has no Tab
-traversal, no focus trap/return, and no visible focus ring to capture -
-RFC-036 is what builds those. This RFC's own card arrow-navigation and
-Enter-to-open (R22) are built on top of RFC-036's focus model and cannot be
-implemented before it either.
+**RFC-036 is implemented (`main: d20c7be`), so this evidence is now
+producible.** The keyboard-evidence tooling spike
+(`.git-exclude/tasks/developer/004-keyboard-evidence-tooling-spike.md`)
+established the capture method, and RFC-036 built the Tab traversal, focus
+trap/return, and visible ring the method had nothing to capture at the time.
+
+Two consequences for this RFC's evidence, per R22's table:
+
+- **Dashboard focus-order captures will show no ring until this RFC draws one.**
+  That absence is the defect being fixed, so capture it before and after rather
+  than treating a ringless "before" as a broken capture.
+- **Enter-to-open already works** via RFC-036's generic activation. Evidence
+  should demonstrate it still works after the migration - a regression check,
+  not a new-feature capture.
 
 ### Commands
 
