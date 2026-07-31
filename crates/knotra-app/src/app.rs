@@ -1,12 +1,14 @@
 //! Top-level Elm-architecture implementation for knotra.
 
 mod focus_ops;
+mod shared;
 
 use focus_ops::{
     activate_focused, advance_focus, close_overlay_focus, close_topmost_layer,
     current_target_is_text_input, enter_overlay_focus, focus_search, freezer_is_running,
     open_overlay_focus, smart_pull_is_running, workspace_dialog_open,
 };
+use shared::{acquire_operation, find_project};
 
 use iced::futures::StreamExt;
 use iced::{Element, Subscription, Task, clipboard, keyboard, time};
@@ -1945,13 +1947,6 @@ fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> 
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn find_project(state: &AppState, id: &knotra_vcs::ProjectId) -> Option<knotra_vcs::Project> {
-    state
-        .workspace
-        .as_ref()
-        .and_then(|ws| ws.projects.iter().find(|p| &p.id == id).cloned())
-}
-
 fn find_project_name(state: &AppState, id: &knotra_vcs::ProjectId) -> Option<String> {
     find_project(state, id).map(|p| p.name)
 }
@@ -2029,14 +2024,6 @@ fn persist_log(log: &OperationLog, state: &mut AppState) {
         retry,
     };
     state.activity.completed_secs = 0;
-}
-
-fn acquire_operation(state: &mut AppState, owner: OperationOwner) -> Option<OperationLeaseId> {
-    let lease = state.operation_interlock.try_acquire(owner);
-    if lease.is_none() {
-        state.status_bar = Some(state.t("plain.activity.busy").to_owned());
-    }
-    lease
 }
 
 fn split_retry_targets(
