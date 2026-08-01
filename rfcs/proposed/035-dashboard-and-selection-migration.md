@@ -491,12 +491,34 @@ Stage 2 before it lands.
 
 ### Stage 1 - `knotra-ui` primitives
 
-Add wrappers for chip, notice, progress, select, and checkbox, plus the
-token-derived select style function. Extend the contrast test to cover the new
-pairings **in this stage**, before any view uses them - the same discipline that
-worked in RFC-034 Stage 2.
+Add wrappers for **chip, select, and checkbox**, plus the token-derived select
+style function. Extend the contrast test to cover the new pairings **in this
+stage**, before any view uses them - the same discipline that worked in RFC-034
+Stage 2.
 
 Nothing in `knotra-app` changes here.
+
+**`notice` and `progress` are deliberately not in this stage** (corrected
+2026-08-01). Their only consumer is Stage 5's activity region, and Open Question
+3 requires deciding whether `progress::row` is needed *at all* before adding it -
+"do not add the primitive speculatively." Building them here would either
+pre-empt that decision or leave dead code standing through three stages. They are
+added in Stage 5, under the same rule: wrapper and contrast coverage land before
+the view consuming them.
+
+The split matters for scoping this stage. Of the five primitives:
+
+| Primitive | snora provides it? | Work |
+|---|---|---|
+| `chip::filter` | **yes** — `design::chip::filter` | thin pass-through |
+| `notice` | **yes** — `design::notice::Notice` | thin pass-through (Stage 5) |
+| `progress::{row, card}` | **yes** — both | thin pass-through (Stage 5) |
+| `select::pick_list` | **no** | written from `KnotraTheme` roles |
+| `checkbox` | **no** | written from `KnotraTheme` roles |
+
+So this stage is one pass-through and two primitives built from scratch, and
+essentially all of its risk and all of its contrast-test burden sit in the
+latter two.
 
 ### Stage 2 - toolbar
 
@@ -524,6 +546,12 @@ toolbar collapse, and the wide centred column. Do not put the mode in `AppState`
 Consolidate busy text to one group-level reason, move ownership to the activity
 region, fix the Select reason wording (new i18n key), and omit zero-valued
 summary segments.
+
+Also adds the `notice` and `progress` wrappers deferred from Stage 1, since this
+is where they are first consumed - and resolves Open Question 3 (whether
+`progress::row` is needed at all) *before* adding it, per that question's own
+"do not add the primitive speculatively." Contrast coverage lands with them, same
+rule as Stage 1.
 
 ### Guardrails
 
