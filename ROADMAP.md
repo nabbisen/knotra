@@ -325,14 +325,24 @@ are the release-gate items the reset declared and then routed around: three of
 34%. Scheduled as their own theme rather than folded into RFC-035, so they are
 not deferred again.
 
-- [ ] **RFC-040 — `app.rs` decomposition.** 3,255 ELOC, 6.5x the project's own
-      500-ELOC strong-split threshold, growing ~90 ELOC per RFC because every RFC
-      adds message handlers there. **Drafted 2026-07-31**
-      (`rfcs/proposed/040-app-module-decomposition.md`), awaiting acceptance.
-      Splits by message domain in five stages; `tests.rs` names only two symbols
-      from `app.rs`, so 166 tests guard the move unedited. **Must land before
-      RFC-035**, so the four remaining UI RFCs land into a structure that absorbs
-      them rather than requiring a later untangle.
+- [ ] **RFC-040 — `app.rs` decomposition.** Accepted 2026-07-31
+      (`rfcs/proposed/040-app-module-decomposition.md`). Splits by message domain;
+      `tests.rs` names only two symbols from `app.rs`, so 166 tests guard every
+      move unedited. **Must land before RFC-035.** In progress:
+      **`app.rs` 3,255 → 1,025 ELOC (69%)** across Stages 1-4 and 13 commits,
+      with non-import ELOC flat (+10 total, all rustfmt signature wrapping).
+      Stage 5 (`background.rs`) and Stage 6 (qualify cross-module calls) remain.
+- [ ] **RFC-041 — split `handle_background`.** Successor to RFC-040's D2, which
+      is being **deferred at Stage 5** rather than dropped. `background.rs` will
+      land at ~755 ELOC, ~1.5x the threshold — RFC-040's one accepted exception.
+      The reason for deferring: `handle_background` is a single 20-arm `match`,
+      and extracting an arm means inventing a signature and threading its
+      pattern-bound variables, which is writing code rather than moving it. That
+      forfeits the byte-identity check every RFC-040 stage has relied on, in the
+      most concurrency-sensitive function in the application. Needs its own design
+      pass and its own tests, not a move-only warrant. **Schedule immediately
+      after RFC-040 closes**, before the file starts growing again — every future
+      RFC adds background completions to it.
 - [ ] Supporting: committed CI gate workflow (fmt, clippy, three test suites).
       The clippy gate is called non-negotiable (N-9/DEC-007) yet rests on manual
       discipline; this is what let the earlier 540-diff `fmt` drift accumulate,
