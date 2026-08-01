@@ -13,7 +13,7 @@ use crate::{
     view::{dashboard, shell, workspace_manager},
 };
 
-use super::shared::{cancel_freezer_validation, clear_sync_retry_context};
+use super::shared;
 
 /// Whether Tab/Shift-Tab/Enter operate on an overlay's order right now, and
 /// if so, which one (R5's confinement). `None` falls through to the
@@ -211,12 +211,12 @@ pub(super) fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
     } else if matches!(state.active_modal, crate::state::ActiveModal::Pull)
         && matches!(state.sync.phase, SyncPhase::RetryPreparing)
     {
-        clear_sync_retry_context(state);
+        shared::clear_sync_retry_context(state);
         state.active_modal = crate::state::ActiveModal::None;
     } else if matches!(state.active_modal, crate::state::ActiveModal::Tag)
         && matches!(state.freezer.phase, FreezerPhase::Validating { .. })
     {
-        cancel_freezer_validation(state);
+        shared::cancel_freezer_validation(state);
         state.active_modal = crate::state::ActiveModal::None;
     } else if smart_pull_is_running(state)
         || freezer_is_running(state)

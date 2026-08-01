@@ -11,7 +11,7 @@ use std::path::{Component, Path, PathBuf};
 
 use knotra_vcs::{VcsKind, model::project::Project};
 
-use super::shared::{acquire_operation, find_project};
+use super::shared;
 use crate::{
     message::{BackgroundMessage, ConflictOpsMessage, LaunchMessage, Message},
     state::{AppState, OperationOwner, Screen, conflict_ops::ConflictPhase},
@@ -72,7 +72,7 @@ fn project_supports_git_conflict_actions(
         })
         .map(|status| status.identity.vcs_kind == VcsKind::Git)
         .unwrap_or_else(|| {
-            find_project(state, project_id)
+            shared::find_project(state, project_id)
                 .map(|project| {
                     let path = Path::new(&project.path);
                     !path.join(".jj").is_dir() && path.join(".git").exists()
@@ -82,7 +82,7 @@ fn project_supports_git_conflict_actions(
 }
 
 fn project_has_git_merge_state(state: &AppState, project_id: &knotra_vcs::ProjectId) -> bool {
-    find_project(state, project_id)
+    shared::find_project(state, project_id)
         .map(|project| {
             let path = Path::new(&project.path);
             path.join(".git").join("MERGE_HEAD").exists()
@@ -111,7 +111,7 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
                 };
                 return Task::none();
             }
-            let project = match find_project(state, &id) {
+            let project = match shared::find_project(state, &id) {
                 Some(p) => p,
                 None => return Task::none(),
             };
@@ -124,7 +124,7 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
 
         ConflictOpsMessage::RecheckRequested(id) => {
             state.conflict_ops.cached.remove(&id);
-            let project = match find_project(state, &id) {
+            let project = match shared::find_project(state, &id) {
                 Some(p) => p,
                 None => return Task::none(),
             };
@@ -139,7 +139,7 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
             project_id,
             file_path,
         } => {
-            let project = match find_project(state, &project_id) {
+            let project = match shared::find_project(state, &project_id) {
                 Some(p) => p,
                 None => return Task::none(),
             };
@@ -152,7 +152,8 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
                 };
                 return Task::none();
             }
-            let Some(lease_id) = acquire_operation(state, OperationOwner::ConflictMutation) else {
+            let Some(lease_id) = shared::acquire_operation(state, OperationOwner::ConflictMutation)
+            else {
                 return Task::none();
             };
             state.conflict_ops.phase = ConflictPhase::Operating {
@@ -188,11 +189,12 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
                 };
                 return Task::none();
             }
-            let project = match find_project(state, &id) {
+            let project = match shared::find_project(state, &id) {
                 Some(p) => p,
                 None => return Task::none(),
             };
-            let Some(lease_id) = acquire_operation(state, OperationOwner::ConflictMutation) else {
+            let Some(lease_id) = shared::acquire_operation(state, OperationOwner::ConflictMutation)
+            else {
                 return Task::none();
             };
             state.conflict_ops.phase = ConflictPhase::Operating {
@@ -239,7 +241,7 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
             let Some(project_id) = active_conflict_project_id(state) else {
                 return Task::none();
             };
-            let Some(project) = find_project(state, &project_id) else {
+            let Some(project) = shared::find_project(state, &project_id) else {
                 state.status_bar = Some(state.t("plain.error.path_missing").to_owned());
                 return Task::none();
             };

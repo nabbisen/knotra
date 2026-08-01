@@ -8,8 +8,8 @@
 use iced::Task;
 use knotra_vcs::model::{project::Project, workspace::Workspace};
 
-use super::focus_ops::{close_overlay_focus, enter_overlay_focus, open_overlay_focus};
-use super::shared::{clear_sync_retry_context, refresh_workspace_task};
+use super::focus_ops;
+use super::shared;
 use crate::{
     config::AppPaths,
     message::{Message, WorkspaceMessage},
@@ -37,7 +37,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 state.is_refreshing = true;
                 state.load_phase = LoadPhase::Refreshing;
                 state.status_bar = Some(state.t("status.refreshing").to_owned());
-                refresh_workspace_task(state)
+                shared::refresh_workspace_task(state)
             } else {
                 Task::none()
             }
@@ -45,7 +45,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
 
         WorkspaceMessage::AddProjectDialogOpened => {
             state.add_project_dialog = Some(AddProjectDialog::default());
-            open_overlay_focus(
+            focus_ops::open_overlay_focus(
                 state,
                 focus::FocusTarget::text_input(
                     knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
@@ -76,7 +76,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                     d.step = crate::state::AddProjectStep::NameProject;
                 }
             }
-            open_overlay_focus(
+            focus_ops::open_overlay_focus(
                 state,
                 focus::FocusTarget::text_input(
                     knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
@@ -110,7 +110,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             state.reconcile_selection_with_display();
             state.is_refreshing = true;
             state.load_phase = LoadPhase::Refreshing;
-            refresh_workspace_task(state)
+            shared::refresh_workspace_task(state)
         }
         WorkspaceMessage::AddProjectCancelled => {
             state.add_project_dialog = None;
@@ -141,7 +141,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 // Auto-advance to step 2 once a folder is chosen.
                 d.step = crate::state::AddProjectStep::NameProject;
             }
-            open_overlay_focus(
+            focus_ops::open_overlay_focus(
                 state,
                 focus::FocusTarget::text_input(
                     knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
@@ -225,7 +225,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
         WorkspaceMessage::CreateWorkspaceDialogOpened => {
             state.workspace_mgr.switcher_open = false;
             state.workspace_mgr.create_dialog = Some(CreateWorkspaceDialog::default());
-            enter_overlay_focus(state)
+            focus_ops::enter_overlay_focus(state)
         }
         WorkspaceMessage::CreateWorkspaceNameChanged(s) => {
             if let Some(d) = &mut state.workspace_mgr.create_dialog {
@@ -271,11 +271,14 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             state.load_phase = LoadPhase::Refreshing;
             state.is_refreshing = true;
             state.workspace_mgr.create_dialog = None;
-            Task::batch([refresh_workspace_task(state), close_overlay_focus(state)])
+            Task::batch([
+                shared::refresh_workspace_task(state),
+                focus_ops::close_overlay_focus(state),
+            ])
         }
         WorkspaceMessage::CreateWorkspaceCancelled => {
             state.workspace_mgr.create_dialog = None;
-            close_overlay_focus(state)
+            focus_ops::close_overlay_focus(state)
         }
 
         WorkspaceMessage::RenameWorkspaceDialogOpened => {
@@ -289,7 +292,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 new_name: current,
                 error: None,
             });
-            enter_overlay_focus(state)
+            focus_ops::enter_overlay_focus(state)
         }
         WorkspaceMessage::RenameWorkspaceNameChanged(s) => {
             if let Some(d) = &mut state.workspace_mgr.rename_dialog {
@@ -340,11 +343,11 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 *entry = renamed;
             }
             state.workspace_mgr.rename_dialog = None;
-            close_overlay_focus(state)
+            focus_ops::close_overlay_focus(state)
         }
         WorkspaceMessage::RenameWorkspaceCancelled => {
             state.workspace_mgr.rename_dialog = None;
-            close_overlay_focus(state)
+            focus_ops::close_overlay_focus(state)
         }
 
         WorkspaceMessage::DeleteWorkspaceRequested => {
@@ -358,7 +361,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                         error: Some(state.t("workspace.delete.disabled_last").to_owned()),
                     });
                 }
-                return enter_overlay_focus(state);
+                return focus_ops::enter_overlay_focus(state);
             }
 
             if let Some(ws) = state.workspace.as_ref() {
@@ -369,7 +372,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                     error: None,
                 });
             }
-            enter_overlay_focus(state)
+            focus_ops::enter_overlay_focus(state)
         }
         WorkspaceMessage::DeleteWorkspaceConfirmed => {
             if state.all_workspaces.len() <= 1 {
@@ -420,11 +423,14 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             state.load_phase = LoadPhase::Refreshing;
             state.is_refreshing = true;
             state.workspace_mgr.confirm_delete = None;
-            Task::batch([refresh_workspace_task(state), close_overlay_focus(state)])
+            Task::batch([
+                shared::refresh_workspace_task(state),
+                focus_ops::close_overlay_focus(state),
+            ])
         }
         WorkspaceMessage::DeleteWorkspaceCancelled => {
             state.workspace_mgr.confirm_delete = None;
-            close_overlay_focus(state)
+            focus_ops::close_overlay_focus(state)
         }
 
         WorkspaceMessage::SwitcherToggled => {
@@ -434,7 +440,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
         WorkspaceMessage::WorkspaceSwitched(id) => {
             state.workspace_mgr.switcher_open = false;
             if let Some(idx) = state.all_workspaces.iter().position(|ws| ws.id == id) {
-                clear_sync_retry_context(state);
+                shared::clear_sync_retry_context(state);
                 state.active_workspace_idx = idx;
                 state.workspace = state.all_workspaces.get(idx).cloned();
                 state.clear_selection_mode();
@@ -449,7 +455,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 state.dashboard_error_details_open = false;
                 state.load_phase = LoadPhase::Refreshing;
                 state.is_refreshing = true;
-                return refresh_workspace_task(state);
+                return shared::refresh_workspace_task(state);
             }
             Task::none()
         }

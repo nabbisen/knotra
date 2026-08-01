@@ -10,7 +10,7 @@ use knotra_vcs::{
     },
 };
 
-use super::shared::{acquire_operation, find_project};
+use super::shared;
 use crate::{
     message::{BackgroundMessage, ContextMessage, Message},
     state::{AppState, OperationOwner, Screen, context::ContextPhase},
@@ -53,7 +53,7 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
 
             // If a project was pre-selected (e.g. from a dashboard card shortcut), load it.
             if let Some(id) = preselect_id
-                && let Some(project) = find_project(state, &id)
+                && let Some(project) = shared::find_project(state, &id)
             {
                 state.context_ops.phase = ContextPhase::LoadingList(id.clone());
                 return Task::perform(
@@ -65,7 +65,7 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
         }
 
         ContextMessage::ProjectSelected(id) => {
-            let project = match find_project(state, &id) {
+            let project = match shared::find_project(state, &id) {
                 Some(p) => p,
                 None => return Task::none(),
             };
@@ -95,7 +95,7 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
         }
 
         ContextMessage::SwitchTargetChosen(project_id, target, target_label) => {
-            let project = match find_project(state, &project_id) {
+            let project = match shared::find_project(state, &project_id) {
                 Some(p) => p,
                 None => return Task::none(),
             };
@@ -145,11 +145,12 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
                 return Task::none();
             }
 
-            let project = match find_project(state, &project_id) {
+            let project = match shared::find_project(state, &project_id) {
                 Some(p) => p,
                 None => return Task::none(),
             };
-            let Some(lease_id) = acquire_operation(state, OperationOwner::ContextSwitch) else {
+            let Some(lease_id) = shared::acquire_operation(state, OperationOwner::ContextSwitch)
+            else {
                 return Task::none();
             };
 
@@ -223,7 +224,7 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
             let Some(project_id) = selected.first().cloned().filter(|_| selected.len() == 1) else {
                 return Task::none();
             };
-            let Some(project) = find_project(state, &project_id) else {
+            let Some(project) = shared::find_project(state, &project_id) else {
                 return Task::none();
             };
             state.active_modal = crate::state::ActiveModal::Switch;

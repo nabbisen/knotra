@@ -15,8 +15,8 @@ use knotra_vcs::{
     },
 };
 
-use super::focus_ops::smart_pull_is_running;
-use super::shared::{acquire_operation, clear_sync_retry_context};
+use super::focus_ops;
+use super::shared;
 use crate::{
     message::{BackgroundMessage, Message, SyncMessage},
     state::{
@@ -38,7 +38,7 @@ fn smart_pull_skip_reason_text(reason: &SmartPullSkipReason) -> &'static str {
 pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
     match msg {
         SyncMessage::OpenRequested => {
-            clear_sync_retry_context(state);
+            shared::clear_sync_retry_context(state);
             if let Some(ws) = &state.workspace {
                 state.sync.init_selection(&ws.projects);
             }
@@ -129,7 +129,8 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
         }
 
         SyncMessage::SmartPullPlanRequested => {
-            let Some(lease_id) = acquire_operation(state, OperationOwner::SmartPullPreparation)
+            let Some(lease_id) =
+                shared::acquire_operation(state, OperationOwner::SmartPullPreparation)
             else {
                 state.sync.phase = SyncPhase::Idle;
                 return Task::none();
@@ -162,7 +163,8 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
         }
 
         SyncMessage::SmartPullConfirmed(plan) => {
-            let Some(lease_id) = acquire_operation(state, OperationOwner::SmartPullExecution)
+            let Some(lease_id) =
+                shared::acquire_operation(state, OperationOwner::SmartPullExecution)
             else {
                 return Task::none();
             };
@@ -263,27 +265,27 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
         }
 
         SyncMessage::SmartPullCancelled => {
-            clear_sync_retry_context(state);
+            shared::clear_sync_retry_context(state);
             state.sync.phase = SyncPhase::Idle;
             Task::none()
         }
 
         SyncMessage::ModalClosed => {
-            if !smart_pull_is_running(state) {
-                clear_sync_retry_context(state);
+            if !focus_ops::smart_pull_is_running(state) {
+                shared::clear_sync_retry_context(state);
                 state.active_modal = crate::state::ActiveModal::None;
             }
             Task::none()
         }
         SyncMessage::Cancelled => {
-            if !smart_pull_is_running(state) {
-                clear_sync_retry_context(state);
+            if !focus_ops::smart_pull_is_running(state) {
+                shared::clear_sync_retry_context(state);
                 state.active_modal = crate::state::ActiveModal::None;
             }
             Task::none()
         }
         SyncMessage::BulkPullRequested => {
-            clear_sync_retry_context(state);
+            shared::clear_sync_retry_context(state);
             state.active_modal = crate::state::ActiveModal::Pull;
             state.sync.phase = SyncPhase::Planning;
             state.sync.selected_project_ids = state.selection.selected_ids.clone();
@@ -367,7 +369,7 @@ fn start_bulk_fetch(
         });
         return Task::none();
     }
-    let Some(lease_id) = acquire_operation(state, OperationOwner::BulkFetch) else {
+    let Some(lease_id) = shared::acquire_operation(state, OperationOwner::BulkFetch) else {
         return Task::none();
     };
     let operation_id = OperationId::new();

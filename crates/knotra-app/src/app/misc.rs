@@ -22,9 +22,9 @@ use knotra_vcs::{
 
 // `handle_dashboard` calls `handle_workspace` directly - the documented
 // `misc -> workspace` edge (RFC-040 D7). See this module's doc comment.
-use super::focus_ops::open_overlay_focus;
-use super::shared::{acquire_operation, find_project};
-use super::workspace::handle_workspace;
+use super::focus_ops;
+use super::shared;
+use super::workspace;
 use crate::{
     config::{DashboardGrouping, save_config},
     message::{
@@ -40,7 +40,7 @@ use crate::{
 pub(super) fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
     match msg {
         ProjectMessage::StatusRefreshRequested(id) => {
-            let project = find_project(state, &id);
+            let project = shared::find_project(state, &id);
             if let Some(p) = project {
                 Task::perform(
                     async move { VcsAdapter::read_project_status(&p).await },
@@ -58,9 +58,10 @@ pub(super) fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<
             }
         }
         ProjectMessage::FetchRequested(id) => {
-            let project = find_project(state, &id);
+            let project = shared::find_project(state, &id);
             if let Some(p) = project {
-                let Some(lease_id) = acquire_operation(state, OperationOwner::SingleFetch) else {
+                let Some(lease_id) = shared::acquire_operation(state, OperationOwner::SingleFetch)
+                else {
                     return Task::none();
                 };
                 state.fetching_projects.insert(id.clone());
@@ -250,7 +251,7 @@ pub(super) fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task
                 Some(p) => p.clone(),
                 None => return Task::none(),
             };
-            let Some(lease_id) = acquire_operation(state, OperationOwner::TagPush) else {
+            let Some(lease_id) = shared::acquire_operation(state, OperationOwner::TagPush) else {
                 return Task::none();
             };
             if let Some(ref mut p) = state.pending_tag_push {
@@ -260,7 +261,7 @@ pub(super) fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task
             let projects: Vec<_> = push
                 .project_ids
                 .iter()
-                .filter_map(|id| find_project(state, id))
+                .filter_map(|id| shared::find_project(state, id))
                 .collect();
             let tag_name = push.freeze_name.clone();
             let max = state.config.max_concurrent_reads;
@@ -352,7 +353,7 @@ pub(super) fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<
         PaletteMessage::Opened => {
             state.palette.open_palette();
             crate::state::palette::update_results(state);
-            return open_overlay_focus(
+            return focus_ops::open_overlay_focus(
                 state,
                 focus::FocusTarget::text_input(knotra_ui::widget::focus_id::PALETTE_QUERY.clone()),
             );
@@ -431,7 +432,7 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
         DashboardMessage::ErrorRetryRequested => {
             if matches!(state.load_phase, LoadPhase::Error(_)) && state.workspace.is_some() {
                 state.is_refreshing = false;
-                return handle_workspace(state, WorkspaceMessage::RefreshRequested);
+                return workspace::handle_workspace(state, WorkspaceMessage::RefreshRequested);
             }
         }
     }

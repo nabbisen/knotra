@@ -21,7 +21,7 @@ use knotra_vcs::{
     },
 };
 
-use super::shared::{find_project, refresh_workspace_task};
+use super::shared;
 use crate::{
     message::{BackgroundMessage, Message},
     persistence::save_operation_log,
@@ -38,7 +38,7 @@ use crate::{
 };
 
 fn find_project_name(state: &AppState, id: &knotra_vcs::ProjectId) -> Option<String> {
-    find_project(state, id).map(|p| p.name)
+    shared::find_project(state, id).map(|p| p.name)
 }
 
 fn merge_workspace_status(state: &mut AppState, new: knotra_vcs::WorkspaceStatus) {
@@ -151,7 +151,7 @@ fn project_is_git_for_push(state: &AppState, project_id: &knotra_vcs::ProjectId)
         return status.identity.vcs_kind == VcsKind::Git;
     }
 
-    let Some(project) = find_project(state, project_id) else {
+    let Some(project) = shared::find_project(state, project_id) else {
         return false;
     };
     let path = std::path::Path::new(&project.path);
@@ -230,7 +230,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
             persist_log(&log, state);
             state.is_refreshing = true;
             state.load_phase = LoadPhase::Refreshing;
-            refresh_workspace_task(state)
+            shared::refresh_workspace_task(state)
         }
 
         BackgroundMessage::SmartPullRetryStatusReady {
@@ -509,7 +509,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
                 persist_log(&log, state);
                 state.is_refreshing = true;
                 state.load_phase = LoadPhase::Refreshing;
-                return refresh_workspace_task(state);
+                return shared::refresh_workspace_task(state);
             }
             Task::none()
         }
@@ -527,7 +527,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
                 .result
                 .per_project
                 .iter()
-                .filter_map(|r| find_project(state, &r.project_id))
+                .filter_map(|r| shared::find_project(state, &r.project_id))
                 .map(|project| {
                     Task::perform(
                         async move { VcsAdapter::read_project_status(&project).await },
@@ -558,7 +558,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
             });
             state.is_refreshing = true;
             state.load_phase = LoadPhase::Refreshing;
-            refresh_workspace_task(state)
+            shared::refresh_workspace_task(state)
         }
 
         BackgroundMessage::SmartPullCompleted(log)
@@ -808,7 +808,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
 
             // Refresh the project's status card after a switch.
             let project = match &state.context_ops.phase {
-                ContextPhase::Done(r) => find_project(state, &r.project_id),
+                ContextPhase::Done(r) => shared::find_project(state, &r.project_id),
                 _ => None,
             };
             if let Some(p) = project {

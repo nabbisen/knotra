@@ -13,7 +13,7 @@ use knotra_vcs::{
     },
 };
 
-use super::shared::{acquire_operation, find_project, invalidate_retry_preparation};
+use super::shared;
 use crate::{
     message::{ActivityMessage, BackgroundMessage, Message},
     state::{
@@ -29,7 +29,7 @@ fn split_retry_targets(
     let mut projects = Vec::new();
     let mut exclusions = Vec::new();
     for id in ids {
-        let Some(project) = find_project(state, id) else {
+        let Some(project) = shared::find_project(state, id) else {
             exclusions.push(RetryExclusion {
                 project_id: id.clone(),
                 reason: RetryExclusionReason::NotInActiveWorkspace,
@@ -103,7 +103,8 @@ fn start_activity_fetch_retry(
         state.status_bar = Some(state.t("plain.activity.none_available").to_owned());
         return Task::none();
     }
-    let Some(lease_id) = acquire_operation(state, OperationOwner::ActivityFetchRetry) else {
+    let Some(lease_id) = shared::acquire_operation(state, OperationOwner::ActivityFetchRetry)
+    else {
         return Task::none();
     };
     let operation_id = OperationId::new();
@@ -140,7 +141,7 @@ fn start_activity_smart_pull_review(
     source_operation_id: OperationId,
     project_ids: Vec<knotra_vcs::ProjectId>,
 ) -> Task<Message> {
-    invalidate_retry_preparation(state);
+    shared::invalidate_retry_preparation(state);
     let (projects, exclusions) = split_retry_targets(state, &project_ids);
     if projects.is_empty() {
         mark_activity_retry_unavailable(state, &source_operation_id);
@@ -154,7 +155,8 @@ fn start_activity_smart_pull_review(
     else {
         return Task::none();
     };
-    let Some(lease_id) = acquire_operation(state, OperationOwner::ActivitySmartPullPreparation)
+    let Some(lease_id) =
+        shared::acquire_operation(state, OperationOwner::ActivitySmartPullPreparation)
     else {
         return Task::none();
     };

@@ -12,15 +12,6 @@ mod shared;
 mod sync;
 mod workspace;
 
-use activity::handle_activity;
-use background::handle_background;
-use changelog::handle_changelog;
-use conflict_ops::handle_conflict_ops;
-use context::handle_context;
-use misc::{
-    handle_dashboard, handle_history, handle_launch, handle_palette, handle_project,
-    handle_selection, handle_settings, handle_tag_push, handle_topology,
-};
 // `resolve_project_file_path` moved to `conflict_ops` (its only in-crate,
 // non-test caller); re-exported here, gated the same as its only consumer
 // (`tests.rs`, `#[cfg(test)]` in main.rs), so `crate::app::resolve_project_file_path`
@@ -28,14 +19,6 @@ use misc::{
 // warning in a normal build, where nothing else uses this path.
 #[cfg(test)]
 pub(crate) use conflict_ops::resolve_project_file_path;
-use focus_ops::{
-    activate_focused, advance_focus, close_overlay_focus, close_topmost_layer,
-    current_target_is_text_input, focus_search, workspace_dialog_open,
-};
-use freezer::handle_freezer;
-use shared::{find_project, refresh_workspace_task};
-use sync::handle_sync;
-use workspace::handle_workspace;
 
 use iced::{Element, Subscription, Task, clipboard, keyboard, time};
 use std::time::Duration;
@@ -83,7 +66,7 @@ pub fn init() -> (AppState, Task<Message>) {
     state.is_refreshing = true;
     state.operation_logs = load_recent_logs(&paths, config.max_log_entries);
 
-    let task = refresh_workspace_task(&state);
+    let task = shared::refresh_workspace_task(&state);
     (state, task)
 }
 
@@ -154,43 +137,43 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::Tick => handle_tick(state),
         Message::Shortcut(msg) => handle_shortcut(state, msg),
-        Message::Workspace(msg) => handle_workspace(state, msg),
-        Message::Project(msg) => handle_project(state, msg),
-        Message::Sync(msg) => handle_sync(state, msg),
-        Message::Freezer(msg) => handle_freezer(state, msg),
-        Message::History(msg) => handle_history(state, msg),
-        Message::Settings(msg) => handle_settings(state, msg),
-        Message::Background(msg) => handle_background(state, msg),
+        Message::Workspace(msg) => workspace::handle_workspace(state, msg),
+        Message::Project(msg) => misc::handle_project(state, msg),
+        Message::Sync(msg) => sync::handle_sync(state, msg),
+        Message::Freezer(msg) => freezer::handle_freezer(state, msg),
+        Message::History(msg) => misc::handle_history(state, msg),
+        Message::Settings(msg) => misc::handle_settings(state, msg),
+        Message::Background(msg) => background::handle_background(state, msg),
         Message::Filter(msg) => {
             state.apply_filter(msg);
             state.reconcile_selection_with_display();
             Task::none()
         }
-        Message::ConflictOps(msg) => handle_conflict_ops(state, msg),
-        Message::Changelog(msg) => handle_changelog(state, msg),
-        Message::Topology(msg) => handle_topology(state, msg),
-        Message::TagPush(msg) => handle_tag_push(state, msg),
+        Message::ConflictOps(msg) => conflict_ops::handle_conflict_ops(state, msg),
+        Message::Changelog(msg) => changelog::handle_changelog(state, msg),
+        Message::Topology(msg) => misc::handle_topology(state, msg),
+        Message::TagPush(msg) => misc::handle_tag_push(state, msg),
         Message::FsWatchTick => handle_fs_watch_tick(state),
 
         // ---------------------------------------------------------------
         // RFC-0009 — Selection
         // ---------------------------------------------------------------
-        Message::Selection(sel) => handle_selection(state, sel),
+        Message::Selection(sel) => misc::handle_selection(state, sel),
 
         // ---------------------------------------------------------------
         // RFC-0011 — Activity strip
         // ---------------------------------------------------------------
-        Message::Activity(act) => handle_activity(state, act),
+        Message::Activity(act) => activity::handle_activity(state, act),
 
         // ---------------------------------------------------------------
         // RFC-0012 — Command palette
         // ---------------------------------------------------------------
-        Message::Palette(pal) => handle_palette(state, pal),
+        Message::Palette(pal) => misc::handle_palette(state, pal),
 
         // ---------------------------------------------------------------
         // RFC-032 — Dashboard display controls
         // ---------------------------------------------------------------
-        Message::Dashboard(msg) => handle_dashboard(state, msg),
+        Message::Dashboard(msg) => misc::handle_dashboard(state, msg),
 
         // ---------------------------------------------------------------
         // RFC-0016 — Keyboard events
@@ -214,8 +197,8 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
             state.show_op_details = !state.show_op_details;
             Task::none()
         }
-        Message::Context(msg) => handle_context(state, msg),
-        Message::Launch(msg) => handle_launch(state, msg),
+        Message::Context(msg) => context::handle_context(state, msg),
+        Message::Launch(msg) => misc::handle_launch(state, msg),
     }
 }
 
@@ -231,7 +214,7 @@ fn handle_tick(state: &mut AppState) -> Task<Message> {
     if !state.is_refreshing {
         state.is_refreshing = true;
         state.load_phase = LoadPhase::Refreshing;
-        refresh_workspace_task(state)
+        shared::refresh_workspace_task(state)
     } else {
         Task::none()
     }
@@ -245,20 +228,22 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
     match msg {
         ShortcutMessage::Refresh => handle_tick(state),
         ShortcutMessage::OpenContextOps => {
-            handle_context(state, ContextMessage::OpenRequested(None))
+            context::handle_context(state, ContextMessage::OpenRequested(None))
         }
-        ShortcutMessage::OpenFreezer => handle_freezer(state, FreezerMessage::OpenRequested),
-        ShortcutMessage::FocusSearch => focus_search(state),
+        ShortcutMessage::OpenFreezer => {
+            freezer::handle_freezer(state, FreezerMessage::OpenRequested)
+        }
+        ShortcutMessage::FocusSearch => focus_ops::focus_search(state),
         ShortcutMessage::FocusSearchBare => {
             // R4: a bare `/` must not shadow a literal `/` being typed into
             // a field that already holds knotra-focus. `Ctrl+/` is
             // unconditional (unchanged from before RFC-036) because a
             // modified `/` was never a literal-typing conflict in the first
             // place.
-            if current_target_is_text_input(state) {
+            if focus_ops::current_target_is_text_input(state) {
                 return Task::none();
             }
-            focus_search(state)
+            focus_ops::focus_search(state)
         }
         ShortcutMessage::Close => {
             // The workspace switcher (RFC-034 R12) is an `AppLayout::header_menu`,
@@ -276,17 +261,19 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             // it, so focus return only fires on an actual open->closed
             // transition — not when a non-cancellable overlay (out of this
             // stage's order-building scope) absorbs the close and stays up.
-            let was_open = workspace_dialog_open(state);
-            let task = close_topmost_layer(state);
-            if was_open && !workspace_dialog_open(state) {
-                Task::batch([task, close_overlay_focus(state)])
+            let was_open = focus_ops::workspace_dialog_open(state);
+            let task = focus_ops::close_topmost_layer(state);
+            if was_open && !focus_ops::workspace_dialog_open(state) {
+                Task::batch([task, focus_ops::close_overlay_focus(state)])
             } else {
                 task
             }
         }
-        ShortcutMessage::FocusNext => advance_focus(state, focus::Direction::Next),
-        ShortcutMessage::FocusPrevious => advance_focus(state, focus::Direction::Previous),
-        ShortcutMessage::ActivateFocused => activate_focused(state),
+        ShortcutMessage::FocusNext => focus_ops::advance_focus(state, focus::Direction::Next),
+        ShortcutMessage::FocusPrevious => {
+            focus_ops::advance_focus(state, focus::Direction::Previous)
+        }
+        ShortcutMessage::ActivateFocused => focus_ops::activate_focused(state),
     }
 }
 
@@ -338,7 +325,7 @@ fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
     if changed.len() <= 3 {
         let changed_projects: Vec<_> = changed
             .iter()
-            .filter_map(|e| find_project(state, &e.project_id))
+            .filter_map(|e| shared::find_project(state, &e.project_id))
             .collect();
 
         let tasks: Vec<Task<Message>> = changed_projects
@@ -363,7 +350,7 @@ fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
         // Full refresh for large change sets.
         state.is_refreshing = true;
         state.load_phase = LoadPhase::Refreshing;
-        refresh_workspace_task(state)
+        shared::refresh_workspace_task(state)
     }
 }
 
