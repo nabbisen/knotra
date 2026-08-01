@@ -72,7 +72,15 @@ pub fn checkbox<'a, Message: Clone + 'a>(
 /// `is_focused`, reusing [`ring_color_for`] rather than a second
 /// implementation (see `select.rs`'s module doc for why `with_focus_ring`
 /// itself cannot be called directly here).
-fn style(tokens: &Tokens, status: iced_checkbox::Status, is_focused: bool) -> iced_checkbox::Style {
+///
+/// `pub(crate)` so `theme.rs`'s contrast test can drive the real function
+/// across every `Status` (RFC-035 Handoff 022 §7.5, same reason
+/// `chip::style` was made `pub(crate)` in Handoff 020).
+pub(crate) fn style(
+    tokens: &Tokens,
+    status: iced_checkbox::Status,
+    is_focused: bool,
+) -> iced_checkbox::Style {
     use iced_checkbox::Status;
 
     let (is_checked, is_disabled) = match status {

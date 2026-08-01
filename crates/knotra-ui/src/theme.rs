@@ -449,34 +449,112 @@ mod tests {
     /// check `083` Finding 2 established, since a ring that fails this is
     /// invisible (RFC-035 Handoff 019 §7.4). `chip::filter`'s signature
     /// carries no `is_focused` (see `chip.rs`'s module doc), so only
-    /// `select` and `checkbox` apply. Exercises the actual
-    /// `ring_color_for` both primitives call, against every background
-    /// each can render behind its ring: `select`'s closed control
-    /// (`surface`) and open menu (`surface_raised`); `checkbox`'s
-    /// unchecked (`surface`) and checked (`accent`) states.
+    /// `select` and `checkbox` apply.
+    ///
+    /// **Widened per `098`.** The original version paired each ring with a
+    /// flat palette role (`theme.surface()`, `theme.accent()`) asserted
+    /// once, which is exactly the shape `087` Finding 1 found wrong in
+    /// RFC-040 — the assertion measures a pairing that may never render,
+    /// because it never asked the real style function what it actually
+    /// produces at each status. This version drives the real
+    /// `select::field_style` / `select::menu_style` / `checkbox::style`
+    /// functions directly and reads the background back out of the
+    /// `Style` each returns, across every real `Status` variant those
+    /// functions accept, rather than reconstructing it. Nothing here
+    /// currently fails: `select`'s field/menu backgrounds do not vary by
+    /// status (only the border does), and `checkbox`'s does not vary
+    /// between `Active`/`Hovered` (only `Disabled`, excluded here since
+    /// the ring is deliberately not drawn there — see `checkbox.rs`'s own
+    /// `disabled_style_is_unaffected_by_is_focused`) — so the measured
+    /// ratios are unchanged from Handoff 019/020, but are now proven by
+    /// reading the real output rather than assumed from the palette.
     #[test]
     fn new_control_focus_rings_meet_wcag_aa_against_their_own_backgrounds_in_both_themes() {
-        use crate::widget::ring::ring_color_for;
+        use crate::widget::{checkbox, select};
+        use iced::widget::{checkbox::Status as CheckboxStatus, pick_list::Status as FieldStatus};
+
+        fn background_of(background: iced::Background) -> Color {
+            match background {
+                iced::Background::Color(c) => c,
+                other => panic!("expected a solid Background::Color, got {other:?}"),
+            }
+        }
 
         for (theme_name, theme) in [
             ("light", KnotraTheme::light()),
             ("dark", KnotraTheme::dark()),
         ] {
             let tokens = &theme.tokens;
-            let cases: [(&str, Color); 4] = [
-                ("select closed control", theme.surface()),
-                ("select open menu", theme.surface_raised()),
-                ("checkbox unchecked", theme.surface()),
-                ("checkbox checked", theme.accent()),
-            ];
 
-            for (label, background) in cases {
-                let ring = ring_color_for(tokens, Some(iced::Background::Color(background)));
-                let ratio =
-                    snora::design::contrast::contrast_ratio(from_iced(ring), from_iced(background));
+            let field_statuses: [(&str, FieldStatus); 4] = [
+                ("Active", FieldStatus::Active),
+                ("Hovered", FieldStatus::Hovered),
+                (
+                    "Opened(unhovered)",
+                    FieldStatus::Opened { is_hovered: false },
+                ),
+                ("Opened(hovered)", FieldStatus::Opened { is_hovered: true }),
+            ];
+            for (status_name, status) in field_statuses {
+                let unfocused = select::field_style(tokens, status, false);
+                let focused = select::field_style(tokens, status, true);
+                let background = background_of(unfocused.background);
+                let ratio = snora::design::contrast::contrast_ratio(
+                    from_iced(focused.border.color),
+                    from_iced(background),
+                );
                 assert!(
                     ratio >= AA_NORMAL,
-                    "{theme_name} {label} focus ring: {ratio:.2}:1 \
+                    "{theme_name} select field ({status_name}) focus ring: {ratio:.2}:1 \
+                     is below the required {AA_NORMAL}:1"
+                );
+            }
+
+            // The open menu has no per-status styling at all (`menu_style`
+            // takes no `Status`), so there is nothing to loop — one call
+            // is already "the real function", not a reconstruction.
+            let menu_unfocused = select::menu_style(tokens, false);
+            let menu_focused = select::menu_style(tokens, true);
+            let menu_background = background_of(menu_unfocused.background);
+            let menu_ratio = snora::design::contrast::contrast_ratio(
+                from_iced(menu_focused.border.color),
+                from_iced(menu_background),
+            );
+            assert!(
+                menu_ratio >= AA_NORMAL,
+                "{theme_name} select open menu focus ring: {menu_ratio:.2}:1 \
+                 is below the required {AA_NORMAL}:1"
+            );
+
+            let checkbox_statuses: [(&str, CheckboxStatus); 4] = [
+                (
+                    "Active, unchecked",
+                    CheckboxStatus::Active { is_checked: false },
+                ),
+                (
+                    "Active, checked",
+                    CheckboxStatus::Active { is_checked: true },
+                ),
+                (
+                    "Hovered, unchecked",
+                    CheckboxStatus::Hovered { is_checked: false },
+                ),
+                (
+                    "Hovered, checked",
+                    CheckboxStatus::Hovered { is_checked: true },
+                ),
+            ];
+            for (status_name, status) in checkbox_statuses {
+                let unfocused = checkbox::style(tokens, status, false);
+                let focused = checkbox::style(tokens, status, true);
+                let background = background_of(unfocused.background);
+                let ratio = snora::design::contrast::contrast_ratio(
+                    from_iced(focused.border.color),
+                    from_iced(background),
+                );
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} checkbox ({status_name}) focus ring: {ratio:.2}:1 \
                      is below the required {AA_NORMAL}:1"
                 );
             }

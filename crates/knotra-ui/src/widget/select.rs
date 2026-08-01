@@ -52,7 +52,12 @@ where
 /// The closed (and opening) control's style: `surface` background,
 /// `text_primary` text, `border` at rest, `accent` border when hovered or
 /// open — then the focus ring on top when `is_focused`.
-fn field_style(
+///
+/// `pub(crate)` so `theme.rs`'s contrast test can drive the real function
+/// across every `Status` rather than reconstructing its background from a
+/// flat palette role (RFC-035 Handoff 022 §7.5, same reason `chip::style`
+/// was made `pub(crate)` in Handoff 020).
+pub(crate) fn field_style(
     tokens: &Tokens,
     status: pick_list_widget::Status,
     is_focused: bool,
@@ -95,7 +100,7 @@ fn field_style(
 /// the selected row — then the focus ring on top when `is_focused`, since
 /// the field and the menu are the same logical control for keyboard-focus
 /// purposes.
-fn menu_style(tokens: &Tokens, is_focused: bool) -> menu::Style {
+pub(crate) fn menu_style(tokens: &Tokens, is_focused: bool) -> menu::Style {
     let base = menu::Style {
         background: iced::Background::Color(to_iced(tokens.palette.surface_raised)),
         border: iced::Border {

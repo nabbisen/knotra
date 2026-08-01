@@ -7,7 +7,7 @@
 //! changes no call site.
 
 mod buttons;
-mod checkbox;
+pub(crate) mod checkbox;
 pub mod chip;
 mod field;
 mod focus;
