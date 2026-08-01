@@ -1,0 +1,165 @@
+name: CI
+
+# Runs the project's five gates on every push to main and every pull request
+# targeting main, so a broken gate is caught before it lands rather than by
+# whoever next happens to run it by hand (N-9 / DEC-007).
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "rfcs/**"
+      - "LICENSE"
+      - "NOTICE"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "rfcs/**"
+      - "LICENSE"
+      - "NOTICE"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Matches the toolchain the project's gates are pinned to.
+  TOOLCHAIN: "1.91"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # git diff --check below needs the base commit's history, not just
+          # the tip a shallow clone would give it.
+          fetch-depth: 0
+
+      # knotra is an iced/wgpu GUI application; --all-targets builds the
+      # binary, so clippy needs the same Linux GUI deps release.yaml installs.
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev
+
+      # clippy and rustfmt are not in the minimal profile; without this the
+      # job fails on the first gate step for a trivial reason.
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install "$TOOLCHAIN" --profile minimal --component clippy,rustfmt
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-ci-lint-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-ci-lint-
+
+      - name: cargo fmt --all --check
+        run: cargo "+$TOOLCHAIN" fmt --all --check
+
+      - name: cargo clippy --workspace --all-targets -D warnings
+        run: cargo "+$TOOLCHAIN" clippy --workspace --all-targets -- -D warnings
+
+      # A bare `git diff --check` compares the working tree against the
+      # index, which in a fresh CI checkout is always empty and passes
+      # vacuously. Diff against the commit this push/PR actually introduced
+      # instead, so a trailing-whitespace violation is caught for real.
+      #
+      # `github.event.before` is the null SHA on the first push of a new
+      # branch (095 Finding 1) — `git diff --check` on the null SHA fails
+      # with `fatal: bad object`, unrelated to whitespace. Fall back to the
+      # merge-base with origin/main, then HEAD~1, then skip only if neither
+      # exists (a true root commit).
+      - name: git diff --check (against the base of this push/PR)
+        run: |
+          NULL_SHA="0000000000000000000000000000000000000000"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          if [ -z "$BASE" ] || [ "$BASE" = "$NULL_SHA" ]; then
+            if git rev-parse --verify -q origin/main >/dev/null; then
+              BASE="$(git merge-base origin/main HEAD)"
+              echo "No prior commit for this ref; using merge-base with origin/main: $BASE"
+            elif git rev-parse --verify -q HEAD~1 >/dev/null; then
+              BASE="HEAD~1"
+              echo "No merge-base with origin/main; falling back to HEAD~1"
+            else
+              echo "No meaningful base to diff against (root commit); skipping."
+              exit 0
+            fi
+          fi
+
+          echo "Diffing ${BASE}..${{ github.sha }}"
+          git diff --check "$BASE" "${{ github.sha }}"
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install "$TOOLCHAIN" --profile minimal
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-ci-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-ci-test-
+
+      - name: cargo test -p knotra
+        run: cargo "+$TOOLCHAIN" test -p knotra
+
+      - name: cargo test -p knotra-ui
+        run: cargo "+$TOOLCHAIN" test -p knotra-ui
+
+      # knotra-vcs shells out to real git/jj processes; without these it
+      # hangs on an inherited editor rather than failing (Handoff 012 moves
+      # this into the test harness itself — until then, supply it here).
+      - name: cargo test -p knotra-vcs
+        env:
+          TMPDIR: ${{ runner.temp }}
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_EDITOR: "true"
+          VISUAL: "true"
+          EDITOR: "true"
+        run: cargo "+$TOOLCHAIN" test -p knotra-vcs
