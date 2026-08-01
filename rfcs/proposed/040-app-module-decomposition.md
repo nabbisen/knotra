@@ -248,7 +248,8 @@ Every stage: all 166 + 10 + 42 tests pass **unedited**, all five gates green.
 | R7 | `#[allow(unused_imports)]` is removed and not reinstated |
 | R8 | `close_topmost_layer`, `advance_focus`, `activate_focused`, and `overlay_focus_order` move **byte-identical** - RFC-036 R5/R7 depend on them |
 | R9 | Each stage is independently committable with all five gates green |
-| R10 | Total ELOC across `app/` is within +5% of 3,255 - a larger increase means logic was rewritten, not moved |
+| R10 | **Non-import** ELOC across `app.rs` + `app/` stays within +5% of 3,255. Import growth is excluded: measured at Stage 3, **+125 of the +140 total was `use` statements**, ten modules each declaring what they use. Crossing 5% on import growth alone is **not** a breach. (The original wording said a larger increase "means logic was rewritten"; that was false, and the real rewriting-detectors are R10a and the byte-identity check.) |
+| R10a | Per-commit `git diff --stat` is near-symmetric — insertions ≈ deletions. This, with per-function byte-identity, is what actually detects rewriting; ELOC only ever proxied for it |
 
 ## Verification
 
