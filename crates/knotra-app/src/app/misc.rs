@@ -6,11 +6,13 @@
 //! `app/` module; they are simply too small individually to each warrant
 //! their own file (RFC-040 D1).
 //!
-//! `handle_dashboard` calls `handle_workspace` (still in `app.rs`, Stage 4's)
-//! directly - a documented `misc -> workspace` edge per
-//! `.git-exclude/reviewed/089-...md`'s ruling: handler modules may call
-//! another handler where the domain genuinely requires it, provided the
-//! dependency graph stays acyclic. `workspace.rs` will not import `misc.rs`.
+//! `handle_dashboard` calls `handle_workspace` directly - a documented
+//! `misc -> workspace` edge per `.git-exclude/reviewed/089-...md`'s ruling
+//! (handler modules may call another handler where the domain genuinely
+//! requires it, provided the dependency graph stays acyclic) and RFC-040
+//! D7. As of RFC-040 Stage 4 this is a real cross-handler-module import -
+//! `handle_workspace` calls nothing in this module, so the graph stays
+//! acyclic. `workspace.rs` must not import `misc.rs`.
 
 use iced::Task;
 use knotra_vcs::{
@@ -18,13 +20,11 @@ use knotra_vcs::{
     model::operation::{OperationId, OperationKind, OperationLog, OperationResult},
 };
 
-// `handle_dashboard` calls `handle_workspace` directly - a documented
-// `misc -> workspace` edge, not yet a cross-handler-module import since
-// `handle_workspace` has not moved out of `app.rs` (Stage 4's). See this
-// module's doc comment.
+// `handle_dashboard` calls `handle_workspace` directly - the documented
+// `misc -> workspace` edge (RFC-040 D7). See this module's doc comment.
 use super::focus_ops::open_overlay_focus;
-use super::handle_workspace;
 use super::shared::{acquire_operation, find_project};
+use super::workspace::handle_workspace;
 use crate::{
     config::{DashboardGrouping, save_config},
     message::{
