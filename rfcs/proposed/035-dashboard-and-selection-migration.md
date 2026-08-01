@@ -338,11 +338,35 @@ replacements land.
 
 ### Responsive strategy
 
-Iced has no media queries; width must be observed. Use the existing window-size
-subscription or `iced::widget::responsive` to derive a mode enum
-(`Compact` / `Standard` / `Wide`) in the view layer, and select composition from
-it. The mode is **presentation-derived, not persisted state** - it must not enter
+Iced has no media queries; width must be observed. **Use
+`iced::widget::responsive`.** Derive a mode enum (`Compact` / `Standard` /
+`Wide`) from the `Size` its closure receives, and select composition from it. The
+mode is **presentation-derived, not persisted state** - it must not enter
 `AppState` or `AppConfig`, and must not trigger a message on resize.
+
+**This was Open Question 2 and is now decided** (2026-08-01), because the
+mechanism chosen here is inherited by RFC-037 and RFC-038, and a cross-RFC
+pattern left to per-stage judgement drifts.
+
+Three reasons, in order of weight:
+
+1. **Window width is the wrong input.** `responsive`'s closure receives the
+   maximum space available *to that widget* (`iced_widget-0.14.2/src/responsive.rs`).
+   The shell has chrome, so window width and dashboard content width are not the
+   same number, and breakpoints keyed on the former would silently mis-fire
+   whenever chrome changes.
+2. **The alternative does not exist.** An earlier draft of this section offered
+   "the existing window-size subscription" as a choice; there is no such
+   subscription — `main.rs` sets `window::Settings` at startup and nothing
+   observes resize. Choosing it would have meant building a subscription, a
+   `Message` variant, and an `AppState` field, then keeping them in sync — which
+   also contradicts this section's own rule that the mode is not persisted state.
+3. **It keeps composition in `view`**, where R8's "composition changes rather
+   than wrapping" belongs, instead of routing layout decisions through `update`.
+
+**Constraint that comes with it:** `responsive` re-invokes its closure during
+layout, so the closure must stay cheap — build elements in it, do not compute or
+allocate anything derivable outside it.
 
 ### Disabled-reason ownership
 
@@ -535,10 +559,11 @@ summary segments.
    materially worse to use, report it with captures rather than silently
    reverting - D4 would then need amending, which is an architect decision.
 
-2. **How is the width mode observed?** `iced::widget::responsive` versus the
-   existing window-size subscription. Either satisfies R8; the implementer should
-   pick based on what keeps composition local to the view and report which and
-   why, since RFC-037 and RFC-038 will need the same mechanism.
+2. ~~**How is the width mode observed?**~~ **Resolved 2026-08-01 — see
+   Internal Design / Responsive strategy.** `iced::widget::responsive`. Settled in
+   the RFC rather than delegated, because RFC-037 and RFC-038 inherit the
+   mechanism, and because the question as originally posed offered a false choice:
+   there is no existing window-size subscription in the codebase.
 
 3. **Does the activity strip need `progress::row`?** R12 puts ownership there,
    but the strip may already communicate it adequately. Decide during Stage 5 and
