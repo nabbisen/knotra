@@ -363,11 +363,15 @@ not deferred again.
       `docs/src/contributing/architecture.md`'s stale `endringer` version
       (`7cbd3fc`) and `docs/src/reference/keyboard.md`, which claimed full
       keyboard accessibility and documented four unbound keys (`37e607f`).
-- [ ] Supporting: Git integration test hermeticity — the harness is not
-      self-isolating, so `cargo test -p knotra-vcs` hangs on an inherited editor
-      unless the operator remembers six environment variables. 79 call sites go
-      through a helper that sets author identity but no config isolation, and 13
-      more bypass it entirely. Handoff `012-git-test-hermeticity.md`.
+- [x] Supporting: Git integration test hermeticity — **done 2026-08-01**
+      (`ee840a4`, review `096`). `cargo test -p knotra-vcs` now passes with no
+      environment supplied, and under a hostile one — verified against a
+      `gitconfig` carrying a different identity and a stdin-blocking editor.
+      Every git invocation in the suite builds through one `git_command` helper,
+      so adding a variable means editing one function. Known limitation, carried
+      deliberately: `knotra-vcs`'s own `run_git` sets no env, so a *library*
+      write path that ever needs `git commit`, a CLI annotated tag, or credential
+      handling would inherit ambient config again. No exercised path does today.
 
 The supporting items carry no product design decisions and are tracked as
 Developer Handoffs rather than standalone RFCs, per the governance policy's
@@ -414,10 +418,12 @@ given.
       — `view/settings.rs` still carries hardcoded English; RFC-037
 - [ ] UI contract tests or smoke tests prove visible controls reach the intended message handler, task, and result state
       — substantial coverage added per RFC; not yet complete across all surfaces
-- [ ] Git integration tests are hermetic against global/user Git config
-      — still requires externally supplied `GIT_CONFIG_*` / `GIT_EDITOR` / `TMPDIR`;
-      the harness is not self-isolating. Scheduled in the Operational hygiene
-      track above.
+- [x] Git integration tests are hermetic against global/user Git config
+      — done 2026-08-01 (`ee840a4`, review `096`). Verified passing both with no
+      environment supplied and under a hostile one (foreign identity in
+      `GIT_CONFIG_GLOBAL`, stdin-blocking editor). The library's own `run_git`
+      remains un-isolated, which is harmless while no exercised write path needs
+      an identity or an editor — the trigger is recorded in the hygiene track.
 - [ ] `guided_button` and `guided_field` deleted; no legacy control helper remains
       — the RFC-034 R7 parallel-systems window; closes when RFC-035..037 migrate
       their last call sites
