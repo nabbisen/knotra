@@ -25,7 +25,6 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [040](./proposed/040-app-module-decomposition.md) | `app.rs` module decomposition | Production Readiness Reset | High |
 | [035](./proposed/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | Production Readiness Reset | High |
 
 ---
@@ -39,6 +38,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [040](./done/040-app-module-decomposition.md) | `app.rs` module decomposition | main: 54e5d5d |
 | [036](./done/036-keyboard-navigation-and-focus-traversal.md) | Keyboard navigation and focus traversal | main: d20c7be |
 | [034](./done/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | main: ce05a44 |
 | [033](./done/033-ui-ux-foundation-shell-and-overlay-contracts.md) | UI/UX foundation, shell, and overlay contracts (umbrella) | main: bf07f1c |

@@ -2,13 +2,37 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented (main: 54e5d5d) |
 | Priority | High - blocks RFC-035; cost grows with every RFC that lands first |
 | Effort | Medium - mechanical moves, no behaviour change, guarded by an unusually strong test net |
 | Target | Production Readiness Reset - operational hygiene track |
 | Related files | `crates/knotra-app/src/app.rs`, `crates/knotra-app/src/tests.rs`, `crates/knotra-app/src/lib.rs` |
 | Related RFCs | `rfcs/proposed/035-dashboard-and-selection-migration.md` (lands into whatever structure this leaves), `rfcs/done/036-keyboard-navigation-and-focus-traversal.md` (owns the focus block moved here) |
 | Related audit evidence | `.git-exclude/reviewed/044-preparation-review-package.md` (finding 2), `.git-exclude/reviewed/081-preparation-review-044-carry-forward-audit.md` |
+
+## Implementation Record
+
+| Stage | Commits |
+|---|---|
+| 1 | `de1cbfe` |
+| 2 | `379ba44` |
+| 3 | `05bc358` `f33cb34` `7f7c1ce` `6c5880b` `c5e8b36` `c66dbd0` `193b091` `12ad685` |
+| 4 | `d5aca86` |
+| 5 | `7e5d1b5` |
+| 6 | `54e5d5d` |
+
+Every hash verified against `main` with `git merge-base --is-ancestor <h> main`
+before being written here.
+
+**Outcome:** `app.rs` went from **3,255 to 270 ELOC** — a 92% reduction — across
+eleven focused modules under `crates/knotra-app/src/app/`. Non-import ELOC moved
++10 across the whole RFC (five decomposition stages, fourteen commits), from a
+3,207 pre-RFC baseline to 3,217 at Stage 5's close — effectively a proof that
+nothing was rewritten, only moved. `background.rs` (761 ELOC) is the one
+accepted exception to R1's 500-ELOC threshold, per R2/D2: `handle_background`'s
+20-arm `match` cannot be split by arm without inventing signatures to carry
+pattern-bound state across a function boundary, which is not a move. That split
+is scheduled as RFC-041, immediately following this RFC's closure.
 
 ## Summary
 
