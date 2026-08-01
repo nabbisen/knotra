@@ -84,11 +84,18 @@ jobs:
       # vacuously. Diff against the commit this push/PR actually introduced
       # instead, so a trailing-whitespace violation is caught for real.
       #
-      # `github.event.before` is the null SHA on the first push of a new
-      # branch (095 Finding 1) — `git diff --check` on the null SHA fails
-      # with `fatal: bad object`, unrelated to whitespace. Fall back to the
-      # merge-base with origin/main, then HEAD~1, then skip only if neither
-      # exists (a true root commit).
+      # `github.event.before` is the null SHA only if `main` itself is being
+      # created or recreated from nothing — this workflow triggers on
+      # `push: branches: [main]`, so an ordinary new branch never reaches
+      # this step at all, and a force-push sets `before` to the old tip, not
+      # the null SHA (097 correcting 095 Finding 1). Reachable only in that
+      # one edge case, but handled defensively: fall back to `HEAD~1` first
+      # (always correct and always available under `fetch-depth: 0`), then
+      # the merge-base with origin/main (meaningful only for a branch that
+      # genuinely diverged — trying it first, as an earlier version of this
+      # step did, resolves to HEAD itself on an ordinary push and passes
+      # vacuously, exactly the failure this step exists to prevent — 097
+      # Finding 1), then skip only if neither exists (a true root commit).
       - name: git diff --check (against the base of this push/PR)
         run: |
           NULL_SHA="0000000000000000000000000000000000000000"
@@ -100,12 +107,12 @@ jobs:
           fi
 
           if [ -z "$BASE" ] || [ "$BASE" = "$NULL_SHA" ]; then
-            if git rev-parse --verify -q origin/main >/dev/null; then
-              BASE="$(git merge-base origin/main HEAD)"
-              echo "No prior commit for this ref; using merge-base with origin/main: $BASE"
-            elif git rev-parse --verify -q HEAD~1 >/dev/null; then
+            if git rev-parse --verify -q HEAD~1 >/dev/null; then
               BASE="HEAD~1"
-              echo "No merge-base with origin/main; falling back to HEAD~1"
+              echo "No prior commit for this ref; using HEAD~1: $BASE"
+            elif git rev-parse --verify -q origin/main >/dev/null; then
+              BASE="$(git merge-base origin/main HEAD)"
+              echo "No HEAD~1; falling back to merge-base with origin/main: $BASE"
             else
               echo "No meaningful base to diff against (root commit); skipping."
               exit 0
