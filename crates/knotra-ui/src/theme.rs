@@ -342,4 +342,144 @@ mod tests {
             }
         }
     }
+
+    // -- RFC-035 Handoff 019 §7.4: chip, select, checkbox pairings ----------
+
+    /// Chip text on chip background, selected and unselected
+    /// (`chip::filter` — a thin pass-through to `snora::design::chip`,
+    /// whose own module doc already claims >=6.7:1; asserted here too so
+    /// the pairing is traceable from this crate's own test suite, per
+    /// Handoff 019 §7.4). Selected is `accent_text` on `accent`; unselected
+    /// is `text_secondary` on `surface`, already implied by
+    /// `text_roles_meet_wcag_aa_against_every_surface_role_in_both_themes`
+    /// above but asserted directly here as its own named pairing.
+    #[test]
+    fn chip_text_meets_wcag_aa_on_chip_background_in_both_themes() {
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let selected = snora::design::contrast::contrast_ratio(
+                from_iced(theme.accent_text()),
+                from_iced(theme.accent()),
+            );
+            assert!(
+                selected >= AA_NORMAL,
+                "{theme_name} chip selected text vs background: {selected:.2}:1 \
+                 is below the required {AA_NORMAL}:1"
+            );
+
+            let unselected = snora::design::contrast::contrast_ratio(
+                from_iced(theme.text_secondary()),
+                from_iced(theme.surface()),
+            );
+            assert!(
+                unselected >= AA_NORMAL,
+                "{theme_name} chip unselected text vs background: {unselected:.2}:1 \
+                 is below the required {AA_NORMAL}:1"
+            );
+        }
+    }
+
+    /// Select text on the closed control, and on the open menu's normal and
+    /// selected rows (`widget::select::pick_list`'s `field_style` /
+    /// `menu_style`, RFC-035 Handoff 019 §7.4).
+    #[test]
+    fn select_text_meets_wcag_aa_in_both_themes() {
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let closed = snora::design::contrast::contrast_ratio(
+                from_iced(theme.text_primary()),
+                from_iced(theme.surface()),
+            );
+            assert!(
+                closed >= AA_NORMAL,
+                "{theme_name} select closed control text: {closed:.2}:1 \
+                 is below the required {AA_NORMAL}:1"
+            );
+
+            let menu_row = snora::design::contrast::contrast_ratio(
+                from_iced(theme.text_primary()),
+                from_iced(theme.surface_raised()),
+            );
+            assert!(
+                menu_row >= AA_NORMAL,
+                "{theme_name} select open menu row text: {menu_row:.2}:1 \
+                 is below the required {AA_NORMAL}:1"
+            );
+
+            let menu_selected = snora::design::contrast::contrast_ratio(
+                from_iced(theme.accent_text()),
+                from_iced(theme.accent()),
+            );
+            assert!(
+                menu_selected >= AA_NORMAL,
+                "{theme_name} select open menu selected row text: {menu_selected:.2}:1 \
+                 is below the required {AA_NORMAL}:1"
+            );
+        }
+    }
+
+    /// Checkbox mark (`icon_color`) on its checked background
+    /// (`widget::checkbox`'s `style`, RFC-035 Handoff 019 §7.4) — the same
+    /// `accent_text`-on-`accent` pairing as the chip's selected state and
+    /// the select menu's selected row, asserted here under its own name for
+    /// traceability.
+    #[test]
+    fn checkbox_mark_meets_wcag_aa_on_checked_background_in_both_themes() {
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let ratio = snora::design::contrast::contrast_ratio(
+                from_iced(theme.accent_text()),
+                from_iced(theme.accent()),
+            );
+            assert!(
+                ratio >= AA_NORMAL,
+                "{theme_name} checkbox mark vs checked background: {ratio:.2}:1 \
+                 is below the required {AA_NORMAL}:1"
+            );
+        }
+    }
+
+    /// Each new control's focus ring against its own background — the
+    /// check `083` Finding 2 established, since a ring that fails this is
+    /// invisible (RFC-035 Handoff 019 §7.4). `chip::filter`'s signature
+    /// carries no `is_focused` (see `chip.rs`'s module doc), so only
+    /// `select` and `checkbox` apply. Exercises the actual
+    /// `ring_color_for` both primitives call, against every background
+    /// each can render behind its ring: `select`'s closed control
+    /// (`surface`) and open menu (`surface_raised`); `checkbox`'s
+    /// unchecked (`surface`) and checked (`accent`) states.
+    #[test]
+    fn new_control_focus_rings_meet_wcag_aa_against_their_own_backgrounds_in_both_themes() {
+        use crate::widget::style::ring_color_for;
+
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let tokens = &theme.tokens;
+            let cases: [(&str, Color); 4] = [
+                ("select closed control", theme.surface()),
+                ("select open menu", theme.surface_raised()),
+                ("checkbox unchecked", theme.surface()),
+                ("checkbox checked", theme.accent()),
+            ];
+
+            for (label, background) in cases {
+                let ring = ring_color_for(tokens, Some(iced::Background::Color(background)));
+                let ratio =
+                    snora::design::contrast::contrast_ratio(from_iced(ring), from_iced(background));
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} {label} focus ring: {ratio:.2}:1 \
+                     is below the required {AA_NORMAL}:1"
+                );
+            }
+        }
+    }
 }

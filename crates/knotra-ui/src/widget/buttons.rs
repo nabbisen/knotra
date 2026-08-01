@@ -222,10 +222,31 @@ pub mod style {
         if !is_focused {
             return style;
         }
+        Style {
+            border: iced::Border {
+                color: ring_color_for(tokens, style.background),
+                width: tokens.focus.ring_width,
+                radius: style.border.radius,
+            },
+            ..style
+        }
+    }
+
+    /// The RFC-036 Stage 6 ring-color decision (`ring_color` vs `accent_text`,
+    /// whichever has the higher measured contrast against an opaque
+    /// background), generalized so every control that draws a focus ring —
+    /// not only buttons — makes the same choice instead of a second
+    /// implementation. `select` and `checkbox` (RFC-035 Handoff 019 §7.2)
+    /// reuse this directly, since their own `Style` types are not
+    /// `button::Style` and cannot go through [`with_focus_ring`] itself.
+    pub(crate) fn ring_color_for(
+        tokens: &Tokens,
+        background: Option<iced::Background>,
+    ) -> iced::Color {
         let ring = tokens.focus;
         let default_ring_color = snora::design::style::color::to_iced_color(ring.ring_color);
 
-        let ring_color = match filled_background(style.background) {
+        match filled_background(background) {
             Some(bg) => {
                 let bg = from_iced_color(bg);
                 let default_contrast = snora::design::contrast::contrast_ratio(ring.ring_color, bg);
@@ -238,15 +259,6 @@ pub mod style {
                 }
             }
             None => default_ring_color,
-        };
-
-        Style {
-            border: iced::Border {
-                color: ring_color,
-                width: ring.ring_width,
-                radius: style.border.radius,
-            },
-            ..style
         }
     }
 }

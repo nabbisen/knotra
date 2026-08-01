@@ -7,16 +7,20 @@
 //! changes no call site.
 
 mod buttons;
+mod checkbox;
+pub mod chip;
 mod field;
 mod focus;
 pub mod icon;
 mod layout;
 pub mod overlay;
+pub mod select;
 
 pub use buttons::{
     current_or, danger, danger_maybe, ghost, ghost_maybe, guided_button, icon_button_maybe,
     primary, primary_maybe, secondary, secondary_maybe, style,
 };
+pub use checkbox::checkbox;
 pub use field::{guided_field, guided_field_focused};
 pub use focus::{clear_input_focus, focus_id, focus_input};
 pub use layout::{
