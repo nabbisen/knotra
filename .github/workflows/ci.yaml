@@ -151,15 +151,7 @@ jobs:
       - name: cargo test -p knotra-ui
         run: cargo "+$TOOLCHAIN" test -p knotra-ui
 
-      # knotra-vcs shells out to real git/jj processes; without these it
-      # hangs on an inherited editor rather than failing (Handoff 012 moves
-      # this into the test harness itself — until then, supply it here).
+      # knotra-vcs's own test harness builds every git Command with full
+      # environment isolation (Handoff 012) — no external env needed here.
       - name: cargo test -p knotra-vcs
-        env:
-          TMPDIR: ${{ runner.temp }}
-          GIT_CONFIG_GLOBAL: /dev/null
-          GIT_CONFIG_NOSYSTEM: "1"
-          GIT_EDITOR: "true"
-          VISUAL: "true"
-          EDITOR: "true"
         run: cargo "+$TOOLCHAIN" test -p knotra-vcs

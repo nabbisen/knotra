@@ -5,7 +5,12 @@
 //!   clean | uncommitted | untracked | ahead | behind | ahead+behind
 //!   conflict | tag-created | permission-error | jj-project (skipped if jj absent)
 
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    sync::LazyLock,
+};
 
 use knotra_vcs::{
     VcsAdapter,
@@ -19,15 +24,49 @@ use knotra_vcs::{
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Run a shell command inside `dir`, panic on failure.
-fn git(args: &[&str], cwd: &Path) {
-    let status = Command::new("git")
-        .args(args)
+/// A directory that lives for the whole test binary's run but whose
+/// `nonexistent-global-gitconfig` child path is never created — the
+/// portable stand-in `GIT_CONFIG_GLOBAL` points at (Handoff 012 §7.2).
+/// `/dev/null` works on Unix but has no equivalent on Windows; any path
+/// guaranteed not to exist works identically for git's purposes (it treats
+/// a missing config file as "no config there"), and a path inside a
+/// `tempfile` directory is guaranteed not to exist without depending on a
+/// platform-specific device file.
+static ISOLATION_DIR: LazyLock<tempfile::TempDir> =
+    LazyLock::new(|| tempfile::tempdir().expect("failed to create git isolation tempdir"));
+
+fn nonexistent_global_gitconfig() -> PathBuf {
+    ISOLATION_DIR.path().join("nonexistent-global-gitconfig")
+}
+
+/// Builds a `git` `Command` with full environment isolation — no developer
+/// `~/.gitconfig` or `/etc/gitconfig`, no editor prompt, deterministic
+/// author/committer identity — and nothing else. This is the **one place**
+/// every git invocation in this suite is built; adding a seventh variable
+/// later means editing this function alone (Handoff 012 §7.1).
+///
+/// `VISUAL`/`EDITOR` are deliberately not set: git prefers `GIT_EDITOR` over
+/// both (verified directly, not assumed — a real editor stub set via
+/// `GIT_EDITOR` wrote the commit message while a *different* stub set via
+/// both `VISUAL` and `EDITOR` was never invoked, git 2.55.0), so setting
+/// `GIT_EDITOR` alone is sufficient.
+fn git_command(args: &[&str], cwd: &Path) -> Command {
+    let mut cmd = Command::new("git");
+    cmd.args(args)
         .current_dir(cwd)
+        .env("GIT_CONFIG_GLOBAL", nonexistent_global_gitconfig())
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_EDITOR", "true")
         .env("GIT_AUTHOR_NAME", "Test")
         .env("GIT_AUTHOR_EMAIL", "test@test.local")
         .env("GIT_COMMITTER_NAME", "Test")
-        .env("GIT_COMMITTER_EMAIL", "test@test.local")
+        .env("GIT_COMMITTER_EMAIL", "test@test.local");
+    cmd
+}
+
+/// Run a git command inside `dir`, panic on failure.
+fn git(args: &[&str], cwd: &Path) {
+    let status = git_command(args, cwd)
         .status()
         .expect("git command failed to spawn");
     assert!(status.success(), "git {:?} failed in {:?}", args, cwd);
@@ -133,15 +172,12 @@ async fn ahead_repo_shows_nonzero_ahead_count() {
     // Create bare remote.
     git(&["init", "--bare", "-b", "main"], remote_dir.path());
     // Clone from it.
-    Command::new("git")
-        .args(["clone", remote_dir.path().to_str().unwrap(), "."])
-        .current_dir(local_dir.path())
-        .env("GIT_AUTHOR_NAME", "Test")
-        .env("GIT_AUTHOR_EMAIL", "test@test.local")
-        .env("GIT_COMMITTER_NAME", "Test")
-        .env("GIT_COMMITTER_EMAIL", "test@test.local")
-        .status()
-        .unwrap();
+    git_command(
+        &["clone", remote_dir.path().to_str().unwrap(), "."],
+        local_dir.path(),
+    )
+    .status()
+    .unwrap();
 
     git(
         &["config", "user.email", "test@test.local"],
@@ -183,11 +219,12 @@ async fn behind_repo_shows_nonzero_behind_count() {
     git(&["init", "--bare", "-b", "main"], remote_dir.path());
 
     for dir in [&clone1_dir, &clone2_dir] {
-        Command::new("git")
-            .args(["clone", remote_dir.path().to_str().unwrap(), "."])
-            .current_dir(dir.path())
-            .status()
-            .unwrap();
+        git_command(
+            &["clone", remote_dir.path().to_str().unwrap(), "."],
+            dir.path(),
+        )
+        .status()
+        .unwrap();
         git(&["config", "user.email", "test@test.local"], dir.path());
         git(&["config", "user.name", "Test"], dir.path());
     }
@@ -241,11 +278,12 @@ async fn ahead_and_behind_repo() {
     git(&["init", "--bare", "-b", "main"], remote_dir.path());
 
     for dir in [&clone1_dir, &clone2_dir] {
-        Command::new("git")
-            .args(["clone", remote_dir.path().to_str().unwrap(), "."])
-            .current_dir(dir.path())
-            .status()
-            .unwrap();
+        git_command(
+            &["clone", remote_dir.path().to_str().unwrap(), "."],
+            dir.path(),
+        )
+        .status()
+        .unwrap();
         git(&["config", "user.email", "test@test.local"], dir.path());
         git(&["config", "user.name", "Test"], dir.path());
     }
@@ -313,13 +351,7 @@ async fn conflict_repo_shows_has_conflict() {
     git(&["commit", "-m", "main-change"], dir.path());
 
     // Merge branch-a — will conflict.
-    let merge_status = Command::new("git")
-        .args(["merge", "branch-a"])
-        .current_dir(dir.path())
-        .env("GIT_AUTHOR_NAME", "Test")
-        .env("GIT_AUTHOR_EMAIL", "test@test.local")
-        .env("GIT_COMMITTER_NAME", "Test")
-        .env("GIT_COMMITTER_EMAIL", "test@test.local")
+    let merge_status = git_command(&["merge", "branch-a"], dir.path())
         .status()
         .unwrap();
     // merge should fail (exit != 0 for conflict)
@@ -347,13 +379,7 @@ async fn mark_resolved_stages_conflicted_file() {
     git(&["add", "README.md"], dir.path());
     git(&["commit", "-m", "main-change"], dir.path());
 
-    let merge_status = Command::new("git")
-        .args(["merge", "branch-a"])
-        .current_dir(dir.path())
-        .env("GIT_AUTHOR_NAME", "Test")
-        .env("GIT_AUTHOR_EMAIL", "test@test.local")
-        .env("GIT_COMMITTER_NAME", "Test")
-        .env("GIT_COMMITTER_EMAIL", "test@test.local")
+    let merge_status = git_command(&["merge", "branch-a"], dir.path())
         .status()
         .unwrap();
     assert!(!merge_status.success(), "expected merge conflict");
@@ -367,9 +393,7 @@ async fn mark_resolved_stages_conflicted_file() {
         result.error_message
     );
 
-    let output = Command::new("git")
-        .args(["diff", "--cached", "--name-only"])
-        .current_dir(dir.path())
+    let output = git_command(&["diff", "--cached", "--name-only"], dir.path())
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -395,13 +419,7 @@ async fn abort_merge_clears_active_merge_conflict() {
     git(&["add", "README.md"], dir.path());
     git(&["commit", "-m", "main-change"], dir.path());
 
-    let merge_status = Command::new("git")
-        .args(["merge", "branch-a"])
-        .current_dir(dir.path())
-        .env("GIT_AUTHOR_NAME", "Test")
-        .env("GIT_AUTHOR_EMAIL", "test@test.local")
-        .env("GIT_COMMITTER_NAME", "Test")
-        .env("GIT_COMMITTER_EMAIL", "test@test.local")
+    let merge_status = git_command(&["merge", "branch-a"], dir.path())
         .status()
         .unwrap();
     assert!(!merge_status.success(), "expected merge conflict");
@@ -514,9 +532,7 @@ async fn execute_freeze_with_message_creates_annotated_git_tag() {
         result
     );
 
-    let output = Command::new("git")
-        .args(["cat-file", "-p", "v2.1.0"])
-        .current_dir(dir.path())
+    let output = git_command(&["cat-file", "-p", "v2.1.0"], dir.path())
         .output()
         .unwrap();
     assert!(
@@ -723,9 +739,7 @@ async fn switch_context_changes_branch() {
         result.error_message, result.stderr
     );
 
-    let output = Command::new("git")
-        .args(["symbolic-ref", "--short", "HEAD"])
-        .current_dir(dir.path())
+    let output = git_command(&["symbolic-ref", "--short", "HEAD"], dir.path())
         .output()
         .unwrap();
     let branch = String::from_utf8_lossy(&output.stdout).trim().to_owned();
@@ -751,9 +765,7 @@ async fn switch_context_changes_slash_local_branch() {
         result.error_message, result.stderr
     );
 
-    let output = Command::new("git")
-        .args(["symbolic-ref", "--short", "HEAD"])
-        .current_dir(dir.path())
+    let output = git_command(&["symbolic-ref", "--short", "HEAD"], dir.path())
         .output()
         .unwrap();
     let branch = String::from_utf8_lossy(&output.stdout).trim().to_owned();
@@ -770,11 +782,12 @@ async fn switch_context_remote_branch_uses_explicit_remote_target() {
     let clone2_dir = tempfile::tempdir().unwrap();
 
     git(&["init", "--bare", "-b", "main"], remote_dir.path());
-    Command::new("git")
-        .args(["clone", remote_dir.path().to_str().unwrap(), "."])
-        .current_dir(clone1_dir.path())
-        .status()
-        .unwrap();
+    git_command(
+        &["clone", remote_dir.path().to_str().unwrap(), "."],
+        clone1_dir.path(),
+    )
+    .status()
+    .unwrap();
     git(
         &["config", "user.email", "test@test.local"],
         clone1_dir.path(),
@@ -791,11 +804,12 @@ async fn switch_context_remote_branch_uses_explicit_remote_target() {
     git(&["commit", "-m", "feature"], clone1_dir.path());
     git(&["push", "-u", "origin", "feature/foo"], clone1_dir.path());
 
-    Command::new("git")
-        .args(["clone", remote_dir.path().to_str().unwrap(), "."])
-        .current_dir(clone2_dir.path())
-        .status()
-        .unwrap();
+    git_command(
+        &["clone", remote_dir.path().to_str().unwrap(), "."],
+        clone2_dir.path(),
+    )
+    .status()
+    .unwrap();
     git(&["fetch", "origin"], clone2_dir.path());
 
     let project = make_project(clone2_dir.path());
@@ -818,9 +832,7 @@ async fn switch_context_remote_branch_uses_explicit_remote_target() {
         result.error_message, result.stderr
     );
 
-    let output = Command::new("git")
-        .args(["symbolic-ref", "--short", "HEAD"])
-        .current_dir(clone2_dir.path())
+    let output = git_command(&["symbolic-ref", "--short", "HEAD"], clone2_dir.path())
         .output()
         .unwrap();
     let branch = String::from_utf8_lossy(&output.stdout).trim().to_owned();
