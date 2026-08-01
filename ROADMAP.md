@@ -344,8 +344,10 @@ not deferred again.
       point; RFC-041 opens from control-flow analysis, and specifies token-level
       verification rather than an ELOC bound — R10 needed correcting twice, while
       byte- and token-identity held across all sixteen commits (`093`).
-      **Draft next**, before the file starts growing again: every future RFC adds
-      background completions to it.
+      **Scheduled after RFC-035**, per the Sequencing section: this is quality
+      work on a documented, accepted exception, whereas RFC-035 closes a
+      user-visible defect that shipped in 0.24.0. The growth argument is real but
+      slow — a few completion arms per RFC, not hundreds of lines.
 - [ ] Supporting: committed CI gate workflow (fmt, clippy, three test suites).
       The clippy gate is called non-negotiable (N-9/DEC-007) yet rests on manual
       discipline; this is what let the earlier 540-diff `fmt` drift accumulate,
@@ -374,12 +376,26 @@ and approved. They may run in parallel with RFC-040; they touch different files.
 
 ### Sequencing
 
-1. Close RFC-036 (Stage 6 awaiting review).
-2. **RFC-040 — `app.rs` decomposition.**
-3. RFC-035 — Dashboard and selection migration.
-4. RFC-037, RFC-038, then RFC-039 (per-project VCS history).
+Updated 2026-08-01. Two queues that do not compete: implementation work, and the
+architect's drafting work. Steps 1 and 2 can proceed simultaneously.
 
-Supporting hygiene items run alongside from step 2 onward.
+1. **Handoff 011 — CI gate workflow.** Small, touches no Rust, and protects
+   everything after it. RFC-040's sixteen commits were each gate-verified by hand
+   twice; RFC-035 is a larger surface. Ahead of RFC-041 because a missing gate
+   costs something on every commit, whereas an oversized file costs nothing until
+   someone edits it.
+2. **RFC-035 — Dashboard and selection migration.** The only remaining item with
+   user-visible impact: Tab moves focus across the dashboard and nothing renders
+   it, shipped in 0.24.0's known issues.
+3. **RFC-041 — split `handle_background`.** Internal. `background.rs` at 761 ELOC
+   is documented and accepted with a doc comment explaining why, so this is
+   quality work rather than defect work. The "it will grow" argument is real but
+   slow — a few completion arms per RFC.
+4. Handoff 012 — Git test hermeticity. Costs a rediscovered incantation per
+   session, not correctness.
+5. RFC-037, RFC-038, then RFC-039 (per-project VCS history).
+
+Completed: RFC-036 (`main: d20c7be`), RFC-040 (`main: 54e5d5d`).
 
 ### Implementation and verification track
 
