@@ -325,24 +325,27 @@ are the release-gate items the reset declared and then routed around: three of
 34%. Scheduled as their own theme rather than folded into RFC-035, so they are
 not deferred again.
 
-- [ ] **RFC-040 — `app.rs` decomposition.** Accepted 2026-07-31
-      (`rfcs/proposed/040-app-module-decomposition.md`). Splits by message domain;
-      `tests.rs` names only two symbols from `app.rs`, so 166 tests guard every
-      move unedited. **Must land before RFC-035.** In progress:
-      **`app.rs` 3,255 → 1,025 ELOC (69%)** across Stages 1-4 and 13 commits,
-      with non-import ELOC flat (+10 total, all rustfmt signature wrapping).
-      Stage 5 (`background.rs`) and Stage 6 (qualify cross-module calls) remain.
-- [ ] **RFC-041 — split `handle_background`.** Successor to RFC-040's D2, which
-      is being **deferred at Stage 5** rather than dropped. `background.rs` will
-      land at ~755 ELOC, ~1.5x the threshold — RFC-040's one accepted exception.
-      The reason for deferring: `handle_background` is a single 20-arm `match`,
-      and extracting an arm means inventing a signature and threading its
-      pattern-bound variables, which is writing code rather than moving it. That
-      forfeits the byte-identity check every RFC-040 stage has relied on, in the
-      most concurrency-sensitive function in the application. Needs its own design
-      pass and its own tests, not a move-only warrant. **Schedule immediately
-      after RFC-040 closes**, before the file starts growing again — every future
-      RFC adds background completions to it.
+- [x] **RFC-040 — `app.rs` decomposition. Complete 2026-08-01**
+      (`rfcs/done/040-app-module-decomposition.md`, `main: 54e5d5d`).
+      **`app.rs` 3,255 → 270 ELOC — 92%** — across six stages and sixteen
+      commits, into eleven modules. `tests.rs` was **never edited**, so the same
+      166 tests guarded every commit without once being adjusted to fit. One
+      cross-handler edge in the finished structure (`misc → workspace`);
+      `shared.rs` and `focus_ops.rs` depend on no handler. Non-import ELOC drift
+      across the moving stages: **+10**, all rustfmt signature wrapping.
+      Reviews `086`-`093`.
+- [ ] **RFC-041 — split `handle_background`.** RFC-040's one accepted exception:
+      `background.rs` landed at **761 ELOC**, ~1.5x the threshold, under R2/D2.
+      Deferred rather than dropped because the split is not a move —
+      `handle_background` is a single 20-arm `match`, and Stage 5's close reading
+      found `SmartPullProjectCompleted` constructs state *before* the match and
+      runs a shared tail *after* it, so **the unit of extraction is not the arm**
+      (`092`). D2's "split by event" framing is therefore the wrong starting
+      point; RFC-041 opens from control-flow analysis, and specifies token-level
+      verification rather than an ELOC bound — R10 needed correcting twice, while
+      byte- and token-identity held across all sixteen commits (`093`).
+      **Draft next**, before the file starts growing again: every future RFC adds
+      background completions to it.
 - [ ] Supporting: committed CI gate workflow (fmt, clippy, three test suites).
       The clippy gate is called non-negotiable (N-9/DEC-007) yet rests on manual
       discipline; this is what let the earlier 540-diff `fmt` drift accumulate,
