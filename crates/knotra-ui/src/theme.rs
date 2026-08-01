@@ -456,7 +456,7 @@ mod tests {
     /// unchecked (`surface`) and checked (`accent`) states.
     #[test]
     fn new_control_focus_rings_meet_wcag_aa_against_their_own_backgrounds_in_both_themes() {
-        use crate::widget::style::ring_color_for;
+        use crate::widget::ring::ring_color_for;
 
         for (theme_name, theme) in [
             ("light", KnotraTheme::light()),
@@ -477,6 +477,45 @@ mod tests {
                 assert!(
                     ratio >= AA_NORMAL,
                     "{theme_name} {label} focus ring: {ratio:.2}:1 \
+                     is below the required {AA_NORMAL}:1"
+                );
+            }
+        }
+    }
+
+    /// The chip's focus ring against both its backgrounds — selected
+    /// (`accent`) and unselected (`surface`) — in both themes, using the
+    /// real `chip::style` output (which applies `with_focus_ring`
+    /// internally, the same button-path wrapper the existing button ring
+    /// test exercises), not a re-derivation (RFC-035 Handoff 020 §7.3).
+    /// Chip gained `is_focused` only in this handoff — 094 Finding 1 found
+    /// the pass-through signature could not carry one at all.
+    #[test]
+    fn chip_focus_ring_meets_wcag_aa_against_both_backgrounds_in_both_themes() {
+        use crate::widget::chip::style as chip_style;
+        use iced::widget::button::Status;
+
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let tokens = &theme.tokens;
+
+            for selected in [false, true] {
+                let unfocused = chip_style(tokens, selected, Status::Active, false);
+                let focused = chip_style(tokens, selected, Status::Active, true);
+                let background = match unfocused.background {
+                    Some(iced::Background::Color(c)) => c,
+                    other => panic!("expected a solid Background::Color, got {other:?}"),
+                };
+
+                let ratio = snora::design::contrast::contrast_ratio(
+                    from_iced(focused.border.color),
+                    from_iced(background),
+                );
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} chip selected={selected} focus ring: {ratio:.2}:1 \
                      is below the required {AA_NORMAL}:1"
                 );
             }

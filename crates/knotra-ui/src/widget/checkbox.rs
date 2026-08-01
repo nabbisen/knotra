@@ -23,8 +23,8 @@
 use iced::widget::{checkbox as iced_checkbox, container, mouse_area, text, tooltip};
 use snora::design::Tokens;
 
-use super::buttons::style::ring_color_for;
 use super::layout::{Element, FONT_SMALL, Length};
+use super::ring::ring_color_for;
 
 /// The drawn box size — the 44px target is the *interactive* area, not
 /// necessarily the visible box (RFC-035 Handoff 019 §7.3).

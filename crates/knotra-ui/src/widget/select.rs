@@ -4,22 +4,22 @@
 //! `select` — so this is written directly from the RFC-033 D7 roles:
 //! surface, border, text, and accent for the open/selected row.
 //!
-//! The focus ring reuses [`super::buttons::style::ring_color_for`] — the
-//! same RFC-036 Stage 6 decision `with_focus_ring` applies to buttons —
-//! rather than a second implementation. `with_focus_ring` itself cannot be
-//! called directly: it is typed to `iced::widget::button::Style`, and
-//! `pick_list_widget::Style` / `menu::Style` are different shapes (no `shadow` or
-//! `snap` field, an extra `placeholder_color`/`handle_color` on the field,
-//! and a `selected_background`/`selected_text_color` pair on the menu).
-//! `ring_color_for` only needs a background and returns a colour, so it
-//! composes with any of them.
+//! The focus ring reuses [`super::ring::ring_color_for`] — the same
+//! RFC-036 Stage 6 decision `with_focus_ring` (`buttons.rs`) applies to
+//! buttons — rather than a second implementation. `with_focus_ring` itself
+//! cannot be called directly: it is typed to `iced::widget::button::Style`,
+//! and `pick_list_widget::Style` / `menu::Style` are different shapes (no
+//! `shadow` or `snap` field, an extra `placeholder_color`/`handle_color` on
+//! the field, and a `selected_background`/`selected_text_color` pair on the
+//! menu). `ring_color_for` only needs a background and returns a colour, so
+//! it composes with any of them.
 
 use iced::widget::overlay::menu;
 use iced::widget::pick_list as pick_list_widget;
 use snora::design::Tokens;
 
-use super::buttons::style::ring_color_for;
 use super::layout::Element;
+use super::ring::ring_color_for;
 
 fn to_iced(color: snora::design::Color) -> iced::Color {
     snora::design::style::color::to_iced_color(color)

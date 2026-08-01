@@ -141,6 +141,8 @@ pub mod style {
     use iced::widget::button::{Status, Style};
     use snora::design::Tokens;
 
+    use super::super::ring::ring_color_for;
+
     pub fn primary(tokens: &Tokens, status: Status) -> Style {
         snora::design::style::button::primary(tokens, status)
     }
@@ -155,41 +157,6 @@ pub mod style {
 
     pub fn danger(tokens: &Tokens, status: Status) -> Style {
         snora::design::style::button::danger(tokens, status)
-    }
-
-    /// Converts an `iced::Color` back to `snora::design::Color` — the
-    /// reverse of `to_iced_color`. Needed here, and only here, to run
-    /// contrast math on a button style's already-computed background
-    /// (RFC-036 Stage 6); `snora-widgets` only ships the one-way conversion,
-    /// same reason `knotra-ui/src/theme.rs`'s tests define their own.
-    fn from_iced_color(c: iced::Color) -> snora::design::Color {
-        snora::design::Color::rgba(c.r, c.g, c.b, c.a)
-    }
-
-    /// Returns the style's background color only when it is fully opaque —
-    /// a genuine filled control (`primary`/`danger` at `Active`/`Hovered`/
-    /// `Pressed`, all alpha `1.0`) rather than `ghost`/`secondary`'s
-    /// transparent-at-rest or lightly-tinted hover/press background (max
-    /// observed alpha there is 0.14), or a filled control's own
-    /// disabled-state background (alpha 0.45, `disabled_alpha`).
-    ///
-    /// This must be exact opacity, not merely "high": `contrast_ratio`
-    /// ignores alpha entirely (per `snora_design::contrast`'s own module
-    /// docs, which say to `composite_over` first for a translucent color) —
-    /// so a hypothetical future style at, say, alpha 0.7 would silently have
-    /// its contrast winner computed against the raw, un-composited color if
-    /// this let it through. Requiring `1.0` makes that impossible by
-    /// construction rather than by a threshold that has to stay
-    /// comfortably clear of every real alpha value in play (RFC-036 Stage 6
-    /// closure, `.git-exclude/reviewed/083-...md` Finding 4). The disabled
-    /// exclusion falls out of this definition rather than needing its own
-    /// justification — see `theme.rs`'s WCAG test for why disabled controls
-    /// specifically must not take this branch.
-    fn filled_background(background: Option<iced::Background>) -> Option<iced::Color> {
-        match background {
-            Some(iced::Background::Color(c)) if c.a >= 1.0 => Some(c),
-            _ => None,
-        }
     }
 
     /// Composes a visible focus ring (RFC-033 D7 `FocusTokens`) onto an
@@ -210,14 +177,14 @@ pub mod style {
     /// automatically high-contrast against every background — in both
     /// presets it sits close in luminance to `accent` (and, in the light
     /// preset, is the *same* color), so a `primary` button's own ring was
-    /// unreadable. When the incoming style has an opaque (filled) background,
-    /// this picks whichever of `ring_color` or `accent_text` — the palette
-    /// role already defined to read on top of `accent` — has the higher
-    /// measured contrast against that specific background, rather than
-    /// assuming which one wins by control type. `ghost`/`secondary` never
-    /// have an opaque background (ghost/secondary's own rest/hover/press
-    /// backgrounds top out at alpha 0.14), so they always keep the plain
-    /// `ring_color`, unchanged from Stage 2.
+    /// unreadable. [`ring_color_for`] (`widget/ring.rs`, moved there per
+    /// RFC-035 Handoff 020 §7.2 once it had callers beyond buttons) picks
+    /// whichever of `ring_color` or `accent_text` has the higher measured
+    /// contrast against an opaque background, rather than assuming which one
+    /// wins by control type. `ghost`/`secondary` never have an opaque
+    /// background (ghost/secondary's own rest/hover/press backgrounds top
+    /// out at alpha 0.14), so they always keep the plain `ring_color`,
+    /// unchanged from Stage 2.
     pub fn with_focus_ring(tokens: &Tokens, is_focused: bool, style: Style) -> Style {
         if !is_focused {
             return style;
@@ -229,36 +196,6 @@ pub mod style {
                 radius: style.border.radius,
             },
             ..style
-        }
-    }
-
-    /// The RFC-036 Stage 6 ring-color decision (`ring_color` vs `accent_text`,
-    /// whichever has the higher measured contrast against an opaque
-    /// background), generalized so every control that draws a focus ring —
-    /// not only buttons — makes the same choice instead of a second
-    /// implementation. `select` and `checkbox` (RFC-035 Handoff 019 §7.2)
-    /// reuse this directly, since their own `Style` types are not
-    /// `button::Style` and cannot go through [`with_focus_ring`] itself.
-    pub(crate) fn ring_color_for(
-        tokens: &Tokens,
-        background: Option<iced::Background>,
-    ) -> iced::Color {
-        let ring = tokens.focus;
-        let default_ring_color = snora::design::style::color::to_iced_color(ring.ring_color);
-
-        match filled_background(background) {
-            Some(bg) => {
-                let bg = from_iced_color(bg);
-                let default_contrast = snora::design::contrast::contrast_ratio(ring.ring_color, bg);
-                let alt_contrast =
-                    snora::design::contrast::contrast_ratio(tokens.palette.accent_text, bg);
-                if alt_contrast > default_contrast {
-                    snora::design::style::color::to_iced_color(tokens.palette.accent_text)
-                } else {
-                    default_ring_color
-                }
-            }
-            None => default_ring_color,
         }
     }
 }

@@ -14,6 +14,7 @@ mod focus;
 pub mod icon;
 mod layout;
 pub mod overlay;
+pub(crate) mod ring;
 pub mod select;
 
 pub use buttons::{
