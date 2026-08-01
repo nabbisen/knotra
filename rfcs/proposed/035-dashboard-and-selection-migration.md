@@ -314,7 +314,17 @@ before (today)                        after
 
 Wrappers, added before any view consumes them (R19):
 
-- `widget::chip::filter(tokens, label, selected, on_toggle)` -> `Element`
+- `widget::chip::filter(tokens, label, selected, is_focused, on_toggle)` ->
+  `Element`. **Corrected 2026-08-01** (`094` Finding 1): the original signature
+  omitted `is_focused` and described this as a pass-through to
+  `snora::design::chip::filter`. It cannot be one - that function returns an
+  `Element`, not a `Style`, and snora's `chip_style_selected` /
+  `chip_style_unselected` are private, so there is no seam to compose a ring
+  onto. A chip with no `is_focused` cannot satisfy **R22** (chips reachable and
+  operable without a pointer) together with RFC-033 **D7** (the focused control
+  renders a visible ring). Build it from `KnotraTheme` like `select` and
+  `checkbox`. A chip is a button, so its style type *is* `button::Style` and
+  `with_focus_ring` applies directly.
 - `widget::notice::…` - a thin builder pass-through preserving `Notice`'s
   tone/title/body/action/dismiss shape
 - `widget::progress::{row, card}` - for the activity region
@@ -510,7 +520,7 @@ The split matters for scoping this stage. Of the five primitives:
 
 | Primitive | snora provides it? | Work |
 |---|---|---|
-| `chip::filter` | **yes** — `design::chip::filter` | thin pass-through |
+| `chip::filter` | function exists, but **not composable** | built from `KnotraTheme` — corrected 2026-08-01, see above |
 | `notice` | **yes** — `design::notice::Notice` | thin pass-through (Stage 5) |
 | `progress::{row, card}` | **yes** — both | thin pass-through (Stage 5) |
 | `select::pick_list` | **no** | written from `KnotraTheme` roles |
