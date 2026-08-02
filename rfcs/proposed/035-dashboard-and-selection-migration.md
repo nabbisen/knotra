@@ -328,10 +328,29 @@ Wrappers, added before any view consumes them (R19):
 - `widget::notice::…` - a thin builder pass-through preserving `Notice`'s
   tone/title/body/action/dismiss shape
 - `widget::progress::{row, card}` - for the activity region
-- `widget::select::pick_list(...)` plus a token-derived style function.
+- `widget::select::pick_list(tokens, options: Vec<(T, String)>, selected,
+  is_focused, on_select)` plus a token-derived style function.
   **snora provides no select styling**, so this is written from
   `KnotraTheme`'s D7 roles: surface, border, text, accent for the open/selected
   row, and the standard 2px focus ring.
+
+  **Signature corrected 2026-08-02** (`100` §2). The original text pinned
+  nothing beyond the name, and Stage 1 implemented `options: &'a [T]` — which
+  cannot express this codebase's normal call pattern, because every select
+  pairs a domain value with a `state.t(…)` label built per render, and a local
+  array cannot outlive the returned `Element`. Note iced's own `PickList` is
+  generic over `L: Borrow<[T]> + 'a` and accepts owned data; the wrapper
+  narrowed upstream.
+
+  **`options` is `Vec<(T, String)>` — value paired with its localized label —
+  and `T` carries no `ToString` bound.** D4 assigns select menus precisely to
+  "option sets whose width varies by locale", so a value-plus-localized-label
+  pair is the universal case here, not an edge case. Requiring each call site
+  to define a `Display` wrapper struct for it would be boilerplate repeated
+  across this RFC, RFC-037, and RFC-038. The wrapper holds a private newtype
+  internally, builds what iced wants, and unwraps back to `T` before calling
+  `on_select`; a domain enum should not need a `Display` impl because a widget
+  wants one.
 - `widget::checkbox(...)` with token styling and a 44px-compliant target.
 
 `current_or` is **not** used by this RFC. It remains nav-specific; chips and
