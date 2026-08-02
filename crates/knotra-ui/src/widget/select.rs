@@ -13,6 +13,20 @@
 //! the field, and a `selected_background`/`selected_text_color` pair on the
 //! menu). `ring_color_for` only needs a background and returns a colour, so
 //! it composes with any of them.
+//!
+//! `pick_list`'s `options` take owned `(T, String)` pairs, not `&'a [T]`
+//! (RFC-035 Handoff 022 commit 2a, `100`'s ruling on the blocker reported
+//! against Stage 2 §7.3). The original `&'a [T]` signature narrowed iced's
+//! own `PickList::new`, which is generic over `L: Borrow<[T]> + 'a`,
+//! including an owned `Vec`. That narrowing made the wrapper unable to
+//! express its own normal call pattern: a per-render option list whose
+//! labels come from the caller's current locale via `state.t(...)`, which
+//! has no `'static` source to borrow from. Widening to `impl Borrow<[T]> +
+//! 'a` alone would have unblocked that, but every call site would still
+//! need `T: ToString`, hand-rolling a `Display` wrapper just to pair a
+//! domain value with its label, for what RFC-033 D4 makes the universal
+//! case: every select in this app pairs a value with a locale-derived
+//! label, not an edge case. So the pairing lives here, once, instead.
 
 use iced::widget::overlay::menu;
 use iced::widget::pick_list as pick_list_widget;
@@ -25,28 +39,62 @@ fn to_iced(color: snora::design::Color) -> iced::Color {
     snora::design::style::color::to_iced_color(color)
 }
 
+/// A value paired with its already-localized label — the shape `pick_list`
+/// builds internally from the `(T, String)` pairs callers pass in, so `T`
+/// itself never needs a `Display` impl.
+#[derive(Clone, PartialEq)]
+struct LabeledOption<T> {
+    value: T,
+    label: String,
+}
+
+impl<T> std::fmt::Display for LabeledOption<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.label)
+    }
+}
+
 /// A themed select menu. The focus ring is drawn on both the closed control
 /// and the open menu when `is_focused` is true (Handoff 019 §7.2: "the
 /// focus ring must be visible on the closed control and on the open menu").
+///
+/// `options` pairs each value with its already-localized label, built fresh
+/// per render — see the module doc for why this is owned data rather than a
+/// borrowed slice.
 #[must_use]
 pub fn pick_list<'a, T, Message>(
     tokens: &Tokens,
-    options: &'a [T],
+    options: Vec<(T, String)>,
     selected: Option<T>,
     is_focused: bool,
     on_select: impl Fn(T) -> Message + 'a,
 ) -> Element<'a, Message>
 where
-    T: ToString + PartialEq + Clone + 'a,
+    T: PartialEq + Clone + 'a,
     Message: Clone + 'a,
 {
+    let labeled_options: Vec<LabeledOption<T>> = options
+        .into_iter()
+        .map(|(value, label)| LabeledOption { value, label })
+        .collect();
+    let selected = selected.and_then(|value| {
+        labeled_options
+            .iter()
+            .find(|option| option.value == value)
+            .cloned()
+    });
+
     let t_field = tokens.clone();
     let t_menu = tokens.clone();
 
-    pick_list_widget::PickList::new(options, selected, on_select)
-        .style(move |_theme, status| field_style(&t_field, status, is_focused))
-        .menu_style(move |_theme| menu_style(&t_menu, is_focused))
-        .into()
+    pick_list_widget::PickList::new(
+        labeled_options,
+        selected,
+        move |option: LabeledOption<T>| on_select(option.value),
+    )
+    .style(move |_theme, status| field_style(&t_field, status, is_focused))
+    .menu_style(move |_theme| menu_style(&t_menu, is_focused))
+    .into()
 }
 
 /// The closed (and opening) control's style: `surface` background,
