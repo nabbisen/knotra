@@ -35,6 +35,7 @@ mod focus_target {
     pub const FILTER_ALL_SET: &str = "dashboard.toolbar.filter.all_set";
     pub const GROUP_SELECT: &str = "dashboard.toolbar.group";
     pub const SORT_SELECT: &str = "dashboard.toolbar.sort";
+    pub const CLEAR_FILTERS: &str = "dashboard.toolbar.clear_filters";
     pub const SELECT_MODE: &str = "dashboard.toolbar.select_mode";
 }
 
@@ -68,10 +69,17 @@ fn is_focused(state: &AppState, key: &'static str) -> bool {
 
 /// The toolbar's Tab/Shift-Tab focus targets (RFC-036 R2), in visual order:
 /// the six filter chips, the grouping select, the sorting select, search,
-/// then the bulk-selection entry point — **before**
-/// `dashboard::focus_order` appends its section/row targets (RFC-035
-/// Handoff 022 §7.4). Without this, `chip::filter`'s `is_focused` has
-/// nothing to ever be `true`, and its ring is dead code.
+/// Clear filters (when rendered), then the bulk-selection entry point —
+/// **before** `dashboard::focus_order` appends its section/row targets
+/// (RFC-035 Handoff 022 §7.4). Without this, `chip::filter`'s `is_focused`
+/// has nothing to ever be `true`, and its ring is dead code.
+///
+/// **Clear filters is guarded on the same condition that renders it**
+/// (`state.filter.is_active()`, matching `view_toolbar`'s own condition
+/// exactly) — same shape as `dashboard/mod.rs`'s row-checkbox target being
+/// guarded on `state.selection_mode`. An unconditional target here would
+/// be a focus black hole: Tab would stop on a control that is not on
+/// screen (Handoff 023 §5).
 ///
 /// The grouping/sorting selects pair with `None`: same as `search`'s
 /// `text_input` entry, there is no single message that "activates" a
@@ -99,6 +107,13 @@ pub(super) fn focus_order(state: &AppState) -> FocusOrder<Message> {
         FocusTarget::text_input(knotra_ui::widget::focus_id::SEARCH.clone()),
         None,
     ));
+
+    if state.filter.is_active() {
+        order.push((
+            FocusTarget::control(focus_target::CLEAR_FILTERS),
+            Some(Message::Filter(FilterMessage::AllFiltersCleared)),
+        ));
+    }
 
     let summary = state.selection_summary();
     let select_message = (!summary.visible_ids.is_empty())
@@ -190,9 +205,11 @@ pub(super) fn view_toolbar(state: &AppState) -> Element<'_, Message> {
     .width(Length::Fixed(220.0));
 
     let clear: Element<'_, Message> = if state.filter.is_active() {
-        button(text(state.t("dashboard.clear_filters")).size(12))
-            .on_press(Message::Filter(FilterMessage::AllFiltersCleared))
-            .into()
+        clear_filters_button(
+            tokens,
+            state.t("dashboard.clear_filters"),
+            is_focused(state, focus_target::CLEAR_FILTERS),
+        )
     } else {
         Space::new().width(Length::Shrink).into()
     };
@@ -261,4 +278,23 @@ fn select_mode_button<'a>(
         Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
         _ => btn.into(),
     }
+}
+
+/// Clear filters, token-styled with a working focus ring — the same
+/// `style::secondary` + `with_focus_ring` treatment as
+/// [`select_mode_button`] (Handoff 023 §6), since this control gained a
+/// real `focus_order` entry and would otherwise be reachable and operable
+/// but invisible.
+fn clear_filters_button<'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    is_focused: bool,
+) -> Element<'a, Message> {
+    let t = tokens.clone();
+    button(text(label).size(12))
+        .on_press(Message::Filter(FilterMessage::AllFiltersCleared))
+        .style(move |_theme, status| {
+            style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
+        })
+        .into()
 }
