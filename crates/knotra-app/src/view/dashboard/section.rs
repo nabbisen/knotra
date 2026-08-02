@@ -1,14 +1,16 @@
 //! Dashboard section rendering: the collapsible tier/group header and the
 //! list of rows beneath it.
 
-use iced::widget::{button, column, container, text};
-use iced::{Element, Length};
+use iced::widget::{button, column, container, row, text};
+use iced::{Alignment, Element, Length};
+use knotra_ui::widget::{icon, style};
 
 use crate::{
     message::{DashboardMessage, Message},
     state::{
         AppState,
         dashboard::{DashboardSection, DashboardSectionKey, DashboardTier},
+        focus::FocusTarget,
     },
 };
 
@@ -18,12 +20,7 @@ pub(super) fn view_section<'a>(
     state: &'a AppState,
     section: DashboardSection<'a>,
 ) -> Element<'a, Message> {
-    let mut elements = vec![section_header(
-        state,
-        section.key,
-        section.entries.len(),
-        section.collapsed,
-    )];
+    let mut elements = vec![section_header(state, section.key, section.entries.len())];
     if !section.collapsed {
         elements.extend(
             section
@@ -35,11 +32,22 @@ pub(super) fn view_section<'a>(
     column(elements).spacing(3).into()
 }
 
+/// The `dashboard.section.{tier:?}` focus key, shared between
+/// `dashboard/mod.rs`'s `focus_order` and this module's [`is_focused`] — one
+/// expression rather than a `format!` string duplicated in both places
+/// (Handoff 025 §7.5, same discipline as `toolbar.rs`'s `filter_focus_key`).
+pub(super) fn focus_key(tier: DashboardTier) -> String {
+    format!("dashboard.section.{tier:?}")
+}
+
+fn is_focused(state: &AppState, key: &str) -> bool {
+    state.dashboard_focus.as_ref() == Some(&FocusTarget::control_dynamic(key.to_owned()))
+}
+
 fn section_header<'a>(
     state: &'a AppState,
     key: DashboardSectionKey,
     entry_count: usize,
-    collapsed: bool,
 ) -> Element<'a, Message> {
     let (label, toggle) = match key {
         DashboardSectionKey::Tier(tier) => {
@@ -55,21 +63,25 @@ fn section_header<'a>(
         DashboardSectionKey::ProjectGroup(None) => (state.t("group.ungrouped").to_owned(), None),
         DashboardSectionKey::Flat => (state.t("dashboard.all_projects").to_owned(), None),
     };
-    let label = format!(
-        "{} ({}){}",
-        label,
-        entry_count,
-        if toggle.is_some() {
-            if collapsed { " +" } else { " -" }
-        } else {
-            ""
-        }
-    );
+    let label = format!("{label} ({entry_count})");
+
     if let Some(tier) = toggle {
-        button(text(label).size(13))
-            .on_press(Message::Dashboard(DashboardMessage::TierToggled(tier)))
-            .width(Length::Fill)
-            .into()
+        let tokens = state.theme.tokens.clone();
+        let focused = is_focused(state, &focus_key(tier));
+        button(
+            row![
+                text(label).size(13),
+                icon::icon_element(&icon::chevron_down()),
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center),
+        )
+        .width(Length::Fill)
+        .on_press(Message::Dashboard(DashboardMessage::TierToggled(tier)))
+        .style(move |_theme, status| {
+            style::with_focus_ring(&tokens, focused, style::ghost(&tokens, status))
+        })
+        .into()
     } else {
         container(text(label).size(13))
             .width(Length::Fill)

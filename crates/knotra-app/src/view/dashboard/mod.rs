@@ -30,7 +30,7 @@ use empty::{
     empty_workspace, no_matches, view_confirm_remove_dialog, view_error_notice,
     view_without_workspace,
 };
-use section::view_section;
+use section::{focus_key, view_section};
 use toolbar::view_toolbar;
 
 /// Tab/Shift-Tab focus targets for the dashboard (RFC-036 R2, Stage 4;
@@ -55,7 +55,7 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
             && tier != DashboardTier::NeedsHelp
         {
             order.push((
-                FocusTarget::control_dynamic(format!("dashboard.section.{tier:?}")),
+                FocusTarget::control_dynamic(focus_key(tier)),
                 Some(Message::Dashboard(DashboardMessage::TierToggled(tier))),
             ));
         }
