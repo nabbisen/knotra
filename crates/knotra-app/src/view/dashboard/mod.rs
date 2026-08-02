@@ -33,19 +33,22 @@ use empty::{
 use section::view_section;
 use toolbar::view_toolbar;
 
-/// Tab/Shift-Tab focus targets for the dashboard's rows (RFC-036 R2, Stage 4):
-/// collapsible section headers, row checkboxes (selection mode only), and
-/// row actions. Card-to-card `↑`/`↓`/`j`/`k` movement is not this - that is
-/// RFC-035's.
+/// Tab/Shift-Tab focus targets for the dashboard (RFC-036 R2, Stage 4;
+/// toolbar targets added RFC-035 Handoff 022 §7.4): the toolbar's filter
+/// chips, grouping/sorting selects, search, and bulk-selection entry point
+/// (`toolbar::focus_order`) — **before** the rows' own targets, matching
+/// visual order — then collapsible section headers, row checkboxes
+/// (selection mode only), and row actions. Card-to-card `↑`/`↓`/`j`/`k`
+/// movement is not this - that is RFC-035's.
 ///
-/// Iterates `DashboardDisplay::sections` in the exact order and with the
-/// exact `!collapsed` filter `build_dashboard_display` used to compute
-/// `ordered_selectable_ids` - this is that same computation's row targets,
-/// not a second ordering (RFC-036 Stage 4 change scope). A dedicated test
-/// asserts the two ID sequences are identical.
+/// The row portion iterates `DashboardDisplay::sections` in the exact order
+/// and with the exact `!collapsed` filter `build_dashboard_display` used to
+/// compute `ordered_selectable_ids` - this is that same computation's row
+/// targets, not a second ordering (RFC-036 Stage 4 change scope). A
+/// dedicated test asserts the two ID sequences are identical.
 pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
     let display = state.dashboard_display();
-    let mut order = Vec::new();
+    let mut order = toolbar::focus_order(state);
 
     for section in &display.sections {
         if let DashboardSectionKey::Tier(tier) = section.key
