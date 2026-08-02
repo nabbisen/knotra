@@ -277,6 +277,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.hide_details", "Hide details");
     m.insert("plain.exit_selection", "Exit selection");
     m.insert("plain.selection.enter", "Select");
+    m.insert("plain.selection.select_project", "Select project");
     m.insert("plain.select_visible_projects", "Select visible projects");
     m.insert("plain.selection.none", "No projects selected");
     m.insert("plain.selection.selected_suffix", "selected");
@@ -1003,6 +1004,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.hide_details", "詳細を隠す");
     m.insert("plain.exit_selection", "選択を終了");
     m.insert("plain.selection.enter", "選択");
+    m.insert("plain.selection.select_project", "プロジェクトを選択");
     m.insert(
         "plain.select_visible_projects",
         "表示中のプロジェクトを選択",

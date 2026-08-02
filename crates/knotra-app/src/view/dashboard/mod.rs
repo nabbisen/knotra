@@ -30,6 +30,7 @@ use empty::{
     empty_workspace, no_matches, view_confirm_remove_dialog, view_error_notice,
     view_without_workspace,
 };
+use row::{action_key, checkbox_key, name_key};
 use section::{focus_key, view_section};
 use toolbar::view_toolbar;
 
@@ -69,7 +70,7 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
 
             if state.selection_mode {
                 order.push((
-                    FocusTarget::control_dynamic(format!("dashboard.row.{id}.checkbox")),
+                    FocusTarget::control_dynamic(checkbox_key(id)),
                     Some(Message::Selection(SelectionMessage::Toggled(id.clone()))),
                 ));
             }
@@ -77,7 +78,7 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
             // The name/detail-link button - present on every row regardless
             // of tier, and the most common row interaction.
             order.push((
-                FocusTarget::control_dynamic(format!("dashboard.row.{id}.name")),
+                FocusTarget::control_dynamic(name_key(id)),
                 Some(Message::DetailPanel(DetailPanelMessage::Opened(id.clone()))),
             ));
 
@@ -92,10 +93,7 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
                 } else {
                     Some(Message::DetailPanel(DetailPanelMessage::Opened(id.clone())))
                 };
-                order.push((
-                    FocusTarget::control_dynamic(format!("dashboard.row.{id}.action")),
-                    action_message,
-                ));
+                order.push((FocusTarget::control_dynamic(action_key(id)), action_message));
             }
         }
     }
