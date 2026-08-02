@@ -21,6 +21,11 @@ pub fn chevron_down() -> snora::Icon {
     snora::lucide::ChevronDown.into()
 }
 
+/// Disclosure chevron, collapsed state (expandable sections).
+pub fn chevron_right() -> snora::Icon {
+    snora::lucide::ChevronRight.into()
+}
+
 /// Settings destination.
 pub fn settings() -> snora::Icon {
     snora::lucide::Settings.into()

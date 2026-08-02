@@ -20,7 +20,12 @@ pub(super) fn view_section<'a>(
     state: &'a AppState,
     section: DashboardSection<'a>,
 ) -> Element<'a, Message> {
-    let mut elements = vec![section_header(state, section.key, section.entries.len())];
+    let mut elements = vec![section_header(
+        state,
+        section.key,
+        section.entries.len(),
+        section.collapsed,
+    )];
     if !section.collapsed {
         elements.extend(
             section
@@ -48,6 +53,7 @@ fn section_header<'a>(
     state: &'a AppState,
     key: DashboardSectionKey,
     entry_count: usize,
+    collapsed: bool,
 ) -> Element<'a, Message> {
     let (label, toggle) = match key {
         DashboardSectionKey::Tier(tier) => {
@@ -68,13 +74,19 @@ fn section_header<'a>(
     if let Some(tier) = toggle {
         let tokens = state.theme.tokens.clone();
         let focused = is_focused(state, &focus_key(tier));
+        // Right reads as "click to open"; down reads as "already open,
+        // contents below" — the disclosure idiom, and the direction
+        // `chevron_down` already carries at the workspace switcher
+        // (Handoff 026 §7.2).
+        let chevron = if collapsed {
+            icon::chevron_right()
+        } else {
+            icon::chevron_down()
+        };
         button(
-            row![
-                text(label).size(13),
-                icon::icon_element(&icon::chevron_down()),
-            ]
-            .spacing(6)
-            .align_y(Alignment::Center),
+            row![text(label).size(13), icon::icon_element(&chevron)]
+                .spacing(6)
+                .align_y(Alignment::Center),
         )
         .width(Length::Fill)
         .on_press(Message::Dashboard(DashboardMessage::TierToggled(tier)))
