@@ -139,6 +139,14 @@ fn row_action<'a>(
         // The row's one mutating action (RFC-032 R10): opens the
         // conflict-resolution overlay, so it carries `secondary`'s
         // stronger weight.
+        //
+        // RFC-035 R13/Handoff 030 §6.2: no busy-reason text here anymore.
+        // With multiple needs-help/conflict rows on screen, each printing
+        // "Busy" while the interlock is held is the same duplication R13
+        // targets in the selection bar, just repeated per row instead of
+        // per action. The button still disables correctly (`on_press_maybe`
+        // stays gated on `!is_busy()`); it just stops re-explaining why,
+        // the same way row.rs's other actions never explained "busy" either.
         row_action_button(
             tokens,
             state.t("dashboard.resolve"),
@@ -146,10 +154,7 @@ fn row_action<'a>(
             (!state.operation_interlock.is_busy()).then_some(Message::ConflictOps(
                 ConflictOpsMessage::OpenRequested(Some(project.id.clone())),
             )),
-            state
-                .operation_interlock
-                .is_busy()
-                .then(|| state.t("plain.activity.busy")),
+            None,
             focused,
         )
     } else {
