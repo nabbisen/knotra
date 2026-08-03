@@ -51,7 +51,7 @@ pub(crate) use width_mode::WidthMode;
 /// dedicated test asserts the two ID sequences are identical.
 pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
     let display = state.dashboard_display();
-    let mut order = toolbar::focus_order(state);
+    let mut order = toolbar::focus_order(state, state.width_mode);
 
     for section in &display.sections {
         if let DashboardSectionKey::Tier(tier) = section.key
@@ -103,14 +103,12 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
     order
 }
 
-/// `mode` comes from `view.rs`'s own `responsive` wrapper, computed once
-/// for the whole body composition (screen content + selection bar +
-/// activity strip) rather than separately here — Handoff 027 Ruling 6.2,
-/// after two independent wrappers were found to risk measuring different
-/// regions and classifying differently at a band edge. See
-/// `width_mode.rs`'s module doc.
+/// `mode` is `state.width_mode`, read once in `view.rs` and passed to both
+/// `dashboard::view` and `selection_bar::view` (Handoff 027 Ruling 6.2;
+/// reversed from a `responsive` measurement to a state field by Handoff 029
+/// — see `width_mode.rs`'s module doc for the full history).
 pub fn view(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
-    let mut body = column![view_header(state), view_toolbar(state)]
+    let mut body = column![view_header(state), view_toolbar(state, mode)]
         .height(Length::Fill)
         .spacing(4);
     body = body.push(scrollable(view_body(state, mode)).height(Length::Fill));

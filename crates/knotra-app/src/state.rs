@@ -569,6 +569,18 @@ pub struct AppState {
     pub show_op_details: bool,
     /// Whether to disclose the raw dashboard refresh error.
     pub dashboard_error_details_open: bool,
+    /// RFC-035 R8/Handoff 028 Ruling 6.1: whether the compact toolbar's chip
+    /// overflow (`⋯`) is open. Ignored outside `WidthMode::Compact` — not
+    /// cleared on resize (a stale `true` behind a hidden control is
+    /// harmless, and clearing it would need a resize-triggered message,
+    /// which is exactly what `width_mode` moving into `AppState` was about
+    /// keyboard/render parity, not about growing further).
+    pub dashboard_toolbar_overflow_open: bool,
+    /// RFC-035 R8/Handoff 028 Ruling 6.1: whether the compact toolbar's
+    /// grouping/sorting selector disclosure (`▾`) is open. Same
+    /// ignored-outside-compact, not-cleared-on-resize shape as
+    /// `dashboard_toolbar_overflow_open`.
+    pub dashboard_toolbar_selectors_open: bool,
     /// A recently removed project eligible for undo (cleared by next action or timeout).
     pub recent_removal: Option<UndoableRemoval>,
     // ------------------------------------------------------------------
@@ -649,6 +661,8 @@ impl AppState {
             selection_mode: false,
             show_op_details: false,
             dashboard_error_details_open: false,
+            dashboard_toolbar_overflow_open: false,
+            dashboard_toolbar_selectors_open: false,
             recent_removal: None,
             dashboard_focus: None,
             overlay_focus: None,

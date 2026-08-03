@@ -305,6 +305,10 @@ pub enum DashboardMessage {
     TierToggled(crate::state::dashboard::DashboardTier),
     ErrorDetailsToggled,
     ErrorRetryRequested,
+    /// RFC-035 R8/Handoff 028 Ruling 6.1: compact toolbar's chip overflow (`⋯`).
+    ToolbarOverflowToggled,
+    /// RFC-035 R8/Handoff 028 Ruling 6.1: compact toolbar's selector disclosure (`▾`).
+    ToolbarSelectorsToggled,
 }
 
 // --- Conflict resolution ---

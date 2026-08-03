@@ -435,6 +435,12 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
                 return workspace::handle_workspace(state, WorkspaceMessage::RefreshRequested);
             }
         }
+        DashboardMessage::ToolbarOverflowToggled => {
+            state.dashboard_toolbar_overflow_open = !state.dashboard_toolbar_overflow_open;
+        }
+        DashboardMessage::ToolbarSelectorsToggled => {
+            state.dashboard_toolbar_selectors_open = !state.dashboard_toolbar_selectors_open;
+        }
     }
     Task::none()
 }

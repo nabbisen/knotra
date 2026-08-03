@@ -16,10 +16,7 @@ use crate::{
     view::dashboard::WidthMode,
 };
 
-/// `mode` is unused in Handoff 028 commit 4a (the plumbing-only commit) —
-/// this signature exists so commit 4b, which arranges the actions into a
-/// 2x2 grid at `WidthMode::Compact`, doesn't need to change it again.
-pub fn view(state: &AppState, _mode: WidthMode) -> Option<Element<'_, Message>> {
+pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
     // Selection bar only shown while in selection mode.
     if !state.selection_mode {
         return None;
@@ -104,16 +101,43 @@ pub fn view(state: &AppState, _mode: WidthMode) -> Option<Element<'_, Message>> 
         clear_btn,
     ]
     .align_y(Alignment::Center);
-    let action_row = row![
-        container(fetch_btn).width(Length::FillPortion(1)),
-        container(pull_btn).width(Length::FillPortion(1)),
-        container(tag_btn).width(Length::FillPortion(1)),
-        container(switch_btn).width(Length::FillPortion(1)),
-    ]
-    .spacing(8)
-    .align_y(Alignment::Start);
+
+    // RFC-035 R8/Handoff 028 §4: a 2x2 grid at compact width, chosen over an
+    // action menu — these four actions are already always-visible in
+    // standard mode, so hiding them behind a menu would cost an extra click
+    // for something users already expect at a glance; two rows of two keeps
+    // every action visible and reachable, just narrower. Standard/wide keep
+    // the single four-wide row unchanged.
+    let actions: Element<'_, Message> = match mode {
+        WidthMode::Compact => column![
+            row![
+                container(fetch_btn).width(Length::FillPortion(1)),
+                container(pull_btn).width(Length::FillPortion(1)),
+            ]
+            .spacing(8)
+            .align_y(Alignment::Start),
+            row![
+                container(tag_btn).width(Length::FillPortion(1)),
+                container(switch_btn).width(Length::FillPortion(1)),
+            ]
+            .spacing(8)
+            .align_y(Alignment::Start),
+        ]
+        .spacing(8)
+        .into(),
+        WidthMode::Standard | WidthMode::Wide => row![
+            container(fetch_btn).width(Length::FillPortion(1)),
+            container(pull_btn).width(Length::FillPortion(1)),
+            container(tag_btn).width(Length::FillPortion(1)),
+            container(switch_btn).width(Length::FillPortion(1)),
+        ]
+        .spacing(8)
+        .align_y(Alignment::Start)
+        .into(),
+    };
+
     let bar =
-        container(column![command_row, action_row].spacing(6).padding([6, 12])).width(Length::Fill);
+        container(column![command_row, actions].spacing(6).padding([6, 12])).width(Length::Fill);
 
     Some(bar.into())
 }
