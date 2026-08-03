@@ -367,6 +367,32 @@ replacements land.
 
 ### Responsive strategy
 
+**Superseded 2026-08-03** — see `.git-exclude/reviewed/107-...md`. The decision
+below chose `iced::widget::responsive`, whose measurement is available only during
+layout. `focus_order` runs inside `update()` in response to a Tab/Enter message,
+where there is no `Size` at all, so once compact mode changes *which* focus
+targets exist rather than only how they are laid out, keyboard order and rendering
+derive from two disconnected notions of width — and one of them has none.
+
+**Current mechanism:** `WidthMode` is held in `AppState`, updated from
+`iced::window::resize_events()` (iced's own documented pattern,
+`iced-0.14.0/src/lib.rs:358`), and read by both `view` and `focus_order`. The
+initial value is derived from `window::Settings`'s configured size at `init`,
+before any resize event fires. Breakpoints and the round-before-compare fix are
+unchanged.
+
+The prohibition below on entering `AppState` and on resize messages is
+**retracted**. What it was protecting against — duplicated, drifting state — is
+what the two-source arrangement actually produced.
+
+If shell chrome ever makes window width diverge materially from content width, the
+breakpoints take a calibration constant. Measured today it does not: a nominal
+1000px window yields 999.9983 at the body level.
+
+---
+
+### (superseded) Responsive strategy as decided 2026-08-01
+
 Iced has no media queries; width must be observed. **Use
 `iced::widget::responsive`.** Derive a mode enum (`Compact` / `Standard` /
 `Wide`) from the `Size` its closure receives, and select composition from it. The
@@ -616,8 +642,13 @@ rule as Stage 1.
    materially worse to use, report it with captures rather than silently
    reverting - D4 would then need amending, which is an architect decision.
 
-2. ~~**How is the width mode observed?**~~ **Resolved 2026-08-01 — see
-   Internal Design / Responsive strategy.** `iced::widget::responsive`. Settled in
+2. ~~**How is the width mode observed?**~~ **Resolved 2026-08-01, then
+   REVERSED 2026-08-03** — see Internal Design / Responsive strategy, and
+   `.git-exclude/reviewed/107-...md`. The 2026-08-01 resolution chose
+   `iced::widget::responsive`; that measurement is unavailable inside `update()`,
+   where `focus_order` runs, so compact mode could not build a keyboard order
+   matching what it renders. `WidthMode` now lives in `AppState`, fed by
+   `iced::window::resize_events()`. Original text kept below. `iced::widget::responsive`. Settled in
    the RFC rather than delegated, because RFC-037 and RFC-038 inherit the
    mechanism, and because the question as originally posed offered a false choice:
    there is no existing window-size subscription in the codebase.
