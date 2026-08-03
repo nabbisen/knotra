@@ -194,7 +194,7 @@ fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
         content.push(no_matches(state));
     } else {
         for section in display.sections {
-            content.push(view_section(state, section));
+            content.push(view_section(state, section, mode));
         }
     }
     let content_column = column(content).spacing(8).padding(Padding {

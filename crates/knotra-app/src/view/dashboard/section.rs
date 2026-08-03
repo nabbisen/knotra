@@ -15,10 +15,12 @@ use crate::{
 };
 
 use super::row::view_project_row;
+use super::width_mode::WidthMode;
 
 pub(super) fn view_section<'a>(
     state: &'a AppState,
     section: DashboardSection<'a>,
+    mode: WidthMode,
 ) -> Element<'a, Message> {
     let mut elements = vec![section_header(
         state,
@@ -31,7 +33,7 @@ pub(super) fn view_section<'a>(
             section
                 .entries
                 .into_iter()
-                .map(|entry| view_project_row(state, entry)),
+                .map(|entry| view_project_row(state, entry, mode)),
         );
     }
     column(elements).spacing(3).into()
