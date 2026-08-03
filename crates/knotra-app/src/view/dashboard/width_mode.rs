@@ -29,7 +29,18 @@ pub(super) enum WidthMode {
 impl WidthMode {
     /// R8's breakpoints: `<1000` compact, `1000..1280` standard, `>=1280`
     /// wide.
+    ///
+    /// `width` is rounded to the nearest pixel first. `responsive`'s
+    /// measured `Size` is not exactly the requested window width — an
+    /// exactly-1000px window measured `999.9983` in practice (window
+    /// chrome/border loss through the layout tree, not a knotra bug), which
+    /// landed just on the wrong side of a strict `<1000.0` comparison and
+    /// misclassified R8's own first standard-width pixel as compact. Found
+    /// empirically with a temporary `eprintln!` probe (since reverted)
+    /// while capturing Handoff 027's required evidence, the same
+    /// instrument-and-revert discipline as Handoff 024.
     pub(super) fn from_width(width: f32) -> Self {
+        let width = width.round();
         if width < 1000.0 {
             WidthMode::Compact
         } else if width < 1280.0 {
@@ -51,5 +62,15 @@ mod tests {
         assert_eq!(WidthMode::from_width(1000.0), WidthMode::Standard);
         assert_eq!(WidthMode::from_width(1279.0), WidthMode::Standard);
         assert_eq!(WidthMode::from_width(1280.0), WidthMode::Wide);
+    }
+
+    /// The exact regression found in the live app: `responsive` measured
+    /// `999.9983` for what was, at the OS/window-manager level, a precise
+    /// 1000px window.
+    #[test]
+    fn sub_pixel_measurement_loss_does_not_cross_a_boundary() {
+        assert_eq!(WidthMode::from_width(999.9983), WidthMode::Standard);
+        assert_eq!(WidthMode::from_width(1279.498), WidthMode::Standard);
+        assert_eq!(WidthMode::from_width(1280.0017), WidthMode::Wide);
     }
 }
