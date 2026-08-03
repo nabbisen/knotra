@@ -154,12 +154,12 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
     crate::view::shell::page_header(state.t("nav.dashboard"), refresh)
 }
 
-/// `mode` is unused in Stage 4 commit 1 — this signature exists so it does
-/// not need to change again in commits 2-4, which are the ones that branch
-/// on it (wide centring, compact rows). Commit 1's own claim is only that
-/// `responsive` delivers a correct `WidthMode` with no visible change at
-/// standard width.
-fn view_body(state: &AppState, _mode: WidthMode) -> Element<'_, Message> {
+/// R8's wide-mode centring width (~1180-1240px per the Internal Design
+/// audit note) — a fixed value, not derived from the window, so the row
+/// tracks beneath it never grow past what Stage 3 verified.
+const WIDE_CONTENT_WIDTH: f32 = 1200.0;
+
+fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     if state.workspace.is_none() {
         return view_without_workspace(state);
     }
@@ -197,13 +197,22 @@ fn view_body(state: &AppState, _mode: WidthMode) -> Element<'_, Message> {
             content.push(view_section(state, section));
         }
     }
-    column(content)
-        .spacing(8)
-        .padding(Padding {
-            top: 4.0,
-            right: 12.0,
-            bottom: 16.0,
-            left: 12.0,
-        })
-        .into()
+    let content_column = column(content).spacing(8).padding(Padding {
+        top: 4.0,
+        right: 12.0,
+        bottom: 16.0,
+        left: 12.0,
+    });
+
+    match mode {
+        // R8: content centred, tracks do not grow indefinitely - achieved by
+        // bounding the column itself to a fixed width and centring that
+        // within the full available width, rather than letting the column's
+        // `Fill`-seeking row/header children (see `row.rs`/`section.rs`)
+        // stretch to the window.
+        WidthMode::Wide => container(content_column.width(Length::Fixed(WIDE_CONTENT_WIDTH)))
+            .center_x(Length::Fill)
+            .into(),
+        WidthMode::Compact | WidthMode::Standard => content_column.into(),
+    }
 }
