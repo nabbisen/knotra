@@ -599,4 +599,50 @@ mod tests {
             }
         }
     }
+
+    /// `notice`'s one tone-varying text color (RFC-035 Handoff 030 §5):
+    /// its title/body always render in `text_primary` (already covered by
+    /// `text_roles_meet_wcag_aa_against_every_surface_role_in_both_themes`),
+    /// but the action button's label is coloured by `Tone` — `Notice::render`'s
+    /// own `match self.tone { Tone::Accent => p.accent, ... }`. That mapping
+    /// is a static function of `Tone` alone, with no interactive `Status` to
+    /// branch on, so reading the palette fields directly drives the same
+    /// computation `render()` performs rather than reconstructing it —
+    /// unlike `087` Finding 1, where the original sin was skipping a
+    /// genuinely status-dependent style function. Checked against `surface`,
+    /// `notice`'s own background, in both themes.
+    ///
+    /// **`Tone::Neutral` (`p.border`) is deliberately excluded.** `Palette`
+    /// documents `border` as "borders and separators" — a role never
+    /// intended to carry mandatory text contrast, unlike `accent`/`success`/
+    /// `warning`/`danger`/`info`. It measures 1.28:1 against light-theme
+    /// `surface`, far under AA, confirming it was never meant for this.
+    /// Not a defect: no call site uses `Tone::Neutral` with `notice` (this
+    /// stage's own consumer is `Tone::Danger`), and none should until a
+    /// text-safe color is chosen for that case.
+    #[test]
+    fn notice_tone_colors_meet_wcag_aa_against_surface_in_both_themes() {
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let surface = from_iced(theme.surface());
+            let p = &theme.tokens.palette;
+            let cases: [(&str, snora::design::Color); 5] = [
+                ("Accent", p.accent),
+                ("Success", p.success),
+                ("Warning", p.warning),
+                ("Danger", p.danger),
+                ("Info", p.info),
+            ];
+            for (label, color) in cases {
+                let ratio = snora::design::contrast::contrast_ratio(color, surface);
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} notice action-label Tone::{label} vs surface: {ratio:.2}:1 \
+                     is below the required {AA_NORMAL}:1"
+                );
+            }
+        }
+    }
 }

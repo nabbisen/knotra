@@ -3,7 +3,9 @@
 
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button};
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, NoticeAction, Tone, guided_button, notice,
+};
 
 use crate::{
     message::{DashboardMessage, FilterMessage, Message, WorkspaceMessage},
@@ -43,33 +45,44 @@ pub(super) fn empty_workspace(state: &AppState) -> Element<'_, Message> {
     .into()
 }
 
+/// RFC-032 R7, migrated onto the `notice` primitive (RFC-035 Handoff 030
+/// §5). `Notice`'s own builder has room for exactly one action, and its
+/// `.dismiss()` is a fixed `"×"` glyph — neither slot is a labelled
+/// Show/Hide-details toggle, so R7's three parts split across two layers:
+/// `notice` renders the tone/generic-message/Retry part; the details
+/// toggle and the raw adapter text it reveals are composed here, around
+/// it, the same way `row.rs`'s row actions and `toolbar.rs`'s disclosures
+/// already compose a primitive with app-level controls rather than
+/// bending the primitive to hold everything. R7's contract — generic
+/// first-level copy, Retry, raw text only behind Show details — is
+/// unchanged; only where each piece is drawn from moved.
 pub(super) fn view_error_notice<'a>(
     state: &'a AppState,
     error: &'a str,
     first_level_message: &'a str,
     retry_allowed: bool,
 ) -> Element<'a, Message> {
+    let tokens = &state.theme.tokens;
     let details_label = if state.dashboard_error_details_open {
         state.t("plain.hide_details")
     } else {
         state.t("plain.show_details")
     };
-    let mut actions = row![
-        button(text(details_label).size(12))
-            .on_press(Message::Dashboard(DashboardMessage::ErrorDetailsToggled,)),
-    ]
-    .spacing(6);
-    if retry_allowed {
-        actions = actions.push(
-            button(text(state.t("dashboard.try_again")).size(12))
-                .on_press(Message::Dashboard(DashboardMessage::ErrorRetryRequested)),
-        );
-    }
-    let mut notice = column![text(first_level_message).size(14), actions].spacing(6);
+
+    let action = retry_allowed.then(|| NoticeAction {
+        label: state.t("dashboard.try_again").to_owned(),
+        on_press: Message::Dashboard(DashboardMessage::ErrorRetryRequested),
+    });
+    let banner = notice(tokens, Tone::Danger, None, first_level_message, action);
+
+    let details_toggle = button(text(details_label).size(12))
+        .on_press(Message::Dashboard(DashboardMessage::ErrorDetailsToggled));
+
+    let mut content = column![banner, details_toggle].spacing(6);
     if state.dashboard_error_details_open {
-        notice = notice.push(text(error).size(11));
+        content = content.push(text(error).size(11));
     }
-    container(notice).width(Length::Fill).padding(12).into()
+    container(content).width(Length::Fill).padding(12).into()
 }
 
 pub(super) fn no_matches(state: &AppState) -> Element<'_, Message> {
