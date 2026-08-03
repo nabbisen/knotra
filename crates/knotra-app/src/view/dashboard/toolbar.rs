@@ -25,7 +25,7 @@ use crate::{
     config::{DashboardGrouping, DashboardSort},
     message::{DashboardMessage, FilterMessage, Message, SelectionMessage, StatusFilter},
     state::{
-        AppState,
+        AppState, SelectionSummary,
         focus::{FocusOrder, FocusTarget},
     },
 };
@@ -107,6 +107,28 @@ fn chip_element<'a>(
             filter.clone(),
         ))),
     )
+}
+
+/// RFC-035 R15/Handoff 030 §4.1: the Select control's disabled reason must
+/// be true to its actual cause. "No projects match this view" implies a
+/// filter excluded everything, which is false when nothing is
+/// **registered** at all (`066` observation 1) — that case gets its own
+/// wording, matching the empty state's own copy, rather than reusing a
+/// sentence about filtering. Shared between the standard and compact
+/// toolbars so the two cannot pick different wording for the same cause.
+fn select_mode_reason(state: &AppState, summary: &SelectionSummary) -> Option<&'static str> {
+    if !summary.visible_ids.is_empty() {
+        return None;
+    }
+    let no_projects_registered = state
+        .workspace
+        .as_ref()
+        .is_none_or(|workspace| workspace.projects.is_empty());
+    Some(if no_projects_registered {
+        state.t("plain.selection.no_projects_registered")
+    } else {
+        state.t("plain.selection.no_visible_projects")
+    })
 }
 
 pub(super) fn focus_order(state: &AppState, mode: WidthMode) -> FocusOrder<Message> {
@@ -339,10 +361,7 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
         tokens,
         state.t("plain.selection.enter"),
         select_message,
-        summary
-            .visible_ids
-            .is_empty()
-            .then(|| state.t("plain.selection.no_visible_projects")),
+        select_mode_reason(state, &summary),
         is_focused(state, focus_target::SELECT_MODE),
     );
 
@@ -427,10 +446,7 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         tokens,
         state.t("plain.selection.enter"),
         select_message,
-        summary
-            .visible_ids
-            .is_empty()
-            .then(|| state.t("plain.selection.no_visible_projects")),
+        select_mode_reason(state, &summary),
         is_focused(state, focus_target::SELECT_MODE),
     );
 

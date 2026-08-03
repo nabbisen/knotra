@@ -286,6 +286,10 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "No projects match this view.",
     );
     m.insert(
+        "plain.selection.no_projects_registered",
+        "No projects added yet.",
+    );
+    m.insert(
         "plain.selection.none_fetchable",
         "None of the selected projects can be checked right now.",
     );
@@ -1014,6 +1018,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert(
         "plain.selection.no_visible_projects",
         "この表示に一致するプロジェクトがありません。",
+    );
+    m.insert(
+        "plain.selection.no_projects_registered",
+        "プロジェクトがまだ追加されていません。",
     );
     m.insert(
         "plain.selection.none_fetchable",

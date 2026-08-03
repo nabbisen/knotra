@@ -75,22 +75,31 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             } else {
                 "⚠"
             };
-            let mut label = format!(
-                "{}  {}: {} {}, {} {}",
+            // RFC-035 R16/Handoff 030 §4.2: `failed` is now guarded the same
+            // way `skipped` already was — a fully successful run no longer
+            // prints "0 failed" (`060` finding 4). `succeeded` stays
+            // unconditional: it is the segment that anchors the count, and
+            // a run with zero successes needs "0 succeeded" to say so.
+            // Building the segments as a list and joining them (rather than
+            // conditionally appending onto a base string) is what keeps the
+            // separator from dangling when a segment is omitted.
+            let mut segments = vec![format!(
+                "{} {}",
+                succeeded,
+                state.t("plain.activity.succeeded")
+            )];
+            if failed > 0 {
+                segments.push(format!("{} {}", failed, state.t("plain.activity.failed")));
+            }
+            if skipped > 0 {
+                segments.push(format!("{} {}", skipped, state.t("plain.activity.skipped")));
+            }
+            let label = format!(
+                "{}  {}: {}",
                 icon,
                 operation_kind_label(state, &log.result.kind),
-                succeeded,
-                state.t("plain.activity.succeeded"),
-                failed,
-                state.t("plain.activity.failed"),
+                segments.join(", "),
             );
-            if skipped > 0 {
-                label.push_str(&format!(
-                    ", {} {}",
-                    skipped,
-                    state.t("plain.activity.skipped")
-                ));
-            }
 
             let mut content = row![
                 text(label).size(FONT_SMALL),
