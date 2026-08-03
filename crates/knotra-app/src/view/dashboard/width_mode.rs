@@ -5,19 +5,28 @@
 //! `AppConfig` and never drives a message on resize. It exists purely as the
 //! result of `iced::widget::responsive`'s per-layout closure, recomputed
 //! fresh on every layout pass from the space actually available to the
-//! dashboard body, not the window size (`mod.rs`'s `view` is where that
-//! distinction is made — `responsive` is wrapped around the body region,
-//! not the whole window).
+//! composition, not the window size.
 //!
-//! Scoped to `dashboard/` rather than `view/` root (Handoff 027 §5): the
-//! dashboard is the only current consumer, and RFC-037/038 - candidates for
-//! reuse - are not specified enough yet to design a shared home around.
-//! Moving this module up a level later is a mechanical change, not a
-//! redesign, if that need becomes concrete.
+//! **Revised by Handoff 027 Ruling 6.2**: `responsive` originally wrapped
+//! only the dashboard body (`dashboard/mod.rs`'s own `view`). It now wraps
+//! `view.rs`'s whole body composition (screen content + selection bar +
+//! activity strip), computed once and passed to both `dashboard::view` and
+//! `selection_bar::view` — two independent `responsive` wrappers would
+//! measure different regions (the dashboard's own padding vs. not) and
+//! could classify differently at a band edge, a live risk once a
+//! precise-1000px window was found to measure `999.9983` (see
+//! `from_width`'s doc).
+//!
+//! The type itself stays defined here rather than moving to `view/` root
+//! (Handoff 027 §5's original reasoning still holds even though the
+//! *computation* moved up a level): the dashboard is still the primary
+//! consumer and the type's own semantics (R8's breakpoints) are the
+//! dashboard's. `pub(crate)` (widened from `pub(super)` by Ruling 6.2) so
+//! `view.rs` and `view/selection_bar.rs` can name it.
 
 /// The three width bands RFC-035 R8 defines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum WidthMode {
+pub(crate) enum WidthMode {
     /// 800-999px: two-line rows, collapsed toolbar.
     Compact,
     /// 1000-1279px: bounded three-track rows, full toolbar.
@@ -39,7 +48,7 @@ impl WidthMode {
     /// empirically with a temporary `eprintln!` probe (since reverted)
     /// while capturing Handoff 027's required evidence, the same
     /// instrument-and-revert discipline as Handoff 024.
-    pub(super) fn from_width(width: f32) -> Self {
+    pub(crate) fn from_width(width: f32) -> Self {
         let width = width.round();
         if width < 1000.0 {
             WidthMode::Compact

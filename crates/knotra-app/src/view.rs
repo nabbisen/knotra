@@ -50,41 +50,56 @@ use iced::Element;
 pub fn app_view(state: &AppState) -> Element<'_, Message> {
     use crate::message::{ShortcutMessage, WorkspaceMessage};
     use crate::state::ActiveModal;
+    use crate::view::dashboard::WidthMode;
     use iced::Length;
-    use iced::widget::{column, container, row, stack};
+    use iced::widget::{column, container, responsive, row, stack};
     use snora::{AppLayout, Dialog, LayoutDirection, Sheet, SheetEdge, SheetSize, render};
 
     // -----------------------------------------------------------------------
     // Body: screen content + selection bar + activity strip. The persistent
     // workspace-tab strip moved into the shell header (RFC-034 R12/R13).
+    //
+    // Wrapped in `responsive` (RFC-035 R8, Handoff 027 Ruling 6.2): `WidthMode`
+    // is computed once here, for the whole composition, and passed to both
+    // `dashboard::view` and `selection_bar::view` — two independent
+    // `responsive` wrappers (one per sibling) would measure different
+    // regions (the dashboard's own padding vs. not) and could classify
+    // differently at a band edge, a real risk once a precise 1000px window
+    // was found to measure `999.9983` (`width_mode.rs`'s `from_width` doc).
     // -----------------------------------------------------------------------
-    let screen_content: Element<'_, Message> = match state.screen {
-        crate::state::Screen::Dashboard => dashboard::view(state),
-        crate::state::Screen::History => history::view(state),
-        crate::state::Screen::Settings => settings::view(state),
-    };
+    let body: Element<'_, Message> = responsive(move |size| {
+        let mode = WidthMode::from_width(size.width);
 
-    let sel_bar = selection_bar::view(state);
-    let activity = activity_strip::view(state);
+        let screen_content: Element<'_, Message> = match state.screen {
+            crate::state::Screen::Dashboard => dashboard::view(state, mode),
+            crate::state::Screen::History => history::view(state),
+            crate::state::Screen::Settings => settings::view(state),
+        };
 
-    let mut main_col = column![screen_content].height(Length::Fill);
-    if let Some(bar) = sel_bar {
-        main_col = main_col.push(bar);
-    }
-    if let Some(strip) = activity {
-        main_col = main_col.push(strip);
-    }
+        let sel_bar = selection_bar::view(state, mode);
+        let activity = activity_strip::view(state);
 
-    // Detail panel (RFC-0014) — horizontally adjacent to main column.
-    let body: Element<'_, Message> = if state.detail_panel.open_project_id.is_some() {
-        if let Some(panel) = detail_panel::view(state) {
-            row![main_col, panel].into()
+        let mut main_col = column![screen_content].height(Length::Fill);
+        if let Some(bar) = sel_bar {
+            main_col = main_col.push(bar);
+        }
+        if let Some(strip) = activity {
+            main_col = main_col.push(strip);
+        }
+
+        // Detail panel (RFC-0014) — horizontally adjacent to main column.
+        if state.detail_panel.open_project_id.is_some() {
+            if let Some(panel) = detail_panel::view(state) {
+                row![main_col, panel].into()
+            } else {
+                main_col.into()
+            }
         } else {
             main_col.into()
         }
-    } else {
-        main_col.into()
-    };
+    })
+    .height(Length::Fill)
+    .into();
 
     // -----------------------------------------------------------------------
     // snora AppLayout: skeleton + standard modal overlays (RFC-0013).

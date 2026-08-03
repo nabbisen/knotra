@@ -6,7 +6,7 @@
 //! external entry points, `view` and `focus_order`, plus the two
 //! functions (`view_header`, `view_body`) that compose across submodules.
 
-use iced::widget::{button, column, container, responsive, scrollable, text};
+use iced::widget::{button, column, container, scrollable, text};
 use iced::{Element, Length, Padding};
 
 use crate::{
@@ -34,7 +34,7 @@ use empty::{
 use row::{action_key, checkbox_key, name_key};
 use section::{focus_key, view_section};
 use toolbar::view_toolbar;
-use width_mode::WidthMode;
+pub(crate) use width_mode::WidthMode;
 
 /// Tab/Shift-Tab focus targets for the dashboard (RFC-036 R2, Stage 4;
 /// toolbar targets added RFC-035 Handoff 022 §7.4): the toolbar's filter
@@ -103,25 +103,17 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
     order
 }
 
-pub fn view(state: &AppState) -> Element<'_, Message> {
+/// `mode` comes from `view.rs`'s own `responsive` wrapper, computed once
+/// for the whole body composition (screen content + selection bar +
+/// activity strip) rather than separately here — Handoff 027 Ruling 6.2,
+/// after two independent wrappers were found to risk measuring different
+/// regions and classifying differently at a band edge. See
+/// `width_mode.rs`'s module doc.
+pub fn view(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     let mut body = column![view_header(state), view_toolbar(state)]
         .height(Length::Fill)
         .spacing(4);
-    // RFC-035 R8/Internal Design §Responsive strategy: `responsive` wraps
-    // the body region specifically (not the whole window, via `view()`'s
-    // own `state` parameter) so its closure's `Size` is the space actually
-    // available to the dashboard body, not the window size. `WidthMode` is
-    // recomputed fresh every layout pass here and never stored — see
-    // `width_mode.rs`'s module doc for why.
-    body = body.push(
-        responsive(move |size| {
-            let mode = WidthMode::from_width(size.width);
-            scrollable(view_body(state, mode))
-                .height(Length::Fill)
-                .into()
-        })
-        .height(Length::Fill),
-    );
+    body = body.push(scrollable(view_body(state, mode)).height(Length::Fill));
 
     if let Some(message) = &state.status_bar {
         body = body.push(

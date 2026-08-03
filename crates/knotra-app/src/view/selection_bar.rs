@@ -13,9 +13,13 @@ use knotra_ui::widget::{BUTTON_HEIGHT, guided_button};
 use crate::{
     message::{ContextMessage, FreezerMessage, Message, SelectionMessage, SyncMessage},
     state::AppState,
+    view::dashboard::WidthMode,
 };
 
-pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
+/// `mode` is unused in Handoff 028 commit 4a (the plumbing-only commit) —
+/// this signature exists so commit 4b, which arranges the actions into a
+/// 2x2 grid at `WidthMode::Compact`, doesn't need to change it again.
+pub fn view(state: &AppState, _mode: WidthMode) -> Option<Element<'_, Message>> {
     // Selection bar only shown while in selection mode.
     if !state.selection_mode {
         return None;
