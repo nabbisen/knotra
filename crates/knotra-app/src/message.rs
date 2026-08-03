@@ -44,6 +44,10 @@ pub enum Message {
     /// Toggle "Show details / Hide details" in modal result screens (RFC-0021 Phase 2).
     ToggleOpDetails,
     Tick,
+    /// RFC-035 R8/Handoff 029: the window resized. Recomputes
+    /// `state.width_mode` — iced's own documented subscription shape
+    /// (`iced-0.14.0/src/lib.rs:358`), not a knotra-invented mechanism.
+    WindowResized(iced::Size),
 }
 
 // --- Workspace ---

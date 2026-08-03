@@ -27,7 +27,7 @@ fn main() -> iced::Result {
         .theme(|state: &state::AppState| state.theme.base.clone())
         .font(knotra_ui::widget::icon::FONT_BYTES)
         .window(iced::window::Settings {
-            size: iced::Size::new(1100.0, 720.0),
+            size: state::INITIAL_WINDOW_SIZE,
             min_size: Some(iced::Size::new(800.0, 600.0)),
             ..iced::window::Settings::default()
         })

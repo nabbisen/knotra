@@ -35,6 +35,7 @@ use crate::{
     persistence::{load_recent_logs, load_workspaces},
     state::{AppState, LeaderKeyState, LoadPhase, focus},
     view::app_view,
+    view::dashboard::WidthMode,
 };
 
 // ---------------------------------------------------------------------------
@@ -122,7 +123,14 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
     });
 
     let fs_sub = fs_watch_subscription(state);
-    Subscription::batch([tick_sub, keyboard_sub, fs_sub])
+
+    // RFC-035 R8/Handoff 029: iced's own documented resize subscription
+    // shape (`iced-0.14.0/src/lib.rs:358`) — feeds `state.width_mode`,
+    // reversed from the original `responsive`-based mechanism (see
+    // `width_mode.rs`'s module doc for why).
+    let resize_sub = iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size));
+
+    Subscription::batch([tick_sub, keyboard_sub, fs_sub, resize_sub])
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +207,10 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::Context(msg) => context::handle_context(state, msg),
         Message::Launch(msg) => misc::handle_launch(state, msg),
+        Message::WindowResized(size) => {
+            state.width_mode = WidthMode::from_width(size.width);
+            Task::none()
+        }
     }
 }
 

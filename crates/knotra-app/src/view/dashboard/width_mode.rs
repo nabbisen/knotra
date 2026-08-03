@@ -1,28 +1,41 @@
 //! RFC-035 R8: the dashboard's width-derived presentation mode.
 //!
-//! Presentation-derived only, per RFC-035's own constraint (Internal Design
-//! §Responsive strategy) — this type is never stored in `AppState`/
-//! `AppConfig` and never drives a message on resize. It exists purely as the
-//! result of `iced::widget::responsive`'s per-layout closure, recomputed
-//! fresh on every layout pass from the space actually available to the
-//! composition, not the window size.
+//! ## History — three mechanisms, in order
 //!
-//! **Revised by Handoff 027 Ruling 6.2**: `responsive` originally wrapped
-//! only the dashboard body (`dashboard/mod.rs`'s own `view`). It now wraps
-//! `view.rs`'s whole body composition (screen content + selection bar +
-//! activity strip), computed once and passed to both `dashboard::view` and
-//! `selection_bar::view` — two independent `responsive` wrappers would
-//! measure different regions (the dashboard's own padding vs. not) and
-//! could classify differently at a band edge, a live risk once a
-//! precise-1000px window was found to measure `999.9983` (see
-//! `from_width`'s doc).
+//! 1. **Original (RFC-035 Internal Design §Responsive strategy, Stage 4
+//!    commit 1):** presentation-derived only, computed inside
+//!    `iced::widget::responsive`'s per-layout closure in `dashboard/mod.rs`'s
+//!    `view`. Explicitly *not* stored in `AppState`/`AppConfig`, and not
+//!    driving a message on resize.
+//! 2. **Handoff 027 Ruling 6.2:** `responsive` moved from wrapping just the
+//!    dashboard body to wrapping `view.rs`'s whole body composition (screen
+//!    content + selection bar + activity strip), computed once and passed
+//!    to both `dashboard::view` and `selection_bar::view` — two independent
+//!    wrappers would measure different regions and could classify
+//!    differently at a band edge, a live risk once a precise-1000px window
+//!    was found to measure `999.9983` (see `from_width`'s doc).
+//! 3. **Handoff 029, reversing the original decision:** implementing
+//!    compact mode's toolbar (Handoff 028) found that `focus_order` runs
+//!    inside `update()`, in direct response to a Tab/Enter `Message` —
+//!    which has **no access to `Size` at all**, since `responsive`'s
+//!    closure only runs during layout and `iced::window::size()` is an
+//!    async `Task`. The moment compact mode changed *which* toolbar targets
+//!    exist (not just their layout — Stage 3's row/section mode branching
+//!    never needed this), `view` and `focus_order` needed to agree on a
+//!    value that `focus_order` had no way to obtain. **`WidthMode` now
+//!    lives in `AppState`** (`state.width_mode`), fed by
+//!    `Message::WindowResized` (`iced::window::resize_events()` —
+//!    iced's own documented subscription shape), seeded at `init` from
+//!    `state::INITIAL_WINDOW_SIZE` (no resize event fires before the first
+//!    frame). Both `view.rs` and `dashboard::focus_order` now read the same
+//!    field. `responsive` is retired from this RFC.
 //!
-//! The type itself stays defined here rather than moving to `view/` root
-//! (Handoff 027 §5's original reasoning still holds even though the
-//! *computation* moved up a level): the dashboard is still the primary
-//! consumer and the type's own semantics (R8's breakpoints) are the
-//! dashboard's. `pub(crate)` (widened from `pub(super)` by Ruling 6.2) so
-//! `view.rs` and `view/selection_bar.rs` can name it.
+//! The type itself stays defined here rather than moving to `state/`
+//! (Handoff 027 §5's placement reasoning still holds despite the mechanism
+//! changing again): the dashboard is still the primary consumer and the
+//! type's own semantics (R8's breakpoints) are the dashboard's. `pub(crate)`
+//! so `state.rs`, `app.rs`, `view.rs`, and `view/selection_bar.rs` can name
+//! it.
 
 /// The three width bands RFC-035 R8 defines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

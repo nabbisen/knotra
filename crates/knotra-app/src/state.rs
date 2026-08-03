@@ -27,7 +27,18 @@ use knotra_vcs::{
 use crate::{
     config::{AppConfig, AppPaths},
     message::{FilterMessage, StatusFilter},
+    view::dashboard::WidthMode,
 };
+
+// ---------------------------------------------------------------------------
+// Window size
+// ---------------------------------------------------------------------------
+
+/// The window size `main.rs` configures at startup. A single named constant
+/// so `main.rs`'s `window::Settings` and `AppState`'s initial `width_mode`
+/// (no resize event fires before the first frame) can never silently drift
+/// apart (RFC-035 R8/Handoff 029 §2.2).
+pub const INITIAL_WINDOW_SIZE: iced::Size = iced::Size::new(1100.0, 720.0);
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -571,6 +582,18 @@ pub struct AppState {
     /// overlay while it is open, and R7 needs `dashboard_focus` untouched
     /// underneath so focus can return to it when the overlay closes.
     pub overlay_focus: Option<focus::FocusTarget>,
+    // ------------------------------------------------------------------
+    // RFC-035 R8 responsive mode
+    // ------------------------------------------------------------------
+    /// The dashboard's width-derived presentation mode (RFC-035 R8).
+    /// **Reversed from a `responsive`-computed, `AppState`-excluded value
+    /// (RFC-035's original Internal Design §Responsive strategy) to a real
+    /// state field, fed by `Message::WindowResized`** (Handoff 028's
+    /// finding, Handoff 029): `focus_order` runs inside `update()`, where
+    /// no `responsive` closure's `Size` is reachable, so keyboard order and
+    /// rendering could not derive from the same value under the original
+    /// mechanism. See `width_mode.rs`'s module doc for the full history.
+    pub width_mode: WidthMode,
 }
 
 impl AppState {
@@ -629,6 +652,7 @@ impl AppState {
             recent_removal: None,
             dashboard_focus: None,
             overlay_focus: None,
+            width_mode: WidthMode::from_width(INITIAL_WINDOW_SIZE.width),
             paths,
             config,
         }
@@ -731,5 +755,25 @@ impl AppState {
                     .collect()
             })
             .unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// RFC-035 R8/Handoff 029 §2.2: the initial `width_mode` must be
+    /// *derived* from `INITIAL_WINDOW_SIZE`, not a hardcoded default that
+    /// happens to match today's configured size by accident of enum
+    /// ordering — this would silently go wrong if `INITIAL_WINDOW_SIZE`
+    /// (or `main.rs`'s `window::Settings`, which reads the same constant)
+    /// ever changed without this staying in sync.
+    #[test]
+    fn initial_width_mode_is_derived_from_initial_window_size() {
+        let state = AppState::new(AppConfig::default());
+        assert_eq!(
+            state.width_mode,
+            WidthMode::from_width(INITIAL_WINDOW_SIZE.width)
+        );
     }
 }
