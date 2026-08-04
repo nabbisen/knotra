@@ -7,6 +7,95 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.25.0] — 2026-08-04
+
+**The dashboard and decomposition release.** Two RFCs: the dashboard migrated
+onto the design system 0.24.0 introduced, and `app.rs` broken apart.
+
+### Fixed — the dashboard was keyboard-navigable but invisibly so (RFC-035)
+
+0.24.0 shipped Tab traversal that reached the dashboard's controls and drew
+nothing. Pressing Tab moved focus across the main screen with no indication of
+where it had gone. That is fixed, along with the rest of the dashboard's
+migration:
+
+- **Focus is visible everywhere.** Toolbar chips and selects, section headers,
+  row checkboxes, row names, row actions, and the selection bar's five controls
+  each render a focus ring, verified against WCAG AA by test in both themes.
+- **`↑` / `↓` / `j` / `k` move between project cards**, and `Enter` opens the
+  focused card's detail panel — specified back in `rfcs/done/0016-keyboard-shortcuts.md`
+  and never built until now.
+- **Real controls instead of improvised ones.** Status filters are chips that
+  fill when selected, rather than buttons with a `*` appended. Grouping and
+  sorting are select menus showing their current value, rather than five buttons
+  where the active one was greyed out — it was *disabled* to look selected, so
+  the current choice was the least legible thing in the row. Row selection uses a
+  real checkbox, not `[ ]` / `[x]` text.
+- **Rows line up.** Bounded column tracks replace proportional fills, so
+  identity, status, and action columns sit at the same offsets down the list.
+- **Three width modes**, switching composition rather than wrapping: two-line
+  rows and a collapsed toolbar below 1000px, bounded three-track rows to 1279px,
+  centred content above that.
+- **Disabled reasons are said once.** "Wait for the current operation to finish"
+  appeared beneath each of four selection actions and again under row actions —
+  five copies in one viewport. It now appears once for the group, with
+  action-specific reasons in a single labelled slot.
+- **The Select button no longer contradicts the screen.** With no projects added,
+  it said "No projects match this view" beside a body reading "Add your first
+  project folder." Both were true; together they were nonsense.
+- **A completed run no longer reports "0 failed."**
+
+### Changed — `app.rs` split into eleven modules (RFC-040)
+
+`crates/knotra-app/src/app.rs` went from **3,255 to 296 ELOC**. No behaviour
+changed: every function moved verbatim, and the same 166 tests passed at every
+one of the sixteen commits without being edited.
+
+The file had grown ~90 ELOC per RFC because every RFC added message handlers to
+it. It is now a dispatcher plus lifecycle, with one module per message domain.
+
+**One exception, declared rather than hidden:** `app/background.rs` is 761 ELOC.
+Splitting it means extracting `match` arms, which is redesign rather than
+relocation — it has its own RFC coming.
+
+### Added — continuous integration
+
+`.github/workflows/ci.yaml` runs formatting, lints, and all three test suites on
+every push and pull request. The project previously had no gate CI; the release
+workflow added in 0.24.0 covers artifacts only.
+
+### Fixed — the Git test suite is self-isolating
+
+`cargo test -p knotra-vcs` previously hung on an inherited editor unless six
+environment variables were supplied. It now works unadorned, verified against a
+hostile ambient Git configuration.
+
+### Known limitations in this release
+
+- **Group and Sort cannot be opened by keyboard.** Tab reaches them and the focus
+  ring renders, but iced 0.14's `pick_list` does not respond to key presses, so a
+  keyboard-only user cannot change grouping or sorting. This is the one reason
+  the roadmap's keyboard-navigation item stays open; closing it needs a
+  purpose-built select control.
+- **`app/background.rs` is 761 ELOC**, above the project's own threshold, as
+  described above.
+- **A focused *disabled* filled button's ring measures ~3:1** — acceptable under
+  WCAG 1.4.11 in dark theme, marginal in light. No colour choice improves it.
+- **`guided_button` still serves 11 call sites** in the add-project modal, bulk
+  modals, and dashboard empty states. Retiring it is scheduled work.
+- **No screen-reader support**, and none planned while knotra targets iced 0.14,
+  which exposes no accessibility API.
+- **User-supplied names are passed to `git` without a `--` separator** — a name
+  beginning with `-` would be read as an option. Local and self-inflicted only;
+  no remote-controlled value reaches an argument position. Unchanged from 0.24.0.
+
+### Compatibility
+
+No user action required. No configuration fields were added or changed; existing
+`config.toml`, workspace, and history files load unchanged.
+
+---
+
 ## [0.24.0] — 2026-07-30
 
 **The Production Readiness Reset release.** Twelve RFCs, closing the gap between

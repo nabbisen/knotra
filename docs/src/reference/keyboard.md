@@ -25,18 +25,24 @@ behind it. Closing the dialog returns focus to the control that opened it.
 | `/` | Focus the search box |
 | `Ctrl+/` / `⌘/` | Focus the search box (returns to Dashboard) |
 
+## Moving between projects
+
+| Shortcut | Action |
+|---|---|
+| `↑` / `k` | Move to the previous project |
+| `↓` / `j` | Move to the next project |
+| `Enter` | Open the focused project's detail panel |
+
+Arrow and `j`/`k` movement steps between project names, skipping the controls
+within each row that `Tab` reaches. Projects in collapsed sections are skipped.
+While a text field holds focus these keys type or do nothing, so they never
+interrupt a search.
+
 ## What is not yet keyboard-accessible
 
-knotra's focus model is new as of 0.24.0 and does not cover everything yet:
-
-- **The Dashboard shows no focus indicator.** `Tab` does move focus through
-  section headers, row checkboxes, project names, and row actions, and `Enter`
-  or `Space` activates whichever one holds focus — but none of them draws a
-  focus ring, so you cannot see where focus currently is. Only the top bar and
-  the workspace dialogs indicate focus visually.
-- **Arrow keys and `j` / `k` do not move between project cards**, and there is
-  no single-key shortcut to open the focused card's detail panel beyond `Enter`
-  on the focused project name.
+- **The Group and Sort menus cannot be opened by keyboard.** `Tab` reaches them
+  and they show a focus ring, but they cannot be opened without a pointer, so
+  grouping and sorting cannot be changed by keyboard alone.
 - **Selection mode has no single-key shortcuts.** Fetch, pull, tag, and switch
   are reached through the selection bar or the command palette, not by pressing
   `f`, `p`, `t`, or `b`.
