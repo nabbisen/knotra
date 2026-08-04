@@ -25,7 +25,6 @@ until the RFC moves to `done/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [035](./proposed/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | Production Readiness Reset | High |
 
 ---
 
@@ -38,6 +37,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [035](./done/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | main: f605834 |
 | [040](./done/040-app-module-decomposition.md) | `app.rs` module decomposition | main: 54e5d5d |
 | [036](./done/036-keyboard-navigation-and-focus-traversal.md) | Keyboard navigation and focus traversal | main: d20c7be |
 | [034](./done/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | main: ce05a44 |

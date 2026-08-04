@@ -78,24 +78,25 @@ knotra is developed in focused phases. Each phase ships as a named archive.
 **Goal:** Accessible, consistent, keyboard-navigable UI.
 
 - [x] Keyboard shortcuts (⌘/Ctrl+R refresh, ⌘/Ctrl+K context switch, …)
-- [ ] Full keyboard navigation (tab order, focus visibility) — **RFC-036 is
-      complete** (`rfcs/done/036-keyboard-navigation-and-focus-traversal.md`,
-      `main: d20c7be`): Tab/Shift-Tab traversal, overlay focus
-      entry/trap/return, bare `/` for search, and a focus ring verified
-      against WCAG AA by test on the shell and all three workspace-manager
-      dialogs, in both themes. **This stays unchecked because three gaps
-      remain, all outside RFC-036's scope:** (1) dashboard section headers,
-      row checkboxes, row name buttons, and NeedsHelp actions are all in the
-      focus order but draw no ring, so Tab traverses the primary screen with
-      no visible indication — RFC-035 owns their styling; (2) dashboard
-      card-to-card arrow movement and Enter-to-open, specified in
-      `rfcs/done/0016-keyboard-shortcuts.md` as `↑`/`↓`/`j`/`k`/`Enter`, are
-      RFC-035's and are not built; (3) a focused *disabled* filled control
-      renders its ring at ~3.0-3.3:1, meeting WCAG 1.4.11 non-text contrast
-      (3:1) in dark but not light — recorded limitation, no colour choice
-      improves it (`.git-exclude/reviewed/083-rfc-036-stage-6-review.md`
-      Finding 2). No screen-reader/ARIA layer exists and none is planned;
-      iced 0.14 exposes no accessibility API (RFC-033 non-goal)
+- [ ] Full keyboard navigation (tab order, focus visibility) — **RFC-036
+      (`main: d20c7be`) and RFC-035 (`main: f605834`) are both complete.** Tab
+      and Shift-Tab reach every control on the shell, the workspace dialogs, the
+      dashboard toolbar, its rows and sections, and the selection bar; each
+      renders a WCAG-AA-verified focus ring in both themes; `↑`/`↓`/`j`/`k` move
+      between cards and `Enter` opens the focused card.
+      **One gap remains, and it is why this stays unchecked:** the Group and Sort
+      **select menus cannot be opened by keyboard** — Tab reaches them and the
+      ring renders, but iced 0.14's `pick_list` handles no key press at all
+      (verified: one `Event::Keyboard` occurrence, `ModifiersChanged`; no
+      `operate`, no `Focusable` — `.git-exclude/reviewed/101-...md` Finding 2).
+      Closing it needs a knotra-owned select widget, which is its own RFC, not a
+      follow-up. Until then a keyboard-only user cannot change grouping or
+      sorting, so "full" is not yet true.
+      Two recorded limitations, neither a navigation gap: a focused *disabled*
+      filled control's ring measures ~3.0-3.3:1 — WCAG 1.4.11 non-text contrast
+      (3:1) in dark, marginal in light, and no colour choice improves it
+      (`083` Finding 2); and no screen-reader/ARIA layer exists or is planned,
+      since iced 0.14 exposes no accessibility API (RFC-033 non-goal).
 - [x] WCAG AA contrast verification
 - [x] Unified status vocabulary audit
 - [x] Settings screen (all config values exposed)
@@ -380,26 +381,25 @@ and approved. They may run in parallel with RFC-040; they touch different files.
 
 ### Sequencing
 
-Updated 2026-08-01. Two queues that do not compete: implementation work, and the
-architect's drafting work. Steps 1 and 2 can proceed simultaneously.
+Updated 2026-08-04. RFC-035 and RFC-040 are both closed; Handoffs 011 and 012 are
+done. The UI/UX foundation track is complete.
 
-1. **Handoff 011 — CI gate workflow.** Small, touches no Rust, and protects
-   everything after it. RFC-040's sixteen commits were each gate-verified by hand
-   twice; RFC-035 is a larger surface. Ahead of RFC-041 because a missing gate
-   costs something on every commit, whereas an oversized file costs nothing until
-   someone edits it.
-2. **RFC-035 — Dashboard and selection migration.** The only remaining item with
-   user-visible impact: Tab moves focus across the dashboard and nothing renders
-   it, shipped in 0.24.0's known issues.
-3. **RFC-041 — split `handle_background`.** Internal. `background.rs` at 761 ELOC
-   is documented and accepted with a doc comment explaining why, so this is
-   quality work rather than defect work. The "it will grow" argument is real but
-   slow — a few completion arms per RFC.
-4. Handoff 012 — Git test hermeticity. Costs a rediscovered incantation per
-   session, not correctness.
-5. RFC-037, RFC-038, then RFC-039 (per-project VCS history).
+1. **Cut a release.** Two large RFCs have closed since 0.24.0 and `main` is far
+   ahead of `origin`. The project rules name a resolved RFC as a release
+   breakpoint; two have resolved. This is the next thing that should happen.
+2. **RFC-041 — split `handle_background`.** `background.rs` at 761 ELOC, RFC-040's
+   one accepted exception. Drafting is the architect's; the Stage 5 finding that
+   the unit of extraction is not the match arm (`092`) is its starting point.
+3. **RFC-037, RFC-038, then RFC-039** (mutating workflow overlays; settings and
+   history; per-project VCS history).
+4. **A knotra-owned select widget** — currently unscheduled and unwritten. It is
+   what stands between the roadmap's keyboard-navigation line and being ticked:
+   iced 0.14's `pick_list` cannot be opened by keyboard, so Group and Sort are
+   unreachable for a keyboard-only user. Its own RFC when it comes.
 
-Completed: RFC-036 (`main: d20c7be`), RFC-040 (`main: 54e5d5d`).
+Carried debt, neither blocking: live captures owed for Handoffs 031 and 032 while
+the render environment is unavailable (`111`), and whether `↑`/`↓` should be
+gated during text entry (`114`).
 
 ### Implementation and verification track
 

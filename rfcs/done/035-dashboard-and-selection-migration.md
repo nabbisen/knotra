@@ -2,13 +2,52 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented (main: f605834) |
 | Priority | High - the dashboard is the primary repeated-use surface and carries four of the audit's five High findings |
 | Effort | Medium-Large |
 | Target | Production Readiness Reset |
 | Related files | `crates/knotra-app/src/view/dashboard.rs`, `crates/knotra-app/src/view/selection_bar.rs`, `crates/knotra-app/src/view/activity_strip.rs`, `crates/knotra-app/src/message.rs`, `crates/knotra-ui/src/widget/`, `crates/knotra-ui/src/i18n.rs` |
-| Related RFCs | `rfcs/done/036-...md` (focus model and Tab traversal R22/R23 depend on; **implemented, `main: d20c7be`**), `rfcs/proposed/040-...md` (`app.rs` decomposition; lands first, so this RFC's handler edits land in `app/misc.rs` rather than `app.rs`), `rfcs/done/033-...md` (D4/D5/D6/D7/D8), `rfcs/done/034-...md` (foundation this consumes), `rfcs/done/032-...md` (display semantics this must preserve), `rfcs/done/031-...md` (activity/lease semantics), `rfcs/done/027-...md` (selection semantics) |
+| Related RFCs | `rfcs/done/036-...md` (focus model and Tab traversal R22/R23 depend on; **implemented, `main: d20c7be`**), `rfcs/done/040-...md` (`app.rs` decomposition; landed first, so this RFC's handler edits land in `app/misc.rs` rather than `app.rs`), `rfcs/done/033-...md` (D4/D5/D6/D7/D8), `rfcs/done/034-...md` (foundation this consumes), `rfcs/done/032-...md` (display semantics this must preserve), `rfcs/done/031-...md` (activity/lease semantics), `rfcs/done/027-...md` (selection semantics) |
 | Related audit evidence | `.git-exclude/reviewed/062-current-gui-ui-ux-audit.md` findings 3, 4, 5; `.git-exclude/reviewed/060`, `066`, `068` |
+
+## Implementation Record
+
+Five stages plus three follow-up handoffs, 23 commits. Each hash resolves on
+`main`.
+
+| Stage | Commits | Delivered |
+|---|---|---|
+| 1 | `37ecfba` `f06f40c` | `knotra-ui` primitives: chip, select, checkbox — all built from `KnotraTheme`, all ringed |
+| 2 | `b6b4f50` `930d551` `48ae66e` `bd8d1f9` `3cbd11a` | View split; `select::pick_list` widened; toolbar migration and focus targets; ring contrast coverage; Clear filters |
+| 3 | `ffb9773` `dbc3ad6` `4a845f4` | Neutral section headers with state-indicating chevrons; real checkboxes, bounded tracks, semantic row actions, row rings |
+| 4 | `b3426d7` `28012ba` `f031e0d` `e091df4` `e482b75` `5ea2000` `e4defea` | Three width modes; wide centring; compact rows; sub-pixel boundary fix; one mode source; **mechanism reversed to `AppState`**; compact toolbar and 2x2 selection |
+| 5 | `5aa1d08` `d6bf013` `fe26179` | Select wording; zero-value summary; `notice` wrapper and R7; R12/R13/R14 reason consolidation |
+| Follow-ups | `a2ad58e` `2820d1a` `f605834` | Selection-bar focus coverage; `NoticeTone` guard; card arrow-navigation |
+
+**Outcome.** Every requirement R1-R24 satisfied. R22's four elements were
+verified individually against the tree at closure (`114`), after `112` declared
+completion prematurely and `113` corrected it — arrow-navigation was in R22's own
+table and no stage had built it.
+
+`crates/knotra-app/src/tests.rs` was **never edited** across this RFC or RFC-040
+before it; all ~35 new tests are co-located module tests.
+
+**Carried limitations**, recorded rather than resolved:
+
+- `pick_list` selects cannot be keyboard-*opened* — iced 0.14 exposes no path
+  (`101` Finding 2). Tab reaches them and the ring renders; opening needs a
+  pointer.
+- A focused *disabled* filled control's ring measures ~3:1 — meets WCAG 1.4.11
+  non-text contrast in dark, marginal in light (`083` Finding 2). No colour
+  choice improves it.
+
+**Carried debt:**
+
+- Live captures for Handoffs 031 and 032, deferred while the render environment
+  is unavailable (`111`).
+- Whether `↑`/`↓` should be gated while a text input holds focus — currently
+  gated; the search-then-arrow-to-results convention argues otherwise, and
+  nobody could try it (`114` review focus 2).
 
 ## Summary
 
