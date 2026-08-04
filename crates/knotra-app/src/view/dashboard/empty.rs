@@ -4,7 +4,7 @@
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length};
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, NoticeAction, Tone, guided_button, notice,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, NoticeAction, NoticeTone, guided_button, notice,
 };
 
 use crate::{
@@ -73,7 +73,13 @@ pub(super) fn view_error_notice<'a>(
         label: state.t("dashboard.try_again").to_owned(),
         on_press: Message::Dashboard(DashboardMessage::ErrorRetryRequested),
     });
-    let banner = notice(tokens, Tone::Danger, None, first_level_message, action);
+    let banner = notice(
+        tokens,
+        NoticeTone::Danger,
+        None,
+        first_level_message,
+        action,
+    );
 
     let details_toggle = button(text(details_label).size(12))
         .on_press(Message::Dashboard(DashboardMessage::ErrorDetailsToggled));

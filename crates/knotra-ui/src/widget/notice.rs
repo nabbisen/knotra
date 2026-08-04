@@ -25,10 +25,51 @@
 //! composing a second control beside a primitive's output is the same
 //! shape `row.rs`'s row actions and `toolbar.rs`'s disclosures already
 //! use throughout this RFC.
+//!
+//! **A second constraint, found during contrast testing (`109` Finding
+//! 2/Handoff 031 §3):** `Notice::render` colors its action-button label
+//! with the tone's accent color unconditionally (`match self.tone {
+//! Tone::Accent => p.accent, ..., Tone::Neutral => p.border, }`) — correct
+//! for the five semantic tones, but `p.border` is a decorative/separator
+//! role, not a text role, and measures 1.28:1 (light) / 1.32:1 (dark)
+//! against `surface`, far under WCAG AA
+//! (`theme.rs::notice_tone_colors_meet_wcag_aa_against_surface_in_both_themes`).
+//! `snora::design::Tone` itself is unchanged — narrowing it, or `Notice`'s
+//! own tone-to-color mapping, is out of this wrapper's scope. Instead
+//! [`NoticeTone`] is this module's own, narrower public parameter type:
+//! the five tones `Notice`'s action label can safely carry, with `Neutral`
+//! left out entirely rather than admitted and documented as unsafe. A
+//! caller who genuinely needs `Tone::Neutral` styling can still reach
+//! `snora::design::notice::Notice` directly; `notice()` just does not
+//! offer it.
 
 use snora::design::{Tokens, Tone};
 
 use super::layout::Element;
+
+/// The tones [`notice`] can render — a deliberate subset of
+/// `snora::design::Tone`'s six variants. See this module's doc comment for
+/// why `Neutral` is excluded rather than accepted and documented as unsafe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeTone {
+    Accent,
+    Success,
+    Warning,
+    Danger,
+    Info,
+}
+
+impl NoticeTone {
+    fn to_snora(self) -> Tone {
+        match self {
+            NoticeTone::Accent => Tone::Accent,
+            NoticeTone::Success => Tone::Success,
+            NoticeTone::Warning => Tone::Warning,
+            NoticeTone::Danger => Tone::Danger,
+            NoticeTone::Info => Tone::Info,
+        }
+    }
+}
 
 /// The notice's single optional action button (Retry, in R7's case).
 pub struct NoticeAction<Message> {
@@ -40,12 +81,12 @@ pub struct NoticeAction<Message> {
 #[must_use]
 pub fn notice<'a, Message: Clone + 'a>(
     tokens: &'a Tokens,
-    tone: Tone,
+    tone: NoticeTone,
     title: Option<String>,
     body: impl Into<String>,
     action: Option<NoticeAction<Message>>,
 ) -> Element<'a, Message> {
-    let mut builder = snora::design::notice::Notice::new(tokens, tone, body);
+    let mut builder = snora::design::notice::Notice::new(tokens, tone.to_snora(), body);
     if let Some(title) = title {
         builder = builder.title(title);
     }

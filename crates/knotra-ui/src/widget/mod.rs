@@ -30,14 +30,10 @@ pub use layout::{
     Element, FONT_BODY, FONT_SMALL, Length, Padding, Row, SIDEBAR_WIDTH, SMALL_BUTTON_HEIGHT,
     button, column, container, row, scrollable, text, text_input,
 };
-pub use notice::{NoticeAction, notice};
+pub use notice::{NoticeAction, NoticeTone, notice};
 /// Focus-ring tokens (RFC-033 D7). Re-exported for the same reason as
 /// `Tokens` above — RFC-036 R11 is the first consumer.
 pub use snora::design::FocusTokens;
 /// Snora Design token bundle. Re-exported so view-layer signatures can name
 /// `Tokens` without importing `snora::design` directly (RFC-034 R2).
 pub use snora::design::Tokens;
-/// Notice tone (RFC-032). Re-exported so call sites can name `Tone` without
-/// importing `snora::design` directly (RFC-035 R19) — `notice`'s own Stage 5
-/// consumer.
-pub use snora::design::Tone;

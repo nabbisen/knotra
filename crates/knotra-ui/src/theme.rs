@@ -612,14 +612,17 @@ mod tests {
     /// genuinely status-dependent style function. Checked against `surface`,
     /// `notice`'s own background, in both themes.
     ///
-    /// **`Tone::Neutral` (`p.border`) is deliberately excluded.** `Palette`
-    /// documents `border` as "borders and separators" — a role never
-    /// intended to carry mandatory text contrast, unlike `accent`/`success`/
-    /// `warning`/`danger`/`info`. It measures 1.28:1 against light-theme
-    /// `surface`, far under AA, confirming it was never meant for this.
-    /// Not a defect: no call site uses `Tone::Neutral` with `notice` (this
-    /// stage's own consumer is `Tone::Danger`), and none should until a
-    /// text-safe color is chosen for that case.
+    /// **`Tone::Neutral` (`p.border`) is measured, not skipped** (Handoff 031
+    /// Finding 2/`109`: excluding it from the loop had documented the gap
+    /// instead of closing it). `Palette` documents `border` as "borders and
+    /// separators" — a role never intended to carry mandatory text contrast,
+    /// unlike `accent`/`success`/`warning`/`danger`/`info` — and it measures
+    /// 1.28:1 (light) / 1.32:1 (dark) against `surface`, far under AA in
+    /// both. That failure is asserted below rather than silently dropped,
+    /// and is exactly why `notice.rs`'s `NoticeTone` (the wrapper's own
+    /// public parameter type, narrower than `snora::design::Tone`) excludes
+    /// `Neutral` at the type level — `Tone::Neutral` itself is unchanged and
+    /// still reachable through `snora` directly, just not through `notice`.
     #[test]
     fn notice_tone_colors_meet_wcag_aa_against_surface_in_both_themes() {
         for (theme_name, theme) in [
@@ -643,6 +646,18 @@ mod tests {
                      is below the required {AA_NORMAL}:1"
                 );
             }
+
+            // Tone::Neutral is excluded from NoticeTone (Handoff 031 Finding
+            // 2/notice.rs) precisely because it fails here — asserted, not
+            // omitted from the loop, per Handoff 031 §3's "no exclusions".
+            // Measured at 1.28:1 (light) and 1.32:1 (dark), both confirmed
+            // by a temporary probe before writing this assertion.
+            let neutral_ratio = snora::design::contrast::contrast_ratio(p.border, surface);
+            assert!(
+                neutral_ratio < AA_NORMAL,
+                "{theme_name} notice action-label Tone::Neutral vs surface: {neutral_ratio:.2}:1 \
+                 unexpectedly meets AA — NoticeTone's exclusion of Neutral is now stale"
+            );
         }
     }
 }
