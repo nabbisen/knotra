@@ -102,6 +102,14 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
                 // receives the keystroke instead of activating a control.
                 keyboard::Key::Named(Named::Enter) => Some(ShortcutMessage::ActivateFocused),
                 keyboard::Key::Named(Named::Space) => Some(ShortcutMessage::ActivateFocused),
+                // RFC-035 R22: card arrow-navigation. Confirmed against
+                // `iced_widget::text_input`'s own key handling (0.14.2) that
+                // it has no `ArrowUp`/`ArrowDown` branch at all — these are
+                // gated in `handle_shortcut` anyway, for the user's typing
+                // context rather than a widget-level conflict (see
+                // `ShortcutMessage::CardFocusNext`'s own doc comment).
+                keyboard::Key::Named(Named::ArrowDown) => Some(ShortcutMessage::CardFocusNext),
+                keyboard::Key::Named(Named::ArrowUp) => Some(ShortcutMessage::CardFocusPrevious),
                 keyboard::Key::Character(c) => match c.as_str() {
                     "r" | "R" if ctrl => Some(ShortcutMessage::Refresh),
                     "k" | "K" if ctrl => Some(ShortcutMessage::OpenContextOps),
@@ -111,6 +119,12 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
                     // `handle_shortcut`, not here, since only `AppState`
                     // knows whether a text input currently holds focus.
                     "/" => Some(ShortcutMessage::FocusSearchBare),
+                    // RFC-035 R22: bare `j`/`k` (vim-style down/up), gated
+                    // in `handle_shortcut` the same way. `k`/`K` with `Ctrl`
+                    // is `OpenContextOps` above and must stay first in this
+                    // match so the guarded arm claims it before this one.
+                    "j" | "J" => Some(ShortcutMessage::CardFocusNext),
+                    "k" | "K" => Some(ShortcutMessage::CardFocusPrevious),
                     _ => None,
                 },
                 _ => None,
@@ -286,6 +300,21 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             focus_ops::advance_focus(state, focus::Direction::Previous)
         }
         ShortcutMessage::ActivateFocused => focus_ops::activate_focused(state),
+        // RFC-035 R22: gated the same shape as `FocusSearchBare` — a text
+        // input holding focus absorbs the keystroke instead of it moving
+        // card focus out from under the user's typing.
+        ShortcutMessage::CardFocusNext => {
+            if focus_ops::current_target_is_text_input(state) {
+                return Task::none();
+            }
+            focus_ops::advance_card_focus(state, focus::Direction::Next)
+        }
+        ShortcutMessage::CardFocusPrevious => {
+            if focus_ops::current_target_is_text_input(state) {
+                return Task::none();
+            }
+            focus_ops::advance_card_focus(state, focus::Direction::Previous)
+        }
     }
 }
 
@@ -383,4 +412,30 @@ fn handle_key_event(state: &mut AppState, msg: KeyboardMessage) -> Task<Message>
         }
     }
     Task::none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use crate::state::{AppState, focus};
+
+    /// RFC-035 R22/Handoff 032 §4: the regression the handoff calls out as
+    /// "most annoying and least obvious" — `j`/`k`/`↓`/`↑` reaching
+    /// `handle_shortcut` while the search field holds focus must not move
+    /// card focus out from under the user's typing, the same gate
+    /// `FocusSearchBare` already uses.
+    #[test]
+    fn card_focus_shortcuts_do_nothing_while_a_text_input_holds_focus() {
+        let mut state = AppState::new(AppConfig::default());
+        let search_target =
+            focus::FocusTarget::text_input(knotra_ui::widget::focus_id::SEARCH.clone());
+        state.dashboard_focus = Some(search_target.clone());
+
+        let _ = handle_shortcut(&mut state, ShortcutMessage::CardFocusNext);
+        assert_eq!(state.dashboard_focus, Some(search_target.clone()));
+
+        let _ = handle_shortcut(&mut state, ShortcutMessage::CardFocusPrevious);
+        assert_eq!(state.dashboard_focus, Some(search_target));
+    }
 }

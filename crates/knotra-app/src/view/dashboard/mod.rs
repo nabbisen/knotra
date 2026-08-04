@@ -103,6 +103,40 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
     order
 }
 
+/// RFC-035 R22's card arrow-navigation (Handoff 032): a coarser traversal
+/// than [`focus_order`]'s Tab order — row-name targets only, skipping
+/// section headers, row checkboxes, and row actions, which is what makes
+/// arrow movement worth having alongside Tab rather than a redundant copy
+/// of it. Not a filter over `focus_order`'s own output (that would still
+/// need a way to tell a name target apart from the others by string
+/// inspection); instead a parallel walk of the same
+/// `state.dashboard_display().sections` iteration, keeping only the push
+/// `focus_order` makes unconditionally for every row's name button.
+///
+/// Sections still respect `collapsed` here for the same reason `focus_order`
+/// does: a collapsed section's rows were never in `state.dashboard_display`'s
+/// visible entries to begin with, so they are excluded for free, not by a
+/// separate check.
+pub fn card_focus_order(state: &AppState) -> FocusOrder<Message> {
+    let display = state.dashboard_display();
+    let mut order = Vec::new();
+
+    for section in &display.sections {
+        if section.collapsed {
+            continue;
+        }
+        for entry in &section.entries {
+            let id = &entry.project.id;
+            order.push((
+                FocusTarget::control_dynamic(name_key(id)),
+                Some(Message::DetailPanel(DetailPanelMessage::Opened(id.clone()))),
+            ));
+        }
+    }
+
+    order
+}
+
 /// `mode` is `state.width_mode`, read once in `view.rs` and passed to both
 /// `dashboard::view` and `selection_bar::view` (Handoff 027 Ruling 6.2;
 /// reversed from a `responsive` measurement to a state field by Handoff 029
@@ -204,5 +238,106 @@ fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
             .center_x(Length::Fill)
             .into(),
         WidthMode::Compact | WidthMode::Standard => content_column.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use knotra_vcs::{
+        ConflictStatus, Project, ProjectStatus, RemoteStatus, RepositoryIdentity, VcsKind,
+        WorkingTreeStatus, Workspace, WorkspaceStatus,
+    };
+
+    /// A project with no `WorkspaceStatus` entry classifies as
+    /// `NeedsHelp`/`StatusUnknown` (`state/dashboard.rs::classify`'s `else`
+    /// branch) — the one tier never collapsed regardless of config, so this
+    /// alone is enough for a visible card.
+    fn needs_help_project(name: &str) -> Project {
+        Project::new(name, "/tmp")
+    }
+
+    /// A clean status (no conflict, no relevant counts) classifies as
+    /// `AllSet` — collapsed by default (`AppConfig::default()`'s
+    /// `dashboard_all_set_collapsed: true`).
+    fn clean_status(project_id: knotra_vcs::ProjectId) -> ProjectStatus {
+        ProjectStatus {
+            project_id,
+            identity: RepositoryIdentity {
+                path: "/tmp".into(),
+                vcs_kind: VcsKind::Git,
+            },
+            context: None,
+            remote: RemoteStatus::default(),
+            working_tree: WorkingTreeStatus::default(),
+            conflict: ConflictStatus::default(),
+            refreshed_at: chrono::Utc::now(),
+            read_error: None,
+        }
+    }
+
+    #[test]
+    fn card_focus_order_contains_only_row_name_targets_in_display_order() {
+        let mut state = AppState::new(AppConfig::default());
+        let a = needs_help_project("alpha");
+        let b = needs_help_project("beta");
+        let (a_id, b_id) = (a.id.clone(), b.id.clone());
+        state.workspace = Some(Workspace {
+            projects: vec![a, b],
+            ..Workspace::new("Test")
+        });
+
+        let order = card_focus_order(&state);
+        let targets: Vec<_> = order.iter().map(|(target, _)| target.clone()).collect();
+        assert_eq!(
+            targets,
+            vec![
+                FocusTarget::control_dynamic(name_key(&a_id)),
+                FocusTarget::control_dynamic(name_key(&b_id)),
+            ],
+            "only the two row-name targets, in display order — no \
+             checkboxes, section headers, or row actions"
+        );
+        for (_, message) in &order {
+            assert!(
+                matches!(
+                    message,
+                    Some(Message::DetailPanel(DetailPanelMessage::Opened(_)))
+                ),
+                "every card target must activate to opening its detail panel"
+            );
+        }
+    }
+
+    #[test]
+    fn card_focus_order_skips_rows_in_a_collapsed_all_set_section() {
+        let mut state = AppState::new(AppConfig::default());
+        // Asserted explicitly so this test fails loudly if the default ever
+        // changes, rather than silently passing for the wrong reason.
+        assert!(state.config.dashboard_all_set_collapsed);
+
+        let needs_help = needs_help_project("alpha");
+        let all_set = needs_help_project("beta");
+        let needs_help_id = needs_help.id.clone();
+        let all_set_id = all_set.id.clone();
+        state.workspace = Some(Workspace {
+            projects: vec![needs_help, all_set],
+            ..Workspace::new("Test")
+        });
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![clean_status(all_set_id)],
+            last_refresh: None,
+        });
+
+        let order = card_focus_order(&state);
+        let targets: Vec<_> = order.iter().map(|(target, _)| target.clone()).collect();
+        assert_eq!(
+            targets,
+            vec![FocusTarget::control_dynamic(name_key(&needs_help_id))],
+            "the AllSet-tier project sits in a collapsed section and must \
+             be excluded, the same way its checkbox/action targets already \
+             are from focus_order"
+        );
     }
 }

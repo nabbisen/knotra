@@ -81,6 +81,57 @@ pub(super) fn activate_focused(state: &mut AppState) -> Task<Message> {
     }
 }
 
+/// RFC-035 R22's card arrow-navigation (Handoff 032): `↑`/`↓`/`j`/`k` move
+/// between `dashboard::card_focus_order`'s row-name targets — a distinct,
+/// narrower traversal from Tab's, not a change to `advance_focus` or the
+/// order it walks. A no-op on any screen but the dashboard, and while an
+/// overlay holds Tab/Enter routing (`overlay_focus_order(state).is_some()`)
+/// — the same two conditions that already gate `advance_focus` itself, kept
+/// here rather than folded into it.
+///
+/// **Entry from off-card focus** (the toolbar, a section header, the
+/// selection bar, or the search field — none of which are members of
+/// `card_focus_order`) **always lands on the first card, for either
+/// direction.** This is deliberately *not* `advance_in`/`focus::advance`
+/// applied directly: `focus::resolve`'s stale-target fallback already
+/// returns the order's first entry for an unrecognized `current`, and
+/// `focus::advance` would then step **one further** from that resolved
+/// position — landing on the *second* card, not the first, for
+/// `Direction::Next`. Handoff 032 §3 left this entry behavior to this
+/// handoff's judgment rather than specifying it; "first card either way" was
+/// chosen for being simpler to predict than a direction-dependent entry
+/// point, and nothing else in this codebase enters a list from its far end.
+/// Once focus is already on a card, this defers to `focus::advance`'s own
+/// wrap-around semantics unchanged — same wrap Tab already uses, chosen for
+/// consistency over a stop-at-the-edge alternative (Handoff 032 §3).
+pub(super) fn advance_card_focus(
+    state: &mut AppState,
+    direction: focus::Direction,
+) -> Task<Message> {
+    if overlay_focus_order(state).is_some() || !matches!(state.screen, Screen::Dashboard) {
+        return Task::none();
+    }
+
+    let order = dashboard::card_focus_order(state);
+    if order.is_empty() {
+        return Task::none();
+    }
+
+    let previous = state.dashboard_focus.clone();
+    let already_on_a_card = previous
+        .as_ref()
+        .is_some_and(|target| order.iter().any(|(t, _)| t == target));
+
+    let next = if already_on_a_card {
+        focus::advance(&order, previous.as_ref(), direction).cloned()
+    } else {
+        order.first().map(|(target, _)| target.clone())
+    };
+
+    state.dashboard_focus = next.clone();
+    reconciliation_task(focus::reconcile(previous.as_ref(), next.as_ref()))
+}
+
 /// The shell's order, plus dashboard-row targets (RFC-036 R2, Stage 4) when
 /// the dashboard is the active screen. The toolbar (filter chips, group/sort,
 /// search, select) is not included - it stays RFC-035's, unstyled and
@@ -263,4 +314,78 @@ fn context_switch_is_running(state: &AppState) -> bool {
 fn conflict_is_running(state: &AppState) -> bool {
     matches!(state.active_modal, crate::state::ActiveModal::Resolve(_))
         && matches!(state.conflict_ops.phase, ConflictPhase::Operating { .. })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use knotra_vcs::{Project, Workspace};
+
+    /// Projects with no status entry classify as `NeedsHelp`/`StatusUnknown`
+    /// (`state/dashboard.rs::classify`'s `else` branch) — the one tier
+    /// `build_dashboard_display` never collapses regardless of config, so
+    /// these fixtures need no `WorkspaceStatus` at all to land in a visible
+    /// section.
+    fn workspace_with_projects(names: &[&str]) -> Workspace {
+        Workspace {
+            projects: names.iter().map(|n| Project::new(*n, "/tmp")).collect(),
+            ..Workspace::new("Test")
+        }
+    }
+
+    #[test]
+    fn advance_card_focus_moves_through_row_name_targets_only_and_wraps() {
+        let mut state = AppState::new(AppConfig::default());
+        state.workspace = Some(workspace_with_projects(&["alpha", "beta", "gamma"]));
+
+        let order = dashboard::card_focus_order(&state);
+        assert_eq!(
+            order.len(),
+            3,
+            "all three NeedsHelp rows should be card targets, nothing else"
+        );
+
+        for target in &order {
+            let _ = advance_card_focus(&mut state, focus::Direction::Next);
+            assert_eq!(state.dashboard_focus, Some(target.0.clone()));
+        }
+
+        // A fourth Next wraps back to the first target — consistent with
+        // Tab's own `focus::advance` wrap semantics (Handoff 032 §3).
+        let _ = advance_card_focus(&mut state, focus::Direction::Next);
+        assert_eq!(state.dashboard_focus, Some(order[0].0.clone()));
+    }
+
+    #[test]
+    fn advance_card_focus_from_off_card_focus_lands_on_the_first_card_either_direction() {
+        let mut state = AppState::new(AppConfig::default());
+        state.workspace = Some(workspace_with_projects(&["alpha", "beta"]));
+        let order = dashboard::card_focus_order(&state);
+
+        // Simulate focus sitting on a toolbar control — a real target, but
+        // not a member of `card_focus_order`.
+        state.dashboard_focus = Some(focus::FocusTarget::control("dashboard.toolbar.select_mode"));
+        let _ = advance_card_focus(&mut state, focus::Direction::Previous);
+        assert_eq!(
+            state.dashboard_focus,
+            Some(order[0].0.clone()),
+            "Previous from off-card focus must not land on the second card \
+             the way resolve-then-advance's stale-target fallback would"
+        );
+
+        state.dashboard_focus = Some(focus::FocusTarget::control("dashboard.toolbar.select_mode"));
+        let _ = advance_card_focus(&mut state, focus::Direction::Next);
+        assert_eq!(state.dashboard_focus, Some(order[0].0.clone()));
+    }
+
+    #[test]
+    fn advance_card_focus_is_a_noop_off_the_dashboard_screen() {
+        let mut state = AppState::new(AppConfig::default());
+        state.workspace = Some(workspace_with_projects(&["alpha"]));
+        state.screen = Screen::History;
+
+        let _ = advance_card_focus(&mut state, focus::Direction::Next);
+        assert_eq!(state.dashboard_focus, None);
+    }
 }

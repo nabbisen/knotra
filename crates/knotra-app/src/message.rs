@@ -402,6 +402,16 @@ pub enum ShortcutMessage {
     /// RFC-036 R4: bare `/`, gated on text-input focus so a literal `/`
     /// typed into a field is never intercepted.
     FocusSearchBare,
+    /// RFC-035 R22: `↓`/`j` — card arrow-navigation, coarser than Tab
+    /// (moves between dashboard rows only, skipping their internal
+    /// controls). Gated on text-input focus in `handle_shortcut`,
+    /// consistent with `FocusSearchBare`/`ActivateFocused` even though
+    /// iced 0.14's `text_input` does not itself consume arrow keys or
+    /// `j`/`k` — the gate is for the user's typing, not to resolve a
+    /// widget-level key conflict (Handoff 032 §3/§4).
+    CardFocusNext,
+    /// RFC-035 R22: `↑`/`k`. See [`ShortcutMessage::CardFocusNext`].
+    CardFocusPrevious,
 }
 
 // ---------------------------------------------------------------------------
