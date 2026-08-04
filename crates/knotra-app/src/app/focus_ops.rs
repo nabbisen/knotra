@@ -10,7 +10,7 @@ use crate::{
         AppState, Screen, conflict_ops::ConflictPhase, context::ContextPhase, focus,
         freezer::FreezerPhase, sync::SyncPhase,
     },
-    view::{dashboard, shell, workspace_manager},
+    view::{dashboard, selection_bar, shell, workspace_manager},
 };
 
 use super::shared;
@@ -85,10 +85,18 @@ pub(super) fn activate_focused(state: &mut AppState) -> Task<Message> {
 /// the dashboard is the active screen. The toolbar (filter chips, group/sort,
 /// search, select) is not included - it stays RFC-035's, unstyled and
 /// unwired, matching Stage 2's precedent.
+///
+/// `selection_bar::focus_order` is appended **after** `dashboard::focus_order`
+/// (Handoff 031 Finding 1) — the bar is not part of `dashboard::view`'s own
+/// tree (`view.rs` composes it alongside `dashboard::view`, not inside it),
+/// so it needs its own call here rather than folding into `dashboard`'s.
+/// Positioned last to match visual order: the bar renders beneath the
+/// dashboard's content.
 fn shell_and_dashboard_focus_order(state: &AppState) -> focus::FocusOrder<Message> {
     let mut order = shell::focus_order(state);
     if matches!(state.screen, Screen::Dashboard) {
         order.extend(dashboard::focus_order(state));
+        order.extend(selection_bar::focus_order(state));
     }
     order
 }
