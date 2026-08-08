@@ -97,9 +97,23 @@ impl AppPaths {
     /// says so, and where, mirroring [`crate::config::load_config`]'s own
     /// `(value, Option<String>)` shape rather than introducing a second one.
     pub fn resolve() -> (Self, Option<String>) {
+        Self::resolve_from(dirs::config_dir(), dirs::data_local_dir())
+    }
+
+    /// The pure decision `resolve` makes, with `dirs::config_dir()`/
+    /// `dirs::data_local_dir()`'s results passed in rather than read
+    /// directly — a private seam so the warning-producing branch is
+    /// testable without `dirs::` being injectable itself (Handoff 034 Item
+    /// 2: `resolve` alone could exercise only the "both resolve" case on
+    /// any real machine, leaving the actual deliverable of Task B —
+    /// producing a correct warning — with no coverage at all).
+    fn resolve_from(
+        config_root: Option<PathBuf>,
+        data_root: Option<PathBuf>,
+    ) -> (Self, Option<String>) {
         let mut warnings = Vec::new();
 
-        let config_root = dirs::config_dir().unwrap_or_else(|| {
+        let config_root = config_root.unwrap_or_else(|| {
             let fallback = PathBuf::from(".");
             warnings.push(format!(
                 "Could not determine the OS config directory; using \"{}\" \
@@ -112,7 +126,7 @@ impl AppPaths {
         });
         let config_base = config_root.join("knotra");
 
-        let data_root = dirs::data_local_dir().unwrap_or_else(|| {
+        let data_root = data_root.unwrap_or_else(|| {
             let fallback = PathBuf::from(".");
             warnings.push(format!(
                 "Could not determine the OS data directory; using \"{}\" \
@@ -129,6 +143,11 @@ impl AppPaths {
             history_dir: data_base.join("history"),
         };
 
+        // Joined with a bare newline — distinct from `app::init`'s "\n\n"
+        // join of *its* two independent startup warnings (path resolution
+        // and config parsing). Both are defensible; this is the one this
+        // function commits to, pinned by the tests below rather than left
+        // to whichever separator happened to be typed (Handoff 034 §2).
         let warning = (!warnings.is_empty()).then(|| warnings.join("\n"));
         (paths, warning)
     }
@@ -193,5 +212,54 @@ mod tests {
     fn resolve_produces_no_warning_on_a_normal_machine() {
         let (_paths, warning) = AppPaths::resolve();
         assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn resolve_from_both_present_produces_no_warning() {
+        let (_paths, warning) =
+            AppPaths::resolve_from(Some(PathBuf::from("/cfg")), Some(PathBuf::from("/data")));
+        assert_eq!(warning, None);
+    }
+
+    /// Handoff 034 Item 2: the warning-producing branch — the entire
+    /// deliverable of Task B — had no coverage before this test existed.
+    #[test]
+    fn resolve_from_missing_config_dir_names_the_config_directory() {
+        let (paths, warning) = AppPaths::resolve_from(None, Some(PathBuf::from("/data")));
+        let warning = warning.expect("a warning must be produced");
+        assert!(
+            warning.contains("config directory"),
+            "warning must name which directory failed: {warning:?}"
+        );
+        assert!(!warning.contains("data directory"), "{warning:?}");
+        assert_eq!(paths.config_file, PathBuf::from("./knotra/config.toml"));
+    }
+
+    #[test]
+    fn resolve_from_missing_data_dir_names_the_data_directory() {
+        let (paths, warning) = AppPaths::resolve_from(Some(PathBuf::from("/cfg")), None);
+        let warning = warning.expect("a warning must be produced");
+        assert!(
+            warning.contains("data directory"),
+            "warning must name which directory failed: {warning:?}"
+        );
+        assert!(!warning.contains("config directory"), "{warning:?}");
+        assert_eq!(paths.history_dir, PathBuf::from("./knotra/history"));
+    }
+
+    /// Pins the join form this function commits to — a bare `"\n"` — since
+    /// nothing else would catch it changing silently.
+    #[test]
+    fn resolve_from_both_missing_joins_both_messages_with_a_newline() {
+        let (_paths, warning) = AppPaths::resolve_from(None, None);
+        let warning = warning.expect("a warning must be produced");
+        let lines: Vec<&str> = warning.split('\n').collect();
+        assert_eq!(
+            lines.len(),
+            2,
+            "both messages must be present, joined by a single newline: {warning:?}"
+        );
+        assert!(lines[0].contains("config directory"), "{warning:?}");
+        assert!(lines[1].contains("data directory"), "{warning:?}");
     }
 }
