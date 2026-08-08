@@ -47,15 +47,38 @@ use std::path::{Path, PathBuf};
 /// it and leaving the file it pointed at holding stale contents. Resolving
 /// first puts the temp file beside the *real* file and renames onto the
 /// real file, so the swap happens on the file the link points at and the
-/// link itself is never touched. `canonicalize` requires the full path to
-/// already exist, so it fails for a first-ever write (nothing at `path`
-/// yet); that failure falls back to `path` as given, since there is no link
-/// to preserve when nothing exists there at all. A **dangling** symlink
-/// (the link exists but its target does not) fails the same way and takes
-/// the same fallback — deliberately: with nothing valid to write through,
-/// this replaces the dangling link with a regular file at the link's own
-/// location, self-healing the broken link rather than trying to write
-/// beside a target whose own parent directory may not even exist.
+/// link itself is never touched.
+///
+/// **A dangling symlink (Handoff 035) is not treated as "nothing exists" —
+/// its target's parent directory decides what happens, and the choice
+/// between the two is a governing principle, not a convenience call: an
+/// operation must never silently destroy something the user created.**
+///
+/// - If the target's parent directory **exists**, this is the standard way a
+///   managed config gets set up (`ln -s ~/dotfiles/knotra/config.toml
+///   ~/.config/knotra/config.toml`, then let the app populate it) — the
+///   write goes through to that target, exactly as `std::fs::write` (what
+///   this module replaced) already did via `open(O_CREAT)` following the
+///   link. The symlink is left untouched; only the file it will point at is
+///   created.
+/// - If the target's parent directory is **missing**, there is nothing safe
+///   to write through to, and self-healing by replacing the link with a
+///   regular file would destroy something the user deliberately created,
+///   irreversibly, with nothing shown. `write` refuses instead: the link is
+///   left exactly as it was, and the returned `io::Error` names both the
+///   link and the missing directory, so `save_config`'s
+///   `format!("cannot write config.toml: {e}")` reaches the status bar with
+///   something the user can act on. `load_config`'s existing
+///   defaults-plus-warning contract means nothing is lost in the meantime —
+///   only the session's in-memory choice, which the user just made again.
+///
+/// Symlink resolution here goes **exactly one level** past whatever
+/// `canonicalize` alone can already resolve — deliberately bounded, not an
+/// oversight. `canonicalize` itself already resolves any chain of *valid*
+/// symlinks; the one extra level here only ever applies to a *dangling*
+/// link, and if that one-level target turns out to be *another* symlink
+/// (a dangling chain) this is treated the same as a missing parent
+/// directory — refused, nothing touched — rather than chased further.
 ///
 /// This resolution is not only a symlink accommodation — it also makes the
 /// same-filesystem guarantee below *more* robust. A symlink may point across
@@ -65,6 +88,12 @@ use std::path::{Path, PathBuf};
 /// unresolved form risks a temp file and rename target on different
 /// filesystems. Resolving first keeps both on the real file's filesystem by
 /// construction.
+///
+/// **Windows note:** `fs::canonicalize` returns the extended-length
+/// `\\?\C:\…` form there. This module never stores that path — callers keep
+/// their own `AppPaths` — so the only reachable effect is that form
+/// appearing inside an error string surfaced to the status bar on a write
+/// failure. Cosmetic; not otherwise handled here (`118` §5).
 ///
 /// A temp file is written in the **same directory** as the resolved path
 /// (rename across filesystems is not atomic and fails outright), `sync_all`'d
@@ -76,7 +105,7 @@ use std::path::{Path, PathBuf};
 /// a bare rename-over would otherwise silently reset a mode the user
 /// deliberately set.
 pub fn write(path: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {
-    let real_path: PathBuf = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let real_path = resolve_write_target(path)?;
 
     let dir = real_path.parent().ok_or_else(|| {
         io::Error::new(io::ErrorKind::InvalidInput, "path has no parent directory")
@@ -102,6 +131,82 @@ pub fn write(path: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {
     }
 
     Ok(())
+}
+
+/// The path `write` should actually write to — resolved, never the symlink
+/// itself (Handoffs 034/035). See `write`'s own doc comment for the full
+/// reasoning; this function is the decision, kept separate so it can fail
+/// (case (a), a dangling link with no safe target) without `write` having
+/// touched any file yet.
+fn resolve_write_target(path: &Path) -> io::Result<PathBuf> {
+    if let Ok(real) = fs::canonicalize(path) {
+        return Ok(real);
+    }
+
+    // `canonicalize` failed. Either nothing is at `path` at all (first-ever
+    // write), or `path` is a symlink whose chain does not fully resolve.
+    let Ok(link_meta) = fs::symlink_metadata(path) else {
+        return Ok(path.to_path_buf());
+    };
+    if !link_meta.file_type().is_symlink() {
+        return Ok(path.to_path_buf());
+    }
+
+    // Resolve exactly one level (the module doc comment's deliberate bound)
+    // rather than chasing an unbounded chain. A relative target is joined
+    // against the *link's* parent directory, never the process working
+    // directory (Handoff 035 §3.1) — getting this wrong would reintroduce
+    // the exact launch-directory-dependent bug Handoff 033 Task B removed.
+    let raw_target = fs::read_link(path)?;
+    let link_dir = path.parent().unwrap_or_else(|| Path::new("."));
+    let resolved_target = if raw_target.is_absolute() {
+        raw_target
+    } else {
+        link_dir.join(raw_target)
+    };
+
+    // The one-level target is itself another symlink: a dangling chain.
+    // `canonicalize` above already resolves any chain that terminates in a
+    // real file; reaching here means it does not, so this is refused rather
+    // than chased further (Handoff 035 §3.2).
+    if let Ok(target_meta) = fs::symlink_metadata(&resolved_target)
+        && target_meta.file_type().is_symlink()
+    {
+        return Err(io::Error::other(format!(
+            "\"{}\" points to another symlink (\"{}\") that does not itself \
+             resolve to a real file. This only follows one level of a \
+             dangling link chain, to avoid an unbounded chase — nothing \
+             was written and the symlink was left untouched. Fix the chain \
+             manually before trying again.",
+            path.display(),
+            resolved_target.display(),
+        )));
+    }
+
+    let target_parent = resolved_target.parent();
+    let target_parent_exists =
+        target_parent.is_some_and(|p| fs::metadata(p).is_ok_and(|m| m.is_dir()));
+
+    if target_parent_exists {
+        // Case (b): a dangling link whose target directory is ready and
+        // waiting — write through, as `std::fs::write` already did.
+        return Ok(resolved_target);
+    }
+
+    // Case (a): nothing safe to write through to. Refuse rather than
+    // self-heal by replacing the link with a regular file — that would
+    // destroy something the user deliberately created, irreversibly, with
+    // nothing shown (owner direction, `119`).
+    Err(io::Error::other(format!(
+        "\"{}\" is a symlink pointing to a missing location (\"{}\"); the \
+         directory it would need to be created in (\"{}\") does not exist. \
+         Nothing was written and the symlink was left untouched.",
+        path.display(),
+        resolved_target.display(),
+        target_parent
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| resolved_target.display().to_string()),
+    )))
 }
 
 fn write_and_sync(temp_path: &Path, contents: &[u8]) -> io::Result<()> {
@@ -243,15 +348,17 @@ mod tests {
         );
     }
 
-    /// A dangling symlink (the link exists; its target does not) has
-    /// nothing valid to write through. Decided this replaces the link with
-    /// a regular file at the link's own location — self-healing the broken
-    /// link — rather than attempting to write beside a target whose parent
-    /// directory may not exist at all. Stated deliberately per Handoff 034
-    /// §1's request, not left incidental.
+    /// Handoff 035 case (b): a dangling link whose target's parent
+    /// directory already exists — the standard way a managed config gets
+    /// set up (link first, let the app populate it). Replaces the retired
+    /// `writing_through_a_dangling_symlink_replaces_it_with_a_regular_file`,
+    /// which asserted the opposite outcome (`119` superseded that behaviour
+    /// before this handoff was ever issued — the retired test's fixture,
+    /// `tmp.path().join("does-not-exist.toml")`, has an existing parent, so
+    /// it was always this case, not case (a)).
     #[cfg(unix)]
     #[test]
-    fn writing_through_a_dangling_symlink_replaces_it_with_a_regular_file() {
+    fn writing_through_a_dangling_symlink_with_an_existing_target_directory_writes_through() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let missing_target = tmp.path().join("does-not-exist.toml");
         let link_path = tmp.path().join("config.toml");
@@ -260,12 +367,110 @@ mod tests {
         write(&link_path, "content").expect("write");
 
         assert!(
-            !fs::symlink_metadata(&link_path)
+            fs::symlink_metadata(&link_path)
                 .expect("symlink_metadata")
                 .file_type()
                 .is_symlink(),
-            "a dangling link must be replaced by a regular file, not preserved as a broken link"
+            "the link must survive — nothing about this case destroys it"
         );
-        assert_eq!(fs::read_to_string(&link_path).expect("read"), "content");
+        assert_eq!(
+            fs::read_to_string(&missing_target).expect("read the now-created target"),
+            "content"
+        );
+    }
+
+    /// Case (b) with a relative link target — the case that would silently
+    /// break if the resolved target were joined against the process working
+    /// directory instead of the link's own parent (Handoff 035 §3.1).
+    #[cfg(unix)]
+    #[test]
+    fn writing_through_a_dangling_symlink_with_a_relative_target_resolves_against_the_links_directory()
+     {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let sub_dir = tmp.path().join("sub");
+        fs::create_dir(&sub_dir).expect("create sub dir");
+        let link_path = sub_dir.join("config.toml");
+        // Relative to `sub_dir`, not the process's actual working directory.
+        std::os::unix::fs::symlink("real-config.toml", &link_path)
+            .expect("create dangling symlink with a relative target");
+
+        write(&link_path, "content").expect("write");
+
+        assert!(
+            fs::symlink_metadata(&link_path)
+                .expect("symlink_metadata")
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(
+            fs::read_to_string(sub_dir.join("real-config.toml"))
+                .expect("read the target resolved relative to the link's own directory"),
+            "content"
+        );
+    }
+
+    /// Handoff 035 case (a): a dangling link whose target's parent
+    /// directory does not exist either. Nothing safe to write through to —
+    /// `write` must refuse rather than self-heal by replacing the link
+    /// (owner direction, `119`). Asserts all three: the call fails, the
+    /// link survives untouched, and the error names the missing directory.
+    #[cfg(unix)]
+    #[test]
+    fn writing_through_a_dangling_symlink_with_a_missing_target_directory_is_refused() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let missing_target = tmp.path().join("no-such-dir").join("config.toml");
+        let link_path = tmp.path().join("config.toml");
+        std::os::unix::fs::symlink(&missing_target, &link_path).expect("create dangling symlink");
+
+        let result = write(&link_path, "content");
+
+        let err = result.expect_err("must refuse rather than self-heal");
+        let message = err.to_string();
+        assert!(
+            message.contains("no-such-dir"),
+            "error must name the missing directory: {message:?}"
+        );
+        assert!(
+            fs::symlink_metadata(&link_path)
+                .expect("symlink_metadata")
+                .file_type()
+                .is_symlink(),
+            "the link must be left exactly as it was"
+        );
+    }
+
+    /// Handoff 035 §3.2's deliberate one-level bound: a link pointing at
+    /// *another* dangling link must land in case (a)'s safe branch rather
+    /// than being chased further or treated as case (b) just because the
+    /// one-level target's own parent directory happens to exist.
+    #[cfg(unix)]
+    #[test]
+    fn writing_through_a_dangling_symlink_chain_is_refused_and_destroys_nothing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let link1 = tmp.path().join("link1.toml");
+        let link2 = tmp.path().join("link2.toml");
+        let never_exists = tmp.path().join("still-does-not-exist.toml");
+        std::os::unix::fs::symlink(&never_exists, &link2).expect("create the dangling second link");
+        std::os::unix::fs::symlink(&link2, &link1)
+            .expect("create the first link, pointing at link2");
+
+        let result = write(&link1, "content");
+
+        assert!(result.is_err(), "a dangling chain must not resolve");
+        assert!(
+            fs::symlink_metadata(&link1)
+                .expect("symlink_metadata link1")
+                .file_type()
+                .is_symlink(),
+            "link1 must survive untouched"
+        );
+        assert!(
+            fs::symlink_metadata(&link2)
+                .expect("symlink_metadata link2")
+                .file_type()
+                .is_symlink(),
+            "link2 must survive untouched too — nothing in the chain is destroyed"
+        );
+        assert!(!never_exists.exists());
     }
 }
