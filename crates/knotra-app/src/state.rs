@@ -611,7 +611,7 @@ pub struct AppState {
 impl AppState {
     #[cfg(test)]
     pub fn new(config: AppConfig) -> Self {
-        Self::new_with_paths(config, AppPaths::resolve())
+        Self::new_with_paths(config, AppPaths::resolve().0)
     }
 
     pub fn new_with_paths(config: AppConfig, paths: AppPaths) -> Self {

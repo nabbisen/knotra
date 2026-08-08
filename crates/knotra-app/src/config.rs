@@ -86,19 +86,51 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
-    pub fn resolve() -> Self {
-        let config_base = dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("knotra");
-        let data_base = dirs::data_local_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("knotra");
+    /// Resolves OS-standard config/data directories, degrading — never
+    /// failing — to the current working directory when either cannot be
+    /// determined (Handoff 033 Task B). The fallback used to be silent: a
+    /// user whose environment could not resolve `config_dir()` had their
+    /// settings written to `./knotra/config.toml` in whatever directory
+    /// knotra happened to be launched from, with no indication anything
+    /// unusual had happened. It still falls back — knotra's documented
+    /// contract is defaults-plus-warning, never a failed start — but now
+    /// says so, and where, mirroring [`crate::config::load_config`]'s own
+    /// `(value, Option<String>)` shape rather than introducing a second one.
+    pub fn resolve() -> (Self, Option<String>) {
+        let mut warnings = Vec::new();
 
-        AppPaths {
+        let config_root = dirs::config_dir().unwrap_or_else(|| {
+            let fallback = PathBuf::from(".");
+            warnings.push(format!(
+                "Could not determine the OS config directory; using \"{}\" \
+                 (the current directory) instead. Settings will be written \
+                 to a different place depending on where knotra is launched \
+                 from.",
+                fallback.display()
+            ));
+            fallback
+        });
+        let config_base = config_root.join("knotra");
+
+        let data_root = dirs::data_local_dir().unwrap_or_else(|| {
+            let fallback = PathBuf::from(".");
+            warnings.push(format!(
+                "Could not determine the OS data directory; using \"{}\" \
+                 (the current directory) instead for operation history.",
+                fallback.display()
+            ));
+            fallback
+        });
+        let data_base = data_root.join("knotra");
+
+        let paths = AppPaths {
             config_file: config_base.join("config.toml"),
             workspaces_dir: config_base.join("workspaces"),
             history_dir: data_base.join("history"),
-        }
+        };
+
+        let warning = (!warnings.is_empty()).then(|| warnings.join("\n"));
+        (paths, warning)
     }
 
     #[cfg(test)]
@@ -146,4 +178,20 @@ pub fn save_config(config: &AppConfig, paths: &AppPaths) -> Result<(), String> {
     let text = toml::to_string_pretty(config).map_err(|e| format!("serialization error: {e}"))?;
     crate::atomic_write::write(&paths.config_file, text)
         .map_err(|e| format!("cannot write config.toml: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The regression this whole task exists to prevent from becoming
+    /// silent: on a normal development machine, `dirs::config_dir()` and
+    /// `dirs::data_local_dir()` both resolve, so `resolve()` must produce no
+    /// warning at all — the CI/dev environment this test runs in is exactly
+    /// such a machine.
+    #[test]
+    fn resolve_produces_no_warning_on_a_normal_machine() {
+        let (_paths, warning) = AppPaths::resolve();
+        assert_eq!(warning, None);
+    }
 }

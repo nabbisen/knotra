@@ -43,12 +43,23 @@ use crate::{
 // ---------------------------------------------------------------------------
 
 pub fn init() -> (AppState, Task<Message>) {
-    let paths = AppPaths::resolve();
+    let (paths, paths_warning) = AppPaths::resolve();
     let (config, config_err) = load_config(&paths);
     let mut state = AppState::new_with_paths(config.clone(), paths.clone());
 
-    if let Some(err) = config_err {
-        state.status_bar = Some(err);
+    // Path resolution and config parsing are independent failure modes; if
+    // both produced a warning, concatenate rather than let one silently
+    // overwrite the other (Handoff 033 §3) — a user whose config directory
+    // could not be resolved *and* whose config.toml failed to parse needs to
+    // see both, not just whichever was assigned to `status_bar` last.
+    let startup_warning = match (paths_warning, config_err) {
+        (Some(p), Some(c)) => Some(format!("{p}\n\n{c}")),
+        (Some(p), None) => Some(p),
+        (None, Some(c)) => Some(c),
+        (None, None) => None,
+    };
+    if let Some(warning) = startup_warning {
+        state.status_bar = Some(warning);
     }
 
     let (workspaces, ws_errors) = load_workspaces(&paths);
