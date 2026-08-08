@@ -162,3 +162,55 @@ jobs:
       # environment isolation (Handoff 012) — no external env needed here.
       - name: cargo test -p knotra-vcs
         run: cargo "+$TOOLCHAIN" test -p knotra-vcs
+
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev
+
+      # Reads Cargo.toml's own rust-version rather than hardcoding it, so
+      # this job and the manifest cannot silently disagree — that drift is
+      # exactly how the manifest ended up claiming 1.87 while the true floor
+      # was 1.88 (Handoff 036). Plain grep/sed rather than a new dependency
+      # or tool, per the owner's standing constraint against adding
+      # anything that makes a contributor's setup harder.
+      - name: Read MSRV from Cargo.toml
+        id: msrv
+        run: |
+          MSRV=$(grep -m1 '^rust-version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$MSRV" ]; then
+            echo "Could not read rust-version from Cargo.toml" >&2
+            exit 1
+          fi
+          echo "msrv=$MSRV" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain at MSRV
+        run: rustup toolchain install "${{ steps.msrv.outputs.msrv }}" --profile minimal
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-ci-msrv-${{ steps.msrv.outputs.msrv }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-ci-msrv-${{ steps.msrv.outputs.msrv }}-
+
+      # Only the claim the manifest makes: that this compiles at MSRV.
+      # Not running the test suite here — compiling is the claim being
+      # made, and doubling the matrix costs more than it proves.
+      - name: cargo check --workspace --all-targets at MSRV
+        run: cargo "+${{ steps.msrv.outputs.msrv }}" check --workspace --all-targets
