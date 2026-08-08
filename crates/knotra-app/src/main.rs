@@ -1,6 +1,7 @@
 //! knotra — multi-project VCS dashboard
 
 mod app;
+mod atomic_write;
 mod config;
 mod fs_watcher;
 mod message;

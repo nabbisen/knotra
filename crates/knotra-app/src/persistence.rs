@@ -48,7 +48,8 @@ pub fn load_workspaces(paths: &AppPaths) -> (Vec<Workspace>, Vec<String>) {
     (workspaces, errors)
 }
 
-/// Persist a workspace to disk.
+/// Persist a workspace to disk, atomically (Handoff 033 Task A) — overwrites
+/// the same `<uuid>.toml` on every edit.
 pub fn save_workspace(workspace: &Workspace, paths: &AppPaths) -> Result<(), String> {
     std::fs::create_dir_all(&paths.workspaces_dir)
         .map_err(|e| format!("cannot create workspaces dir: {e}"))?;
@@ -60,7 +61,7 @@ pub fn save_workspace(workspace: &Workspace, paths: &AppPaths) -> Result<(), Str
         workspace: workspace.clone(),
     };
     let text = toml::to_string_pretty(&wf).map_err(|e| format!("serialization error: {e}"))?;
-    std::fs::write(&path, text).map_err(|e| format!("write error: {e}"))
+    crate::atomic_write::write(&path, text).map_err(|e| format!("write error: {e}"))
 }
 
 /// Remove a persisted workspace file.
@@ -81,7 +82,12 @@ pub fn delete_workspace_file(workspace: &Workspace, paths: &AppPaths) -> Result<
 // Operation history persistence
 // ---------------------------------------------------------------------------
 
-/// Persist one operation log entry as a JSON file.
+/// Persist one operation log entry as a JSON file, atomically (Handoff 033
+/// Task A) — lower severity than the config/workspace sites since each call
+/// targets a fresh timestamped filename rather than overwriting one, but
+/// fixed for uniformity: a torn write would otherwise leave a partial file
+/// `load_recent_logs` has to skip on parse failure instead of never
+/// producing one.
 pub fn save_operation_log(log: &OperationLog, paths: &AppPaths) -> Result<(), String> {
     std::fs::create_dir_all(&paths.history_dir)
         .map_err(|e| format!("cannot create history dir: {e}"))?;
@@ -92,7 +98,7 @@ pub fn save_operation_log(log: &OperationLog, paths: &AppPaths) -> Result<(), St
 
     let text =
         serde_json::to_string_pretty(log).map_err(|e| format!("serialization error: {e}"))?;
-    std::fs::write(&path, text).map_err(|e| format!("write error: {e}"))
+    crate::atomic_write::write(&path, text).map_err(|e| format!("write error: {e}"))
 }
 
 /// Load the most recent `limit` operation logs from the history directory.
