@@ -12,19 +12,37 @@ must be kept consistent with its folder.
 rfcs/
   README.md       ← this index
   proposed/       ← open for review; implementation should not yet start
+  accepted/       ← owner signed off; implementation may start
   done/           ← shipped; historical record only
   archive/        ← withdrawn or superseded
 ```
+
+knotra uses RFC 000's **5-folder variant** (without the optional `draft/`).
+RFC 000 says to adopt it "only if the design and implementation roles are
+genuinely separate" — in knotra they are, so "the owner accepted this" and
+"the implementer finished" are distinct events that need distinct states.
 
 ---
 
 ## Proposed
 
 Open for review.  Design may still change.  Do not start implementation
-until the RFC moves to `done/`.
+until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+
+---
+
+## Accepted
+
+Owner has signed off; the design is settled.  Implementation may start —
+but the act that starts it is the owner handing over a Developer Handoff
+path, not the RFC's presence here.
+
+| ID   | Title                                           | Target | Priority |
+|------|-------------------------------------------------|--------|----------|
+| [041](./accepted/041-background-module-decomposition.md) | `handle_background` decomposition | Production Readiness Reset - operational hygiene | Medium |
 
 ---
 
@@ -194,11 +212,13 @@ Add as needed:
 ## Lifecycle reference
 
 ```
-Draft → Proposed → [Implemented → done/]
-                 → [Withdrawn   → archive/]
-                 → [Superseded  → archive/]
+Draft → Proposed → Accepted → [Implemented → done/]
+                 ↘          ↘ [Withdrawn   → archive/]
+                             → [Superseded → archive/]
 ```
 
+For Accepted RFCs the Status field records who signed off and when:
+`Accepted (YYYY-MM-DD, project owner)`.  
 For Implemented RFCs the Status field carries the release tag:
 `Implemented (v1.2.3)`.  
 For Superseded RFCs: `Superseded by RFC NNNN`.  
