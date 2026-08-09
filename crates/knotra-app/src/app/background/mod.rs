@@ -28,14 +28,14 @@ use crate::{
     state::{
         ActivityRetryAction, AppState, LoadPhase, OperationLeaseId, PendingTagPush,
         RetryAvailability, RetryExclusion, RetryUnavailableReason,
-        changelog::ChangelogPhase,
-        conflict_ops::ConflictPhase,
         context::ContextPhase,
         freezer::FreezerPhase,
         sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
-        topology::TopologyPhase,
     },
 };
+
+mod conflict;
+mod status;
 
 fn find_project_name(state: &AppState, id: &knotra_vcs::ProjectId) -> Option<String> {
     shared::find_project(state, id).map(|p| p.name)
@@ -161,24 +161,7 @@ fn project_is_git_for_push(state: &AppState, project_id: &knotra_vcs::ProjectId)
 pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) -> Task<Message> {
     match msg {
         BackgroundMessage::WorkspaceStatusRefreshed(new_status) => {
-            state.dashboard_error_details_open = false;
-            // Detect missing-path projects.
-            if let Some(ws) = &state.workspace {
-                let missing: Vec<_> = ws
-                    .projects
-                    .iter()
-                    .filter(|p| !knotra_vcs::VcsAdapter::repo_exists(p))
-                    .map(|p| p.id.clone())
-                    .collect();
-                if missing != state.missing_projects.iter().cloned().collect::<Vec<_>>() {
-                    state.missing_projects = missing.into_iter().collect();
-                }
-            }
-            merge_workspace_status(state, new_status);
-            state.load_phase = LoadPhase::Ready;
-            state.is_refreshing = false;
-            state.status_bar = None;
-            Task::none()
+            status::workspace_status_refreshed(state, new_status)
         }
 
         BackgroundMessage::ActivityFetchRetryProjectCompleted {
@@ -598,59 +581,21 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
         }
 
         BackgroundMessage::MissingProjectsDetected(ids) => {
-            state.missing_projects = ids.into_iter().collect();
-            state.reconcile_selection_with_display();
-            Task::none()
+            status::missing_projects_detected(state, ids)
         }
 
         BackgroundMessage::ConflictFilesLoaded(detail) => {
-            let id = detail.project_id.clone();
-            state.conflict_ops.cached.insert(id.clone(), detail.clone());
-            state.conflict_ops.phase = ConflictPhase::Browsing {
-                project_id: id,
-                detail,
-            };
-            Task::none()
+            conflict::conflict_files_loaded(state, detail)
         }
 
         BackgroundMessage::ConflictOperationCompleted {
             lease_id,
             result,
             detail,
-        } => {
-            if !state.operation_interlock.release_if_matches(lease_id) {
-                return Task::none();
-            }
-            let id = detail.project_id.clone();
-            let success = result.success;
-            let message = if success {
-                state.t("plain.resolve.done").to_owned()
-            } else {
-                state.t("plain.resolve.failed").to_owned()
-            };
-            state.conflict_ops.cached.insert(id.clone(), detail.clone());
-            if success {
-                state.conflict_ops.phase = ConflictPhase::Browsing {
-                    project_id: id,
-                    detail,
-                };
-            } else {
-                state.conflict_ops.phase = ConflictPhase::Done {
-                    project_id: id,
-                    success,
-                    message,
-                    result: Some(result),
-                };
-            }
-            Task::none()
-        }
+        } => conflict::conflict_operation_completed(state, lease_id, result, detail),
 
         BackgroundMessage::ChangelogDraftReady { request_id, draft } => {
-            if state.changelog.active_request_id == Some(request_id) {
-                state.changelog.active_request_id = None;
-                state.changelog.phase = ChangelogPhase::Ready(draft);
-            }
-            Task::none()
+            status::changelog_draft_ready(state, request_id, draft)
         }
 
         BackgroundMessage::TagsLoaded(tags) => {
@@ -658,15 +603,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
             Task::none()
         }
 
-        BackgroundMessage::TopologyScanned(graph) => {
-            // Compute impact warnings for the Freezer.
-            if let Some(ws) = &state.workspace {
-                let names: Vec<String> = ws.projects.iter().map(|p| p.name.clone()).collect();
-                state.topology.impact_warnings = state.topology.compute_warnings(&graph, &names);
-            }
-            state.topology.phase = TopologyPhase::Ready(graph);
-            Task::none()
-        }
+        BackgroundMessage::TopologyScanned(graph) => status::topology_scanned(state, graph),
 
         BackgroundMessage::FreezeValidationDone {
             lease_id,
@@ -828,12 +765,6 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
             }
         }
 
-        BackgroundMessage::TaskError { description } => {
-            state.load_phase = LoadPhase::Error(description.clone());
-            state.is_refreshing = false;
-            state.dashboard_error_details_open = false;
-            state.status_bar = Some(state.t("dashboard.load_failed").to_owned());
-            Task::none()
-        }
+        BackgroundMessage::TaskError { description } => status::task_error(state, description),
     }
 }
