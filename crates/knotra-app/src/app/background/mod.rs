@@ -14,7 +14,7 @@
 
 use iced::Task;
 use knotra_vcs::{
-    VcsAdapter, VcsKind,
+    VcsKind,
     model::operation::{
         OperationId, OperationKind, OperationLog, OperationResult, ProjectOperationOutcome,
         ProjectOperationResult, RetryExclusionReason,
@@ -28,13 +28,14 @@ use crate::{
     state::{
         ActivityRetryAction, AppState, LoadPhase, OperationLeaseId, PendingTagPush,
         RetryAvailability, RetryExclusion, RetryUnavailableReason,
-        context::ContextPhase,
         freezer::FreezerPhase,
         sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
     },
 };
 
 mod conflict;
+mod context_switch;
+mod fetch;
 mod status;
 
 fn find_project_name(state: &AppState, id: &knotra_vcs::ProjectId) -> Option<String> {
@@ -168,53 +169,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
             lease_id,
             operation_id,
             result,
-        } => {
-            let Some(mut run) = state.activity.fetch_retry.take() else {
-                return Task::none();
-            };
-            if run.lease_id != lease_id || run.operation_id != operation_id {
-                state.activity.fetch_retry = Some(run);
-                return Task::none();
-            }
-            run.completed.push(result);
-            let done = run.completed.len() + run.exclusions.len();
-            if let crate::state::LatestOpState::Running {
-                operation_id: active_id,
-                done: active_done,
-                ..
-            } = &mut state.activity.latest
-                && *active_id == operation_id
-            {
-                *active_done = done;
-            }
-            let expected = run.total.saturating_sub(run.exclusions.len());
-            if run.completed.len() < expected {
-                state.activity.fetch_retry = Some(run);
-                return Task::none();
-            }
-
-            let mut per_project = run.completed;
-            per_project.extend(run.exclusions.iter().map(skipped_retry_result));
-            let log = OperationLog {
-                result: OperationResult {
-                    operation_id: run.operation_id,
-                    kind: OperationKind::Fetch,
-                    started_at: run.started_at,
-                    finished_at: chrono::Utc::now(),
-                    per_project,
-                    rollback_attempted: false,
-                    rollback_succeeded: None,
-                },
-                recovery_hints: Vec::new(),
-            };
-            if !state.operation_interlock.release_if_matches(lease_id) {
-                return Task::none();
-            }
-            persist_log(&log, state);
-            state.is_refreshing = true;
-            state.load_phase = LoadPhase::Refreshing;
-            shared::refresh_workspace_task(state)
-        }
+        } => fetch::activity_fetch_retry_project_completed(state, lease_id, operation_id, result),
 
         BackgroundMessage::SmartPullRetryStatusReady {
             request_id,
@@ -498,51 +453,10 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
         }
 
         BackgroundMessage::SingleFetchCompleted { lease_id, log } => {
-            if !state.operation_interlock.release_if_matches(lease_id) {
-                return Task::none();
-            }
-            for r in &log.result.per_project {
-                state.fetching_projects.remove(&r.project_id);
-            }
-            persist_log(&log, state);
-
-            let tasks: Vec<Task<Message>> = log
-                .result
-                .per_project
-                .iter()
-                .filter_map(|r| shared::find_project(state, &r.project_id))
-                .map(|project| {
-                    Task::perform(
-                        async move { VcsAdapter::read_project_status(&project).await },
-                        |s| {
-                            Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
-                                knotra_vcs::WorkspaceStatus {
-                                    projects: vec![s],
-                                    last_refresh: Some(chrono::Utc::now()),
-                                },
-                            ))
-                        },
-                    )
-                })
-                .collect();
-            Task::batch(tasks)
+            fetch::single_fetch_completed(state, lease_id, log)
         }
 
-        BackgroundMessage::BulkFetchCompleted(log) => {
-            persist_log(&log, state);
-            state.status_bar = Some(if log.result.any_failed() {
-                format!(
-                    "Fetch — {} ok, {} failed",
-                    log.result.successful_projects().len(),
-                    log.result.failed_projects().len()
-                )
-            } else {
-                format!("Fetch complete — {} projects", log.result.per_project.len())
-            });
-            state.is_refreshing = true;
-            state.load_phase = LoadPhase::Refreshing;
-            shared::refresh_workspace_task(state)
-        }
+        BackgroundMessage::BulkFetchCompleted(log) => fetch::bulk_fetch_completed(state, log),
 
         BackgroundMessage::SmartPullCompleted(log)
         | BackgroundMessage::ContextSwitchCompleted(log)
@@ -703,66 +617,11 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
         }
 
         BackgroundMessage::ContextListLoaded(list) => {
-            let id = list.project_id.clone();
-            state
-                .context_ops
-                .cached_lists
-                .insert(id.clone(), list.clone());
-            // Only update phase if we were waiting for this exact project.
-            if matches!(&state.context_ops.phase, ContextPhase::LoadingList(loading_id) if loading_id == &id)
-            {
-                state.context_ops.phase = ContextPhase::BrowsingList {
-                    project_id: id,
-                    list,
-                    search: String::new(),
-                };
-            }
-            Task::none()
+            context_switch::context_list_loaded(state, list)
         }
 
         BackgroundMessage::ContextSwitchDone { lease_id, result } => {
-            if !state.operation_interlock.release_if_matches(lease_id) {
-                return Task::none();
-            }
-            use knotra_vcs::model::operation::{OperationKind, OperationLog, OperationResult};
-
-            // Build an operation log entry.
-            let op_log = OperationLog {
-                result: OperationResult {
-                    operation_id: OperationId::new(),
-                    kind: OperationKind::ContextSwitch,
-                    started_at: chrono::Utc::now(),
-                    finished_at: chrono::Utc::now(),
-                    per_project: vec![result.operation_result.clone()],
-                    rollback_attempted: false,
-                    rollback_succeeded: None,
-                },
-                recovery_hints: result.recovery_hint.clone().into_iter().collect(),
-            };
-            persist_log(&op_log, state);
-
-            state.context_ops.phase = ContextPhase::Done(result);
-
-            // Refresh the project's status card after a switch.
-            let project = match &state.context_ops.phase {
-                ContextPhase::Done(r) => shared::find_project(state, &r.project_id),
-                _ => None,
-            };
-            if let Some(p) = project {
-                Task::perform(
-                    async move { VcsAdapter::read_project_status(&p).await },
-                    |s| {
-                        Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
-                            knotra_vcs::WorkspaceStatus {
-                                projects: vec![s],
-                                last_refresh: Some(chrono::Utc::now()),
-                            },
-                        ))
-                    },
-                )
-            } else {
-                Task::none()
-            }
+            context_switch::context_switch_done(state, lease_id, result)
         }
 
         BackgroundMessage::TaskError { description } => status::task_error(state, description),
