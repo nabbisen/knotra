@@ -770,6 +770,12 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "Some changes take effect on next launch.",
     );
     m.insert("settings.save", "Save settings");
+    // RFC-042 D1/R1: referenced by app/misc.rs since before this RFC,
+    // absent from the catalog until now — settings.saved_ok rendered
+    // verbatim in both the Settings panel and the status bar on every
+    // successful save.
+    m.insert("settings.saved_ok", "Settings saved.");
+    m.insert("settings.save_error", "Could not save settings:");
     // "Active: {value}" prefix (RFC-038 Stage 1 §2) — shared by the locale
     // and theme rows; {value} itself is `Locale`'s own `Display` (an
     // endonym, not translated) or an existing `settings.theme_*` key.
@@ -798,6 +804,14 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.topology_scan_error", "Scan error.");
     // Topology scan (used in legacy settings panel)
     m.insert("topology.scan", "Scan topology");
+    // External tool launch (RFC-042 D1/R1) — `tool.*` is a new namespace:
+    // these call sites (app/misc.rs's handle_launch) already used this
+    // prefix before this RFC, referencing keys that were simply never
+    // added. Kept as its own namespace rather than folded into
+    // `settings.*` — `handle_launch` is a `LaunchMessage` handler, not a
+    // Settings-panel one, and the call sites already named it this way.
+    m.insert("tool.not_configured", "Choose a tool in Settings first.");
+    m.insert("tool.launch_failed", "Could not launch");
     m
 }
 
@@ -1564,6 +1578,8 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "一部の変更は次回起動時に有効になります。",
     );
     m.insert("settings.save", "設定を保存");
+    m.insert("settings.saved_ok", "設定を保存しました。");
+    m.insert("settings.save_error", "設定を保存できませんでした:");
     m.insert("settings.active_prefix", "現在:");
     m.insert("settings.section.fs_watch", "ファイルシステム監視");
     m.insert(
@@ -1583,6 +1599,8 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.topology_scan_complete", "スキャン完了。");
     m.insert("settings.topology_scan_error", "スキャンエラー。");
     m.insert("topology.scan", "トポロジをスキャン");
+    m.insert("tool.not_configured", "先に設定でツールを選んでください。");
+    m.insert("tool.launch_failed", "起動できませんでした");
     m
 }
 
