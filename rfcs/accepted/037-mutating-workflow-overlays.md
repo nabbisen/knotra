@@ -193,6 +193,39 @@ closed leaving two call sites in `view/dashboard/empty.rs`.** Not a defect in
 anything shipped - the helpers still work - but it is why the count is four files
 rather than three.
 
+### D6. `guided_field` is not deletable - RFC-034 never built its replacement
+
+**Added 2026-08-10, after Stage 3 surfaced it.** D5 and R9 originally assumed both
+legacy helpers could be retired together. Checked at `9fb823b`:
+
+| Module | Contents |
+|---|---|
+| `knotra-ui/src/widget/buttons.rs` | `guided_button` **plus** `primary`, `secondary`, `ghost`, `danger`, each with a `_maybe` variant, plus a `style` module |
+| `knotra-ui/src/widget/field.rs` | `guided_field`, `guided_field_focused`. **Nothing else.** |
+
+RFC-034 R7 said new controls are "added alongside `guided_button` and
+`guided_field`". **That happened for buttons and never happened for fields.** There
+is no primitive to migrate a text field *to*.
+
+The consequence is that "migrating" a field can only mean inlining the same
+`column![text(label), text_input(...)]` composition at the call site, which
+duplicates what the helper centralises and entrenches a third pattern - the
+opposite of what R7 exists to achieve. Corroborating evidence: `workspace_manager.rs`,
+which was RFC-034 R9's own validating migration, still calls `guided_field_focused`.
+
+**Therefore:**
+
+- `guided_button` is deleted in Stage 6 as planned. Its replacement vocabulary is
+  complete, and six of its eleven call sites are in this RFC's own files.
+- **`guided_field` stays.** It is the field vocabulary, not a legacy helper, and the
+  "legacy" label applied to it was wrong. Renaming it, or building a richer field
+  primitive, is a separate concern and out of scope here.
+- Stage 3 inlined one field composition in `changelog.rs` on a handoff instruction
+  that assumed a target existed. It is reverted at the start of Stage 4 (`134` §4).
+
+`guided_field*` call sites at `9fb823b`, all of which now stay: `add_project_modal.rs`
+2, `workspace_manager.rs` 2, `overlays/freezer.rs` 2, `overlays/context_switch.rs` 1.
+
 ## Requirements
 
 | # | Requirement |
@@ -205,7 +238,8 @@ rather than three.
 | R6 | `modal_shell` is deleted when its last caller migrates |
 | R7 | Conflict resolution renders as a sheet, not a dialog |
 | R8 | `tests.rs` is not edited - zero lines |
-| R9 | *(if D5 accepted)* `guided_button` and `guided_field` are deleted, with no remaining caller |
+| R9 | `guided_button` is deleted, with no remaining caller. **`guided_field` is not** - see D6 |
+| R11 | No overlay inlines a text-field composition locally. `guided_field` / `guided_field_focused` remain the field vocabulary until a replacement exists (D6) |
 | R10 | `knotra-vcs` is not modified |
 
 ## Verification
