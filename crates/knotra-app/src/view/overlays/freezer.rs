@@ -1,16 +1,28 @@
-//! 2. "Save release point" modal (Freezer / Tag) — RFC-037 Stage 1.
+//! 2. "Save release point" modal (Freezer / Tag) — RFC-037 Stage 4.
+//!
+//! `modal_shell` replaced with `knotra_ui::widget::overlay::surface`.
+//! `guided_field`/`guided_field_focused`/`guided_button` call sites are
+//! untouched (D6/R11, D7/R12 — both are still-current vocabulary, not
+//! legacy helpers to migrate off this stage). Each phase's own local
+//! `footer` row (`ValidationReady`, `Done`) maps directly onto `surface()`'s
+//! `footer` parameter, the same mapping Stage 2 used for `conflict.rs`;
+//! phases with no such row (`Idle`/`Validating`, `Executing`) pass an empty
+//! `Space` instead, the same choice Stage 3 made for `changelog.rs`'s
+//! footer-less phases.
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, column, row, scrollable, text},
+    widget::{Space, column, row, text},
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button, guided_field, guided_field_focused,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, guided_button, guided_field,
+    guided_field_focused,
+    overlay::{OverlayWidth, surface},
+    style,
 };
 use knotra_vcs::model::operation::FreezeOutcome;
 
-use super::modal_shell;
 use crate::{
     message::{FreezerMessage, Message, TagPushMessage},
     state::AppState,
@@ -19,9 +31,10 @@ use crate::{
 pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
     use crate::state::freezer::FreezerPhase;
 
+    let tokens = &state.theme.tokens;
     let freezer = &state.freezer;
 
-    let inner: Element<'_, Message> = match &freezer.phase {
+    let (inner, footer): (Element<'_, Message>, Element<'_, Message>) = match &freezer.phase {
         // ── Input + auto-validation ───────────────────────────────────────
         FreezerPhase::Idle | FreezerPhase::Validating { .. } => {
             let name_error: Option<&str> = if freezer.freeze_name.is_empty() {
@@ -68,9 +81,12 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     Space::new().into()
                 };
 
-            column![name_field, msg_field, validate_or_spinner]
-                .spacing(14)
-                .into()
+            (
+                column![name_field, msg_field, validate_or_spinner]
+                    .spacing(14)
+                    .into(),
+                Space::new().into(),
+            )
         }
 
         // ── Validation result + execute ───────────────────────────────────
@@ -131,29 +147,40 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     save_reason,
                 ),
                 Space::new().width(Length::Fill),
-                button(text(state.t("action.cancel")).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::Freezer(FreezerMessage::BulkModalClosed)),
+                styled_button(
+                    tokens,
+                    state.t("action.cancel"),
+                    Some(Message::Freezer(FreezerMessage::BulkModalClosed)),
+                    style::ghost,
+                ),
             ]
             .align_y(Alignment::Center);
 
-            column![
-                text(state.t("plain.release.ready_check")).size(FONT_BODY),
-                scrollable(column(val_rows).spacing(6)).height(Length::Fixed(200.0)),
-                footer,
-            ]
-            .spacing(12)
-            .into()
+            // No inner `scrollable` around the row list (unlike the
+            // pre-migration `.height(Length::Fixed(200.0))` box) —
+            // `surface()`'s own body scrollable now covers the whole body,
+            // same reasoning as Stage 2/3 (review `132` §4).
+            (
+                column![
+                    text(state.t("plain.release.ready_check")).size(FONT_BODY),
+                    column(val_rows).spacing(6),
+                ]
+                .spacing(12)
+                .into(),
+                footer.into(),
+            )
         }
 
         // ── Executing ─────────────────────────────────────────────────────
-        FreezerPhase::Executing => column![
-            text(state.t("plain.release.saving")).size(FONT_BODY),
-            text(state.t("plain.release.saving_hint")).size(FONT_SMALL),
-        ]
-        .spacing(8)
-        .into(),
+        FreezerPhase::Executing => (
+            column![
+                text(state.t("plain.release.saving")).size(FONT_BODY),
+                text(state.t("plain.release.saving_hint")).size(FONT_SMALL),
+            ]
+            .spacing(8)
+            .into(),
+            Space::new().into(),
+        ),
 
         // ── Result ────────────────────────────────────────────────────────
         FreezerPhase::Done(result) => {
@@ -237,20 +264,19 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                         column![
                             text(state.t("plain.release.share_offer")).size(FONT_BODY),
                             row![
-                                button(text(state.t("plain.release.share_action")).size(FONT_BODY))
-                                    .height(BUTTON_HEIGHT)
-                                    .padding([0, 18])
-                                    .on_press_maybe(
-                                        (!state.operation_interlock.is_busy()).then_some(
-                                            Message::TagPush(TagPushMessage::PushConfirmed),
-                                        )
-                                    ),
-                                button(
-                                    text(state.t("plain.release.share_decline")).size(FONT_BODY)
-                                )
-                                .height(BUTTON_HEIGHT)
-                                .padding([0, 18])
-                                .on_press(Message::TagPush(TagPushMessage::PushDeclined)),
+                                styled_button(
+                                    tokens,
+                                    state.t("plain.release.share_action"),
+                                    (!state.operation_interlock.is_busy())
+                                        .then_some(Message::TagPush(TagPushMessage::PushConfirmed)),
+                                    style::primary,
+                                ),
+                                styled_button(
+                                    tokens,
+                                    state.t("plain.release.share_decline"),
+                                    Some(Message::TagPush(TagPushMessage::PushDeclined)),
+                                    style::ghost,
+                                ),
                             ]
                             .spacing(8)
                             .align_y(Alignment::Center),
@@ -263,33 +289,42 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
             };
 
             let footer = row![
-                button(text(details_label).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::ToggleOpDetails),
+                styled_button(
+                    tokens,
+                    details_label,
+                    Some(Message::ToggleOpDetails),
+                    style::ghost,
+                ),
                 Space::new().width(Length::Fill),
-                button(text(state.t("action.close")).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press_maybe(
-                        (!push_is_running)
-                            .then_some(Message::Freezer(FreezerMessage::BulkModalClosed,))
-                    ),
+                styled_button(
+                    tokens,
+                    state.t("action.close"),
+                    (!push_is_running).then_some(Message::Freezer(FreezerMessage::BulkModalClosed)),
+                    style::ghost,
+                ),
             ]
             .align_y(Alignment::Center);
 
-            column![
-                text(outcome_title).size(FONT_BODY + 2.0),
-                text(outcome_body).size(FONT_BODY),
-                scrollable(column(rows).spacing(8)).height(Length::Fixed(200.0)),
-                push_offer,
-                footer,
-            ]
-            .spacing(12)
-            .into()
+            // No inner `scrollable` around the row list — same reasoning as
+            // the `ValidationReady` branch above.
+            (
+                column![
+                    text(outcome_title).size(FONT_BODY + 2.0),
+                    text(outcome_body).size(FONT_BODY),
+                    column(rows).spacing(8),
+                    push_offer,
+                ]
+                .spacing(12)
+                .into(),
+                footer.into(),
+            )
         }
     };
 
+    // R2/§2: both clauses, unchanged. The second is not a phase check — it
+    // reads `state.pending_tag_push` directly — so a close during a running
+    // tag push stays blocked even though `freezer.phase` itself has already
+    // moved past `Executing` into `Done`.
     let close_msg = if matches!(freezer.phase, FreezerPhase::Executing)
         || state
             .pending_tag_push
@@ -301,7 +336,35 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         Some(Message::Freezer(FreezerMessage::BulkModalClosed))
     };
 
-    modal_shell(state.t("plain.save_release_point"), close_msg, inner)
+    surface(
+        tokens,
+        OverlayWidth::Large,
+        state.t("plain.save_release_point"),
+        close_msg,
+        false,
+        inner,
+        footer,
+    )
+}
+
+/// A button styled with one of `knotra_ui::widget::style`'s semantic
+/// functions plus a focus ring — the same shape `conflict.rs` (Stage 2) and
+/// `changelog.rs` (Stage 3) use. `is_focused` is always `false`: no real
+/// focus-order wiring exists or is permitted for this overlay this stage
+/// (R3 forbids `app/`/`state/`).
+fn styled_button<'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    on_press: Option<Message>,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+) -> Element<'a, Message> {
+    let t = tokens.clone();
+    iced::widget::button(text(label).size(FONT_BODY))
+        .height(BUTTON_HEIGHT)
+        .padding([0, 18])
+        .on_press_maybe(on_press)
+        .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
+        .into()
 }
 
 /// Map a technical blocker string to a plain-language message.
