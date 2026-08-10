@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [037](./proposed/037-mutating-workflow-overlays.md) | Mutating workflow overlays and remaining ad hoc layers | Production Readiness Reset - UI/UX foundation | High |
 
 ---
 

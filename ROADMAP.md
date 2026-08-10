@@ -399,10 +399,14 @@ Updated 2026-08-10, after 0.26.0 shipped. **The operational hygiene track is now
 complete** — RFC-040 and RFC-041 both closed, CI gates committed and proven,
 Git tests hermetic. The UI/UX foundation track has three RFCs left, none written.
 
-1. **RFC-037 — mutating workflow overlays and remaining ad hoc layers.** The next
-   thing to draft. It also carries two verification-track items with it:
-   `view/settings.rs`'s hardcoded English, and the last `guided_button` call
-   sites that keep the RFC-034 R7 parallel-systems window open.
+1. **RFC-037 — mutating workflow overlays and remaining ad hoc layers.**
+   **Drafted 2026-08-10** (`rfcs/proposed/037-mutating-workflow-overlays.md`),
+   awaiting owner acceptance. `view/bulk_modals.rs` is 1,337 ELOC holding all
+   five overlays behind a hand-rolled `modal_shell`. It carries one
+   verification-track item — the `guided_button` window — and only if its D5 is
+   accepted; see below. It does **not** carry `view/settings.rs`'s hardcoded
+   English, which is RFC-038's per RFC-033 H4. An earlier version of this line
+   said otherwise and was wrong.
 2. **RFC-038 — Settings and History.**
 3. **RFC-039 — per-project VCS history for Git and jj.** Sequenced last of the
    three so it can reuse RFC-038's record-list pattern (RFC-033).
@@ -440,7 +444,9 @@ given.
 - [ ] All primary workflows have complete validation, confirmation, progress, result, error, and recovery states
       — implemented across RFC-024..031; not yet systematically re-verified as a whole
 - [ ] User-facing strings are routed through the i18n catalog where production UI renders them
-      — `view/settings.rs` still carries hardcoded English; RFC-037
+      — `view/settings.rs` still carries hardcoded English; **RFC-038**, per
+      RFC-033 H4 (long recorded here as RFC-037; RFC-036 was reused for keyboard
+      navigation, which shifted every later number by one)
 - [ ] UI contract tests or smoke tests prove visible controls reach the intended message handler, task, and result state
       — substantial coverage added per RFC; not yet complete across all surfaces
 - [x] Git integration tests are hermetic against global/user Git config
@@ -450,8 +456,15 @@ given.
       remains un-isolated, which is harmless while no exercised write path needs
       an identity or an editor — the trigger is recorded in the hygiene track.
 - [ ] `guided_button` and `guided_field` deleted; no legacy control helper remains
-      — the RFC-034 R7 parallel-systems window; closes when RFC-035..037 migrate
-      their last call sites
+      — the RFC-034 R7 parallel-systems window. **19 live call sites in four
+      files**, measured 2026-08-10: `bulk_modals.rs` 11, `add_project_modal.rs` 4,
+      `workspace_manager.rs` 2, `dashboard/empty.rs` 2. This entry used to say the
+      window "closes when RFC-035..037 migrate their last call sites"; it does
+      not. RFC-035 is closed and left `dashboard/empty.rs` unmigrated, and eight
+      sites across three files are owned by **no scheduled RFC** — RFC-038 is
+      Settings and History, RFC-039 is per-project VCS history, and neither calls
+      them. RFC-037 D5 proposes absorbing all nineteen so the helpers can actually
+      be deleted; that is an open owner decision.
 - [x] `cargo +1.91 fmt --check` passes
 - [x] `cargo +1.91 clippy --workspace --all-targets` passes
 - [x] `cargo +1.91 test -p knotra-vcs`, `cargo +1.91 test -p knotra-ui`, and `cargo +1.91 test -p knotra` pass in the documented release environment
