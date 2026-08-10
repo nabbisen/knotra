@@ -1669,6 +1669,163 @@ mod tests {
         }
     }
 
+    // -------------------------------------------------------------------
+    // RFC-042: catalog integrity guards. Both scan `crates/` source text —
+    // regexes over Rust source, not a real parser — which the RFC itself
+    // names as a known hazard ("two of my own measurements... came back
+    // wrong from regexes over Rust source"). R3: each was proven to fail
+    // on a planted violation before being trusted; see the review request
+    // for the exact failure message observed.
+    // -------------------------------------------------------------------
+
+    /// Recursively collect every `.rs` file under `dir`. No
+    /// filesystem-walking dependency exists in this crate, and `crates/` is
+    /// under 100 files — small enough that a hand-rolled walk is simpler
+    /// than adding one for two tests.
+    fn rust_files_under(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+        let mut files = Vec::new();
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return files;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                files.extend(rust_files_under(&path));
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
+                files.push(path);
+            }
+        }
+        files
+    }
+
+    /// `crates/`, resolved from this crate's own manifest directory —
+    /// `knotra-ui` lives at `crates/knotra-ui`, so one `..` reaches it.
+    fn crates_dir() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
+    }
+
+    /// `rust_files_under(crates_dir())` includes this file's own source —
+    /// both guards below scan `crates/` for the literal text patterns they
+    /// themselves are implemented with (`.t("` and `"...` in their own
+    /// doc comments and string literals), so scanning this file finds
+    /// those patterns describing themselves, not real call sites. `i18n.rs`
+    /// is the catalog's own implementation, never a *consumer* calling
+    /// `.t(...)` on itself, so excluding it costs no real coverage.
+    /// Confirmed by observing the exact false positives this produced
+    /// before the exclusion was added (see the review request).
+    fn is_scan_target(path: &std::path::Path) -> bool {
+        !path.ends_with("i18n.rs")
+    }
+
+    /// Extract every key named in a literal `.t("key")` call — the form
+    /// `state.t("...")`/`self.t("...")` — from `source`. Cannot and does
+    /// not try to see dynamically built keys (`err.i18n_key()` and
+    /// friends) — RFC-042 D2 accepts that gap explicitly; D3 (the
+    /// `debug_assert!` in `Catalog::t`) covers those instead.
+    fn literal_t_call_keys(source: &str) -> Vec<&str> {
+        let mut keys = Vec::new();
+        let mut rest = source;
+        while let Some(pos) = rest.find(".t(\"") {
+            let after = &rest[pos + 4..];
+            let Some(end) = after.find('"') else { break };
+            keys.push(&after[..end]);
+            rest = &after[end + 1..];
+        }
+        keys
+    }
+
+    #[test]
+    fn every_literal_t_call_names_an_existing_key() {
+        let en = en_strings();
+        let files = rust_files_under(&crates_dir());
+        assert!(
+            files.len() > 50,
+            "found only {} .rs files under crates/ -- path resolution is \
+             broken (expected 90+), not that nothing needed checking",
+            files.len()
+        );
+
+        let mut missing = Vec::new();
+        for file in files.iter().filter(|f| is_scan_target(f)) {
+            let Ok(source) = std::fs::read_to_string(file) else {
+                continue;
+            };
+            for key in literal_t_call_keys(&source) {
+                if !en.contains_key(key) {
+                    missing.push(format!("{key} (in {})", file.display()));
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "these literal .t(\"...\") calls name a key absent from \
+             en_strings(): {missing:?}"
+        );
+    }
+
+    /// Extract the RHS of every `field = ...;` assignment to `field` from
+    /// `source`, bounded by the first depth-0 `;` — not a parser, so
+    /// nesting is tracked by counting all of `([{`/`)]}` together rather
+    /// than matching bracket types, which is sufficient to find the true
+    /// top-level statement terminator without needing to distinguish them.
+    fn assignment_rhs<'a>(source: &'a str, field: &str) -> Vec<&'a str> {
+        let marker = format!("{field} = ");
+        let mut found = Vec::new();
+        let mut rest = source;
+        while let Some(pos) = rest.find(&marker) {
+            let body = &rest[pos + marker.len()..];
+            let mut depth = 0i32;
+            let mut end = None;
+            for (i, c) in body.char_indices() {
+                match c {
+                    '(' | '{' | '[' => depth += 1,
+                    ')' | '}' | ']' => depth -= 1,
+                    ';' if depth == 0 => {
+                        end = Some(i);
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            let Some(end) = end else { break };
+            found.push(&body[..end]);
+            rest = &body[end..];
+        }
+        found
+    }
+
+    #[test]
+    fn status_bar_and_settings_save_msg_always_route_through_t() {
+        let files = rust_files_under(&crates_dir());
+        assert!(
+            files.len() > 50,
+            "found only {} .rs files under crates/ -- path resolution is \
+             broken (expected 90+), not that nothing needed checking",
+            files.len()
+        );
+
+        let mut violations = Vec::new();
+        for file in files.iter().filter(|f| is_scan_target(f)) {
+            let Ok(source) = std::fs::read_to_string(file) else {
+                continue;
+            };
+            for field in ["status_bar", "settings_save_msg"] {
+                for rhs in assignment_rhs(&source, field) {
+                    let has_string_literal = rhs.contains('"');
+                    let has_t_call = rhs.contains(".t(");
+                    if has_string_literal && !has_t_call {
+                        violations.push(format!("{field} in {}: {rhs}", file.display()));
+                    }
+                }
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "these assignments contain a string literal with no `.t(...)` \
+             call anywhere in the expression: {violations:?}"
+        );
+    }
+
     #[test]
     fn japanese_dashboard_filters_do_not_retain_english_direction_labels() {
         let ja = ja_strings();
