@@ -7,6 +7,82 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.27.0] — 2026-08-10
+
+**The overlay release.** Every modal in knotra — Smart Pull, Freezer, context
+switch, conflict resolution, changelog — now renders through the same design
+system the dashboard moved to in 0.25.0. Two of them had bugs that only showed
+up once someone looked closely enough to migrate them.
+
+### Fixed — the option you had chosen was the hardest one to see
+
+In Smart Pull's plan view you pick a disposition per project: fetch only, or
+stash → pull → pop. The **selected** option was drawn faded, because it was
+implemented by removing its press handler and iced dims any button that cannot
+be pressed. So the choice you had made looked unavailable, and the ones you had
+not made looked active.
+
+This is the same defect 0.25.0 fixed for the dashboard's Group and Sort menus.
+It survived here because that work stopped at the dashboard's edge.
+
+### Fixed — "Remove" and "No" looked equally serious
+
+The confirmation for removing a project from a workspace styled its **Remove**
+button exactly like its **No** button. Removing a project is not reversible from
+the dialog, and it now looks like it.
+
+### Changed — the modals
+
+Migrating the five overlays onto shared components changed how they look, in the
+same direction for all of them:
+
+- **Completing actions stay put.** Save, Cancel, Close and their siblings now sit
+  in a fixed footer beneath the scrolling area rather than after the content, so
+  a long list of projects no longer pushes them out of reach.
+- **Every button shows focus.** Keyboard focus is now visible on the controls
+  inside modals, matching the rest of the application.
+- **Modals are wider** — 680px rather than 580px — which gives plan tables and
+  the changelog preview more room before wrapping.
+- **The conflict panel stops repeating itself.** Its result banner printed the
+  same sentence twice, once as a heading and once as the message. It says it once.
+
+Nothing about what these workflows *do* changed: the same steps, the same
+confirmations, and the same rules about when a modal refuses to close mid-operation.
+
+### Changed — the minimum Rust version is now actually declared
+
+0.26.0 corrected `rust-version` to 1.88 in the workspace manifest. That value was
+never inherited by the three published crates, so it reached neither `cargo` nor
+crates.io and had no effect on anything. The crates now inherit it, so building
+on an older toolchain fails naming knotra rather than only its dependencies, and
+the registry shows the real figure for the first time.
+
+### Internal — RFC-037
+
+`view/bulk_modals.rs`, a 1,337-line file holding all five overlays behind a
+hand-rolled modal shell, became a `view/overlays/` directory of six files, each
+under the project's 500-line threshold. Both legacy helpers it depended on —
+`modal_shell` and `guided_button` — are deleted, the latter after its replacement
+gained the one piece it was missing.
+
+Six stages, twelve commits. `tests.rs` was never edited, so the existing suite
+passed unmodified at every step; the single test added covers the new component's
+own logic.
+
+### Known limitations
+
+Unchanged from 0.26.0: the Group and Sort menus still cannot be opened by
+keyboard, and there is no screen-reader support. `guided_field` remains in place —
+the design system never grew a text-field replacement for it, so there is nothing
+to migrate those call sites to yet.
+
+### Compatibility
+
+No config migration. Requires Rust 1.88 or newer to build from source, which was
+already true in practice and is now stated where tools can see it.
+
+---
+
 ## [0.26.0] — 2026-08-10
 
 **The durability release.** Your settings file can no longer be destroyed by a
