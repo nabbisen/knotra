@@ -22,7 +22,6 @@ use knotra_ui::widget::{
 };
 use knotra_vcs::{ProjectId, VcsKind};
 
-use super::project_name_for;
 use crate::{
     message::{ConflictOpsMessage, Message},
     state::AppState,
@@ -313,4 +312,19 @@ fn project_has_git_merge_state(state: &AppState, project_id: &ProjectId) -> bool
             path.join(".git").join("MERGE_HEAD").exists()
         })
         .unwrap_or(false)
+}
+
+/// Moved from `overlays/mod.rs` (RFC-037 Stage 6, `131` §5) — its only
+/// caller is `resolve_panel`, above, in this same file. `mod.rs`'s own
+/// Stage 1 doc comment mistakenly justified keeping it there as "used by
+/// more than one overlay"; that was corrected in review `131` and the move
+/// deferred to this stage so it wouldn't bury a relocation inside an
+/// unverifiable migration diff.
+fn project_name_for(state: &AppState, id: &ProjectId) -> String {
+    state
+        .workspace
+        .as_ref()
+        .and_then(|ws| ws.projects.iter().find(|p| &p.id == id))
+        .map(|p| p.name.clone())
+        .unwrap_or_else(|| id.to_string())
 }

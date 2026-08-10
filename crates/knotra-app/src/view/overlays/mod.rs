@@ -15,14 +15,11 @@
 //! Split from a single 1,337-ELOC `bulk_modals.rs` into this directory by
 //! RFC-037 Stage 1 (D2) — a pure move, no behaviour or rendering change.
 //! Stages 2-5 migrated each overlay onto RFC-034 primitives one at a time;
-//! `modal_shell` (the pre-RFC-034 shared shell) is deleted here by Stage 5,
-//! R6, at its last caller (`smart_pull.rs`). Stage 6 remains: the
-//! `guided_button` sweep, `knotra-ui`'s reason-carrying button, and
-//! `project_name_for`'s relocation.
-
-use knotra_vcs::ProjectId;
-
-use crate::state::AppState;
+//! `modal_shell` (the pre-RFC-034 shared shell) was deleted at its last
+//! caller (`smart_pull.rs`, Stage 5, R6). Stage 6 closed the RFC: the
+//! `guided_button` sweep, `knotra-ui`'s `reasoned` primitive, and
+//! `project_name_for`'s relocation to `conflict.rs` (its only caller),
+//! leaving this file a near-pure declaration module.
 
 mod changelog;
 mod conflict;
@@ -45,22 +42,3 @@ pub use smart_pull::pull_modal;
 // why they moved there anyway.
 #[cfg(test)]
 pub(crate) use changelog::{changelog_markdown_preview, changelog_result_counts};
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Used by exactly one overlay (`conflict::resolve_panel`), not "more than
-/// one" as Handoff 041 §4 states — checked by grep, not assumed. Kept in
-/// `mod.rs` per the handoff's explicit instruction anyway ("do not improve
-/// anything here... note it and leave it"); flagged in the Stage 1 review
-/// request for the architect to decide whether it moves to `conflict.rs` in
-/// a later stage.
-fn project_name_for(state: &AppState, id: &ProjectId) -> String {
-    state
-        .workspace
-        .as_ref()
-        .and_then(|ws| ws.projects.iter().find(|p| &p.id == id))
-        .map(|p| p.name.clone())
-        .unwrap_or_else(|| id.to_string())
-}
