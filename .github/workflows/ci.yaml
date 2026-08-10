@@ -21,6 +21,11 @@ on:
       - "rfcs/**"
       - "LICENSE"
       - "NOTICE"
+  # Lets the gates be run on demand. Without this, a push touching only
+  # paths-ignore'd files cannot be verified at all - which is exactly what
+  # happened to c2b14ce, the fix for a Lint failure, since it changed only
+  # rfcs/README.md.
+  workflow_dispatch:
 
 permissions:
   contents: read

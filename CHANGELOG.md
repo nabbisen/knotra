@@ -7,6 +7,99 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.26.0] — 2026-08-10
+
+**The durability release.** Your settings file can no longer be destroyed by a
+crash, a full disk, or a symlink. Most of the diff is an internal decomposition
+you will never see; the part you might notice is that saving got safer.
+
+### Fixed — `config.toml` could be truncated by a crash mid-save
+
+knotra wrote its config with a plain truncate-then-write. If the machine died,
+the disk filled, or the process was killed in the window between those two
+steps, the file was left empty or half-written and the next start fell back to
+defaults — losing your editor path, merge tool, locale, and intervals.
+
+The window was wider than "when you press Save Settings" suggests: `config.toml`
+is rewritten whenever you change the dashboard's **Group** or **Sort**, or
+collapse a section. Those are one-click actions people perform constantly.
+
+All three writes — config, workspace definitions, and operation history — are
+now atomic. The new contents go to a temporary file beside the target, are
+flushed to disk, and are renamed into place, so a crash leaves either the old
+file or the new one and never a broken one. An existing file's permissions are
+preserved, so a mode you set deliberately is not reset by a save.
+
+### Fixed — a symlinked `config.toml` was replaced instead of written through
+
+Keeping `config.toml` in a dotfiles repository is a normal thing to do:
+
+```sh
+ln -s ~/dotfiles/knotra/config.toml ~/.config/knotra/config.toml
+```
+
+Under the atomic-write change above, the rename would have landed on the *link*
+and replaced it with a regular file — silently, on your first Group change or
+section collapse — leaving the dotfiles repo holding stale content and no longer
+linked. knotra now writes through the link and leaves it in place. It also
+creates the target when the target's directory exists, so you can make the link
+first and let knotra populate it.
+
+If the link cannot be followed anywhere writable — its target's directory is
+missing, or it points at another broken link — knotra **refuses to save** rather
+than replacing your link. Your change still applies for the rest of the session;
+it is simply not written. Repair the link and change the setting again.
+
+One caveat, stated rather than hidden: the full reason names the link and the
+missing directory when you save from the Settings screen, but a Group, Sort, or
+collapse failure shows only a short notice and logs the detail. Narrowing that
+gap is scheduled.
+
+### Fixed — an unresolvable config directory failed silently
+
+If knotra could not work out where `~/.config` lives, it fell back to whatever
+directory it was started from and said nothing, so settings appeared to come and
+go depending on how you launched it. It still falls back — knotra does not
+refuse to start over this — but now it tells you.
+
+### Changed — minimum supported Rust is 1.88
+
+`Cargo.toml` claimed 1.87, which was never buildable: `iced 0.14`, `image`, and
+`wgpu 27` have all required 1.88 for some time, so Cargo refused before
+compiling anything. Nothing that previously worked stops working; the manifest
+now says what was already true, and CI checks it against the manifest on every
+push so it cannot drift again.
+
+### Internal — `handle_background` decomposition (RFC-041)
+
+`background.rs` was 761 lines, of which 678 were a single function: one `match`
+with twenty arms. It is now a `background/` directory of seven files — dispatch
+plus six domain modules — each under the project's 500-line threshold. That
+closes the one exception RFC-040 declared.
+
+No behaviour change. Every one of the twenty-one moved items was verified
+byte-identical to its original, and `tests.rs` was never edited, so all 255
+tests passed unmodified at each of the four stages.
+
+### Documentation
+
+`docs/src/reference/config.md` now covers how saving works, how symlinked config
+files behave, and what happens when the config directory cannot be found.
+
+### Known limitations
+
+Unchanged from 0.25.0: the Group and Sort menus still cannot be opened by
+keyboard, there is no screen-reader support, and seven modules outside
+`app/background/` remain above the 500-line threshold.
+
+### Compatibility
+
+No config migration. `AppConfig` gained no fields; existing `config.toml`,
+workspace, and history files load unchanged. Requires Rust 1.88 or newer to
+build from source.
+
+---
+
 ## [0.25.0] — 2026-08-04
 
 **The dashboard and decomposition release.** Two RFCs: the dashboard migrated
