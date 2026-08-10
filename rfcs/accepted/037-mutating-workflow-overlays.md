@@ -132,10 +132,29 @@ The invariants at risk, with anchors verified present in the tree today:
 | RFC-031 | non-cancellable execution and tag push disable every close affordance | `tag_modal`, `switch_modal` |
 | RFC-030 | changelog request-id guard and `Collecting`-phase field policy | `state/changelog.rs:25` `active_request_id`, `app/changelog.rs:93` |
 
-**The overlay host provides Escape handling.** That is precisely where RFC-029's
-"Escape is inert while switching" can be silently lost - adopting a generic close
-route can re-enable a close the state machine forbids. Every overlay's close routes
-must be re-checked against its phase guards, not assumed to survive.
+**Correction, 2026-08-10, before Stage 2 was handed off.** This paragraph
+originally read: *"The overlay host provides Escape handling. That is precisely
+where RFC-029's 'Escape is inert while switching' can be silently lost."* Checked
+while scoping Stage 2, and **it is wrong.**
+
+Escape does not reach the overlays. `app.rs:105` maps it to
+`ShortcutMessage::Close`, which calls `focus_ops::close_topmost_layer`
+(`app/focus_ops.rs:257`). That function already holds every phase guard centrally -
+`smart_pull_is_running`, `freezer_is_running`, `context_switch_is_running`,
+`conflict_is_running` all return early - plus the two cancellable special cases for
+`SyncPhase::RetryPreparing` and `FreezerPhase::Validating`. **It lives in `app/`,
+which R3 forbids this RFC from touching**, so the Escape guards are structurally out
+of reach of a view-layer migration.
+
+The real residual risk is narrower and worth stating accurately: each overlay gates
+its own close *affordance* in the view, via `on_press_maybe(close_msg)` where
+`close_msg` is `None` during a non-cancellable phase. A migration to a primitive
+that always renders a close button would drop that gating. Even then the handler
+re-checks - `conflict_ops.rs:268` returns early on `Operating` - so the failure mode
+is a clickable button that does nothing, not a cancelled operation.
+
+R5 stands unchanged: re-check each overlay's close routes per overlay. The reason is
+now the view-level affordance gating, not Escape.
 
 ### D4. Conflict resolution stays a sheet
 
@@ -216,7 +235,7 @@ per-overlay close-route check.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| The overlay host's generic Escape re-enables a close the state machine forbids | A context switch cancelled mid-flight; the exact failure RFC-029 exists to prevent | D3; R5 requires a per-overlay close-route check, stated individually |
+| A migrated overlay drops its view-level `close_msg` gating | A close affordance is clickable during a non-cancellable phase | D3; R5's per-overlay check. Downgraded from the original framing: Escape is guarded in `app/focus_ops.rs`, outside this RFC's reach - see D3's correction |
 | A lease is released on a close route the migration introduced | Stuck or double-acquired operation lease | 19 `release_if_matches` sites; R4's zero-test-change rule catches behavioural drift |
 | Migration and split entangled, so nothing is verifiable | A mistake hides among justified changes | D2 separates them; Stage 1 is provably inert |
 | Scope creep via D5 | An overlay RFC quietly becomes a workspace-management RFC | D5 is an explicit owner decision, not an assumption |
