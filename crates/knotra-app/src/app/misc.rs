@@ -115,7 +115,7 @@ pub(super) fn handle_history(state: &mut AppState, msg: HistoryMessage) -> Task<
             // For now we record the intent and show a status-bar note.
             // Real clipboard write is handled by Message::CopyToClipboard.
             // This is a fallback status note in case no text was available.
-            state.status_bar = Some("Copy command sent.".to_owned());
+            state.status_bar = Some(state.t("plain.activity.copy_command_sent").to_owned());
         }
         HistoryMessage::BackToDashboard => {
             state.screen = Screen::Dashboard;
@@ -169,7 +169,8 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
         SettingsMessage::FsWatchEnabledChanged(v) => {
             state.config.fs_watch_enabled = v;
             if !v {
-                state.settings_save_msg = Some("FS watching disabled.".to_owned());
+                state.settings_save_msg =
+                    Some(state.t("plain.activity.fs_watch_disabled").to_owned());
             }
         }
         SettingsMessage::FsDebounceSecs(n) => {
@@ -205,7 +206,12 @@ pub(super) fn handle_launch(state: &mut AppState, msg: LaunchMessage) -> Task<Me
 
     match std::process::Command::new(&tool).arg(&file_path).spawn() {
         Ok(_) => {
-            state.status_bar = Some(format!("Launched: {} {:?}", tool, file_path));
+            state.status_bar = Some(format!(
+                "{} {} {:?}",
+                state.t("plain.activity.launched"),
+                tool,
+                file_path
+            ));
         }
         Err(e) => {
             state.status_bar = Some(format!("{} {}: {e}", state.t("tool.launch_failed"), tool));

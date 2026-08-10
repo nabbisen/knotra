@@ -105,12 +105,18 @@ pub(super) fn bulk_fetch_completed(state: &mut AppState, log: OperationLog) -> T
     persist_log(&log, state);
     state.status_bar = Some(if log.result.any_failed() {
         format!(
-            "Fetch — {} ok, {} failed",
+            "{} {}, {} {}",
             log.result.successful_projects().len(),
-            log.result.failed_projects().len()
+            state.t("plain.activity.succeeded"),
+            log.result.failed_projects().len(),
+            state.t("plain.activity.failed"),
         )
     } else {
-        format!("Fetch complete — {} projects", log.result.per_project.len())
+        format!(
+            "{} {}",
+            log.result.per_project.len(),
+            state.t("plain.activity.check_complete")
+        )
     });
     state.is_refreshing = true;
     state.load_phase = LoadPhase::Refreshing;

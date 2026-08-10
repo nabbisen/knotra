@@ -234,6 +234,16 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "plain.activity.retry_prepare_failed",
         "Could not refresh project status.",
     );
+    // RFC-042 D4/R7: these four never called `t()` at all before this RFC
+    // (background/fetch.rs's two, misc.rs's two) — moved into the catalog
+    // under `plain.activity.*` for consistency with the other status-bar
+    // completion messages already here, matching `plain.activity.kind_fetch`
+    // = "Check for updates" already using plain wording for this same
+    // operation rather than "Fetch" (`FORBIDDEN_EN`).
+    m.insert("plain.activity.copy_command_sent", "Copy command sent.");
+    m.insert("plain.activity.fs_watch_disabled", "FS watching disabled.");
+    m.insert("plain.activity.launched", "Launched:");
+    m.insert("plain.activity.check_complete", "project(s) checked.");
     // Keyboard shortcuts hint
     m.insert("shortcut.refresh", "Ctrl+R  Refresh");
     m.insert("shortcut.context", "Ctrl+K  Context");
@@ -1006,6 +1016,16 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "plain.activity.retry_prepare_failed",
         "プロジェクト状態を更新できませんでした。",
     );
+    m.insert(
+        "plain.activity.copy_command_sent",
+        "コピーコマンドを送信しました。",
+    );
+    m.insert(
+        "plain.activity.fs_watch_disabled",
+        "FS監視を無効にしました。",
+    );
+    m.insert("plain.activity.launched", "起動しました:");
+    m.insert("plain.activity.check_complete", "件確認しました。");
     // Keyboard shortcuts hint
     m.insert("shortcut.refresh", "Ctrl+R  更新");
     m.insert("shortcut.context", "Ctrl+K  コンテキスト");
