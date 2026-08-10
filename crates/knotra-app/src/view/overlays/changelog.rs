@@ -19,20 +19,27 @@
 //! alias (see `view.rs`).
 //!
 //! **RFC-037 Stage 3**: `modal_shell` is replaced with
-//! `knotra_ui::widget::overlay::surface`, and both `guided_field`/
-//! `guided_button` call sites are migrated onto hand-built controls styled
-//! through `buttons::style` — unlike `conflict.rs` in Stage 2, where the
-//! overlay's one `guided_button` (a peripheral row action) was deferred to
-//! Stage 6, `changelog.rs`'s `guided_field` is the overlay's primary input,
-//! so leaving it on the legacy helper here would be half a migration.
+//! `knotra_ui::widget::overlay::surface`, and the `guided_button` call site
+//! is migrated onto a hand-built control styled through `buttons::style`.
+//!
+//! **RFC-037 Stage 4, commit 1**: Stage 3 also inlined the `guided_field`
+//! call site into a local `since_field` helper, on the assumption that an
+//! RFC-034 field replacement existed to migrate onto. It does not — D6/R11
+//! (added after Stage 3's review, `133` §4) settled that `guided_field` is
+//! the field vocabulary, not a legacy helper, since `field.rs` has nothing
+//! else and `workspace_manager.rs` (RFC-034 R9's own validating migration)
+//! still calls `guided_field_focused`. Reverted back to a direct
+//! `guided_field` call here; the local inline composition it replaced is
+//! gone, since a second copy of the same composition is exactly what R11
+//! now forbids.
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, column, row, text, text_input},
+    widget::{Space, column, row, text},
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, guided_field,
     overlay::{OverlayWidth, surface},
     style,
 };
@@ -49,10 +56,12 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
     let cl = &state.changelog;
     let is_collecting = matches!(cl.phase, ChangelogPhase::Collecting);
 
-    let since_field = since_field(
+    let since_field = guided_field(
         state.t("plain.changelog.since_label"),
         state.t("plain.changelog.since_hint"),
         &cl.since_ref,
+        |s| Message::Changelog(ChangelogMessage::SinceRefChanged(s)),
+        None,
     );
 
     let project_picker = changelog_project_picker(tokens, state, is_collecting);
@@ -190,25 +199,6 @@ fn reasoned_button<'a>(
         Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
         _ => btn,
     }
-}
-
-/// Replaces the one `guided_field` call this file had. No RFC-034 "field"
-/// vocabulary exists to migrate onto (`field.rs` has only `guided_field`/
-/// `guided_field_focused`, still called elsewhere — see the module doc) —
-/// this inlines the identical label-above-input composition `guided_field`
-/// itself builds, so the rendered result is unchanged, only the indirection
-/// through the legacy helper is gone. `guided_field`'s optional `error` slot
-/// is dropped: this call site always passed `None` for it.
-fn since_field<'a>(label: &'a str, hint: &'a str, value: &'a str) -> Element<'a, Message> {
-    let field = text_input(hint, value)
-        .on_input(|s| Message::Changelog(ChangelogMessage::SinceRefChanged(s)))
-        .padding([0, 12])
-        .width(Length::Fill)
-        .size(FONT_BODY);
-
-    column![text(label).size(FONT_BODY), field]
-        .spacing(8)
-        .into()
 }
 
 fn changelog_project_picker<'a>(
