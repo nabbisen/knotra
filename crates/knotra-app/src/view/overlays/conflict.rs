@@ -1,11 +1,25 @@
-//! 4. Conflict resolve panel (right-docked sheet) — RFC-037 Stage 1.
+//! 4. Conflict resolve panel (right-docked sheet) — RFC-037 Stage 2.
+//!
+//! Migrated off the hand-rolled `container`/`row`/`button(text("✕"))` chrome
+//! onto RFC-034's overlay-host primitives (D1/D4). `modal_shell` was never
+//! this file's shell — `resolve_panel` built its own — so nothing here
+//! called it and nothing here needs to stop calling it.
+//!
+//! **`view.rs:170`'s `Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half)`
+//! is untouched** (R7/D4: conflict resolution stays a sheet, not a dialog) —
+//! this file only changes what `resolve_panel` returns *into* that mount
+//! point, not how it is mounted.
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, column, container, row, scrollable, text},
+    widget::{Space, column, row, text},
 };
 
-use knotra_ui::widget::{BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button};
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, NoticeTone, Tokens, guided_button, notice,
+    overlay::{OverlayWidth, surface},
+    style,
+};
 use knotra_vcs::{ProjectId, VcsKind};
 
 use super::project_name_for;
@@ -15,11 +29,23 @@ use crate::{
 };
 
 pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Element<'a, Message> {
+    let tokens = &state.theme.tokens;
     let name = project_name_for(state, project_id);
     let ops = &state.conflict_ops;
     let git_actions_supported = conflict_actions_supported_for_project(state, project_id);
     let abort_supported = git_actions_supported && project_has_git_merge_state(state, project_id);
     let editor_configured = state.config.external_editor.is_some();
+
+    // R5: the one invariant this migration must not drop. `close_msg` is
+    // `None` while `Operating` — both the header close (via `surface`'s own
+    // `on_close`) and the footer Close button below key off this same
+    // value, so neither can ever be pressable during a non-cancellable
+    // phase. See the review request for how this was checked.
+    let close_msg = (!matches!(
+        ops.phase,
+        crate::state::conflict_ops::ConflictPhase::Operating { .. }
+    ))
+    .then_some(Message::ConflictOps(ConflictOpsMessage::PanelClosed));
 
     let content: Element<'_, Message> = match &ops.phase {
         crate::state::conflict_ops::ConflictPhase::Loading(id) if id == project_id => {
@@ -42,27 +68,32 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
             message,
             result,
         } if id == project_id => {
-            let title = if *success {
-                state.t("plain.resolve.done")
+            // `title` and `message` were the same text rendered twice (both
+            // derive from `*success`); the notice primitive's tone now
+            // carries that distinction, so only `message` (state-provided)
+            // is shown, once.
+            let tone = if *success {
+                NoticeTone::Success
             } else {
-                state.t("plain.resolve.failed")
+                NoticeTone::Danger
             };
+            let banner = notice(tokens, tone, None, message.as_str(), None);
+
             let details_label = if state.show_op_details {
                 state.t("plain.hide_details")
             } else {
                 state.t("plain.show_details")
             };
             let mut result_col = column![
-                text(title).size(FONT_BODY + 2.0),
-                text(message).size(FONT_BODY),
+                banner,
+                styled_button(
+                    tokens,
+                    details_label,
+                    Some(Message::ToggleOpDetails),
+                    style::ghost,
+                ),
             ]
-            .spacing(8)
-            .push(
-                button(text(details_label).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::ToggleOpDetails),
-            );
+            .spacing(8);
 
             if state.show_op_details
                 && let Some(result) = result
@@ -113,7 +144,8 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                 ));
 
                             let mark_control: Element<'_, Message> = if git_actions_supported {
-                                button(
+                                let t = tokens.clone();
+                                iced::widget::button(
                                     text(state.t("plain.resolve.mark_done")).size(FONT_SMALL + 1.0),
                                 )
                                 .height(36.0)
@@ -124,6 +156,9 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                         file_path: f.path.clone(),
                                     },
                                 ))
+                                .style(move |_theme, status| {
+                                    style::with_focus_ring(&t, false, style::secondary(&t, status))
+                                })
                                 .into()
                             } else {
                                 text(state.t("plain.resolve.unsupported"))
@@ -136,6 +171,15 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                     text("!").size(FONT_BODY).width(Length::Fixed(22.0)),
                                     text(&f.path).size(FONT_BODY).width(Length::Fill),
                                     Space::new().width(Length::Fixed(8.0)),
+                                    // Left as `guided_button` deliberately —
+                                    // Stage 6 retires `guided_button`
+                                    // crate-wide; this stage's own scope
+                                    // note says `conflict.rs` calls neither
+                                    // `guided_button` nor `guided_field`,
+                                    // which is incorrect (this is the one
+                                    // call site) — flagged in the review
+                                    // request rather than silently migrated
+                                    // or silently left unexplained.
                                     guided_button(
                                         state.t("plain.resolve.open_editor"),
                                         open_editor_msg,
@@ -150,9 +194,12 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                             .into()
                         })
                         .collect();
-                    scrollable(column(file_rows).spacing(8))
-                        .height(Length::Fill)
-                        .into()
+                    // No inner `scrollable` here (unlike the original) —
+                    // `surface`'s own body scrollable covers the whole
+                    // `content` slot; nesting a second independently
+                    // scrollable region inside it would be the same
+                    // accessibility anti-pattern RFC-035 avoided elsewhere.
+                    column(file_rows).spacing(8).into()
                 }
             } else {
                 text(state.t("plain.resolve.loading"))
@@ -163,55 +210,74 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     };
 
     let stop_control: Element<'_, Message> = if abort_supported {
-        button(text(state.t("plain.resolve.stop_attempt")).size(FONT_BODY))
-            .height(BUTTON_HEIGHT)
-            .padding([0, 18])
-            .on_press(Message::ConflictOps(
+        styled_button(
+            tokens,
+            state.t("plain.resolve.stop_attempt"),
+            Some(Message::ConflictOps(
                 ConflictOpsMessage::AbortMergeRequested(project_id.clone()),
-            ))
-            .into()
+            )),
+            style::secondary,
+        )
     } else {
         Space::new().width(Length::Fixed(0.0)).into()
     };
 
-    let close_msg = (!matches!(
-        ops.phase,
-        crate::state::conflict_ops::ConflictPhase::Operating { .. }
-    ))
-    .then_some(Message::ConflictOps(ConflictOpsMessage::PanelClosed));
-
     let footer = row![
         stop_control,
         Space::new().width(Length::Fill),
-        button(text(state.t("action.close")).size(FONT_BODY))
-            .height(BUTTON_HEIGHT)
-            .padding([0, 18])
-            .on_press_maybe(close_msg.clone()),
+        styled_button(
+            tokens,
+            state.t("action.close"),
+            close_msg.clone(),
+            style::ghost
+        ),
     ]
     .align_y(Alignment::Center);
 
-    container(
-        column![
-            row![
-                text(format!("{} — {}", state.t("plain.resolve.title"), name))
-                    .size(FONT_BODY + 2.0),
-                Space::new().width(Length::Fill),
-                button(text("✕").size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 12])
-                    .on_press_maybe(close_msg),
-            ]
-            .align_y(Alignment::Center),
-            text(state.t("plain.resolve.instruction")).size(FONT_BODY),
-            content,
-            footer,
-        ]
-        .spacing(14)
-        .padding(20),
+    let body = column![
+        text(state.t("plain.resolve.instruction")).size(FONT_BODY),
+        content,
+    ]
+    .spacing(14);
+
+    surface(
+        tokens,
+        OverlayWidth::Small,
+        format!("{} — {}", state.t("plain.resolve.title"), name),
+        close_msg,
+        // No real focus-order exists for this overlay's controls yet — R3
+        // forbids `app/`/`state/` changes this stage, and RFC-036 Stage 3
+        // scoped only the three workspace-manager dialogs into a real
+        // `FocusTarget` order, naming this file explicitly as later work.
+        // `false` here is honest: no ring can show for a target that is
+        // never tracked, the same as before this migration (the original
+        // hand-rolled buttons had no ring capability at all).
+        false,
+        body,
+        footer,
     )
-    .width(Length::Fixed(340.0))
-    .height(Length::Fill)
-    .into()
+}
+
+/// A button styled with one of `knotra_ui::widget::style`'s semantic
+/// functions plus a focus ring — the same shape `workspace_manager.rs`
+/// (RFC-034 R9's validating migration) uses for every dialog button.
+/// `is_focused` is always `false` here (see `resolve_panel`'s own note);
+/// kept as a real parameter position, not hardcoded into the ring call, so
+/// a later stage that wires real focus tracking only has to change what is
+/// passed in, not this helper's shape.
+fn styled_button<'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    on_press: Option<Message>,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+) -> Element<'a, Message> {
+    let t = tokens.clone();
+    iced::widget::button(text(label).size(FONT_BODY))
+        .height(BUTTON_HEIGHT)
+        .padding([0, 18])
+        .on_press_maybe(on_press)
+        .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
+        .into()
 }
 
 fn conflict_actions_supported_for_project(state: &AppState, project_id: &ProjectId) -> bool {
