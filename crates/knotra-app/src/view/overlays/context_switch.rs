@@ -1,20 +1,29 @@
-//! 3. "Change work area" modal (Context Switch) — RFC-037 Stage 1.
+//! 3. "Change work area" modal (Context Switch) — RFC-037 Stage 4.
 //!
 //! `context_switch.rs`, not `context.rs` (RFC-041 D5 naming, applied here) —
 //! `app/context.rs` already exists one level up. Different module tree, so
 //! no collision, but the name avoids reading ambiguously.
+//!
+//! `modal_shell` replaced with `knotra_ui::widget::overlay::surface`.
+//! `guided_button`/`guided_field_focused` call sites are untouched (D6/R11,
+//! D7/R12). Each phase's own local `footer` row (`BrowsingList`,
+//! `ConfirmSwitch`, `Done`) maps directly onto `surface()`'s `footer`
+//! parameter, the same mapping Stage 2 (`conflict.rs`) and Stage 4
+//! (`freezer.rs`) used; phases with no such row (`Idle`, `LoadingList`,
+//! `Switching`) pass an empty `Space` instead.
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, column, row, scrollable, text},
+    widget::{Space, column, row, text},
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button, guided_field_focused,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, guided_button, guided_field_focused,
+    overlay::{OverlayWidth, surface},
+    style,
 };
 use knotra_vcs::ContextTarget;
 
-use super::modal_shell;
 use crate::{
     message::{ContextMessage, Message},
     state::AppState,
@@ -34,19 +43,26 @@ fn context_target_kind_key(target: &ContextTarget) -> &'static str {
 pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
     use crate::state::context::ContextPhase;
 
+    let tokens = &state.theme.tokens;
     let ctx = &state.context_ops;
 
-    let inner: Element<'_, Message> = match &ctx.phase {
-        ContextPhase::Idle => column![text(state.t("plain.switch.no_project")).size(FONT_BODY)]
+    let (inner, footer): (Element<'_, Message>, Element<'_, Message>) = match &ctx.phase {
+        ContextPhase::Idle => (
+            column![text(state.t("plain.switch.no_project")).size(FONT_BODY)]
+                .spacing(8)
+                .into(),
+            Space::new().into(),
+        ),
+
+        ContextPhase::LoadingList(_) => (
+            column![
+                text(state.t("plain.status.checking")).size(FONT_BODY),
+                text(state.t("plain.switch.loading_hint")).size(FONT_SMALL),
+            ]
             .spacing(8)
             .into(),
-
-        ContextPhase::LoadingList(_) => column![
-            text(state.t("plain.status.checking")).size(FONT_BODY),
-            text(state.t("plain.switch.loading_hint")).size(FONT_SMALL),
-        ]
-        .spacing(8)
-        .into(),
+            Space::new().into(),
+        ),
 
         ContextPhase::BrowsingList {
             project_id, search, ..
@@ -84,25 +100,37 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                             candidate.label.clone(),
                         ),
                     ));
-                    let mut row_col =
-                        column![button(label).width(Length::Fill).on_press_maybe(press)];
+                    let t = tokens.clone();
+                    let candidate_btn = iced::widget::button(label)
+                        .width(Length::Fill)
+                        .on_press_maybe(press)
+                        .style(move |_theme, status| {
+                            style::with_focus_ring(&t, false, style::ghost(&t, status))
+                        });
+                    let mut row_col = column![candidate_btn];
                     if let Some(reason_key) = reason_key {
                         row_col = row_col.push(text(state.t(reason_key)).size(FONT_SMALL));
                     }
                     list = list.push(row_col.spacing(2));
                 }
-                rows = rows.push(scrollable(list).height(Length::Fixed(220.0)));
+                // No inner `scrollable` around the candidate list (unlike
+                // the pre-migration `.height(Length::Fixed(220.0))` box) —
+                // `surface()`'s own body scrollable now covers the whole
+                // body, same reasoning as Stage 2/3 (review `132` §4).
+                rows = rows.push(list);
             }
 
             let footer = row![
                 Space::new().width(Length::Fill),
-                button(text(state.t("action.cancel")).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::Context(ContextMessage::BulkModalClosed)),
+                styled_button(
+                    tokens,
+                    state.t("action.cancel"),
+                    Some(Message::Context(ContextMessage::BulkModalClosed)),
+                    style::ghost,
+                ),
             ]
             .align_y(Alignment::Center);
-            column![rows, footer].spacing(14).into()
+            (rows.into(), footer.into())
         }
 
         ContextPhase::ConfirmSwitch {
@@ -134,30 +162,37 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     },
                 ),
                 Space::new().width(Length::Fill),
-                button(text(state.t("action.cancel")).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::Context(ContextMessage::SwitchCancelled)),
+                styled_button(
+                    tokens,
+                    state.t("action.cancel"),
+                    Some(Message::Context(ContextMessage::SwitchCancelled)),
+                    style::ghost,
+                ),
             ]
             .align_y(Alignment::Center);
 
-            column![
-                text(project_name).size(FONT_BODY),
-                text(target_label).size(FONT_BODY),
-                text(state.t(context_target_kind_key(target))).size(FONT_SMALL),
-                text(caution).size(FONT_SMALL),
-                footer,
-            ]
-            .spacing(12)
-            .into()
+            (
+                column![
+                    text(project_name).size(FONT_BODY),
+                    text(target_label).size(FONT_BODY),
+                    text(state.t(context_target_kind_key(target))).size(FONT_SMALL),
+                    text(caution).size(FONT_SMALL),
+                ]
+                .spacing(12)
+                .into(),
+                footer.into(),
+            )
         }
 
-        ContextPhase::Switching { target_label, .. } => column![
-            text(state.t("plain.switch.working")).size(FONT_BODY),
-            text(target_label).size(FONT_SMALL),
-        ]
-        .spacing(8)
-        .into(),
+        ContextPhase::Switching { target_label, .. } => (
+            column![
+                text(state.t("plain.switch.working")).size(FONT_BODY),
+                text(target_label).size(FONT_SMALL),
+            ]
+            .spacing(8)
+            .into(),
+            Space::new().into(),
+        ),
 
         ContextPhase::Done(result) => {
             let (title, body) = if result.operation_result.success {
@@ -198,23 +233,57 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
             };
 
             let footer = row![
-                button(text(details_label).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::ToggleOpDetails),
+                styled_button(
+                    tokens,
+                    details_label,
+                    Some(Message::ToggleOpDetails),
+                    style::ghost,
+                ),
                 Space::new().width(Length::Fill),
-                button(text(state.t("action.close")).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::Context(ContextMessage::BulkModalClosed)),
+                styled_button(
+                    tokens,
+                    state.t("action.close"),
+                    Some(Message::Context(ContextMessage::BulkModalClosed)),
+                    style::ghost,
+                ),
             ]
             .align_y(Alignment::Center);
 
-            column![detail_col, footer].spacing(12).into()
+            (detail_col.into(), footer.into())
         }
     };
 
+    // R2/§2: unchanged from before this migration.
     let close_msg = (!matches!(ctx.phase, ContextPhase::Switching { .. }))
         .then_some(Message::Context(ContextMessage::BulkModalClosed));
-    modal_shell(state.t("plain.change_work_area"), close_msg, inner)
+
+    surface(
+        tokens,
+        OverlayWidth::Large,
+        state.t("plain.change_work_area"),
+        close_msg,
+        false,
+        inner,
+        footer,
+    )
+}
+
+/// A button styled with one of `knotra_ui::widget::style`'s semantic
+/// functions plus a focus ring — the same shape `conflict.rs` (Stage 2),
+/// `changelog.rs` (Stage 3), and `freezer.rs` (Stage 4) use. `is_focused` is
+/// always `false`: no real focus-order wiring exists or is permitted for
+/// this overlay this stage (R3 forbids `app/`/`state/`).
+fn styled_button<'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    on_press: Option<Message>,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+) -> Element<'a, Message> {
+    let t = tokens.clone();
+    iced::widget::button(text(label).size(FONT_BODY))
+        .height(BUTTON_HEIGHT)
+        .padding([0, 18])
+        .on_press_maybe(on_press)
+        .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
+        .into()
 }
