@@ -214,7 +214,8 @@ plain language; expert terms move behind "Show details".
 - [x] Routed through the i18n catalog (en + ja) — no parallel string system
 - [x] 44px touch targets + 15px body token
 - [x] Regression guard: forbidden-jargon + localisation-coverage tests
-- [ ] Phase 2–6 (safe components, guided flows, setup, a11y) — deferred
+- [x] Phase 2–6 (safe components, guided flows, setup, a11y) — deferred here;
+      shipped across v0.20.0–v0.22.0
 - [x] 0/0 warnings, 71 tests pass under 1.91
 
 ## v0.20.0 — RFC-0021 Phases 2–4: guided modal flows
@@ -229,8 +230,8 @@ plain language; expert terms move behind "Show details".
 - [x] show_op_details + Message::ToggleOpDetails for all result views
 - [x] 72 i18n keys (EN + JA); wording guard caught 2 violations during dev
 - [x] 0/0 warnings, 71 tests pass under 1.91
-- [ ] Phase 5 (guided setup / empty states / undo-for-removal) — next
-- [ ] Phase 6 (accessibility hardening) — later
+- [x] Phase 5 (guided setup / empty states / undo-for-removal) — shipped in v0.21.0
+- [x] Phase 6 (accessibility hardening) — shipped in v0.22.0
 
 ## v0.21.0 — RFC-0021 Phase 5: guided setup, empty states, undo
 
@@ -240,7 +241,7 @@ plain language; expert terms move behind "Show details".
 - [x] Undo snackbar for project removal; snapshot capture; UndoRemoval / DismissUndoSnackbar
 - [x] 30 new i18n keys (EN + JA); wording guard passes
 - [x] 0/0 warnings, 71 tests under 1.91
-- [ ] Phase 6 (accessibility hardening) — next
+- [x] Phase 6 (accessibility hardening) — shipped in v0.22.0
 
 ## v0.22.0 — RFC-0021 Phase 6: accessibility hardening (complete)
 
@@ -307,8 +308,8 @@ shared contracts; the rest implement them.
 
 - [x] RFC-033 — UI/UX foundation, shell, and overlay contracts (umbrella) — `Accepted (main: bf07f1c)`
 - [x] RFC-034 — Design foundation, application shell, and overlay host — `main: ce05a44`
-- [ ] RFC-036 — Keyboard navigation and focus traversal (Stages 1-6 implemented; closing)
-- [ ] RFC-035 — Dashboard and selection migration
+- [x] RFC-036 — Keyboard navigation and focus traversal — `main: d20c7be`
+- [x] RFC-035 — Dashboard and selection migration — `main: f605834`
 - [ ] RFC-037 — Mutating workflow overlays and remaining ad hoc layers
 - [ ] RFC-038 — Settings and History
 
@@ -335,27 +336,40 @@ not deferred again.
       `shared.rs` and `focus_ops.rs` depend on no handler. Non-import ELOC drift
       across the moving stages: **+10**, all rustfmt signature wrapping.
       Reviews `086`-`093`.
-- [ ] **RFC-041 — split `handle_background`.** RFC-040's one accepted exception:
-      `background.rs` landed at **761 ELOC**, ~1.5x the threshold, under R2/D2.
-      Deferred rather than dropped because the split is not a move —
-      `handle_background` is a single 20-arm `match`, and Stage 5's close reading
-      found `SmartPullProjectCompleted` constructs state *before* the match and
-      runs a shared tail *after* it, so **the unit of extraction is not the arm**
-      (`092`). D2's "split by event" framing is therefore the wrong starting
-      point; RFC-041 opens from control-flow analysis, and specifies token-level
-      verification rather than an ELOC bound — R10 needed correcting twice, while
-      byte- and token-identity held across all sixteen commits (`093`).
-      **Scheduled after RFC-035**, per the Sequencing section: this is quality
-      work on a documented, accepted exception, whereas RFC-035 closes a
-      user-visible defect that shipped in 0.24.0. The growth argument is real but
-      slow — a few completion arms per RFC, not hundreds of lines.
-- [ ] Supporting: committed CI gate workflow (fmt, clippy, three test suites).
-      The clippy gate is called non-negotiable (N-9/DEC-007) yet rests on manual
-      discipline; this is what let the earlier 540-diff `fmt` drift accumulate,
-      and it is why trailing whitespace reached a commit during the 0.24.0
-      release. Handoff `011-ci-gate-workflow.md`. Note
-      `.github/workflows/release.yaml` (added 2026-07-30) covers release
-      artifacts only and runs no gate.
+- [x] **RFC-041 — split `handle_background`. Complete 2026-08-10**
+      (`rfcs/done/041-background-module-decomposition.md`, `main: f3e69aa`).
+      **`background.rs` 761 ELOC → a `background/` directory of seven files**,
+      every one under the threshold: `mod.rs` 173, `smart_pull.rs` 279,
+      `freeze.rs` 164, `fetch.rs` 109, `context_switch.rs` 66, `status.rs` 65,
+      `conflict.rs` 50. That closes RFC-040's one accepted exception, so the
+      `app/` tree now has none. Four stages, six commits, `tests.rs` **never
+      edited** — the same 255 tests guarded every stage. Reviews `125`-`128`.
+
+      **Correcting what this entry previously said.** It recorded, from `092`,
+      that `SmartPullProjectCompleted` constructs state before the match and runs
+      a shared tail after it, and concluded **the unit of extraction is not the
+      arm**. The implementation disproved that: `handle_background`'s body *is*
+      the match, with nothing before or after it, and all twenty-one moved items
+      — eighteen arm bodies and three whole helpers — came out byte-identical
+      extracted arm-by-arm. That same fact is why the eighteen early `return`s
+      were semantically neutral, which is the reasoning the whole split rests on,
+      so the correction matters beyond bookkeeping (`128` §5, RFC-041 §"The fact
+      that makes this cheap and safe").
+- [x] Supporting: committed CI gate workflow. **Done** — Handoff
+      `011-ci-gate-workflow.md`, `.github/workflows/ci.yaml`. Runs fmt, clippy,
+      the three test suites, and `git diff --check` on every push and PR, plus an
+      **MSRV job** (Handoff `036`) that reads `rust-version` from the manifest so
+      the two cannot disagree. `workflow_dispatch` added 2026-08-10 so a push
+      touching only path-ignored files can still be verified.
+
+      It has already paid for itself twice over. This entry used to note that
+      manual discipline "is why trailing whitespace reached a commit during the
+      0.24.0 release" — the same thing happened again in the 0.26.0 cycle, and
+      this time CI caught it before the tag (`129` A4). That failure also exposed
+      that the local form of the fifth gate, bare `git diff --check`, inspects the
+      working tree against the index and therefore verifies nothing when
+      everything is committed. The local gate is now
+      `git diff --check <base>..HEAD`, matching what CI runs.
 - [x] Supporting: `docs/` accuracy. **Closed 2026-07-31, smaller than scoped.**
       The `docs/src/guide/` claim was wrong — `b5e1c81` updated those three pages
       in the same commit that removed the views, and they describe the current
@@ -381,21 +395,32 @@ and approved. They may run in parallel with RFC-040; they touch different files.
 
 ### Sequencing
 
-Updated 2026-08-04. RFC-035 and RFC-040 are both closed; Handoffs 011 and 012 are
-done. The UI/UX foundation track is complete.
+Updated 2026-08-10, after 0.26.0 shipped. **The operational hygiene track is now
+complete** — RFC-040 and RFC-041 both closed, CI gates committed and proven,
+Git tests hermetic. The UI/UX foundation track has three RFCs left, none written.
 
-1. **Cut a release.** Two large RFCs have closed since 0.24.0 and `main` is far
-   ahead of `origin`. The project rules name a resolved RFC as a release
-   breakpoint; two have resolved. This is the next thing that should happen.
-2. **RFC-041 — split `handle_background`.** `background.rs` at 761 ELOC, RFC-040's
-   one accepted exception. Drafting is the architect's; the Stage 5 finding that
-   the unit of extraction is not the match arm (`092`) is its starting point.
-3. **RFC-037, RFC-038, then RFC-039** (mutating workflow overlays; settings and
-   history; per-project VCS history).
-4. **A knotra-owned select widget** — currently unscheduled and unwritten. It is
-   what stands between the roadmap's keyboard-navigation line and being ticked:
-   iced 0.14's `pick_list` cannot be opened by keyboard, so Group and Sort are
-   unreachable for a keyboard-only user. Its own RFC when it comes.
+1. **RFC-037 — mutating workflow overlays and remaining ad hoc layers.** The next
+   thing to draft. It also carries two verification-track items with it:
+   `view/settings.rs`'s hardcoded English, and the last `guided_button` call
+   sites that keep the RFC-034 R7 parallel-systems window open.
+2. **RFC-038 — Settings and History.**
+3. **RFC-039 — per-project VCS history for Git and jj.** Sequenced last of the
+   three so it can reuse RFC-038's record-list pattern (RFC-033).
+4. **A knotra-owned select widget** — still unscheduled and unwritten, and still
+   the single thing standing between line 81 and being ticked: iced 0.14's
+   `pick_list` cannot be opened by keyboard, so Group and Sort are unreachable
+   for a keyboard-only user. Its own RFC when it comes.
+
+Two small items banked from the 0.26.0 cycle, neither worth its own RFC and both
+suitable to fold into whichever handoff comes next:
+
+- **`rust-version.workspace = true` in the three member crates.** The declared
+  MSRV is inherited by none of them, so it reaches neither Cargo nor crates.io
+  and has been inert for every published version (`130`).
+- **The save-failure detail gap.** A dangling-symlink refusal names the link and
+  the missing directory when saved from Settings, but a Group / Sort / collapse
+  failure shows a fixed string and logs the detail — and that is the frequent
+  path (`129` A2).
 
 Carried debt, neither blocking: live captures owed for Handoffs 031 and 032 while
 the render environment is unavailable (`111`), and whether `↑`/`↓` should be
