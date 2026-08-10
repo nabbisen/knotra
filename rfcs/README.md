@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [042](./accepted/042-catalog-integrity.md) | Catalog integrity: missing keys render as their own names | Production Readiness Reset - operational hygiene | High |
 | [038](./accepted/038-settings-and-history.md) | Settings and History | Production Readiness Reset - UI/UX foundation | High |
 
 ---
@@ -58,6 +57,7 @@ they contain remain authoritative.
 |------|-------------------------------------------------|------------|
 | [035](./done/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | main: f605834 |
 | [040](./done/040-app-module-decomposition.md) | `app.rs` module decomposition | main: 54e5d5d |
+| [042](./done/042-catalog-integrity.md) | Catalog integrity: missing keys render as their own names | main: f49cdec |
 | [037](./done/037-mutating-workflow-overlays.md) | Mutating workflow overlays and remaining ad hoc layers | main: bb04df2 |
 | [041](./done/041-background-module-decomposition.md) | `handle_background` decomposition | main: f3e69aa |
 | [036](./done/036-keyboard-navigation-and-focus-traversal.md) | Keyboard navigation and focus traversal | main: d20c7be |

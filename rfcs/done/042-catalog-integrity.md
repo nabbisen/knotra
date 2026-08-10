@@ -2,12 +2,57 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-10, project owner) - implementation authorised, not yet shipped |
+| Status | Implemented (main: f49cdec) |
 | Priority | High - four user-facing messages are broken in shipped releases, including the one shown on every successful Settings save |
 | Effort | Small - four catalog entries, one design decision, one guard |
 | Target | Production Readiness Reset - operational hygiene track |
 | Related files | `crates/knotra-ui/src/i18n.rs`, `crates/knotra-app/src/app/misc.rs` |
 | Related RFCs | `rfcs/done/021-plain-language-layer.md` (the catalog and its two-tier guard policy), `rfcs/accepted/038-settings-and-history.md` (Stage 1 widens the symmetry guard; this RFC is what that question uncovered) |
+
+## Implementation Record
+
+| Commit | Content |
+|---|---|
+| `1b04047` | The guards (R2, R8) - **red in isolation by design**, see below |
+| `92b13a7` | The four missing keys (R1) |
+| `02ed062` | The five hardcoded `app/` strings (R7) |
+| `f49cdec` | `t()`'s `debug_assert!` on a miss (R4) |
+
+Handoff 048. The symmetry-guard widening (2a) landed earlier, in `3f2e83f`, as
+Handoff 047 commit 1.
+
+**Outcome.** Nine broken user-facing strings fixed: four keys that rendered as their
+own names - `settings.saved_ok` appeared verbatim in the status bar on every
+successful save - and five strings in `app/` that never reached the catalog at all,
+two of them shown after every bulk fetch. Catalog 398 -> 406, eight keys added to
+each locale, added sets identical, symmetric.
+
+**The guards caught nine real defects on their first execution.** `1b04047` is
+deliberately red: the guards were committed before the fixes, so `cargo test -p
+knotra-ui` at that commit reports 22 passed, 2 failed, naming every genuine defect
+RFC-042 exists to close. That is stronger evidence than a synthetic plant, and it
+lives in history rather than in a document. The commit message states the failure is
+intentional and names what turns it green, which is what separates a documented red
+commit from a broken one.
+
+**R3 earned its place.** Both guards produced false positives on first run - they
+scan `crates/` recursively, which includes `i18n.rs`, whose own doc comments contain
+`.t("...")`-shaped text. Traced by reading the output rather than widening the
+pattern until it passed, then fixed with a scoped exclusion. The reviewer's own
+attempt to re-prove a guard silently no-opped, because the plant's anchor did not
+exist in the target file and `str.replace` reported nothing - nearly reporting a
+working guard as broken. A guard nobody has watched fail is not known to work, and
+neither is a proof nobody has watched apply.
+
+**Namespace choice took the harder option.** The five `app/` strings went under
+`plain.activity.*`, which `FIRST_LEVEL_PREFIXES` polices, rather than an unpoliced
+namespace that would also have satisfied the requirement. "Fetch" - a `FORBIDDEN_EN`
+term - is absent from the new wording, following `plain.activity.kind_fetch`'s
+existing rendering of that operation as "Check for updates".
+
+D3 option D (typed keys) remains out of scope, as drafted.
+
+Review artifact: `.git-exclude/reviewed/138-handoff-048-review-rfc-042-approved.md`.
 
 ## Summary
 
