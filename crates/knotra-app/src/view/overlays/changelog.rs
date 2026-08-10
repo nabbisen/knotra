@@ -1,4 +1,4 @@
-//! 5. Generate notes modal (Changelog) — RFC-037 Stage 1.
+//! 5. Generate notes modal (Changelog) — RFC-037 Stage 3.
 //!
 //! `ChangelogResultCounts`, `changelog_result_counts`, and
 //! `changelog_markdown_preview` are not in Handoff 041 §1's own function
@@ -17,16 +17,26 @@
 //! editing `tests.rs` this stage, so `overlays/mod.rs` re-exports both at
 //! its own top level to keep that path resolving through the `bulk_modals`
 //! alias (see `view.rs`).
+//!
+//! **RFC-037 Stage 3**: `modal_shell` is replaced with
+//! `knotra_ui::widget::overlay::surface`, and both `guided_field`/
+//! `guided_button` call sites are migrated onto hand-built controls styled
+//! through `buttons::style` — unlike `conflict.rs` in Stage 2, where the
+//! overlay's one `guided_button` (a peripheral row action) was deferred to
+//! Stage 6, `changelog.rs`'s `guided_field` is the overlay's primary input,
+//! so leaving it on the legacy helper here would be half a migration.
 
 use iced::{
-    Element, Length,
-    widget::{Space, button, column, row, scrollable, text},
+    Alignment, Element, Length,
+    widget::{Space, column, row, text, text_input},
 };
 
-use iced::Alignment;
-use knotra_ui::widget::{BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button, guided_field};
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens,
+    overlay::{OverlayWidth, surface},
+    style,
+};
 
-use super::modal_shell;
 use crate::{
     message::{ChangelogMessage, Message},
     state::AppState,
@@ -35,18 +45,17 @@ use crate::{
 pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
     use crate::state::changelog::ChangelogPhase;
 
+    let tokens = &state.theme.tokens;
     let cl = &state.changelog;
     let is_collecting = matches!(cl.phase, ChangelogPhase::Collecting);
 
-    let since_field = guided_field(
+    let since_field = since_field(
         state.t("plain.changelog.since_label"),
         state.t("plain.changelog.since_hint"),
         &cl.since_ref,
-        |s| Message::Changelog(ChangelogMessage::SinceRefChanged(s)),
-        None,
     );
 
-    let project_picker = changelog_project_picker(state, is_collecting);
+    let project_picker = changelog_project_picker(tokens, state, is_collecting);
 
     let content: Element<'_, Message> = match &cl.phase {
         ChangelogPhase::Idle => {
@@ -57,11 +66,13 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
             } else {
                 None
             };
-            guided_button(
+            reasoned_button(
+                tokens,
                 state.t("plain.changelog.generate"),
                 cl.is_ready_to_collect()
                     .then_some(Message::Changelog(ChangelogMessage::CollectRequested)),
                 reason,
+                style::primary,
             )
         }
 
@@ -71,12 +82,17 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
 
         ChangelogPhase::Ready(draft) => {
             let counts = changelog_result_counts(draft);
+            // No inner `scrollable` around the preview text (unlike the
+            // pre-migration version's `.height(Length::Fixed(240.0))` box) —
+            // `surface()`'s own body scrollable now covers the whole body,
+            // the same reasoning Stage 2 used to drop `conflict.rs`'s inner
+            // scrollable (review `132` §4 confirmed that call).
             let preview_text = changelog_markdown_preview(draft);
             let mut result_col = column![
                 text(changelog_summary_text(state, counts)).size(FONT_BODY),
                 changelog_result_notice(state, draft, counts),
                 changelog_project_results(state, draft, counts),
-                scrollable(text(preview_text).size(FONT_SMALL)).height(Length::Fixed(240.0)),
+                text(preview_text).size(FONT_SMALL),
             ]
             .spacing(8);
 
@@ -87,15 +103,19 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
             column![
                 result_col,
                 row![
-                    button(text(state.t("plain.changelog.copy")).size(FONT_BODY))
-                        .height(BUTTON_HEIGHT)
-                        .padding([0, 18])
-                        .on_press(Message::Changelog(ChangelogMessage::CopyRequested)),
+                    styled_button(
+                        tokens,
+                        state.t("plain.changelog.copy"),
+                        Some(Message::Changelog(ChangelogMessage::CopyRequested)),
+                        style::primary,
+                    ),
                     Space::new().width(Length::Fill),
-                    button(text(state.t("action.close")).size(FONT_BODY))
-                        .height(BUTTON_HEIGHT)
-                        .padding([0, 18])
-                        .on_press(Message::Changelog(ChangelogMessage::ModalClosed)),
+                    styled_button(
+                        tokens,
+                        state.t("action.close"),
+                        Some(Message::Changelog(ChangelogMessage::ModalClosed)),
+                        style::ghost,
+                    ),
                 ]
                 .align_y(Alignment::Center)
                 .spacing(8),
@@ -105,16 +125,97 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
         }
     };
 
-    let inner = column![since_field, project_picker, content].spacing(14);
+    let body = column![since_field, project_picker, content].spacing(14);
 
-    modal_shell(
+    // R2/§2: unconditional, exactly as `modal_shell` received it before this
+    // migration — closing during `Collecting` is explicitly allowed
+    // (`app/changelog.rs`'s `ModalClosed` handler invalidates the in-flight
+    // request via RFC-030's request-id guard), so this must never be gated
+    // by phase the way `conflict.rs`'s `close_msg` is.
+    let close_msg = Some(Message::Changelog(ChangelogMessage::ModalClosed));
+
+    // This file has no single pre-existing "footer row" the way
+    // `conflict.rs` did (Copy/Close lived inside the Ready-phase `content`
+    // branch, not a page-level footer) — so rather than relocate them into
+    // `surface()`'s footer slot, an empty `Space` is passed here and Copy/
+    // Close stay exactly where they were, preserving the original layout.
+    surface(
+        tokens,
+        OverlayWidth::Large,
         state.t("plain.changelog.title"),
-        Some(Message::Changelog(ChangelogMessage::ModalClosed)),
-        inner.into(),
+        close_msg,
+        false,
+        body,
+        Space::new(),
     )
 }
 
-fn changelog_project_picker(state: &AppState, disabled: bool) -> Element<'_, Message> {
+/// A button styled with one of `knotra_ui::widget::style`'s semantic
+/// functions plus a focus ring — the same shape `conflict.rs` (RFC-037
+/// Stage 2) and `workspace_manager.rs` (RFC-034 R9) use. `is_focused` is
+/// always `false`: no real focus-order wiring exists or is permitted for
+/// this overlay this stage (R3 forbids `app/`/`state/`), same as before
+/// this migration (the original hand-rolled buttons had no ring capability
+/// at all).
+fn styled_button<'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    on_press: Option<Message>,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+) -> Element<'a, Message> {
+    let t = tokens.clone();
+    iced::widget::button(text(label).size(FONT_BODY))
+        .height(BUTTON_HEIGHT)
+        .padding([0, 18])
+        .on_press_maybe(on_press)
+        .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
+        .into()
+}
+
+/// [`styled_button`] plus `guided_button`'s own reason-beneath behaviour:
+/// when `on_press` is `None` and `reason` is `Some`, the reason renders as
+/// small text below the button. Replaces the one `guided_button` call this
+/// file had — `guided_button` itself is untouched and still has callers
+/// elsewhere (Stage 6 sweeps those).
+fn reasoned_button<'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    on_press: Option<Message>,
+    reason: Option<&'a str>,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+) -> Element<'a, Message> {
+    let show_reason = on_press.is_none();
+    let btn = styled_button(tokens, label, on_press, style_fn);
+    match reason {
+        Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
+        _ => btn,
+    }
+}
+
+/// Replaces the one `guided_field` call this file had. No RFC-034 "field"
+/// vocabulary exists to migrate onto (`field.rs` has only `guided_field`/
+/// `guided_field_focused`, still called elsewhere — see the module doc) —
+/// this inlines the identical label-above-input composition `guided_field`
+/// itself builds, so the rendered result is unchanged, only the indirection
+/// through the legacy helper is gone. `guided_field`'s optional `error` slot
+/// is dropped: this call site always passed `None` for it.
+fn since_field<'a>(label: &'a str, hint: &'a str, value: &'a str) -> Element<'a, Message> {
+    let field = text_input(hint, value)
+        .on_input(|s| Message::Changelog(ChangelogMessage::SinceRefChanged(s)))
+        .padding([0, 12])
+        .width(Length::Fill)
+        .size(FONT_BODY);
+
+    column![text(label).size(FONT_BODY), field]
+        .spacing(8)
+        .into()
+}
+
+fn changelog_project_picker<'a>(
+    tokens: &Tokens,
+    state: &'a AppState,
+    disabled: bool,
+) -> Element<'a, Message> {
     let Some(workspace) = &state.workspace else {
         return text(state.t("plain.changelog.no_projects"))
             .size(FONT_SMALL)
@@ -142,11 +243,15 @@ fn changelog_project_picker(state: &AppState, disabled: bool) -> Element<'_, Mes
             project.id.clone(),
             !included,
         )));
+        let t = tokens.clone();
         rows = rows.push(
-            button(text(label).size(FONT_SMALL))
+            iced::widget::button(text(label).size(FONT_SMALL))
                 .height(BUTTON_HEIGHT)
                 .padding([0, 12])
-                .on_press_maybe(msg),
+                .on_press_maybe(msg)
+                .style(move |_theme, status| {
+                    style::with_focus_ring(&t, false, style::ghost(&t, status))
+                }),
         );
     }
 
