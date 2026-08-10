@@ -1584,18 +1584,32 @@ mod tests {
         }
     }
 
-    /// Every first-level key defined in English must also exist in Japanese.
+    /// Every key defined in either catalog must also exist in the other —
+    /// **every** key, not only first-level ones (RFC-038 Stage 1, §3b).
+    ///
+    /// Before this stage the check was scoped to `FIRST_LEVEL_PREFIXES`
+    /// because `settings.*`/`history.*` (and everything else outside that
+    /// list) had stayed symmetric by discipline alone, with nothing
+    /// enforcing it. Measured before widening the check: 381 English keys,
+    /// 381 Japanese, zero gaps in either direction — so this widening finds
+    /// nothing new today; it exists to catch the *next* omission, including
+    /// the ~16 `settings.*`/`history.*` keys this stage is about to add to
+    /// namespaces `FIRST_LEVEL_PREFIXES` never covered.
     #[test]
-    fn plain_keys_are_localised_in_both_catalogs() {
+    fn all_keys_are_localised_in_both_catalogs() {
         let en = en_strings();
         let ja = ja_strings();
         for key in en.keys() {
-            if FIRST_LEVEL_PREFIXES.iter().any(|p| key.starts_with(p)) {
-                assert!(
-                    ja.contains_key(key),
-                    "first-level key `{key}` is missing from the Japanese catalog"
-                );
-            }
+            assert!(
+                ja.contains_key(key),
+                "key `{key}` is missing from the Japanese catalog"
+            );
+        }
+        for key in ja.keys() {
+            assert!(
+                en.contains_key(key),
+                "key `{key}` is missing from the English catalog"
+            );
         }
     }
 
