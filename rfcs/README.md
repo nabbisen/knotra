@@ -217,11 +217,11 @@ Draft → Proposed → Accepted → [Implemented → done/]
                              → [Superseded → archive/]
 ```
 
-For Accepted RFCs the Status field records who signed off and when:
-`Accepted (YYYY-MM-DD, project owner)`.  
-For Implemented RFCs the Status field carries the release tag:
-`Implemented (v1.2.3)`.  
-For Superseded RFCs: `Superseded by RFC NNNN`.  
-For Withdrawn RFCs: `Withdrawn — <one-line reason>`.
+The Status field mirrors the folder:
+
+- **Accepted** — `Accepted (YYYY-MM-DD, project owner)`
+- **Implemented** — `Implemented (v1.2.3)` or `Implemented (main: <hash>)`
+- **Superseded** — `Superseded by RFC NNNN`
+- **Withdrawn** — `Withdrawn — <one-line reason>`
 
 Full rules: [RFC 000](./done/000-rfc-lifecycle-policy.md).
