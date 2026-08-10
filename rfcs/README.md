@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [042](./proposed/042-catalog-integrity.md) | Catalog integrity: missing keys render as their own names | Production Readiness Reset - operational hygiene | High |
 
 ---
 
