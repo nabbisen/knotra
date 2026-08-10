@@ -12,7 +12,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button, guided_field_focused,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_field_focused, reasoned, style,
 };
 
 use crate::{
@@ -22,6 +22,7 @@ use crate::{
 
 pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     let dialog = state.add_project_dialog.as_ref()?;
+    let tokens = &state.theme.tokens;
 
     let (step_label, _total) = match dialog.step {
         AddProjectStep::ChooseFolder => (state.t("plain.add_project.step1_of2"), "1"),
@@ -70,11 +71,14 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             };
 
             let footer = row![
-                guided_button(
+                reasoned(
+                    tokens,
                     state.t("plain.add_project.next"),
                     (!dialog.path.trim().is_empty())
                         .then_some(Message::Workspace(WorkspaceMessage::AddProjectNextStep)),
                     next_reason,
+                    false,
+                    style::primary,
                 ),
                 Space::new().width(Length::Fill),
                 button(text(state.t("action.cancel")).size(FONT_BODY))
@@ -124,11 +128,14 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             };
 
             let footer = row![
-                guided_button(
+                reasoned(
+                    tokens,
                     state.t("plain.add_project.add"),
                     (!dialog.name.trim().is_empty())
                         .then_some(Message::Workspace(WorkspaceMessage::AddProjectConfirmed)),
                     add_reason,
+                    false,
+                    style::primary,
                 ),
                 Space::new().width(Length::Fill),
                 button(text(state.t("plain.add_project.back")).size(FONT_BODY))

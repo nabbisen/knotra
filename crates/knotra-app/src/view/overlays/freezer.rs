@@ -16,10 +16,9 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, guided_button, guided_field,
-    guided_field_focused,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, guided_field, guided_field_focused,
     overlay::{OverlayWidth, surface},
-    style,
+    reasoned, style,
 };
 use knotra_vcs::model::operation::FreezeOutcome;
 
@@ -68,7 +67,8 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                         .size(FONT_BODY)
                         .into()
                 } else if freezer.freeze_name_is_valid() {
-                    guided_button(
+                    reasoned(
+                        tokens,
                         state.t("plain.release.check_readiness"),
                         (!state.operation_interlock.is_busy())
                             .then_some(Message::Freezer(FreezerMessage::ValidateRequested)),
@@ -76,6 +76,8 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                             .operation_interlock
                             .is_busy()
                             .then_some(state.t("plain.activity.busy")),
+                        false,
+                        style::primary,
                     )
                 } else {
                     Space::new().into()
@@ -141,10 +143,13 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
             };
 
             let footer = row![
-                guided_button(
+                reasoned(
+                    tokens,
                     state.t("plain.save_release_point"),
                     can_save.then_some(Message::Freezer(FreezerMessage::ExecuteConfirmed)),
                     save_reason,
+                    false,
+                    style::primary,
                 ),
                 Space::new().width(Length::Fill),
                 styled_button(

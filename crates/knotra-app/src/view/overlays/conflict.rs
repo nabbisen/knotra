@@ -16,9 +16,9 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, NoticeTone, Tokens, guided_button, notice,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, NoticeTone, Tokens, notice,
     overlay::{OverlayWidth, surface},
-    style,
+    reasoned, style,
 };
 use knotra_vcs::{ProjectId, VcsKind};
 
@@ -171,19 +171,19 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                     text("!").size(FONT_BODY).width(Length::Fixed(22.0)),
                                     text(&f.path).size(FONT_BODY).width(Length::Fill),
                                     Space::new().width(Length::Fixed(8.0)),
-                                    // Left as `guided_button` deliberately —
-                                    // Stage 6 retires `guided_button`
-                                    // crate-wide; this stage's own scope
-                                    // note says `conflict.rs` calls neither
-                                    // `guided_button` nor `guided_field`,
-                                    // which is incorrect (this is the one
-                                    // call site) — flagged in the review
-                                    // request rather than silently migrated
-                                    // or silently left unexplained.
-                                    guided_button(
+                                    // RFC-037 Stage 6: migrated onto the
+                                    // shared `reasoned` primitive.
+                                    // `style::secondary` matches
+                                    // `mark_control`'s own weight — both are
+                                    // peripheral row actions, not this
+                                    // phase's one completing action.
+                                    reasoned(
+                                        tokens,
                                         state.t("plain.resolve.open_editor"),
                                         open_editor_msg,
                                         editor_reason,
+                                        false,
+                                        style::secondary,
                                     ),
                                     mark_control,
                                 ]

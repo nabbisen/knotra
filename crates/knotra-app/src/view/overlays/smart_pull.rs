@@ -19,9 +19,9 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, current_or, guided_button,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, current_or,
     overlay::{OverlayWidth, surface},
-    style,
+    primary_maybe, reasoned, style,
 };
 use knotra_vcs::{
     ProjectId, model::operation::ProjectOperationOutcome, model::operation::SmartPullDisposition,
@@ -75,8 +75,16 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 )),
                 _ => None,
             };
+            // `reason` was always `None` at this call site (no path here
+            // ever supplied one) — the plain `primary_maybe` constructor is
+            // the better target than `reasoned`, per the handoff's §1b note
+            // that not every site needs the reason-carrying form.
             let footer = row![
-                guided_button(state.t("plain.activity.review_retry"), retry_message, None,),
+                primary_maybe(
+                    tokens,
+                    state.t("plain.activity.review_retry"),
+                    retry_message
+                ),
                 Space::new().width(Length::Fill),
                 styled_button(
                     tokens,
@@ -209,10 +217,13 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
             };
 
             let footer = row![
-                guided_button(
+                reasoned(
+                    tokens,
                     state.t("plain.get_latest.start"),
                     can_start.then_some(Message::Sync(SyncMessage::ExecuteRequested)),
                     start_reason,
+                    false,
+                    style::primary,
                 ),
                 Space::new().width(Length::Fill),
                 styled_button(

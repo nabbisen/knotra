@@ -18,9 +18,9 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, guided_button, guided_field_focused,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, guided_field_focused,
     overlay::{OverlayWidth, surface},
-    style,
+    reasoned, style,
 };
 use knotra_vcs::ContextTarget;
 
@@ -152,7 +152,8 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                 && !state.operation_interlock.is_busy())
             .then_some(Message::Context(ContextMessage::SwitchConfirmed));
             let footer = row![
-                guided_button(
+                reasoned(
+                    tokens,
                     state.t("plain.change_work_area"),
                     switch_msg,
                     if state.operation_interlock.is_busy() {
@@ -160,6 +161,8 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     } else {
                         disabled_reason_key.map(|key| state.t(key))
                     },
+                    false,
+                    style::primary,
                 ),
                 Space::new().width(Length::Fill),
                 styled_button(

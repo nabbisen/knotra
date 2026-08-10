@@ -4,7 +4,8 @@
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length};
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, NoticeAction, NoticeTone, guided_button, notice,
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, NoticeAction, NoticeTone, danger_maybe, ghost_maybe,
+    notice,
 };
 
 use crate::{
@@ -111,23 +112,34 @@ pub(super) fn view_confirm_remove_dialog(state: &AppState) -> Element<'_, Messag
     let Some(dialog) = &state.confirm_remove_dialog else {
         return Space::new().into();
     };
+    let tokens = &state.theme.tokens;
     container(
         column![
             text(state.t("plain.remove.title")).size(FONT_BODY + 2.0),
             text(dialog.project_name.as_str()).size(FONT_BODY),
             text(state.t("plain.remove.body")).size(FONT_SMALL),
             row![
-                guided_button(
+                // Neither call here ever carried a `reason` (both passed
+                // `None`), so the plain `_maybe` constructors are the
+                // better target than `reasoned` — RFC-037 Stage 6 §1b.
+                // `danger_maybe` for the confirm button is a primitive-fit
+                // improvement, not just a restyle: this is an irreversible
+                // action (removes a project), which is exactly what
+                // `buttons.rs`'s `danger`/`danger_maybe` doc comment names
+                // as their reason for existing, and `guided_button` had no
+                // equivalent semantic distinction from the Cancel button
+                // beside it.
+                ghost_maybe(
+                    tokens,
                     state.t("confirm.remove_no"),
                     Some(Message::Workspace(WorkspaceMessage::RemoveProjectCancelled)),
-                    None,
                 ),
-                guided_button(
+                danger_maybe(
+                    tokens,
                     state.t("plain.remove.confirm"),
                     Some(Message::Workspace(
                         WorkspaceMessage::RemoveProjectConfirmed(dialog.project_id.clone(),)
                     )),
-                    None,
                 ),
             ]
             .spacing(12),

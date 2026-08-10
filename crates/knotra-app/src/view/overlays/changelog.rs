@@ -21,6 +21,8 @@
 //! **RFC-037 Stage 3**: `modal_shell` is replaced with
 //! `knotra_ui::widget::overlay::surface`, and the `guided_button` call site
 //! is migrated onto a hand-built control styled through `buttons::style`.
+//! Stage 3 had nothing to migrate the reason-carrying composition onto, so
+//! it built a local `reasoned_button` helper for it.
 //!
 //! **RFC-037 Stage 4, commit 1**: Stage 3 also inlined the `guided_field`
 //! call site into a local `since_field` helper, on the assumption that an
@@ -32,6 +34,11 @@
 //! `guided_field` call here; the local inline composition it replaced is
 //! gone, since a second copy of the same composition is exactly what R11
 //! now forbids.
+//!
+//! **RFC-037 Stage 6**: `knotra-ui` grew `reasoned` (D7) — the shared form
+//! Stage 3's local `reasoned_button` existed only because there was nothing
+//! to call. The local helper is deleted; this file's one `guided_button`
+//! call site now calls the shared primitive directly.
 
 use iced::{
     Alignment, Element, Length,
@@ -41,7 +48,7 @@ use iced::{
 use knotra_ui::widget::{
     BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, guided_field,
     overlay::{OverlayWidth, surface},
-    style,
+    reasoned, style,
 };
 
 use crate::{
@@ -75,12 +82,13 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
             } else {
                 None
             };
-            reasoned_button(
+            reasoned(
                 tokens,
                 state.t("plain.changelog.generate"),
                 cl.is_ready_to_collect()
                     .then_some(Message::Changelog(ChangelogMessage::CollectRequested)),
                 reason,
+                false,
                 style::primary,
             )
         }
@@ -179,26 +187,6 @@ fn styled_button<'a>(
         .on_press_maybe(on_press)
         .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
         .into()
-}
-
-/// [`styled_button`] plus `guided_button`'s own reason-beneath behaviour:
-/// when `on_press` is `None` and `reason` is `Some`, the reason renders as
-/// small text below the button. Replaces the one `guided_button` call this
-/// file had — `guided_button` itself is untouched and still has callers
-/// elsewhere (Stage 6 sweeps those).
-fn reasoned_button<'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    on_press: Option<Message>,
-    reason: Option<&'a str>,
-    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
-) -> Element<'a, Message> {
-    let show_reason = on_press.is_none();
-    let btn = styled_button(tokens, label, on_press, style_fn);
-    match reason {
-        Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
-        _ => btn,
-    }
 }
 
 fn changelog_project_picker<'a>(
