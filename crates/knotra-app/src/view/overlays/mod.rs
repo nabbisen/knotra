@@ -14,17 +14,15 @@
 //!
 //! Split from a single 1,337-ELOC `bulk_modals.rs` into this directory by
 //! RFC-037 Stage 1 (D2) — a pure move, no behaviour or rendering change.
-//! Stages 2-6 migrate each overlay onto RFC-034 primitives one at a time.
+//! Stages 2-5 migrated each overlay onto RFC-034 primitives one at a time;
+//! `modal_shell` (the pre-RFC-034 shared shell) is deleted here by Stage 5,
+//! R6, at its last caller (`smart_pull.rs`). Stage 6 remains: the
+//! `guided_button` sweep, `knotra-ui`'s reason-carrying button, and
+//! `project_name_for`'s relocation.
 
-use iced::{
-    Alignment, Element, Length,
-    widget::{Space, button, column, container, row, text},
-};
-
-use knotra_ui::widget::{BUTTON_HEIGHT, FONT_BODY};
 use knotra_vcs::ProjectId;
 
-use crate::{message::Message, state::AppState};
+use crate::state::AppState;
 
 mod changelog;
 mod conflict;
@@ -47,38 +45,6 @@ pub use smart_pull::pull_modal;
 // why they moved there anyway.
 #[cfg(test)]
 pub(crate) use changelog::{changelog_markdown_preview, changelog_result_counts};
-
-// ---------------------------------------------------------------------------
-// Modal shell
-// ---------------------------------------------------------------------------
-
-/// Shared shell with title bar used by all modals.
-fn modal_shell<'a>(
-    title: &'a str,
-    close_msg: Option<Message>,
-    inner: Element<'a, Message>,
-) -> Element<'a, Message> {
-    let close_btn = button(text("✕").size(FONT_BODY))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 12])
-        .on_press_maybe(close_msg);
-
-    let header = row![
-        text(title).size(FONT_BODY + 2.0),
-        Space::new().width(Length::Fill),
-        close_btn,
-    ]
-    .align_y(Alignment::Center);
-
-    container(
-        column![header, iced::widget::rule::horizontal(1), inner]
-            .spacing(16)
-            .padding(24),
-    )
-    .width(Length::Fill)
-    .max_width(580.0)
-    .into()
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
