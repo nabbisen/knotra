@@ -43,8 +43,17 @@ impl Catalog {
     }
 
     /// Look up a string by key, falling back to the key itself.
+    ///
+    /// RFC-042 D3/R4: a miss is never a panic or an empty string in a
+    /// release build — crashing a GUI over a missing string is worse than
+    /// showing an identifier. `debug_assert!` catches it in tests and debug
+    /// builds instead, including keys built dynamically (`err.i18n_key()`
+    /// and friends) that the literal-scanning guards in this module's own
+    /// tests cannot see at all — this is what covers those.
     pub fn t(&self, key: Key) -> &'static str {
-        self.strings.get(key).copied().unwrap_or(key)
+        let value = self.strings.get(key).copied();
+        debug_assert!(value.is_some(), "missing i18n key: {key}");
+        value.unwrap_or(key)
     }
 
     pub fn locale(&self) -> Locale {
