@@ -738,6 +738,13 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("history.commands_header", "Commands");
     m.insert("history.recovery_header", "Recovery steps");
     m.insert("history.rollback_note", "Rolled back");
+    // History row status labels (RFC-038 Stage 1) — glyph-free; the glyph
+    // is composed in view/history.rs, not stored here (see StatusSummary).
+    m.insert("history.status_rollback_failed", "Rollback failed");
+    m.insert("history.status_success", "Success");
+    m.insert("history.status_partial", "Partial");
+    m.insert("history.status_skipped", "Skipped");
+    m.insert("history.status_failed", "Failed");
     // Settings screen
     m.insert("settings.title", "Settings");
     m.insert("settings.section.display", "Display");
@@ -1502,6 +1509,11 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("history.commands_header", "コマンド");
     m.insert("history.recovery_header", "回復手順");
     m.insert("history.rollback_note", "ロールバック済み");
+    m.insert("history.status_rollback_failed", "ロールバック失敗");
+    m.insert("history.status_success", "成功");
+    m.insert("history.status_partial", "一部失敗");
+    m.insert("history.status_skipped", "スキップ");
+    m.insert("history.status_failed", "失敗");
     m.insert("settings.title", "設定");
     m.insert("settings.section.display", "表示");
     m.insert("settings.section.refresh", "更新とパフォーマンス");

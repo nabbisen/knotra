@@ -109,7 +109,8 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     let result = &log.result;
     let expanded = state.history_expanded.contains(&result.operation_id);
 
-    let status_label = summarise_status(result);
+    let status = summarise_status(result);
+    let status_label = format!("{} {}", status.glyph, state.t(status.label_key));
     let timestamp = result
         .started_at
         .format("%Y-%m-%d %H:%M:%S UTC")
@@ -141,8 +142,14 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
                 .format("%Y-%m-%d %H:%M:%S UTC")
                 .to_string();
             let status = summarise_status(result);
-            let mut text_parts = vec![format!("# {} — {} — {}", kind, ts, status)];
+            let status_text = format!("{} {}", status.glyph, state.t(status.label_key));
+            let mut text_parts = vec![format!("# {} — {} — {}", kind, ts, status_text)];
             for pr in &result.per_project {
+                // `ok`/`FAILED`/`SKIPPED` stay hardcoded English — this is
+                // clipboard/export text, the same category `log_to_markdown`
+                // (below) already is, and that export path is explicitly
+                // Stage 5's, not this stage's. Only `summarise_status`'s own
+                // call site above changed, because its signature did.
                 let ok = match pr.effective_outcome() {
                     ProjectOperationOutcome::Succeeded => "ok",
                     ProjectOperationOutcome::Failed => "FAILED",
@@ -185,14 +192,27 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
     let mut rows: Vec<Element<'a, Message>> = Vec::new();
 
     // Rollback status.
+    //
+    // Found and fixed alongside `summarise_status` (RFC-038 Stage 1) rather
+    // than left as-is — the handoff named `summarise_status` specifically,
+    // but this pair sits on the same on-screen "visible path" (rendered
+    // whenever a rolled-back entry is expanded), is the identical class of
+    // defect, and both halves already had a same-shaped key to reuse
+    // (`plain.activity.succeeded`/`plain.activity.failed`, already used the
+    // same way in `activity_strip.rs`), so no new catalog entries were
+    // needed for this part. The pre-existing "FAILED" (uppercase) vs.
+    // "succeeded" (lowercase) inconsistency is also gone as a side effect of
+    // routing both through the same existing key pair — not a rewording
+    // decision, since neither string's *wording* changed, only its casing
+    // normalized to match the key it now reuses.
     if result.rollback_attempted {
         let rb_text = format!(
             "{}  {}",
             state.t("history.rollback_note"),
             if result.rollback_succeeded == Some(true) {
-                "succeeded"
+                state.t("plain.activity.succeeded")
             } else {
-                "FAILED"
+                state.t("plain.activity.failed")
             }
         );
         rows.push(text(rb_text).size(11).into());
@@ -253,25 +273,55 @@ fn skip_reason_text<'a>(state: &'a AppState, reason: &'a str) -> &'a str {
 // Status label helper
 // ---------------------------------------------------------------------------
 
-fn summarise_status(result: &OperationResult) -> &'static str {
+/// A history entry's overall status: a stable glyph plus the i18n key for
+/// its translated label, kept apart rather than one baked-together catalog
+/// string (RFC-038 Stage 1 §4). The glyph is a status signal, not language —
+/// composing it in the view keeps a translator from being able to drop or
+/// reorder it, and keeps it from being duplicated across both catalogs.
+struct StatusSummary {
+    glyph: &'static str,
+    label_key: &'static str,
+}
+
+fn summarise_status(result: &OperationResult) -> StatusSummary {
     let succeeded = result.successful_projects().len();
     let failed = result.failed_projects().len();
     let skipped = result.skipped_projects().len();
 
     if result.rollback_attempted {
         if result.rollback_succeeded == Some(true) {
-            "↩ Rolled back"
+            // Reuses the existing `history.rollback_note` key — the same
+            // "Rolled back" text `view_log_detail` already renders below.
+            StatusSummary {
+                glyph: "↩",
+                label_key: "history.rollback_note",
+            }
         } else {
-            "✗ Rollback failed"
+            StatusSummary {
+                glyph: "✗",
+                label_key: "history.status_rollback_failed",
+            }
         }
     } else if succeeded > 0 && failed == 0 && skipped == 0 {
-        "✓ Success"
+        StatusSummary {
+            glyph: "✓",
+            label_key: "history.status_success",
+        }
     } else if failed > 0 && (succeeded > 0 || skipped > 0) {
-        "⚠ Partial"
+        StatusSummary {
+            glyph: "⚠",
+            label_key: "history.status_partial",
+        }
     } else if skipped > 0 && failed == 0 {
-        "- Skipped"
+        StatusSummary {
+            glyph: "-",
+            label_key: "history.status_skipped",
+        }
     } else {
-        "✗ Failed"
+        StatusSummary {
+            glyph: "✗",
+            label_key: "history.status_failed",
+        }
     }
 }
 
