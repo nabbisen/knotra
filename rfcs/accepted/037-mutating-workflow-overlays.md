@@ -226,6 +226,46 @@ which was RFC-034 R9's own validating migration, still calls `guided_field_focus
 `guided_field*` call sites at `9fb823b`, all of which now stay: `add_project_modal.rs`
 2, `workspace_manager.rs` 2, `overlays/freezer.rs` 2, `overlays/context_switch.rs` 1.
 
+### D7. `guided_button` migration is deferred to Stage 6, where its missing half is built once
+
+**Added 2026-08-10, following D6.** `guided_field` is not the only helper whose
+replacement is incomplete - `guided_button`'s is too, in a narrower way.
+
+`buttons.rs` fully replaces `guided_button`'s *styling*: `primary_maybe`,
+`ghost_maybe` and friends all take `Option<Message>` and render a disabled state.
+What none of them carries is `guided_button`'s other half - the **reason text
+rendered beneath the button when it is disabled**:
+
+```rust
+match reason {
+    Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
+    _ => btn,
+}
+```
+
+So migrating a `guided_button` that passes a reason means re-implementing that
+composition locally. Stage 3 did exactly that in `changelog.rs`, as
+`reasoned_button`. Four overlays still hold `guided_button` call sites - `freezer`
+2, `smart_pull` 2, `conflict` 1, `context_switch` 1 - so migrating them stage by
+stage produces up to four more local copies of the same nine lines.
+
+**This differs from D6 in one way that matters.** For fields there is no gain at all
+- inlining buys nothing. For buttons the gain is real: token-aware styling and a
+focus ring, which is what RFC-034 exists to deliver. The problem is only the
+duplication of the reason composition.
+
+**Therefore:**
+
+- **Stages 4 and 5 migrate chrome and styling only, and leave `guided_button` call
+  sites alone**, as Stage 2 already did for `conflict.rs`.
+- **Stage 6 adds the reason-carrying button to `knotra-ui` once**, migrates every
+  remaining `guided_button` call site onto it, replaces `changelog.rs`'s local
+  `reasoned_button` with it, and only then deletes `guided_button`.
+
+This concentrates the one `knotra-ui` addition in a single stage instead of
+scattering four private copies and reconciling them afterwards, and it keeps Stages
+4 and 5 to pure view-layer work.
+
 ## Requirements
 
 | # | Requirement |
@@ -240,6 +280,7 @@ which was RFC-034 R9's own validating migration, still calls `guided_field_focus
 | R8 | `tests.rs` is not edited - zero lines |
 | R9 | `guided_button` is deleted, with no remaining caller. **`guided_field` is not** - see D6 |
 | R11 | No overlay inlines a text-field composition locally. `guided_field` / `guided_field_focused` remain the field vocabulary until a replacement exists (D6) |
+| R12 | No overlay inlines a disabled-reason composition locally. `guided_button` call sites stay put until Stage 6 builds the shared form (D7) |
 | R10 | `knotra-vcs` is not modified |
 
 ## Verification
