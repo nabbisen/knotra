@@ -4,13 +4,25 @@
 //! Views are pure — they only read `AppState` and emit `Message`s.
 pub mod activity_strip;
 pub mod add_project_modal;
-pub mod bulk_modals;
 pub mod command_palette;
 pub mod detail_panel;
+pub mod overlays;
 pub mod selection_bar;
 pub mod shell;
 pub mod shortcuts_overlay;
 pub mod workspace_manager;
+
+// RFC-037 Stage 1: `bulk_modals` was renamed to `overlays` (the RFC's own
+// name for the split-up module). `tests.rs` still calls two `pub(crate)`
+// changelog helpers (`changelog_result_counts`, `changelog_markdown_preview`)
+// by their old `crate::view::bulk_modals::...` path, and R8 forbids editing
+// `tests.rs` in this stage — so this alias keeps that path resolving without
+// touching it. `#[cfg(test)]`-gated the same way `app.rs`'s
+// `resolve_project_file_path` re-export is, since nothing outside `tests.rs`
+// uses this path — not part of this RFC's scope table; flagged in the
+// Stage 1 review request, not silently added.
+#[cfg(test)]
+pub(crate) use overlays as bulk_modals;
 
 pub mod dashboard;
 pub mod history;
@@ -137,24 +149,24 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
             ActiveModal::None => {}
 
             ActiveModal::Pull => {
-                let el: Element<'_, Message> = bulk_modals::pull_modal(state);
+                let el: Element<'_, Message> = overlays::pull_modal(state);
                 layout = layout.dialog(Dialog::new(el));
             }
             ActiveModal::Tag => {
-                let el: Element<'_, Message> = bulk_modals::tag_modal(state);
+                let el: Element<'_, Message> = overlays::tag_modal(state);
                 layout = layout.dialog(Dialog::new(el));
             }
             ActiveModal::Switch => {
-                let el: Element<'_, Message> = bulk_modals::switch_modal(state);
+                let el: Element<'_, Message> = overlays::switch_modal(state);
                 layout = layout.dialog(Dialog::new(el));
             }
             ActiveModal::Changelog => {
-                let el: Element<'_, Message> = bulk_modals::changelog_modal(state);
+                let el: Element<'_, Message> = overlays::changelog_modal(state);
                 layout = layout.dialog(Dialog::new(el));
             }
             ActiveModal::Resolve(pid) => {
                 // Right-docked resolve panel → snora Sheet anchored to the End edge.
-                let el: Element<'_, Message> = bulk_modals::resolve_panel(state, pid);
+                let el: Element<'_, Message> = overlays::resolve_panel(state, pid);
                 layout = layout.sheet(Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half));
             }
         }
