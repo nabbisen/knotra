@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-10, project owner) - implementation authorised, not yet shipped. D5 accepted as recommended: the RFC takes all nineteen `guided_*` call sites and deletes the helpers |
 | Priority | High - the last large user-visible surface still on pre-RFC-034 primitives, and the only RFC that can close the `guided_button` parallel-systems window |
 | Effort | Large - five overlays, ~1,337 ELOC, safety-critical state machines that must not move |
 | Target | Production Readiness Reset - UI/UX foundation track |
