@@ -1,0 +1,319 @@
+//! 2. "Save release point" modal (Freezer / Tag) — RFC-037 Stage 1.
+
+use iced::{
+    Alignment, Element, Length,
+    widget::{Space, button, column, row, scrollable, text},
+};
+
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_button, guided_field, guided_field_focused,
+};
+use knotra_vcs::model::operation::FreezeOutcome;
+
+use super::modal_shell;
+use crate::{
+    message::{FreezerMessage, Message, TagPushMessage},
+    state::AppState,
+};
+
+pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
+    use crate::state::freezer::FreezerPhase;
+
+    let freezer = &state.freezer;
+
+    let inner: Element<'_, Message> = match &freezer.phase {
+        // ── Input + auto-validation ───────────────────────────────────────
+        FreezerPhase::Idle | FreezerPhase::Validating { .. } => {
+            let name_error: Option<&str> = if freezer.freeze_name.is_empty() {
+                None // no error until user has typed
+            } else if !freezer.freeze_name_is_valid() {
+                Some(state.t("plain.release.name_invalid"))
+            } else {
+                None
+            };
+
+            let name_field = guided_field_focused(
+                state.t("plain.release.name_label"),
+                state.t("plain.release.name_hint"),
+                &freezer.freeze_name,
+                |s| Message::Freezer(FreezerMessage::NameChanged(s)),
+                name_error,
+                knotra_ui::widget::focus_id::RELEASE_NAME.clone(),
+            );
+
+            let msg_field = guided_field(
+                state.t("plain.release.note_label"),
+                state.t("plain.release.note_hint"),
+                &freezer.tag_message,
+                |s| Message::Freezer(FreezerMessage::TagMessageChanged(s)),
+                None,
+            );
+
+            let validate_or_spinner: Element<'_, Message> =
+                if matches!(freezer.phase, FreezerPhase::Validating { .. }) {
+                    text(state.t("plain.release.checking"))
+                        .size(FONT_BODY)
+                        .into()
+                } else if freezer.freeze_name_is_valid() {
+                    guided_button(
+                        state.t("plain.release.check_readiness"),
+                        (!state.operation_interlock.is_busy())
+                            .then_some(Message::Freezer(FreezerMessage::ValidateRequested)),
+                        state
+                            .operation_interlock
+                            .is_busy()
+                            .then_some(state.t("plain.activity.busy")),
+                    )
+                } else {
+                    Space::new().into()
+                };
+
+            column![name_field, msg_field, validate_or_spinner]
+                .spacing(14)
+                .into()
+        }
+
+        // ── Validation result + execute ───────────────────────────────────
+        FreezerPhase::ValidationReady(validation) => {
+            let blocked_count = validation.blocked_count();
+            let ready_count = validation.ready_count();
+            let can_save =
+                validation.all_ready() && ready_count > 0 && !state.operation_interlock.is_busy();
+
+            let val_rows: Vec<Element<'_, Message>> = validation
+                .entries
+                .iter()
+                .map(|entry| {
+                    let (icon, msg) = if entry.is_blocked() {
+                        (
+                            "!",
+                            entry
+                                .blockers
+                                .first()
+                                .map(|s| plain_blocker(state, s.as_str()))
+                                .unwrap_or(""),
+                        )
+                    } else if !entry.included {
+                        ("—", state.t("plain.release.row_excluded"))
+                    } else {
+                        ("✓", state.t("plain.release.row_ready"))
+                    };
+
+                    row![
+                        text(icon).size(FONT_BODY).width(Length::Fixed(22.0)),
+                        text(&entry.project_name)
+                            .size(FONT_BODY)
+                            .width(Length::FillPortion(2)),
+                        text(msg).size(FONT_SMALL).width(Length::FillPortion(3)),
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center)
+                    .into()
+                })
+                .collect();
+
+            let save_reason: Option<&str> = if state.operation_interlock.is_busy() {
+                Some(state.t("plain.activity.busy"))
+            } else if can_save {
+                None
+            } else if ready_count == 0 && blocked_count == 0 {
+                Some(state.t("plain.disabled.choose_one"))
+            } else if blocked_count == 1 {
+                Some(state.t("plain.release.fix_one"))
+            } else {
+                Some(state.t("plain.release.fix_some"))
+            };
+
+            let footer = row![
+                guided_button(
+                    state.t("plain.save_release_point"),
+                    can_save.then_some(Message::Freezer(FreezerMessage::ExecuteConfirmed)),
+                    save_reason,
+                ),
+                Space::new().width(Length::Fill),
+                button(text(state.t("action.cancel")).size(FONT_BODY))
+                    .height(BUTTON_HEIGHT)
+                    .padding([0, 18])
+                    .on_press(Message::Freezer(FreezerMessage::BulkModalClosed)),
+            ]
+            .align_y(Alignment::Center);
+
+            column![
+                text(state.t("plain.release.ready_check")).size(FONT_BODY),
+                scrollable(column(val_rows).spacing(6)).height(Length::Fixed(200.0)),
+                footer,
+            ]
+            .spacing(12)
+            .into()
+        }
+
+        // ── Executing ─────────────────────────────────────────────────────
+        FreezerPhase::Executing => column![
+            text(state.t("plain.release.saving")).size(FONT_BODY),
+            text(state.t("plain.release.saving_hint")).size(FONT_SMALL),
+        ]
+        .spacing(8)
+        .into(),
+
+        // ── Result ────────────────────────────────────────────────────────
+        FreezerPhase::Done(result) => {
+            let push_is_running = state
+                .pending_tag_push
+                .as_ref()
+                .is_some_and(|push| push.is_pushing);
+            let outcome_title = match result.outcome {
+                FreezeOutcome::Success => state.t("plain.release.outcome_success"),
+                FreezeOutcome::RolledBack => state.t("plain.release.outcome_undone"),
+                FreezeOutcome::RollbackFailed => state.t("plain.release.outcome_partial"),
+                FreezeOutcome::NothingDone => state.t("plain.release.outcome_nothing"),
+            };
+
+            let outcome_body = match result.outcome {
+                FreezeOutcome::Success => state.t("plain.no_next_step"),
+                FreezeOutcome::RolledBack => state.t("plain.release.outcome_undone_hint"),
+                FreezeOutcome::RollbackFailed => state.t("plain.release.outcome_partial_hint"),
+                FreezeOutcome::NothingDone => "",
+            };
+
+            let rows: Vec<Element<'_, Message>> = result
+                .project_results
+                .iter()
+                .map(|pr| {
+                    let icon = if pr.success {
+                        "✓"
+                    } else if pr.rollback_attempted && pr.rollback_succeeded == Some(true) {
+                        "⟲"
+                    } else {
+                        "!"
+                    };
+                    let msg = if pr.success {
+                        state.t("plain.release.row_saved")
+                    } else if pr.rollback_attempted && pr.rollback_succeeded == Some(true) {
+                        state.t("plain.release.row_undone")
+                    } else {
+                        state.t("plain.needs_help")
+                    };
+
+                    let mut row_col = column![
+                        row![
+                            text(icon).size(FONT_BODY).width(Length::Fixed(22.0)),
+                            text(&pr.project_name)
+                                .size(FONT_BODY)
+                                .width(Length::FillPortion(2)),
+                            text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
+                        ]
+                        .spacing(8),
+                    ]
+                    .spacing(4);
+
+                    if !pr.success
+                        && state.show_op_details
+                        && let Some(hint) = &pr.recovery_hint
+                    {
+                        for cmd in &hint.suggested_commands {
+                            row_col = row_col.push(text(format!("  {}", cmd)).size(FONT_SMALL));
+                        }
+                    }
+
+                    row_col.into()
+                })
+                .collect();
+
+            let details_label = if state.show_op_details {
+                state.t("plain.hide_details")
+            } else {
+                state.t("plain.show_details")
+            };
+
+            let push_offer: Element<'_, Message> = match &state.pending_tag_push {
+                Some(push)
+                    if push.freeze_name == result.freeze_name && !push.project_ids.is_empty() =>
+                {
+                    if push.is_pushing {
+                        text(state.t("plain.release.sharing"))
+                            .size(FONT_BODY)
+                            .into()
+                    } else {
+                        column![
+                            text(state.t("plain.release.share_offer")).size(FONT_BODY),
+                            row![
+                                button(text(state.t("plain.release.share_action")).size(FONT_BODY))
+                                    .height(BUTTON_HEIGHT)
+                                    .padding([0, 18])
+                                    .on_press_maybe(
+                                        (!state.operation_interlock.is_busy()).then_some(
+                                            Message::TagPush(TagPushMessage::PushConfirmed),
+                                        )
+                                    ),
+                                button(
+                                    text(state.t("plain.release.share_decline")).size(FONT_BODY)
+                                )
+                                .height(BUTTON_HEIGHT)
+                                .padding([0, 18])
+                                .on_press(Message::TagPush(TagPushMessage::PushDeclined)),
+                            ]
+                            .spacing(8)
+                            .align_y(Alignment::Center),
+                        ]
+                        .spacing(8)
+                        .into()
+                    }
+                }
+                _ => Space::new().height(Length::Fixed(0.0)).into(),
+            };
+
+            let footer = row![
+                button(text(details_label).size(FONT_BODY))
+                    .height(BUTTON_HEIGHT)
+                    .padding([0, 18])
+                    .on_press(Message::ToggleOpDetails),
+                Space::new().width(Length::Fill),
+                button(text(state.t("action.close")).size(FONT_BODY))
+                    .height(BUTTON_HEIGHT)
+                    .padding([0, 18])
+                    .on_press_maybe(
+                        (!push_is_running)
+                            .then_some(Message::Freezer(FreezerMessage::BulkModalClosed,))
+                    ),
+            ]
+            .align_y(Alignment::Center);
+
+            column![
+                text(outcome_title).size(FONT_BODY + 2.0),
+                text(outcome_body).size(FONT_BODY),
+                scrollable(column(rows).spacing(8)).height(Length::Fixed(200.0)),
+                push_offer,
+                footer,
+            ]
+            .spacing(12)
+            .into()
+        }
+    };
+
+    let close_msg = if matches!(freezer.phase, FreezerPhase::Executing)
+        || state
+            .pending_tag_push
+            .as_ref()
+            .is_some_and(|push| push.is_pushing)
+    {
+        None
+    } else {
+        Some(Message::Freezer(FreezerMessage::BulkModalClosed))
+    };
+
+    modal_shell(state.t("plain.save_release_point"), close_msg, inner)
+}
+
+/// Map a technical blocker string to a plain-language message.
+fn plain_blocker<'a>(state: &'a AppState, blocker: &str) -> &'a str {
+    let lower = blocker.to_lowercase();
+    if lower.contains("tag") && lower.contains("exist") {
+        state.t("plain.release.blocker_name_used")
+    } else if lower.contains("conflict") || lower.contains("merge") {
+        state.t("plain.release.blocker_needs_choice")
+    } else if lower.contains("dirty") || lower.contains("uncommitted") {
+        state.t("plain.release.blocker_unsaved")
+    } else {
+        state.t("plain.needs_help") // safe fallback
+    }
+}
