@@ -31,7 +31,6 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [042](./proposed/042-catalog-integrity.md) | Catalog integrity: missing keys render as their own names | Production Readiness Reset - operational hygiene | High |
 
 ---
 
@@ -43,6 +42,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [042](./accepted/042-catalog-integrity.md) | Catalog integrity: missing keys render as their own names | Production Readiness Reset - operational hygiene | High |
 | [038](./accepted/038-settings-and-history.md) | Settings and History | Production Readiness Reset - UI/UX foundation | High |
 
 ---

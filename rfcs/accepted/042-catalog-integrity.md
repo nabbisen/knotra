@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-10, project owner) - implementation authorised, not yet shipped |
 | Priority | High - four user-facing messages are broken in shipped releases, including the one shown on every successful Settings save |
 | Effort | Small - four catalog entries, one design decision, one guard |
 | Target | Production Readiness Reset - operational hygiene track |
@@ -139,6 +139,43 @@ D is the real fix and out of proportion here — it is a refactor of every call 
 close a hole that B and D2 close for a fraction of the cost. Worth its own RFC if the
 catalog keeps growing.
 
+### D4. A third class the D2 guard cannot see: strings that never call `t()`
+
+**Added 2026-08-10, before implementation, after measuring the call sites.**
+
+D2's guard checks that every key named in a `.t("literal")` exists. It cannot see a
+user-facing string that never calls `t()` at all. Five such strings exist in `app/`,
+verified at `46ee262`:
+
+| Location | String | When the user sees it |
+|---|---|---|
+| `background/fetch.rs:107` | `"Fetch — {} ok, {} failed"` | after every bulk fetch that had a failure |
+| `background/fetch.rs:113` | `"Fetch complete — {} projects"` | after every successful bulk fetch |
+| `misc.rs:118` | `"Copy command sent."` | copying a command |
+| `misc.rs:172` | `"FS watching disabled."` | toggling filesystem watch off |
+| `misc.rs:208` | `"Launched: {} {:?}"` | launching an editor or merge tool |
+
+The two in `background/fetch.rs` are the most visible in the application: bulk fetch
+is knotra's core operation, and **both** branches are hardcoded. They also contain
+"Fetch", which `FORBIDDEN_EN` bans from first-level wording - the guard never sees it
+because the string never becomes a catalog key.
+
+Not every `status_bar` assignment is affected. `app/changelog.rs:109` and
+`app/background/freeze.rs:61` compose their messages from `t()` lookups on both
+branches, which is the correct shape and the model to follow.
+
+**These are in scope.** They are the same defect as the four missing keys - the code
+and the catalog disagree about a user-facing string - and excluding them would leave
+the RFC's own remedy demonstrably incomplete.
+
+**Guard:** a literal-scan over assignments to known user-facing sinks - `status_bar`,
+`settings_save_msg` - that contain a string literal and no `t()` call. Narrower than
+"find all user-facing strings", which is not mechanically decidable, and it covers
+exactly the shape that failed here.
+
+Note that RFC-038 Stage 1 would not have caught these either: it is scoped to
+`view/settings.rs` and `view/history.rs`, and all five live in `app/`.
+
 ## Requirements
 
 | # | Requirement |
@@ -148,6 +185,8 @@ catalog keeps growing.
 | R3 | The guard is demonstrated to fail before it passes — introduce a bogus key locally, confirm the test catches it, remove it. Report that it was done |
 | R4 | `t()`'s miss behaviour follows D3, and the chosen option is stated |
 | R5 | No existing catalog key is renamed or removed |
+| R7 | The five hardcoded strings in `app/` (D4) are moved into the catalog, both locales |
+| R8 | A guard fails if an assignment to `status_bar` or `settings_save_msg` contains a string literal and no `t()` call |
 | R6 | `crates/knotra-app/src/tests.rs` is not edited |
 
 R3 matters: a guard that has never been seen to fail is not known to work, and this
