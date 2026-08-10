@@ -75,15 +75,28 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
     .spacing(8)
     .align_y(Alignment::Center);
 
-    let active_locale_note = match state.config.locale {
-        Locale::En => "Active: English",
-        Locale::Ja => "Active: 日本語",
-    };
-    let active_theme_note = if state.config.dark_theme {
-        "Active: Dark"
-    } else {
-        "Active: Light"
-    };
+    // RFC-038 Stage 1 §2: was a hand-rolled `match` returning a
+    // pre-baked "Active: {locale}" string — a second, unaudited
+    // localisation mechanism alongside the catalog, so a Japanese user got
+    // the value translated but not the "Active:" label. `Locale`'s own
+    // `Display` impl (i18n.rs) is left as the source of each language's
+    // name — "English"/"日本語" are endonyms, not translatable content, the
+    // same reason the locale-switch buttons above say "English"/"日本語"
+    // unconditionally rather than through `state.t()`.
+    let active_locale_note = format!(
+        "{} {}",
+        state.t("settings.active_prefix"),
+        state.config.locale
+    );
+    let active_theme_note = format!(
+        "{} {}",
+        state.t("settings.active_prefix"),
+        if state.config.dark_theme {
+            state.t("settings.theme_dark")
+        } else {
+            state.t("settings.theme_light")
+        }
+    );
 
     // ------------------------------------------------------------------ //
     // Refresh & Performance
@@ -156,36 +169,47 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         text(active_locale_note).size(11),
         theme_row,
         text(active_theme_note).size(11),
-
         // Refresh section
         section_header(state.t("settings.section.refresh")),
-        labeled_row(state.t("settings.refresh_interval_label"), refresh_input.into()),
-        labeled_row(state.t("settings.max_concurrent_label"), max_concurrent_input.into()),
-
+        labeled_row(
+            state.t("settings.refresh_interval_label"),
+            refresh_input.into()
+        ),
+        labeled_row(
+            state.t("settings.max_concurrent_label"),
+            max_concurrent_input.into()
+        ),
         // External tools section
         section_header(state.t("settings.section.tools")),
         text(state.t("settings.editor_label")).size(13),
         editor_input,
         text(state.t("settings.merge_tool_label")).size(13),
         merge_input,
-
         // Logs section
         section_header(state.t("settings.section.logs")),
         labeled_row(state.t("settings.max_logs_label"), max_logs_input.into()),
-
         // FS Watch section
-        section_header("File-system Monitoring"),
+        section_header(state.t("settings.section.fs_watch")),
         labeled_row(
-            "Enable automatic FS change detection (experimental)",
-            button(text(if state.config.fs_watch_enabled { "Enabled ✓" } else { "Disabled" }))
-                .on_press(Message::Settings(SettingsMessage::FsWatchEnabledChanged(
-                    !state.config.fs_watch_enabled
-                )))
-                .into(),
+            state.t("settings.fs_watch_enable_label"),
+            button(text(if state.config.fs_watch_enabled {
+                state.t("settings.fs_watch_enabled")
+            } else {
+                state.t("settings.fs_watch_disabled")
+            }))
+            .on_press(Message::Settings(SettingsMessage::FsWatchEnabledChanged(
+                !state.config.fs_watch_enabled
+            )))
+            .into(),
         ),
-        text("When enabled, knotra watches .git/HEAD and index for changes and refreshes automatically.").size(11),
+        // RFC-038 Stage 1 §9: this sentence names `.git/HEAD` and "index" —
+        // moved into the catalog unchanged rather than reworded, per the
+        // handoff's explicit instruction. `settings.*` is not among
+        // `FIRST_LEVEL_PREFIXES`, so `first_level_wording_has_no_developer_jargon`
+        // does not and will not police it either way.
+        text(state.t("settings.fs_watch_hint")).size(11),
         labeled_row(
-            "Change detection interval (seconds)",
+            state.t("settings.fs_watch_interval_label"),
             text_input("2", &state.settings_edit.fs_debounce_secs)
                 .on_input(|s| {
                     let n = s.parse::<u32>().unwrap_or(2);
@@ -195,19 +219,29 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
                 .into(),
         ),
         // Topology scan button
-        section_header("Dependency Topology"),
+        section_header(state.t("settings.section.topology")),
         row![
             button(text(state.t("topology.scan")).size(12))
                 .on_press(Message::Topology(TopologyMessage::ScanRequested)),
             text(match &state.topology.phase {
-                crate::state::topology::TopologyPhase::Idle    => "Not scanned.",
-                crate::state::topology::TopologyPhase::Scanning=> "Scanning…",
-                crate::state::topology::TopologyPhase::Ready(_)=> "Scan complete.",
-                crate::state::topology::TopologyPhase::Error(_)=> "Scan error.",
-            }).size(12),
-        ].spacing(8).align_y(iced::Alignment::Center),
+                crate::state::topology::TopologyPhase::Idle =>
+                    state.t("settings.topology_not_scanned"),
+                crate::state::topology::TopologyPhase::Scanning =>
+                    state.t("settings.topology_scanning"),
+                crate::state::topology::TopologyPhase::Ready(_) =>
+                    state.t("settings.topology_scan_complete"),
+                crate::state::topology::TopologyPhase::Error(_) =>
+                    state.t("settings.topology_scan_error"),
+            })
+            .size(12),
+        ]
+        .spacing(8)
+        .align_y(iced::Alignment::Center),
         // Save row
-        row![save_btn, save_msg].spacing(12).align_y(iced::Alignment::Center).padding([8, 0]),
+        row![save_btn, save_msg]
+            .spacing(12)
+            .align_y(iced::Alignment::Center)
+            .padding([8, 0]),
         text(state.t("settings.restart_hint")).size(11),
     ]
     .spacing(8)

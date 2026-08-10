@@ -770,6 +770,32 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "Some changes take effect on next launch.",
     );
     m.insert("settings.save", "Save settings");
+    // "Active: {value}" prefix (RFC-038 Stage 1 §2) — shared by the locale
+    // and theme rows; {value} itself is `Locale`'s own `Display` (an
+    // endonym, not translated) or an existing `settings.theme_*` key.
+    m.insert("settings.active_prefix", "Active:");
+    // File-system monitoring section (RFC-038 Stage 1 §2)
+    m.insert("settings.section.fs_watch", "File-system Monitoring");
+    m.insert(
+        "settings.fs_watch_enable_label",
+        "Enable automatic FS change detection (experimental)",
+    );
+    m.insert("settings.fs_watch_enabled", "Enabled ✓");
+    m.insert("settings.fs_watch_disabled", "Disabled");
+    m.insert(
+        "settings.fs_watch_hint",
+        "When enabled, knotra watches .git/HEAD and index for changes and refreshes automatically.",
+    );
+    m.insert(
+        "settings.fs_watch_interval_label",
+        "Change detection interval (seconds)",
+    );
+    // Dependency topology section (RFC-038 Stage 1 §2)
+    m.insert("settings.section.topology", "Dependency Topology");
+    m.insert("settings.topology_not_scanned", "Not scanned.");
+    m.insert("settings.topology_scanning", "Scanning…");
+    m.insert("settings.topology_scan_complete", "Scan complete.");
+    m.insert("settings.topology_scan_error", "Scan error.");
     // Topology scan (used in legacy settings panel)
     m.insert("topology.scan", "Scan topology");
     m
@@ -1538,6 +1564,24 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "一部の変更は次回起動時に有効になります。",
     );
     m.insert("settings.save", "設定を保存");
+    m.insert("settings.active_prefix", "現在:");
+    m.insert("settings.section.fs_watch", "ファイルシステム監視");
+    m.insert(
+        "settings.fs_watch_enable_label",
+        "自動的なファイルシステム変更検出を有効にする（実験的機能）",
+    );
+    m.insert("settings.fs_watch_enabled", "有効 ✓");
+    m.insert("settings.fs_watch_disabled", "無効");
+    m.insert(
+        "settings.fs_watch_hint",
+        "有効にすると、knotra は .git/HEAD と index の変更を監視し、自動的に更新します。",
+    );
+    m.insert("settings.fs_watch_interval_label", "変更検出の間隔（秒）");
+    m.insert("settings.section.topology", "依存関係トポロジ");
+    m.insert("settings.topology_not_scanned", "未スキャン。");
+    m.insert("settings.topology_scanning", "スキャン中…");
+    m.insert("settings.topology_scan_complete", "スキャン完了。");
+    m.insert("settings.topology_scan_error", "スキャンエラー。");
     m.insert("topology.scan", "トポロジをスキャン");
     m
 }
