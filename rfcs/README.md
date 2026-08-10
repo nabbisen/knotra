@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [037](./accepted/037-mutating-workflow-overlays.md) | Mutating workflow overlays and remaining ad hoc layers | Production Readiness Reset - UI/UX foundation | High |
 
 ---
 
@@ -57,6 +56,7 @@ they contain remain authoritative.
 |------|-------------------------------------------------|------------|
 | [035](./done/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | main: f605834 |
 | [040](./done/040-app-module-decomposition.md) | `app.rs` module decomposition | main: 54e5d5d |
+| [037](./done/037-mutating-workflow-overlays.md) | Mutating workflow overlays and remaining ad hoc layers | main: bb04df2 |
 | [041](./done/041-background-module-decomposition.md) | `handle_background` decomposition | main: f3e69aa |
 | [036](./done/036-keyboard-navigation-and-focus-traversal.md) | Keyboard navigation and focus traversal | main: d20c7be |
 | [034](./done/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | main: ce05a44 |

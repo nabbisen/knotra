@@ -310,7 +310,13 @@ shared contracts; the rest implement them.
 - [x] RFC-034 — Design foundation, application shell, and overlay host — `main: ce05a44`
 - [x] RFC-036 — Keyboard navigation and focus traversal — `main: d20c7be`
 - [x] RFC-035 — Dashboard and selection migration — `main: f605834`
-- [ ] RFC-037 — Mutating workflow overlays and remaining ad hoc layers
+- [x] RFC-037 — Mutating workflow overlays and remaining ad hoc layers — `main: bb04df2`.
+      Six stages, twelve commits. `view/bulk_modals.rs` 1,337 ELOC → `view/overlays/`
+      across six files, all under threshold; `modal_shell` and `guided_button` both
+      deleted. `tests.rs` never edited. Two user-visible defects found and fixed
+      while doing chrome work — the faded-selected-option bug (same class RFC-035
+      fixed for Group/Sort) and the Remove confirmation styled identically to its
+      own cancel. Reviews `131`-`136`.
 - [ ] RFC-038 — Settings and History
 
 RFC-036 was inserted ahead of RFC-035 after the July 2026 spike found no Tab
@@ -455,7 +461,7 @@ given.
       `GIT_CONFIG_GLOBAL`, stdin-blocking editor). The library's own `run_git`
       remains un-isolated, which is harmless while no exercised write path needs
       an identity or an editor — the trigger is recorded in the hygiene track.
-- [ ] `guided_button` and `guided_field` deleted; no legacy control helper remains
+- [ ] `guided_field` remains; `guided_button` is deleted
       — the RFC-034 R7 parallel-systems window. **19 live call sites in four
       files**, measured 2026-08-10: `bulk_modals.rs` 11, `add_project_modal.rs` 4,
       `workspace_manager.rs` 2, `dashboard/empty.rs` 2. This entry used to say the

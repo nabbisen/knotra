@@ -2,12 +2,65 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-10, project owner) - implementation authorised, not yet shipped. D5 accepted as recommended: the RFC takes all nineteen `guided_*` call sites and deletes the helpers |
+| Status | Implemented (main: bb04df2) |
 | Priority | High - the last large user-visible surface still on pre-RFC-034 primitives, and the only RFC that can close the `guided_button` parallel-systems window |
 | Effort | Large - five overlays, ~1,337 ELOC, safety-critical state machines that must not move |
 | Target | Production Readiness Reset - UI/UX foundation track |
 | Related files | `crates/knotra-app/src/view/bulk_modals.rs`, `crates/knotra-app/src/view/add_project_modal.rs`, `crates/knotra-app/src/view/workspace_manager.rs`, `crates/knotra-app/src/view/dashboard/empty.rs` |
 | Related RFCs | `rfcs/done/033-ui-ux-foundation-shell-and-overlay-contracts.md` (**H3**, not H4 - see Background), `rfcs/done/034-design-foundation-shell-and-overlay-host.md` (D3 primitives, R7, R8 overlay host), `rfcs/done/029`, `rfcs/done/030`, `rfcs/done/031` (the invariants that must survive) |
+
+## Implementation Record
+
+| Stage | Commits |
+|---|---|
+| 1 - split `bulk_modals.rs` | `0f92c96` `57a9d38` |
+| 2 - conflict resolution | `91ee9b4` |
+| 3 - changelog | `9fb823b` |
+| 4 - freezer, context switch | `13c79cf` `ff1ada4` `9c3d4df` |
+| 5 - smart pull, `modal_shell` retired | `e1be08e` |
+| 6 - `guided_button` retirement | `5324f9e` `f5609db` `a4fc665` `bb04df2` |
+
+Amendments: `62ba786` (D3's Escape analysis corrected), `e450304` (D6, R9 split, R11),
+`5c4c8a8` (D7, R12).
+
+Accepted 2026-08-10; six stages, twelve commits, each independently green.
+
+**Outcome.** `view/bulk_modals.rs` at 1,337 ELOC became `view/overlays/` at 1,572
+across six files - `smart_pull.rs` 471, `freezer.rs` 325, `conflict.rs` 259,
+`changelog.rs` 259, `context_switch.rs` 246, `mod.rs` 12 - every one under the
+500-ELOC threshold (R1). All five overlays render through `knotra-ui`'s `surface()`;
+the hand-rolled `modal_shell` and `guided_button` are both deleted.
+`crates/knotra-app/src/tests.rs` was never edited, so the suite passed unmodified at
+every stage; the only test added is one covering `reasoned()`'s new logic in
+`knotra-ui`.
+
+**On D2, which was the design decision that mattered.** Byte-identity cannot survive
+a migration - the migration justifies every changed line, so a mistake hides in plain
+sight. Stage 1 was therefore a pure move, verified 21/21 byte-identical and
+independently reproduced at review; Stages 2-6 were verified by the unmodified test
+suite plus a per-overlay close-route check. Splitting the RFC that way is what made
+any of it checkable.
+
+**Two user-visible defects were found while doing chrome work**, neither in scope and
+both worth shipping:
+
+- `pick_disposition_btn` gave the *selected* Smart Pull option no `on_press`, so iced
+  reported `Status::Disabled` and faded it - the chosen option rendered as the least
+  legible control in its row. Identical to the defect RFC-035 fixed for Group and
+  Sort; it survived because RFC-035's scope was the dashboard. Fixed with
+  `current_or` (`135` §4).
+- The "Remove project" confirmation was styled identically to its own "No". Now
+  `danger_maybe`, the variant reserved for irreversible actions (`136` §4).
+
+**Three premises in this RFC were wrong and corrected mid-flight**: D3 named the
+overlay host's Escape as the top risk when Escape never reaches the overlays at all
+(it is guarded centrally in `app/focus_ops.rs`, outside this RFC's reach); D4/R7
+asked for conflict resolution to become a sheet when `view.rs:170` had mounted it as
+one since v0.16.0; and R9 required deleting `guided_field`, which RFC-034 never built
+a replacement for - `buttons.rs` fully replaces `guided_button`'s styling while
+`field.rs` holds only the legacy helpers. D6 and D7 record the last of these.
+
+Review artifacts: `.git-exclude/reviewed/131` through `136`.
 
 ## Summary
 
