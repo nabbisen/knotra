@@ -1,5 +1,4 @@
-//! Button helpers: the legacy `guided_button` plus the RFC-034 semantic
-//! control vocabulary (R6/R7).
+//! Button helpers: the RFC-034 semantic control vocabulary (R6/R7).
 //!
 //! The semantic variants are thin wrappers around `snora::design::button`.
 //! Application view code must import them from here, never from
@@ -8,54 +7,21 @@
 //!
 //! `reasoned` (RFC-037 D7) is the semantic vocabulary's missing half:
 //! `primary_maybe`/`secondary_maybe`/`ghost_maybe`/`danger_maybe` all carry
-//! `Option<Message>`, but none carries `guided_button`'s
-//! reason-beneath-when-disabled composition, and none exposes a focus ring.
-//! `reasoned` is a token-aware, focus-ring-capable, reason-carrying button,
-//! built once here so RFC-037 Stage 6 does not leave ten call sites each
-//! duplicating the composition.
+//! `Option<Message>`, but none carries the reason-beneath-when-disabled
+//! composition `guided_button` (deleted, RFC-037 Stage 6 R9) used to provide,
+//! and none exposes a focus ring. `reasoned` is a token-aware,
+//! focus-ring-capable, reason-carrying button, built once here so RFC-037
+//! Stage 6 did not leave ten call sites each duplicating the composition.
 
 use snora::design::Tokens;
 
 use super::icon::icon_element;
 use super::layout::{BUTTON_HEIGHT, Element, FONT_BODY, FONT_SMALL, Length};
 
-/// A button that shows a plain-text reason beneath it when disabled.
-///
-/// When `on_press` is `None` and `reason` is `Some`, renders the reason as
-/// small muted text below the button so the user always knows *why* they
-/// cannot proceed. When `on_press` is `Some`, renders a plain button.
-///
-/// # Arguments
-/// * `label`    — Button text.
-/// * `on_press` — Message to emit, or `None` to disable.
-/// * `reason`   — Optional explanation shown only when disabled.
-pub fn guided_button<'a, Message: Clone + 'a>(
-    label: &'a str,
-    on_press: Option<Message>,
-    reason: Option<&'a str>,
-) -> Element<'a, Message> {
-    use iced::widget::{button, column, text};
-
-    let btn = button(text(label).size(FONT_BODY))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 18]);
-
-    let show_reason = on_press.is_none();
-
-    let btn: Element<'a, Message> = match on_press {
-        Some(msg) => btn.on_press(msg).into(),
-        None => btn.into(),
-    };
-
-    match reason {
-        Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
-        _ => btn,
-    }
-}
-
 /// A token-aware, focus-ring-capable button that shows a plain-text reason
-/// beneath it when disabled — `guided_button`'s behaviour, built on the
-/// semantic style vocabulary instead of the default theme (RFC-037 D7).
+/// beneath it when disabled — the composition the deleted `guided_button`
+/// used to provide, built on the semantic style vocabulary instead of the
+/// default theme (RFC-037 D7).
 ///
 /// `style_fn` selects the semantic variant; pass one of `style::primary`,
 /// `style::secondary`, `style::ghost`, `style::danger`. `is_focused` draws
@@ -96,8 +62,8 @@ pub fn reasoned<'a, Message: Clone + 'a>(
 }
 
 /// Whether `reasoned` should render its reason text: only when there is no
-/// press handler *and* a reason was supplied — the same rule
-/// `guided_button` uses. Split out as plain booleans so this one piece of
+/// press handler *and* a reason was supplied — the same rule the deleted
+/// `guided_button` used. Split out as plain booleans so this one piece of
 /// logic is unit-testable without constructing an `Element`.
 fn reason_row_needed(on_press_is_none: bool, reason_is_some: bool) -> bool {
     on_press_is_none && reason_is_some
@@ -105,10 +71,6 @@ fn reason_row_needed(on_press_is_none: bool, reason_is_some: bool) -> bool {
 
 // ---------------------------------------------------------------------------
 // Semantic control vocabulary (RFC-034 R6/R7).
-//
-// Additive: these do not replace `guided_button`. Existing call sites keep
-// using `guided_button` until their own migration RFC; new call sites
-// (RFC-034 stages 3-4 onward) use the variant matching their action's role.
 // ---------------------------------------------------------------------------
 
 /// Filled accent button — the single strongest action on a surface.
