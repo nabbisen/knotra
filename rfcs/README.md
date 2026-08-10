@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [041](./accepted/041-background-module-decomposition.md) | `handle_background` decomposition | Production Readiness Reset - operational hygiene | Medium |
 
 ---
 
@@ -57,6 +56,7 @@ they contain remain authoritative.
 |------|-------------------------------------------------|------------|
 | [035](./done/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | main: f605834 |
 | [040](./done/040-app-module-decomposition.md) | `app.rs` module decomposition | main: 54e5d5d |
+| [041](./done/041-background-module-decomposition.md) | `handle_background` decomposition | main: f3e69aa |
 | [036](./done/036-keyboard-navigation-and-focus-traversal.md) | Keyboard navigation and focus traversal | main: d20c7be |
 | [034](./done/034-design-foundation-shell-and-overlay-host.md) | Design foundation, application shell, and overlay host | main: ce05a44 |
 | [033](./done/033-ui-ux-foundation-shell-and-overlay-contracts.md) | UI/UX foundation, shell, and overlay contracts (umbrella) | main: bf07f1c |

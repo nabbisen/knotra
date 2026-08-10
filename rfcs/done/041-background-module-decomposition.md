@@ -2,13 +2,50 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-08, project owner) - implementation authorised, not yet shipped |
+| Status | Implemented (main: f3e69aa) |
 | Priority | Medium - RFC-040's one declared exception; no external pressure, but it is the last structural debt from that RFC |
 | Effort | Small-to-medium - one function, twenty arms, no behaviour change |
 | Target | Production Readiness Reset - operational hygiene track |
 | Related files | `crates/knotra-app/src/app/background.rs`, `crates/knotra-app/src/app.rs`, `crates/knotra-app/src/tests.rs` |
 | Related RFCs | `rfcs/done/040-app-module-decomposition.md` (R2/D2 defers this here by name) |
 | Related audit evidence | `.git-exclude/reviewed/115-release-0.25.0-scope-and-readiness-report.md` §5 (listed as shipping debt) |
+
+## Implementation Record
+
+| Stage | Commits |
+|---|---|
+| 1 | `4d9103c` `af11f9a` |
+| 2 | `54fed21` |
+| 3 | `48199bc` |
+| 4 | `f3e69aa` |
+
+Accepted 2026-08-08 by the project owner; implemented across four stages, each
+independently green on all five gates.
+
+**Outcome against R1.** `background.rs` at 761 ELOC became `background/` at 906
+across seven files, every one under the 500-ELOC threshold: `mod.rs` 173,
+`smart_pull.rs` 279, `freeze.rs` 164, `fetch.rs` 109, `context_switch.rs` 66,
+`status.rs` 65, `conflict.rs` 50. No residual exception.
+
+**Outcome against R2/R5.** Twenty-one items - eighteen arm bodies and three whole
+helper functions - moved with byte-identity evidence on each, reproduced
+independently at review. One item differed by a rustfmt rewrap only, confirmed
+content-identical with whitespace stripped. `crates/knotra-app/src/tests.rs` was
+never edited, across all four stages.
+
+**On D2.** Total ELOC rose +145, at the top of the predicted +100-150. The
+prediction mattered less than expected: byte-identity measures directly what a size
+delta only proxies, which is the mistake RFC-040 R10 made in reverse.
+
+Review artifacts: `.git-exclude/reviewed/125` (Stage 1), `126` (Stage 2), `127`
+(Stage 3), `128` (Stage 4 and closure).
+
+**Correction recorded at closure.** This RFC's Motivation claims `background.rs` was
+"the only module over" the threshold. That held for `crates/knotra-app/src/app/` and
+not for the workspace, where seven other files exceed 500 ELOC - `view/bulk_modals.rs`
+at 1337 being nearly twice `background.rs`'s starting size. R1 was scoped to
+`app/background/` and is satisfied; the motivating sentence overstated the case.
+Detail in `128` §6.
 
 ## Summary
 
