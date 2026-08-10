@@ -5,6 +5,14 @@
 //! Application view code must import them from here, never from
 //! `snora::design` directly (RFC-034 R2) — this module is the single crossing
 //! point.
+//!
+//! `reasoned` (RFC-037 D7) is the semantic vocabulary's missing half:
+//! `primary_maybe`/`secondary_maybe`/`ghost_maybe`/`danger_maybe` all carry
+//! `Option<Message>`, but none carries `guided_button`'s
+//! reason-beneath-when-disabled composition, and none exposes a focus ring.
+//! `reasoned` is a token-aware, focus-ring-capable, reason-carrying button,
+//! built once here so RFC-037 Stage 6 does not leave ten call sites each
+//! duplicating the composition.
 
 use snora::design::Tokens;
 
@@ -43,6 +51,56 @@ pub fn guided_button<'a, Message: Clone + 'a>(
         Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
         _ => btn,
     }
+}
+
+/// A token-aware, focus-ring-capable button that shows a plain-text reason
+/// beneath it when disabled — `guided_button`'s behaviour, built on the
+/// semantic style vocabulary instead of the default theme (RFC-037 D7).
+///
+/// `style_fn` selects the semantic variant; pass one of `style::primary`,
+/// `style::secondary`, `style::ghost`, `style::danger`. `is_focused` draws
+/// the RFC-036 focus ring, same as [`style::with_focus_ring`].
+///
+/// # Arguments
+/// * `tokens`      — Design tokens.
+/// * `label`       — Button text.
+/// * `on_press`    — Message to emit, or `None` to disable.
+/// * `reason`      — Optional explanation shown only when disabled.
+/// * `is_focused`  — Draws a focus ring when `true`.
+/// * `style_fn`    — The semantic style variant to apply.
+#[must_use]
+pub fn reasoned<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    reason: Option<&'a str>,
+    is_focused: bool,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+) -> Element<'a, Message> {
+    use iced::widget::{button, column, text};
+
+    let t = tokens.clone();
+    let show_reason = reason_row_needed(on_press.is_none(), reason.is_some());
+
+    let btn: Element<'a, Message> = button(text(label.into()).size(FONT_BODY))
+        .height(BUTTON_HEIGHT)
+        .padding([0, 18])
+        .on_press_maybe(on_press)
+        .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
+        .into();
+
+    match reason {
+        Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
+        _ => btn,
+    }
+}
+
+/// Whether `reasoned` should render its reason text: only when there is no
+/// press handler *and* a reason was supplied — the same rule
+/// `guided_button` uses. Split out as plain booleans so this one piece of
+/// logic is unit-testable without constructing an `Element`.
+fn reason_row_needed(on_press_is_none: bool, reason_is_some: bool) -> bool {
+    on_press_is_none && reason_is_some
 }
 
 // ---------------------------------------------------------------------------
@@ -270,9 +328,30 @@ pub fn icon_button_maybe<'a, Message: Clone + 'a>(
 
 #[cfg(test)]
 mod tests {
+    use super::reason_row_needed;
     use super::style::with_focus_ring;
     use iced::widget::button::Status;
     use snora::design::Tokens;
+
+    /// `reasoned`'s reason text renders in exactly the same case
+    /// `guided_button` used: no press handler, and a reason was supplied.
+    /// Either condition failing hides it.
+    #[test]
+    fn reason_shows_only_when_disabled_and_a_reason_was_given() {
+        assert!(reason_row_needed(true, true), "disabled + reason: shows");
+        assert!(
+            !reason_row_needed(true, false),
+            "disabled, no reason: nothing to show"
+        );
+        assert!(
+            !reason_row_needed(false, true),
+            "pressable: reason stays hidden even if supplied"
+        );
+        assert!(
+            !reason_row_needed(false, false),
+            "pressable, no reason: hidden"
+        );
+    }
 
     /// RFC-036 Stage 6: a filled-accent (`primary`) style must not receive
     /// the same ring color as a transparent (`ghost`/`secondary`) one, in

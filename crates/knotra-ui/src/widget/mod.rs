@@ -20,7 +20,7 @@ pub mod select;
 
 pub use buttons::{
     current_or, danger, danger_maybe, ghost, ghost_maybe, guided_button, icon_button_maybe,
-    primary, primary_maybe, secondary, secondary_maybe, style,
+    primary, primary_maybe, reasoned, secondary, secondary_maybe, style,
 };
 pub use checkbox::checkbox;
 pub use field::{guided_field, guided_field_focused};
