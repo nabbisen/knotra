@@ -181,10 +181,12 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         button(text(state.t("history.copy_log")).size(11)).on_press({
             // Build a text representation of the log entry for clipboard.
             // `kind` stays `OperationKind`'s raw English `Display`
-            // deliberately — this closure builds clipboard/export text,
-            // the same category as `ok`/`FAILED`/`SKIPPED` below and
-            // `log_to_markdown`, both explicitly Stage 5's to localise, not
-            // this stage's. Only the on-screen `primary_row` above changed.
+            // deliberately — this closure builds clipboard/export text, the
+            // same category as `ok`/`FAILED`/`SKIPPED` below: export text,
+            // not on-screen text, so it is exempt from this stage's
+            // localisation work. Only the on-screen `primary_row` above
+            // changed. (`log_to_markdown` was the same category before its
+            // removal, RFC-043 R6 — this is now the only such exception.)
             let kind = result.kind.to_string();
             let ts = result
                 .started_at
@@ -379,117 +381,4 @@ fn summarise_status(result: &OperationResult) -> StatusSummary {
             label_key: "history.status_failed",
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Log-to-Markdown rendering (used by LogCopyRequested handler)
-// ---------------------------------------------------------------------------
-
-/// Render one [`OperationLog`] as a Markdown string suitable for the clipboard.
-///
-/// Format:
-/// ```
-/// # Operation: <kind>
-/// Started:  <RFC-3339>
-/// Finished: <RFC-3339>
-/// Status:   Success | Partial | Failed | Rolled back
-///
-/// ## Projects
-///
-/// ### <project_id> — ✓ / ✗
-/// Commands:
-///   $ <cmd>
-/// Stdout:
-///   <first 20 lines>
-/// Stderr:
-///   <first 10 lines>
-///
-/// ## Recovery Hints
-/// ### <situation>
-///   $ <cmd>
-///   See also: <url>
-/// ```
-#[allow(dead_code)]
-pub(crate) fn log_to_markdown(log: &knotra_vcs::OperationLog) -> String {
-    let result = &log.result;
-    let succeeded = result.successful_projects().len();
-    let failed = result.failed_projects().len();
-    let skipped = result.skipped_projects().len();
-
-    let status = if result.rollback_attempted {
-        if result.rollback_succeeded == Some(true) {
-            "Rolled back"
-        } else {
-            "Rollback failed"
-        }
-    } else if succeeded > 0 && failed == 0 && skipped == 0 {
-        "Success"
-    } else if failed > 0 && (succeeded > 0 || skipped > 0) {
-        "Partial"
-    } else if skipped > 0 && failed == 0 {
-        "Skipped"
-    } else {
-        "Failed"
-    };
-
-    let mut md = format!(
-        "# Operation: {}\nStarted:  {}\nFinished: {}\nStatus:   {}\n\n## Projects\n\n",
-        result.kind,
-        result.started_at.to_rfc3339(),
-        result.finished_at.to_rfc3339(),
-        status,
-    );
-
-    for pr in &result.per_project {
-        let icon = match pr.effective_outcome() {
-            ProjectOperationOutcome::Succeeded => "✓ Success",
-            ProjectOperationOutcome::Failed => "✗ Failed",
-            ProjectOperationOutcome::Skipped => "- Skipped",
-        };
-        md.push_str(&format!("### {} — {}\n", pr.project_id, icon));
-        if let Some(reason) = &pr.skip_reason {
-            md.push_str(&format!("Reason: {reason}\n"));
-        }
-
-        if !pr.commands_executed.is_empty() {
-            md.push_str("Commands:\n");
-            for cmd in &pr.commands_executed {
-                md.push_str(&format!("  $ {cmd}\n"));
-            }
-        }
-        if !pr.stdout.is_empty() {
-            let preview: String = pr
-                .stdout
-                .lines()
-                .take(20)
-                .map(|l| format!("  {l}\n"))
-                .collect();
-            md.push_str(&format!("Stdout:\n{preview}"));
-        }
-        if !pr.stderr.is_empty() {
-            let preview: String = pr
-                .stderr
-                .lines()
-                .take(10)
-                .map(|l| format!("  {l}\n"))
-                .collect();
-            md.push_str(&format!("Stderr:\n{preview}"));
-        }
-        md.push('\n');
-    }
-
-    if !log.recovery_hints.is_empty() {
-        md.push_str("## Recovery Hints\n\n");
-        for hint in &log.recovery_hints {
-            md.push_str(&format!("### {}\n", hint.situation));
-            for cmd in &hint.suggested_commands {
-                md.push_str(&format!("  $ {cmd}\n"));
-            }
-            if let Some(ref url) = hint.see_also {
-                md.push_str(&format!("  See also: {url}\n"));
-            }
-            md.push('\n');
-        }
-    }
-    md
 }
