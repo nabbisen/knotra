@@ -15,6 +15,7 @@ pub mod icon;
 mod layout;
 pub mod notice;
 pub mod overlay;
+mod record;
 pub(crate) mod ring;
 pub mod select;
 
@@ -31,6 +32,7 @@ pub use layout::{
     button, column, container, row, scrollable, text, text_input,
 };
 pub use notice::{NoticeAction, NoticeTone, notice};
+pub use record::record_row;
 /// Focus-ring tokens (RFC-033 D7). Re-exported for the same reason as
 /// `Tokens` above — RFC-036 R11 is the first consumer.
 pub use snora::design::FocusTokens;
