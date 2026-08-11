@@ -97,7 +97,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             let label = format!(
                 "{}  {}: {}",
                 icon,
-                operation_kind_label(state, &log.result.kind),
+                super::operation_kind_label(state, &log.result.kind),
                 segments.join(", "),
             );
 
@@ -155,19 +155,4 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             )
         }
     }
-}
-
-fn operation_kind_label<'a>(
-    state: &'a AppState,
-    kind: &knotra_vcs::model::operation::OperationKind,
-) -> &'a str {
-    use knotra_vcs::model::operation::OperationKind;
-    state.t(match kind {
-        OperationKind::StatusRefresh => "plain.activity.kind_refresh",
-        OperationKind::Fetch => "plain.activity.kind_fetch",
-        OperationKind::SmartPull => "plain.activity.kind_smart_pull",
-        OperationKind::ContextSwitch => "plain.activity.kind_context_switch",
-        OperationKind::Freeze => "plain.activity.kind_freeze",
-        OperationKind::FreezeRollback => "plain.activity.kind_freeze_rollback",
-    })
 }

@@ -757,6 +757,12 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("history.commands_header", "Commands");
     m.insert("history.recovery_header", "Recovery steps");
     m.insert("history.rollback_note", "Rolled back");
+    // RFC-038 Stage 4 §1b: "{n} project(s)" was hardcoded, and "(s)" reads
+    // awkwardly in English and is meaningless in Japanese (no plural forms).
+    // A "label: count" phrasing sidesteps pluralisation entirely rather
+    // than needing a singular/plural key pair — correct at every count in
+    // both languages without any count-based branching in the view.
+    m.insert("history.project_count_label", "Projects:");
     // History row status labels (RFC-038 Stage 1) — glyph-free; the glyph
     // is composed in view/history.rs, not stored here (see StatusSummary).
     m.insert("history.status_rollback_failed", "Rollback failed");
@@ -1591,6 +1597,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("history.commands_header", "コマンド");
     m.insert("history.recovery_header", "回復手順");
     m.insert("history.rollback_note", "ロールバック済み");
+    m.insert("history.project_count_label", "プロジェクト:");
     m.insert("history.status_rollback_failed", "ロールバック失敗");
     m.insert("history.status_success", "成功");
     m.insert("history.status_partial", "一部失敗");

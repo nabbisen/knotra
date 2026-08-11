@@ -218,3 +218,24 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
         snora_layer
     }
 }
+
+/// The plain-language label for an operation kind — moved here from
+/// `activity_strip.rs` (RFC-038 Stage 4 §1a) so `history.rs` can reuse the
+/// same mapping instead of writing a second `match` over the same six
+/// variants, which is exactly the parallel-systems shape RFC-034 R7 exists
+/// to prevent. `view.rs` is the shared ancestor of both submodules, so
+/// `super::operation_kind_label` resolves from either without a new module.
+pub(crate) fn operation_kind_label<'a>(
+    state: &'a AppState,
+    kind: &knotra_vcs::model::operation::OperationKind,
+) -> &'a str {
+    use knotra_vcs::model::operation::OperationKind;
+    state.t(match kind {
+        OperationKind::StatusRefresh => "plain.activity.kind_refresh",
+        OperationKind::Fetch => "plain.activity.kind_fetch",
+        OperationKind::SmartPull => "plain.activity.kind_smart_pull",
+        OperationKind::ContextSwitch => "plain.activity.kind_context_switch",
+        OperationKind::Freeze => "plain.activity.kind_freeze",
+        OperationKind::FreezeRollback => "plain.activity.kind_freeze_rollback",
+    })
+}
