@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use knotra_vcs::{FreezeResult, FreezeValidation, ProjectId};
+use knotra_vcs::{FreezeResult, FreezeValidation, ImpactWarning, ProjectId};
 
 use super::OperationLeaseId;
 
@@ -39,6 +39,18 @@ pub struct FreezerState {
     pub freeze_name: String,
     /// Optional annotation message. Empty = lightweight tag.
     pub tag_message: String,
+    /// RFC-044 D1: impact warnings for the current `ValidationReady`,
+    /// computed once at validation time from the freeze selection —
+    /// not `FreezeValidation`'s own payload (R8 forbids reshaping that;
+    /// `tests.rs` constructs it as a plain tuple in several places), and
+    /// not a whole-workspace cache on `TopologyState` (that shape is what
+    /// went stale before). Set in lockstep with `phase` entering
+    /// `ValidationReady`, cleared wherever `phase` leaves it.
+    pub impact_warnings: Vec<ImpactWarning>,
+    /// Whether topology data existed to check against for the current
+    /// `ValidationReady`. `false` is "not checked" — distinct from `true`
+    /// with `impact_warnings` empty, "checked, found nothing" (R3).
+    pub topology_checked: bool,
     /// Per-project inclusion: true = include in freeze.
     pub project_selection: std::collections::HashMap<ProjectId, bool>,
 }

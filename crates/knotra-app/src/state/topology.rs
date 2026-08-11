@@ -1,9 +1,8 @@
 //! Dependency topology screen state.
 
-use knotra_vcs::{DependencyGraph, ImpactWarning};
+use knotra_vcs::{DependencyGraph, FreezeValidation, ImpactWarning};
 
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
 pub enum TopologyPhase {
     #[default]
     Idle,
@@ -14,8 +13,6 @@ pub enum TopologyPhase {
 #[derive(Debug, Default)]
 pub struct TopologyState {
     pub phase: TopologyPhase,
-    /// Impact warnings cached for the Freezer screen (updated after each scan).
-    pub impact_warnings: Vec<ImpactWarning>,
 }
 
 impl TopologyState {
@@ -41,6 +38,26 @@ impl TopologyState {
                 })
             })
             .collect()
+    }
+
+    /// Impact warnings for the projects a `FreezeValidation` actually
+    /// includes, plus whether topology data exists to check against at all
+    /// (RFC-044 D1/D3). `false` means "not checked" — distinct from `true`
+    /// with an empty `Vec`, which means "checked, found nothing" — the
+    /// distinction R3 requires the Freezer to state.
+    pub fn warnings_for(&self, validation: &FreezeValidation) -> (Vec<ImpactWarning>, bool) {
+        match &self.phase {
+            TopologyPhase::Ready(graph) => {
+                let freezing: Vec<String> = validation
+                    .entries
+                    .iter()
+                    .filter(|e| e.included)
+                    .map(|e| e.project_name.clone())
+                    .collect();
+                (self.compute_warnings(graph, &freezing), true)
+            }
+            TopologyPhase::Idle | TopologyPhase::Scanning => (Vec::new(), false),
+        }
     }
 }
 
@@ -93,5 +110,82 @@ mod tests {
         };
         assert!(w.description().contains("core"));
         assert!(w.description().contains("frontend"));
+    }
+
+    fn validation_entry(name: &str, included: bool) -> knotra_vcs::FreezeValidationEntry {
+        knotra_vcs::FreezeValidationEntry {
+            project_id: ProjectId::new(),
+            project_name: name.to_owned(),
+            included,
+            is_clean: true,
+            tag_exists: false,
+            notes: Vec::new(),
+            blockers: Vec::new(),
+        }
+    }
+
+    fn validation(entries: Vec<knotra_vcs::FreezeValidationEntry>) -> FreezeValidation {
+        FreezeValidation {
+            freeze_name: "v1.0.0".to_owned(),
+            entries,
+        }
+    }
+
+    #[test]
+    fn warnings_for_reports_not_checked_when_topology_idle() {
+        let state = TopologyState::default();
+        let v = validation(vec![validation_entry("shared-lib", true)]);
+        let (warnings, checked) = state.warnings_for(&v);
+        assert!(!checked);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn warnings_for_reports_checked_with_no_dependents() {
+        let graph = DependencyGraph {
+            edges: vec![edge("api", "external-crate")],
+        };
+        let state = TopologyState {
+            phase: TopologyPhase::Ready(graph),
+        };
+        let v = validation(vec![validation_entry("api", true)]);
+        let (warnings, checked) = state.warnings_for(&v);
+        assert!(checked);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn warnings_for_finds_dependents_of_included_projects() {
+        let graph = DependencyGraph {
+            edges: vec![edge("api", "shared-lib"), edge("worker", "shared-lib")],
+        };
+        let state = TopologyState {
+            phase: TopologyPhase::Ready(graph),
+        };
+        let v = validation(vec![validation_entry("shared-lib", true)]);
+        let (warnings, checked) = state.warnings_for(&v);
+        assert!(checked);
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].dependent_projects.len(), 2);
+    }
+
+    #[test]
+    fn warnings_for_ignores_excluded_projects() {
+        // "shared-lib" has a real dependent, but it is not included in this
+        // freeze — D1's whole point: only the freeze selection is checked,
+        // not every workspace project.
+        let graph = DependencyGraph {
+            edges: vec![edge("api", "shared-lib")],
+        };
+        let state = TopologyState {
+            phase: TopologyPhase::Ready(graph),
+        };
+        let v = validation(vec![
+            validation_entry("shared-lib", false),
+            validation_entry("api", true),
+        ]);
+        let (warnings, checked) = state.warnings_for(&v);
+        assert!(checked);
+        assert!(warnings.is_empty());
     }
 }

@@ -60,16 +60,16 @@ mod tests {
 
     /// The exact, justified set of `#[allow(dead_code)]` occurrences this
     /// crate carries, as (file path relative to `src/`, count in that
-    /// file). Both are held back for the owner (`053` §3, `055` §5) —
-    /// `LaunchMessage::OpenInMergeTool` (a live control with no producer)
-    /// and `TopologyPhase::Ready`'s payload (a live scan whose result is
-    /// discarded) — feature and compatibility decisions, not triage
-    /// questions. Every item RFC-043's triage found was either deleted or
-    /// is one of these two; adding a new suppression means adding it here
-    /// too, with the same per-item justification this file's own doc
-    /// comment describes — not widening one of these counts to cover
-    /// something unrelated. This list's right end state is empty.
-    const EXPECTED: &[(&str, usize)] = &[("message.rs", 1), ("state/topology.rs", 1)];
+    /// file). RFC-044 gave `TopologyPhase::Ready`'s payload a real consumer
+    /// (the Freezer's impact warnings) and removed its entry here. The one
+    /// that remains is held for the owner (`053` §3) —
+    /// `LaunchMessage::OpenInMergeTool`, a live control with no producer,
+    /// a feature and compatibility decision, not a triage question. Adding
+    /// a new suppression means adding it here too, with the same per-item
+    /// justification this file's own doc comment describes — not widening
+    /// this count to cover something unrelated. This list's right end
+    /// state is empty.
+    const EXPECTED: &[(&str, usize)] = &[("message.rs", 1)];
 
     fn count_occurrences(source: &str, pattern: &str) -> usize {
         let mut count = 0;

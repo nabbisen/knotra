@@ -24,6 +24,8 @@ pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<
             state.pending_tag_push = None;
             state.freezer.execution_started_at = None;
             state.freezer.phase = FreezerPhase::Idle;
+            state.freezer.impact_warnings = Vec::new();
+            state.freezer.topology_checked = false;
             state.active_modal = crate::state::ActiveModal::Tag;
             Task::none()
         }
@@ -34,6 +36,8 @@ pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<
             // Reset to Idle when the name changes after validation.
             if matches!(state.freezer.phase, FreezerPhase::ValidationReady(_)) {
                 state.freezer.phase = FreezerPhase::Idle;
+                state.freezer.impact_warnings = Vec::new();
+                state.freezer.topology_checked = false;
             }
             Task::none()
         }
@@ -48,6 +52,8 @@ pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<
             state.active_modal = crate::state::ActiveModal::Tag;
             state.freezer.phase = FreezerPhase::Idle;
             state.freezer.execution_started_at = None;
+            state.freezer.impact_warnings = Vec::new();
+            state.freezer.topology_checked = false;
             state.pending_tag_push = None;
             // Pre-populate freeze selection
             state.freezer.project_selection = state

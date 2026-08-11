@@ -37,11 +37,9 @@ pub(super) fn topology_scanned(
     state: &mut AppState,
     graph: knotra_vcs::DependencyGraph,
 ) -> Task<Message> {
-    // Compute impact warnings for the Freezer.
-    if let Some(ws) = &state.workspace {
-        let names: Vec<String> = ws.projects.iter().map(|p| p.name.clone()).collect();
-        state.topology.impact_warnings = state.topology.compute_warnings(&graph, &names);
-    }
+    // RFC-044 D1: impact warnings are computed at freeze-validation time,
+    // from the freeze selection — not here, and not for the whole
+    // workspace. This handler only stores the graph.
     state.topology.phase = TopologyPhase::Ready(graph);
     Task::none()
 }

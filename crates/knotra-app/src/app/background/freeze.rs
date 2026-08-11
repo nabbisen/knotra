@@ -94,6 +94,12 @@ pub(super) fn freeze_validation_done(
     if !state.operation_interlock.release_if_matches(lease_id) {
         return Task::none();
     }
+    // RFC-044 D1: computed here, once, from this validation's freeze
+    // selection — not the whole workspace, and not re-derived at render
+    // time from a separately-stored map that could disagree with it.
+    let (impact_warnings, topology_checked) = state.topology.warnings_for(&validation);
+    state.freezer.impact_warnings = impact_warnings;
+    state.freezer.topology_checked = topology_checked;
     state.freezer.phase = FreezerPhase::ValidationReady(validation);
     Task::none()
 }

@@ -423,6 +423,19 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "plain.release.fix_some",
         "Fix highlighted items before saving.",
     );
+    // RFC-044 D3: absent topology data must be stated, never rendered as
+    // empty — "not checked" and "checked, found nothing" read as different
+    // sentences, not as the presence or absence of a list.
+    m.insert(
+        "plain.release.impact_unchecked",
+        "Dependency impact hasn't been checked yet.",
+    );
+    m.insert(
+        "plain.release.impact_clear",
+        "No other registered projects depend on what you're freezing.",
+    );
+    m.insert("plain.release.impact_title", "Dependency impact");
+    m.insert("plain.release.impact_depended_on_by", "Depended on by");
     m.insert("plain.release.saving", "Saving release point…");
     m.insert(
         "plain.release.saving_hint",
@@ -1226,6 +1239,16 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "plain.release.fix_some",
         "強調表示された項目を修正してから保存してください。",
     );
+    m.insert(
+        "plain.release.impact_unchecked",
+        "依存関係への影響はまだ確認されていません。",
+    );
+    m.insert(
+        "plain.release.impact_clear",
+        "この内容に依存している登録プロジェクトはありません。",
+    );
+    m.insert("plain.release.impact_title", "依存関係への影響");
+    m.insert("plain.release.impact_depended_on_by", "依存元");
     m.insert("plain.release.saving", "リリースポイントを保存中…");
     m.insert(
         "plain.release.saving_hint",

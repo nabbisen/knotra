@@ -169,6 +169,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 column![
                     text(state.t("plain.release.ready_check")).size(FONT_BODY),
                     column(val_rows).spacing(6),
+                    impact_warnings_section(state),
                 ]
                 .spacing(12)
                 .into(),
@@ -370,6 +371,54 @@ fn styled_button<'a>(
         .on_press_maybe(on_press)
         .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
         .into()
+}
+
+/// RFC-044 D2/D3: dependency impact, beside the per-project blockers above.
+/// `state.freezer.topology_checked` distinguishes "not checked" from
+/// "checked, found nothing" — both are stated explicitly, never left as an
+/// empty section a silent absence could be misread from (D3, R3).
+fn impact_warnings_section(state: &AppState) -> Element<'_, Message> {
+    if !state.freezer.topology_checked {
+        return text(state.t("plain.release.impact_unchecked"))
+            .size(FONT_SMALL)
+            .into();
+    }
+    if state.freezer.impact_warnings.is_empty() {
+        return text(state.t("plain.release.impact_clear"))
+            .size(FONT_SMALL)
+            .into();
+    }
+
+    let rows: Vec<Element<'_, Message>> = state
+        .freezer
+        .impact_warnings
+        .iter()
+        .map(|w| {
+            row![
+                text("⚠").size(FONT_BODY).width(Length::Fixed(22.0)),
+                text(&w.frozen_project_name)
+                    .size(FONT_BODY)
+                    .width(Length::FillPortion(2)),
+                text(format!(
+                    "{}: {}",
+                    state.t("plain.release.impact_depended_on_by"),
+                    w.dependent_projects.join(", ")
+                ))
+                .size(FONT_SMALL)
+                .width(Length::FillPortion(3)),
+            ]
+            .spacing(8)
+            .align_y(Alignment::Center)
+            .into()
+        })
+        .collect();
+
+    column![
+        text(state.t("plain.release.impact_title")).size(FONT_SMALL),
+        column(rows).spacing(6),
+    ]
+    .spacing(6)
+    .into()
 }
 
 /// Map a technical blocker string to a plain-language message.
