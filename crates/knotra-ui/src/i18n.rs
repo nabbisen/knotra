@@ -774,9 +774,20 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.theme_label", "Theme");
     m.insert("settings.theme_dark", "Dark");
     m.insert("settings.theme_light", "Light");
+    // RFC-038 Stage 3: trimmed from "Background refresh (seconds; 0 =
+    // manual)" — validated_field's own `unit` slot now carries "seconds"
+    // (settings.unit_seconds), so repeating it in the label would show it
+    // twice. The "0 = manual" clarification stays; it isn't redundant with
+    // anything else on screen.
     m.insert(
         "settings.refresh_interval_label",
-        "Background refresh (seconds; 0 = manual)",
+        "Background refresh (0 = manual)",
+    );
+    m.insert("settings.unit_seconds", "seconds");
+    m.insert("settings.error.invalid_number", "Enter a number.");
+    m.insert(
+        "settings.error.invalid_positive_number",
+        "Enter a number greater than 0.",
     );
     m.insert("settings.max_concurrent_label", "Max concurrent reads");
     m.insert("settings.editor_label", "External editor path");
@@ -811,9 +822,11 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "settings.fs_watch_hint",
         "When enabled, knotra watches .git/HEAD and index for changes and refreshes automatically.",
     );
+    // RFC-038 Stage 3: trimmed "(seconds)" — same reason as the refresh
+    // interval label above.
     m.insert(
         "settings.fs_watch_interval_label",
-        "Change detection interval (seconds)",
+        "Change detection interval",
     );
     // Dependency topology section (RFC-038 Stage 1 §2)
     m.insert("settings.section.topology", "Dependency Topology");
@@ -1594,7 +1607,13 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.theme_light", "ライト");
     m.insert(
         "settings.refresh_interval_label",
-        "バックグラウンド更新（秒; 0 = 手動のみ）",
+        "バックグラウンド更新（0 = 手動のみ）",
+    );
+    m.insert("settings.unit_seconds", "秒");
+    m.insert("settings.error.invalid_number", "数値を入力してください。");
+    m.insert(
+        "settings.error.invalid_positive_number",
+        "0より大きい数値を入力してください。",
     );
     m.insert("settings.max_concurrent_label", "最大同時読み込み数");
     m.insert("settings.editor_label", "外部エディタのパス");
@@ -1621,7 +1640,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "settings.fs_watch_hint",
         "有効にすると、knotra は .git/HEAD と index の変更を監視し、自動的に更新します。",
     );
-    m.insert("settings.fs_watch_interval_label", "変更検出の間隔（秒）");
+    m.insert("settings.fs_watch_interval_label", "変更検出の間隔");
     m.insert("settings.section.topology", "依存関係トポロジ");
     m.insert("settings.topology_not_scanned", "未スキャン。");
     m.insert("settings.topology_scanning", "スキャン中…");
