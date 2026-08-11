@@ -139,12 +139,24 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             };
         }
         SettingsMessage::RefreshIntervalChanged(s) => {
-            state.settings_edit.refresh_interval_secs = s.to_string();
-            state.config.refresh_interval_secs = s;
+            // 0 is a valid value here (means manual refresh only) — any
+            // parseable u32 is accepted. On invalid input, the edit buffer
+            // still shows exactly what the user typed; `config` keeps its
+            // last valid value rather than silently coercing.
+            if let Ok(n) = s.parse::<u32>() {
+                state.config.refresh_interval_secs = n;
+            }
+            state.settings_edit.refresh_interval_secs = s;
         }
-        SettingsMessage::MaxConcurrentChanged(n) => {
-            state.settings_edit.max_concurrent_reads = n.to_string();
-            state.config.max_concurrent_reads = n;
+        SettingsMessage::MaxConcurrentChanged(s) => {
+            // Must be > 0 — a concurrency limit of 0 would mean nothing
+            // could ever read, so it's rejected the same as unparseable text.
+            if let Ok(n) = s.parse::<usize>()
+                && n > 0
+            {
+                state.config.max_concurrent_reads = n;
+            }
+            state.settings_edit.max_concurrent_reads = s;
         }
         SettingsMessage::ExternalEditorChanged(s) => {
             state.settings_edit.external_editor = s.clone();
@@ -162,9 +174,15 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
                 Some(s.trim().to_owned())
             };
         }
-        SettingsMessage::MaxLogEntriesChanged(n) => {
-            state.settings_edit.max_log_entries = n.to_string();
-            state.config.max_log_entries = n;
+        SettingsMessage::MaxLogEntriesChanged(s) => {
+            // Must be > 0 — zero retained log entries isn't a meaningful
+            // setting, same reasoning as max concurrent reads above.
+            if let Ok(n) = s.parse::<usize>()
+                && n > 0
+            {
+                state.config.max_log_entries = n;
+            }
+            state.settings_edit.max_log_entries = s;
         }
         SettingsMessage::FsWatchEnabledChanged(v) => {
             state.config.fs_watch_enabled = v;
@@ -173,9 +191,12 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
                     Some(state.t("plain.activity.fs_watch_disabled").to_owned());
             }
         }
-        SettingsMessage::FsDebounceSecs(n) => {
-            state.settings_edit.fs_debounce_secs = n.to_string();
-            state.config.fs_debounce_secs = n;
+        SettingsMessage::FsDebounceSecs(s) => {
+            // Like the refresh interval, 0 is a legitimate value here.
+            if let Ok(n) = s.parse::<u32>() {
+                state.config.fs_debounce_secs = n;
+            }
+            state.settings_edit.fs_debounce_secs = s;
         }
         SettingsMessage::SaveRequested => match save_config(&state.config, &state.paths) {
             Ok(()) => {

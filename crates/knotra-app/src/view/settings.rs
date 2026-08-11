@@ -102,32 +102,21 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
     // Refresh & Performance
     // ------------------------------------------------------------------ //
 
+    // RFC-038 Stage 2 §1b: no parsing here — the raw typed text goes
+    // straight into the message; `handle_settings` (app/misc.rs) parses
+    // and validates. Parsing at this boundary was the bug (unparseable
+    // input silently became a magic default before validation could see it).
     let refresh_input: iced::widget::TextInput<'_, Message> =
         text_input("60", &edit.refresh_interval_secs)
-            .on_input(|s| {
-                let n = s.parse::<u32>().unwrap_or(0);
-                Message::Settings(SettingsMessage::RefreshIntervalChanged(n))
-            })
+            .on_input(|s| Message::Settings(SettingsMessage::RefreshIntervalChanged(s)))
             .width(80);
 
     let max_concurrent_input = text_input("8", &edit.max_concurrent_reads)
-        .on_input(|s| {
-            if let Some(n) = s.parse::<usize>().ok().filter(|&n| n > 0) {
-                Message::Settings(SettingsMessage::MaxConcurrentChanged(n))
-            } else {
-                Message::Settings(SettingsMessage::MaxConcurrentChanged(1))
-            }
-        })
+        .on_input(|s| Message::Settings(SettingsMessage::MaxConcurrentChanged(s)))
         .width(80);
 
     let max_logs_input = text_input("200", &edit.max_log_entries)
-        .on_input(|s| {
-            if let Some(n) = s.parse::<usize>().ok().filter(|&n| n > 0) {
-                Message::Settings(SettingsMessage::MaxLogEntriesChanged(n))
-            } else {
-                Message::Settings(SettingsMessage::MaxLogEntriesChanged(10))
-            }
-        })
+        .on_input(|s| Message::Settings(SettingsMessage::MaxLogEntriesChanged(s)))
         .width(80);
 
     // ------------------------------------------------------------------ //
@@ -211,10 +200,7 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         labeled_row(
             state.t("settings.fs_watch_interval_label"),
             text_input("2", &state.settings_edit.fs_debounce_secs)
-                .on_input(|s| {
-                    let n = s.parse::<u32>().unwrap_or(2);
-                    Message::Settings(SettingsMessage::FsDebounceSecs(n))
-                })
+                .on_input(|s| Message::Settings(SettingsMessage::FsDebounceSecs(s)))
                 .width(80)
                 .into(),
         ),

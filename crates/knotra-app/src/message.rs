@@ -178,13 +178,18 @@ pub enum HistoryMessage {
 pub enum SettingsMessage {
     LocaleChanged(knotra_ui::i18n::Locale),
     ThemeChanged(bool),
-    RefreshIntervalChanged(u32),
-    MaxConcurrentChanged(usize),
+    // RFC-038 Stage 2 §1b: these four carry the raw typed text, not a
+    // pre-parsed number — the view previously coerced unparseable input to
+    // a magic default (0/1/10/2) at the message boundary, which destroyed
+    // the user's input before validation could ever see it. Parsing (and
+    // deciding what counts as valid) now happens in the handler.
+    RefreshIntervalChanged(String),
+    MaxConcurrentChanged(String),
     ExternalEditorChanged(String),
     ExternalMergeToolChanged(String),
-    MaxLogEntriesChanged(usize),
+    MaxLogEntriesChanged(String),
     FsWatchEnabledChanged(bool),
-    FsDebounceSecs(u32),
+    FsDebounceSecs(String),
     SaveRequested,
     /// Navigate back to Dashboard.
     BackToDashboard,
