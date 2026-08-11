@@ -21,7 +21,7 @@ use knotra_ui::i18n::Locale;
 use knotra_ui::widget::validated_field;
 
 use crate::{
-    message::{Message, SettingsMessage, TopologyMessage},
+    message::{Message, SettingsMessage},
     state::AppState,
     view::dashboard::WidthMode,
 };
@@ -74,8 +74,6 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         view_max_logs_field(state),
         section_header(state.t("settings.section.fs_watch")),
         view_fs_watch_section(state),
-        section_header(state.t("settings.section.topology")),
-        view_topology_section(state),
         view_save_row(state),
         text(state.t("settings.restart_hint")).size(11),
     ]
@@ -321,28 +319,6 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
         view_fs_debounce_field(state),
     ]
     .spacing(12)
-    .into()
-}
-
-// ---------------------------------------------------------------------------
-// Topology section — unchanged from before Stage 3
-// ---------------------------------------------------------------------------
-
-fn view_topology_section(state: &AppState) -> Element<'_, Message> {
-    row![
-        button(text(state.t("topology.scan")).size(12))
-            .on_press(Message::Topology(TopologyMessage::ScanRequested)),
-        text(match &state.topology.phase {
-            crate::state::topology::TopologyPhase::Idle => state.t("settings.topology_not_scanned"),
-            crate::state::topology::TopologyPhase::Scanning =>
-                state.t("settings.topology_scanning"),
-            crate::state::topology::TopologyPhase::Ready(_) =>
-                state.t("settings.topology_scan_complete"),
-        })
-        .size(12),
-    ]
-    .spacing(8)
-    .align_y(Alignment::Center)
     .into()
 }
 

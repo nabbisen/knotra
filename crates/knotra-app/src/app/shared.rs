@@ -10,7 +10,10 @@ use knotra_vcs::VcsAdapter;
 
 use crate::{
     message::{BackgroundMessage, Message},
-    state::{AppState, OperationLeaseId, OperationOwner, freezer::FreezerPhase, sync::SyncPhase},
+    state::{
+        AppState, OperationLeaseId, OperationOwner, freezer::FreezerPhase, sync::SyncPhase,
+        topology::TopologyPhase,
+    },
 };
 
 pub(super) fn find_project(
@@ -47,6 +50,24 @@ pub(super) fn refresh_workspace_task(state: &AppState) -> Task<Message> {
     Task::perform(
         async move { VcsAdapter::read_workspace_status(&workspace, max).await },
         |s| Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(s)),
+    )
+}
+
+/// RFC-044 D4: dependency topology is scanned automatically, not on a
+/// manual button — called from `init` (workspace load) and every
+/// `handle_workspace` arm that changes the active project set (add/remove/
+/// undo a project, switch/create/delete a workspace). Local `Cargo.toml`
+/// reads only, no network.
+pub(super) fn scan_topology_task(state: &mut AppState) -> Task<Message> {
+    let projects: Vec<_> = state
+        .workspace
+        .as_ref()
+        .map(|ws| ws.projects.clone())
+        .unwrap_or_default();
+    state.topology.phase = TopologyPhase::Scanning;
+    Task::perform(
+        async move { VcsAdapter::scan_topology(&projects).await },
+        |graph| Message::Background(BackgroundMessage::TopologyScanned(graph)),
     )
 }
 

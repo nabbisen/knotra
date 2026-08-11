@@ -78,7 +78,10 @@ pub fn init() -> (AppState, Task<Message>) {
     state.is_refreshing = true;
     state.operation_logs = load_recent_logs(&paths, config.max_log_entries);
 
-    let task = shared::refresh_workspace_task(&state);
+    let task = Task::batch([
+        shared::refresh_workspace_task(&state),
+        shared::scan_topology_task(&mut state),
+    ]);
     (state, task)
 }
 
@@ -184,7 +187,6 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::ConflictOps(msg) => conflict_ops::handle_conflict_ops(state, msg),
         Message::Changelog(msg) => changelog::handle_changelog(state, msg),
-        Message::Topology(msg) => misc::handle_topology(state, msg),
         Message::TagPush(msg) => misc::handle_tag_push(state, msg),
         Message::FsWatchTick => handle_fs_watch_tick(state),
 

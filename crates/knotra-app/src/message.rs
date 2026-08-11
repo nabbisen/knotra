@@ -28,7 +28,6 @@ pub enum Message {
     TagPush(TagPushMessage),
     ConflictOps(ConflictOpsMessage),
     Changelog(ChangelogMessage),
-    Topology(TopologyMessage),
     Shortcut(ShortcutMessage),
     Selection(SelectionMessage),
     Activity(ActivityMessage),
@@ -295,12 +294,6 @@ pub enum ChangelogMessage {
     CopyRequested,
     CollectRequested,
     ModalClosed,
-}
-
-// --- Topology ---
-#[derive(Debug, Clone)]
-pub enum TopologyMessage {
-    ScanRequested,
 }
 
 // --- Tag push (post-freeze) ---

@@ -1,10 +1,10 @@
 //! The short handlers (RFC-040 Stage 3 commit 7): project, history, settings,
-//! external-tool launch, topology, tag push, selection, palette, and
-//! dashboard-display messages, plus the one helper used only by the last of
-//! those. Grouped by size, not by a shared domain - each function here still
-//! owns exactly one `Message` variant group end to end, same as every other
-//! `app/` module; they are simply too small individually to each warrant
-//! their own file (RFC-040 D1).
+//! external-tool launch, tag push, selection, palette, and dashboard-display
+//! messages, plus the one helper used only by the last of those. Grouped by
+//! size, not by a shared domain - each function here still owns exactly one
+//! `Message` variant group end to end, same as every other `app/` module;
+//! they are simply too small individually to each warrant their own file
+//! (RFC-040 D1).
 //!
 //! RFC-043 Handoff 054: the documented `misc -> workspace` edge (RFC-040
 //! D7, `.git-exclude/reviewed/089-...md`) existed solely for
@@ -12,6 +12,11 @@
 //! `handle_workspace`. That variant is gone with the rest of the dashboard
 //! error path (`LoadPhase::Error` had zero production constructors), so
 //! the edge and the `workspace` import it justified are gone too.
+//!
+//! RFC-044: `handle_topology` (`TopologyMessage::ScanRequested`) is gone —
+//! scanning is automatic now (`shared::scan_topology_task`), triggered from
+//! workspace load and every place the project set changes, not a message a
+//! user sends.
 
 use iced::Task;
 use knotra_vcs::{
@@ -26,9 +31,8 @@ use crate::{
     message::{
         BackgroundMessage, DashboardMessage, HistoryMessage, LaunchMessage, Message,
         PaletteMessage, ProjectMessage, SelectionMessage, SettingsMessage, TagPushMessage,
-        TopologyMessage,
     },
-    state::{AppState, OperationOwner, focus, topology::TopologyPhase},
+    state::{AppState, OperationOwner, focus},
 };
 
 pub(super) fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
@@ -220,24 +224,6 @@ pub(super) fn handle_launch(state: &mut AppState, msg: LaunchMessage) -> Task<Me
         }
     }
     Task::none()
-}
-
-pub(super) fn handle_topology(state: &mut AppState, msg: TopologyMessage) -> Task<Message> {
-    match msg {
-        TopologyMessage::ScanRequested => {
-            let projects: Vec<_> = state
-                .workspace
-                .as_ref()
-                .map(|ws| ws.projects.clone())
-                .unwrap_or_default();
-            state.topology.phase = TopologyPhase::Scanning;
-
-            Task::perform(
-                async move { VcsAdapter::scan_topology(&projects).await },
-                |graph| Message::Background(BackgroundMessage::TopologyScanned(graph)),
-            )
-        }
-    }
 }
 
 pub(super) fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {

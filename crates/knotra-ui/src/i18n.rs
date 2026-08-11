@@ -837,14 +837,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "settings.fs_watch_interval_label",
         "Change detection interval",
     );
-    // Dependency topology section (RFC-038 Stage 1 §2)
-    m.insert("settings.section.topology", "Dependency Topology");
-    m.insert("settings.topology_not_scanned", "Not scanned.");
-    m.insert("settings.topology_scanning", "Scanning…");
-    m.insert("settings.topology_scan_complete", "Scan complete.");
-    m.insert("settings.topology_scan_error", "Scan error.");
-    // Topology scan (used in legacy settings panel)
-    m.insert("topology.scan", "Scan topology");
     // External tool launch (RFC-042 D1/R1) — `tool.*` is a new namespace:
     // these call sites (app/misc.rs's handle_launch) already used this
     // prefix before this RFC, referencing keys that were simply never
@@ -1651,12 +1643,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "有効にすると、knotra は .git/HEAD と index の変更を監視し、自動的に更新します。",
     );
     m.insert("settings.fs_watch_interval_label", "変更検出の間隔");
-    m.insert("settings.section.topology", "依存関係トポロジ");
-    m.insert("settings.topology_not_scanned", "未スキャン。");
-    m.insert("settings.topology_scanning", "スキャン中…");
-    m.insert("settings.topology_scan_complete", "スキャン完了。");
-    m.insert("settings.topology_scan_error", "スキャンエラー。");
-    m.insert("topology.scan", "トポロジをスキャン");
     m.insert("tool.not_configured", "先に設定でツールを選んでください。");
     m.insert("tool.launch_failed", "起動できませんでした");
     m

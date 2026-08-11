@@ -109,7 +109,10 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             state.reconcile_selection_with_display();
             state.is_refreshing = true;
             state.load_phase = LoadPhase::Refreshing;
-            shared::refresh_workspace_task(state)
+            Task::batch([
+                shared::refresh_workspace_task(state),
+                shared::scan_topology_task(state),
+            ])
         }
         WorkspaceMessage::AddProjectCancelled => {
             state.add_project_dialog = None;
@@ -193,7 +196,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                     status_snapshot: removed_status,
                 });
             }
-            Task::none()
+            shared::scan_topology_task(state)
         }
         WorkspaceMessage::RemoveProjectCancelled => {
             state.confirm_remove_dialog = None;
@@ -212,6 +215,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                     ws_status.projects.push(snap);
                 }
                 state.reconcile_selection_with_display();
+                return shared::scan_topology_task(state);
             }
             Task::none()
         }
@@ -271,6 +275,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             state.workspace_mgr.create_dialog = None;
             Task::batch([
                 shared::refresh_workspace_task(state),
+                shared::scan_topology_task(state),
                 focus_ops::close_overlay_focus(state),
             ])
         }
@@ -422,6 +427,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             state.workspace_mgr.confirm_delete = None;
             Task::batch([
                 shared::refresh_workspace_task(state),
+                shared::scan_topology_task(state),
                 focus_ops::close_overlay_focus(state),
             ])
         }
@@ -451,7 +457,10 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 state.workspace_status = None;
                 state.load_phase = LoadPhase::Refreshing;
                 state.is_refreshing = true;
-                return shared::refresh_workspace_task(state);
+                return Task::batch([
+                    shared::refresh_workspace_task(state),
+                    shared::scan_topology_task(state),
+                ]);
             }
             Task::none()
         }
