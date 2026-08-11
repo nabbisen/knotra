@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [044](./accepted/044-release-impact-warnings.md) | Release impact warnings | Production Readiness Reset - UI/UX foundation | Medium-high |
 | [043](./accepted/043-eliminate-dead-code-suppressions.md) | Eliminate `#[allow(dead_code)]` | Production Readiness Reset - operational hygiene | High |
 | [038](./accepted/038-settings-and-history.md) | Settings and History | Production Readiness Reset - UI/UX foundation | High |
 
@@ -57,6 +56,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [044](./done/044-release-impact-warnings.md) | Release impact warnings | main: c3f044a |
 | [035](./done/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | main: f605834 |
 | [040](./done/040-app-module-decomposition.md) | `app.rs` module decomposition | main: 54e5d5d |
 | [042](./done/042-catalog-integrity.md) | Catalog integrity: missing keys render as their own names | main: f49cdec |
