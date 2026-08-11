@@ -1,15 +1,35 @@
 //! History view — searchable, expandable operation log.
+//!
+//! RFC-038 Stage 4: operation kinds now route through
+//! `super::operation_kind_label` (lifted from `activity_strip.rs` so both
+//! files share one mapping, §1a) instead of `OperationKind`'s raw English
+//! `Display`; the project count uses a "label: count" phrasing that needs
+//! no singular/plural branching in either language (§1b); the search
+//! toolbar is width-bounded, each entry's summary is a two-line hierarchy
+//! (kind/status/actions, then timestamp/count) with a chevron on the
+//! disclosure toggle, and both empty states sit near the content origin
+//! rather than centred in a 250px dead block (H4, §2); and each entry's
+//! summary/detail composition now goes through
+//! `knotra_ui::widget::record_row` (D3/R6) instead of building its own
+//! `column`/`container`, so RFC-039 can reuse the same collapsible-record
+//! shape for per-project history rather than copying it.
 
 use iced::{
     Alignment, Element, Length, Padding,
     widget::{Space, button, column, container, row, scrollable, text, text_input},
 };
+use knotra_ui::widget::{icon, record_row};
 use knotra_vcs::model::operation::{OperationLog, OperationResult, ProjectOperationOutcome};
 
 use crate::{
     message::{HistoryMessage, Message},
     state::AppState,
 };
+
+/// Matches `view/settings.rs`'s own bounded-form width (`FORM_MAX_WIDTH`) —
+/// the same "large bounded content" convention (H4's "bounded search/filter
+/// toolbar" ask), not a new number invented for this screen.
+const TOOLBAR_MAX_WIDTH: f32 = 680.0;
 
 // ---------------------------------------------------------------------------
 // Top-level
@@ -44,18 +64,20 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
 // ---------------------------------------------------------------------------
 
 fn view_toolbar(state: &AppState) -> Element<'_, Message> {
-    row![
-        text_input(state.t("history.search_hint"), &state.history_search)
-            .on_input(|s| Message::History(HistoryMessage::SearchChanged(s)))
-            .width(Length::Fill),
-    ]
-    .padding(Padding {
-        top: 0.0,
-        bottom: 8.0,
-        left: 12.0,
-        right: 12.0,
-    })
-    .into()
+    let input = text_input(state.t("history.search_hint"), &state.history_search)
+        .on_input(|s| Message::History(HistoryMessage::SearchChanged(s)))
+        .width(Length::Fill);
+
+    container(input)
+        .width(Length::Fill)
+        .max_width(TOOLBAR_MAX_WIDTH)
+        .padding(Padding {
+            top: 0.0,
+            bottom: 8.0,
+            left: 12.0,
+            right: 12.0,
+        })
+        .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -64,12 +86,7 @@ fn view_toolbar(state: &AppState) -> Element<'_, Message> {
 
 fn view_body(state: &AppState) -> Element<'_, Message> {
     if state.operation_logs.is_empty() {
-        return container(text(state.t("history.empty")).size(14))
-            .width(Length::Fill)
-            .height(250)
-            .center_x(Length::Fill)
-            .center_y(250)
-            .into();
+        return empty_state(state.t("history.empty"));
     }
 
     let q = state.history_search.to_lowercase();
@@ -78,8 +95,14 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         .operation_logs
         .iter()
         .filter(|log| {
+            // Matches against what is now on screen (the plain-language
+            // kind label, §1a) rather than `OperationKind`'s raw English
+            // `Display` — a user typing part of what they see should find
+            // it; matching the technical name they no longer see would not.
             q.is_empty()
-                || log.result.kind.to_string().to_lowercase().contains(&q)
+                || super::operation_kind_label(state, &log.result.kind)
+                    .to_lowercase()
+                    .contains(&q)
                 || log.result.per_project.iter().any(|p| {
                     p.project_id.to_string().contains(&q)
                         || p.stdout.to_lowercase().contains(&q)
@@ -90,15 +113,21 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         .collect();
 
     if entries.is_empty() {
-        return container(text(state.t("history.no_match")).size(14))
-            .width(Length::Fill)
-            .height(250)
-            .center_x(Length::Fill)
-            .center_y(250)
-            .into();
+        return empty_state(state.t("history.no_match"));
     }
 
     column(entries).spacing(6).padding(12).into()
+}
+
+/// H4: near the content origin, not vertically centred in a large reserved
+/// block. Was `container(...).height(250).center_y(250)` — the message sat
+/// 125px down inside a fixed dead area regardless of how little content
+/// surrounded it. Now top-of-content, ordinary padding, no reserved height.
+fn empty_state(message: &str) -> Element<'_, Message> {
+    container(text(message).size(14))
+        .width(Length::Fill)
+        .padding(24)
+        .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -122,20 +151,40 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     } else {
         state.t("history.expand")
     };
+    // H4: a text-only toggle read as a generic button, not a disclosure
+    // control. `chevron_right`/`chevron_down` are the same idiom already
+    // used for the dashboard's section headers and the workspace switcher
+    // (`view/dashboard/section.rs`) — right reads as "click to open", down
+    // as "already open, contents below".
+    let chevron = if expanded {
+        icon::chevron_down()
+    } else {
+        icon::chevron_right()
+    };
 
     let op_id_toggle = result.operation_id.clone();
-    let _op_id_copy = result.operation_id.clone();
 
-    let summary_row = row![
-        text(result.kind.to_string()).size(13),
-        text(format!("  {timestamp}")).size(11),
-        text(format!("  {project_count} project(s)")).size(11),
+    // H4: a fixed metadata hierarchy — kind, status, and the two actions on
+    // one primary line; timestamp and project count, both secondary, on a
+    // smaller line beneath. Was one row interleaving all five with `"  "`
+    // string-padding standing in for real spacing.
+    let primary_row = row![
+        text(super::operation_kind_label(state, &result.kind)).size(13),
         Space::new().width(Length::Fill),
         text(status_label).size(12),
-        button(text(toggle_label).size(11))
-            .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle))),
+        button(
+            row![text(toggle_label).size(11), icon::icon_element(&chevron)]
+                .spacing(4)
+                .align_y(Alignment::Center)
+        )
+        .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle))),
         button(text(state.t("history.copy_log")).size(11)).on_press({
             // Build a text representation of the log entry for clipboard.
+            // `kind` stays `OperationKind`'s raw English `Display`
+            // deliberately — this closure builds clipboard/export text,
+            // the same category as `ok`/`FAILED`/`SKIPPED` below and
+            // `log_to_markdown`, both explicitly Stage 5's to localise, not
+            // this stage's. Only the on-screen `primary_row` above changed.
             let kind = result.kind.to_string();
             let ts = result
                 .started_at
@@ -145,11 +194,6 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
             let status_text = format!("{} {}", status.glyph, state.t(status.label_key));
             let mut text_parts = vec![format!("# {} — {} — {}", kind, ts, status_text)];
             for pr in &result.per_project {
-                // `ok`/`FAILED`/`SKIPPED` stay hardcoded English — this is
-                // clipboard/export text, the same category `log_to_markdown`
-                // (below) already is, and that export path is explicitly
-                // Stage 5's, not this stage's. Only `summarise_status`'s own
-                // call site above changed, because its signature did.
                 let ok = match pr.effective_outcome() {
                     ProjectOperationOutcome::Succeeded => "ok",
                     ProjectOperationOutcome::Failed => "FAILED",
@@ -171,16 +215,28 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
             Message::CopyToClipboard(text_parts.join("\n"))
         }),
     ]
-    .spacing(6)
+    .spacing(8)
     .align_y(Alignment::Center);
 
-    let mut col = column![summary_row].spacing(4);
+    let secondary_row = row![
+        text(timestamp).size(11),
+        text(format!(
+            "{} {}",
+            state.t("history.project_count_label"),
+            project_count
+        ))
+        .size(11),
+    ]
+    .spacing(12);
 
-    if expanded {
-        col = col.push(view_log_detail(state, log));
-    }
+    let summary = column![primary_row, secondary_row].spacing(2);
+    let detail = expanded.then(|| view_log_detail(state, log));
 
-    container(col).width(Length::Fill).padding([8, 12]).into()
+    // D3/R6: the summary-always/detail-when-expanded composition this file
+    // and RFC-039's per-project rows both need — `_op_id_copy` (a second,
+    // unused clone of `operation_id`) is gone here as a natural consequence
+    // of this rewrite, not a separate cleanup.
+    record_row(summary.into(), detail)
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +259,7 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
     // needed for this part. The pre-existing "FAILED" (uppercase) vs.
     // "succeeded" (lowercase) inconsistency is also gone as a side effect of
     // routing both through the same existing key pair — not a rewording
-    // decision, since neither string's *wording* changed, only its casing
+    // decision, since neither string's wording changed, only its casing
     // normalized to match the key it now reuses.
     if result.rollback_attempted {
         let rb_text = format!(
