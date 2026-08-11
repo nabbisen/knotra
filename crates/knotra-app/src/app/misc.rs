@@ -174,7 +174,7 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             }
         }
         SettingsMessage::FsDebounceSecs(n) => {
-            state.settings_edit.refresh_interval_secs = n.to_string();
+            state.settings_edit.fs_debounce_secs = n.to_string();
             state.config.fs_debounce_secs = n;
         }
         SettingsMessage::SaveRequested => match save_config(&state.config, &state.paths) {
