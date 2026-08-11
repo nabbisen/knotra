@@ -243,19 +243,6 @@ pub enum BackgroundMessage {
         lease_id: OperationLeaseId,
         result: ContextSwitchResult,
     },
-    // RFC-043 Handoff 053 explicitly directed deleting this — it is
-    // literally RFC-043's own headline example of Unreached — despite `052`
-    // §3 naming its `tests.rs:366` construction
-    // (`dashboard_error_details_and_retry_follow_workspace_guard`). But R7
-    // forbids editing `tests.rs`, and the two cannot both hold. Restored
-    // with its original handler pending the owner's resolution of that
-    // conflict — see the Handoff 053 review request. Its downstream effect,
-    // `LoadPhase::Error`, is the same discovery noted at that variant's
-    // definition (`state.rs`).
-    #[allow(dead_code)]
-    TaskError {
-        description: String,
-    },
 }
 
 // --- Filter ---
@@ -293,8 +280,6 @@ pub enum DashboardMessage {
     GroupingChanged(crate::config::DashboardGrouping),
     SortChanged(crate::config::DashboardSort),
     TierToggled(crate::state::dashboard::DashboardTier),
-    ErrorDetailsToggled,
-    ErrorRetryRequested,
     /// RFC-035 R8/Handoff 028 Ruling 6.1: compact toolbar's chip overflow (`⋯`).
     ToolbarOverflowToggled,
     /// RFC-035 R8/Handoff 028 Ruling 6.1: compact toolbar's selector disclosure (`▾`).

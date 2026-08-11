@@ -33,7 +33,6 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
     match msg {
         WorkspaceMessage::RefreshRequested => {
             if !state.is_refreshing {
-                state.dashboard_error_details_open = false;
                 state.is_refreshing = true;
                 state.load_phase = LoadPhase::Refreshing;
                 state.status_bar = Some(state.t("status.refreshing").to_owned());
@@ -267,7 +266,6 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             state.workspace = state.all_workspaces.last().cloned();
             state.clear_selection_mode();
             state.workspace_status = None;
-            state.dashboard_error_details_open = false;
             state.load_phase = LoadPhase::Refreshing;
             state.is_refreshing = true;
             state.workspace_mgr.create_dialog = None;
@@ -413,7 +411,6 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 .cloned();
             state.clear_selection_mode();
             state.workspace_status = None;
-            state.dashboard_error_details_open = false;
             let active_ids: Vec<knotra_vcs::ProjectId> = state
                 .workspace
                 .as_ref()
@@ -452,7 +449,6 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                     .unwrap_or_default();
                 state.fs_poller.prune(&active_ids);
                 state.workspace_status = None;
-                state.dashboard_error_details_open = false;
                 state.load_phase = LoadPhase::Refreshing;
                 state.is_refreshing = true;
                 return shared::refresh_workspace_task(state);

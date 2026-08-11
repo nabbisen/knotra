@@ -118,19 +118,6 @@ pub enum LoadPhase {
     Startup,
     Refreshing,
     Ready,
-    // RFC-043 Handoff 053: `status::task_error` is this variant's only
-    // constructor, and is itself only reachable via
-    // `BackgroundMessage::TaskError` — which has zero production
-    // constructors (RFC-043's own original survey). So the dashboard's
-    // error banner and retry button (`view/dashboard/mod.rs`,
-    // `view/dashboard/empty.rs`,
-    // `DashboardMessage::ErrorDetailsToggled`/`ErrorRetryRequested`) are
-    // real, tested, and built around this variant, but nothing in
-    // production ever constructs it. Discovered mid-deletion; see the
-    // Handoff 053 review request. `dead_code` doesn't flag this on its
-    // own — reachability only requires `task_error` to be called, not
-    // `TaskError` to ever be constructed — so no `#[allow]` is needed here.
-    Error(String),
 }
 
 // ---------------------------------------------------------------------------
@@ -548,8 +535,6 @@ pub struct AppState {
     /// Whether to show technical command details in modal result views.
     /// Toggled by the "Show details" / "Hide details" button in result screens.
     pub show_op_details: bool,
-    /// Whether to disclose the raw dashboard refresh error.
-    pub dashboard_error_details_open: bool,
     /// RFC-035 R8/Handoff 028 Ruling 6.1: whether the compact toolbar's chip
     /// overflow (`⋯`) is open. Ignored outside `WidthMode::Compact` — not
     /// cleared on resize (a stale `true` behind a hidden control is
@@ -641,7 +626,6 @@ impl AppState {
             active_modal: ActiveModal::default(),
             selection_mode: false,
             show_op_details: false,
-            dashboard_error_details_open: false,
             dashboard_toolbar_overflow_open: false,
             dashboard_toolbar_selectors_open: false,
             recent_removal: None,

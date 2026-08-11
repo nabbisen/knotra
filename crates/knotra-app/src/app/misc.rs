@@ -6,13 +6,12 @@
 //! `app/` module; they are simply too small individually to each warrant
 //! their own file (RFC-040 D1).
 //!
-//! `handle_dashboard` calls `handle_workspace` directly - a documented
-//! `misc -> workspace` edge per `.git-exclude/reviewed/089-...md`'s ruling
-//! (handler modules may call another handler where the domain genuinely
-//! requires it, provided the dependency graph stays acyclic) and RFC-040
-//! D7. As of RFC-040 Stage 4 this is a real cross-handler-module import -
-//! `handle_workspace` calls nothing in this module, so the graph stays
-//! acyclic. `workspace.rs` must not import `misc.rs`.
+//! RFC-043 Handoff 054: the documented `misc -> workspace` edge (RFC-040
+//! D7, `.git-exclude/reviewed/089-...md`) existed solely for
+//! `DashboardMessage::ErrorRetryRequested`'s call into
+//! `handle_workspace`. That variant is gone with the rest of the dashboard
+//! error path (`LoadPhase::Error` had zero production constructors), so
+//! the edge and the `workspace` import it justified are gone too.
 
 use iced::Task;
 use knotra_vcs::{
@@ -20,19 +19,16 @@ use knotra_vcs::{
     model::operation::{OperationId, OperationKind, OperationLog, OperationResult},
 };
 
-// `handle_dashboard` calls `handle_workspace` directly - the documented
-// `misc -> workspace` edge (RFC-040 D7). See this module's doc comment.
 use super::focus_ops;
 use super::shared;
-use super::workspace;
 use crate::{
     config::{DashboardGrouping, save_config},
     message::{
         BackgroundMessage, DashboardMessage, HistoryMessage, LaunchMessage, Message,
         PaletteMessage, ProjectMessage, SelectionMessage, SettingsMessage, TagPushMessage,
-        TopologyMessage, WorkspaceMessage,
+        TopologyMessage,
     },
-    state::{AppState, LoadPhase, OperationOwner, focus, topology::TopologyPhase},
+    state::{AppState, OperationOwner, focus, topology::TopologyPhase},
 };
 
 pub(super) fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
@@ -401,17 +397,6 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
                 }
                 persist_dashboard_preferences(state);
                 state.reconcile_selection_with_display();
-            }
-        }
-        DashboardMessage::ErrorDetailsToggled => {
-            if matches!(state.load_phase, LoadPhase::Error(_)) {
-                state.dashboard_error_details_open = !state.dashboard_error_details_open;
-            }
-        }
-        DashboardMessage::ErrorRetryRequested => {
-            if matches!(state.load_phase, LoadPhase::Error(_)) && state.workspace.is_some() {
-                state.is_refreshing = false;
-                return workspace::handle_workspace(state, WorkspaceMessage::RefreshRequested);
             }
         }
         DashboardMessage::ToolbarOverflowToggled => {

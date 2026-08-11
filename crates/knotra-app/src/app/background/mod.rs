@@ -196,7 +196,5 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
         BackgroundMessage::ContextSwitchDone { lease_id, result } => {
             context_switch::context_switch_done(state, lease_id, result)
         }
-
-        BackgroundMessage::TaskError { description } => status::task_error(state, description),
     }
 }

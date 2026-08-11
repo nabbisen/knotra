@@ -93,14 +93,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.all_projects", "All projects");
     m.insert("dashboard.work_area_unknown", "Work area unavailable");
     m.insert("dashboard.resolve", "Choose resolution");
-    m.insert(
-        "dashboard.load_failed",
-        "Project status could not be loaded.",
-    );
-    m.insert(
-        "dashboard.no_workspace_error",
-        "There is no workspace to check.",
-    );
     m.insert("dashboard.try_again", "Try again");
     m.insert("dashboard.create_workspace", "Create workspace");
     m.insert(
@@ -888,14 +880,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.all_projects", "すべてのプロジェクト");
     m.insert("dashboard.work_area_unknown", "作業場所を確認できません");
     m.insert("dashboard.resolve", "解決方法を選ぶ");
-    m.insert(
-        "dashboard.load_failed",
-        "プロジェクトの状態を読み込めませんでした。",
-    );
-    m.insert(
-        "dashboard.no_workspace_error",
-        "確認するワークスペースがありません。",
-    );
     m.insert("dashboard.try_again", "もう一度試す");
     m.insert("dashboard.create_workspace", "ワークスペースを作成");
     m.insert(

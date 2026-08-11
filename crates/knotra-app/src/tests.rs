@@ -358,55 +358,6 @@ fn filter_changes_prune_selection_and_summary_defensively_intersects_visibility(
 }
 
 #[test]
-fn dashboard_error_details_and_retry_follow_workspace_guard() {
-    let mut no_workspace = make_state();
-    no_workspace.show_op_details = true;
-    dispatch(
-        &mut no_workspace,
-        Message::Background(BackgroundMessage::TaskError {
-            description: "adapter path detail".to_owned(),
-        }),
-    );
-    assert!(!no_workspace.dashboard_error_details_open);
-    assert_eq!(
-        no_workspace.status_bar.as_deref(),
-        Some(no_workspace.t("dashboard.load_failed"))
-    );
-    dispatch(
-        &mut no_workspace,
-        Message::Dashboard(DashboardMessage::ErrorDetailsToggled),
-    );
-    assert!(no_workspace.dashboard_error_details_open);
-    assert!(no_workspace.show_op_details);
-    dispatch(
-        &mut no_workspace,
-        Message::Dashboard(DashboardMessage::ErrorRetryRequested),
-    );
-    assert!(matches!(
-        no_workspace.load_phase,
-        crate::state::LoadPhase::Error(_)
-    ));
-    assert!(!no_workspace.is_refreshing);
-
-    let mut loaded = make_state();
-    let workspace = Workspace::new("Main");
-    install_workspaces(&mut loaded, vec![workspace], 0);
-    loaded.load_phase = crate::state::LoadPhase::Error("again".to_owned());
-    loaded.dashboard_error_details_open = true;
-    loaded.is_refreshing = true;
-    dispatch(
-        &mut loaded,
-        Message::Dashboard(DashboardMessage::ErrorRetryRequested),
-    );
-    assert!(matches!(
-        loaded.load_phase,
-        crate::state::LoadPhase::Refreshing
-    ));
-    assert!(loaded.is_refreshing);
-    assert!(!loaded.dashboard_error_details_open);
-}
-
-#[test]
 fn create_workspace_confirm_persists_and_switches() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let paths = AppPaths::under(tmp.path().to_path_buf());

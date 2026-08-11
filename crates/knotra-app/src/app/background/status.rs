@@ -14,7 +14,6 @@ pub(super) fn workspace_status_refreshed(
     state: &mut AppState,
     new_status: WorkspaceStatus,
 ) -> Task<Message> {
-    state.dashboard_error_details_open = false;
     // Detect missing-path projects.
     if let Some(ws) = &state.workspace {
         let missing: Vec<_> = ws
@@ -56,16 +55,5 @@ pub(super) fn changelog_draft_ready(
         state.changelog.active_request_id = None;
         state.changelog.phase = ChangelogPhase::Ready(draft);
     }
-    Task::none()
-}
-
-// RFC-043 Handoff 053: restored — see `BackgroundMessage::TaskError`'s
-// definition in `message.rs` for why.
-#[allow(dead_code)]
-pub(super) fn task_error(state: &mut AppState, description: String) -> Task<Message> {
-    state.load_phase = LoadPhase::Error(description.clone());
-    state.is_refreshing = false;
-    state.dashboard_error_details_open = false;
-    state.status_bar = Some(state.t("dashboard.load_failed").to_owned());
     Task::none()
 }

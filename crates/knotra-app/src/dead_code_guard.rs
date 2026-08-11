@@ -60,20 +60,22 @@ mod tests {
 
     /// The exact, justified set of `#[allow(dead_code)]` occurrences this
     /// crate carries, as (file path relative to `src/`, count in that
-    /// file). Two are the two items Handoff 053 §3 held back for the owner
-    /// (a feature and compatibility decision, not a triage question); the
-    /// rest are items Handoff 053 restored because `tests.rs` constructs
-    /// them and R7 forbids editing that file — see the Handoff 053 review
-    /// request for the full accounting of each. Adding a new suppression
-    /// means adding it here too, with the same per-item justification this
-    /// file's own doc comment describes — not widening one of these counts
-    /// to cover something unrelated.
+    /// file). One is `TopologyPhase` (Handoff 053 §3, held back for the
+    /// owner — a feature and compatibility decision, not a triage
+    /// question). The rest are items Handoff 054 could not resolve because
+    /// their `tests.rs` coverage is mixed with still-reachable behaviour
+    /// (`FreezerMessage::ProjectToggled`/`Cancelled`, `ContextMessage::Cancelled`,
+    /// `ContextPhase::Switching`'s fields, `SelectionState::len`) — see the
+    /// Handoff 054 review request for each test named and what editing it
+    /// would require. Adding a new suppression means adding it here too,
+    /// with the same per-item justification this file's own doc comment
+    /// describes — not widening one of these counts to cover something
+    /// unrelated.
     const EXPECTED: &[(&str, usize)] = &[
-        ("message.rs", 5),
+        ("message.rs", 4),
         ("state.rs", 1),
         ("state/context.rs", 2),
         ("state/topology.rs", 1),
-        ("app/background/status.rs", 1),
     ];
 
     fn count_occurrences(source: &str, pattern: &str) -> usize {

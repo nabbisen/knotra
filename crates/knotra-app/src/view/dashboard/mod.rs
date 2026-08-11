@@ -27,10 +27,7 @@ mod section;
 mod toolbar;
 mod width_mode;
 
-use empty::{
-    empty_workspace, no_matches, view_confirm_remove_dialog, view_error_notice,
-    view_without_workspace,
-};
+use empty::{empty_workspace, no_matches, view_confirm_remove_dialog, view_without_workspace};
 use row::{action_key, checkbox_key, name_key};
 use section::{focus_key, view_section};
 use toolbar::view_toolbar;
@@ -205,12 +202,6 @@ fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
                 .padding([5, 12])
                 .into(),
         ),
-        LoadPhase::Error(error) => content.push(view_error_notice(
-            state,
-            error,
-            state.t("dashboard.load_failed"),
-            true,
-        )),
         LoadPhase::Ready => {}
     }
 
