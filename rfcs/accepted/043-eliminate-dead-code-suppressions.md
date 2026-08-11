@@ -140,12 +140,40 @@ outlive its justification - which is precisely how the current 39 survived.
 Once the count is zero, keep it zero. Shape is the implementer's to propose, but the
 bar from RFC-042 R3 applies: **it must be seen to fail before it is trusted.**
 
+### D5. The verification command is `--bin knotra`, not `--all-targets`
+
+**Amended 2026-08-10, before implementation, on a finding from Handoff 052.**
+
+`--all-targets` compiles the `bin` and `test` targets separately and analyses each
+from its own entry point. The test harness never calls the app's `main()`, so from the
+test target's reachability graph `main`, `init`, `subscription`, and every screen's
+`view()` are reported dead - twelve `view` functions among them. None is dead in the
+shipped binary.
+
+| Target | Findings |
+|---|---|
+| `--all-targets` | 175 |
+| **`--bin knotra`** | **27** |
+| `--tests` | 159 |
+
+**This RFC's own Background said 176.** That figure was the `--all-targets` number and
+was inflated by the artifact; the real count is 27, and R2 as originally written was
+unsatisfiable - satisfying it would have required `#[expect(dead_code)]` on the
+application's entry point and every screen `view()`, annotating live code as dead and
+inverting the lint's purpose.
+
+R2's command is corrected accordingly, and D4's guard (R5) is built against the same
+form.
+
+The dev team found this and declined to resolve it themselves, on the grounds that it
+changes what "zero findings" means for the whole RFC. That was the right boundary.
+
 ## Requirements
 
 | # | Requirement |
 |---|---|
 | R1 | No `#[allow(dead_code)]` remains in `crates/knotra-app` |
-| R2 | `cargo clippy -p knotra --all-targets -- --force-warn dead_code` reports zero findings not covered by a D3 `#[expect]` |
+| R2 | `cargo clippy -p knotra --bin knotra -- --force-warn dead_code` reports zero findings not covered by a D3 `#[expect]`. **Amended 2026-08-10** - see D5 |
 | R3 | Every item in the Unreached bucket is reported to the architect **before** deletion |
 | R4 | Surviving suppressions use `#[expect(dead_code, reason = "…")]`, per item, never on a container |
 | R5 | A guard prevents reintroduction, proven to fail on a planted violation |
