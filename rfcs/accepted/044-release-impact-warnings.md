@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-10, project owner - handed as a task path; see `146` §3) - implementation authorised, not yet shipped |
 | Priority | Medium-high - the most knotra-specific capability in the codebase, built to the last step and never shown |
 | Effort | Small-to-medium - the data layer exists and is tested; the work is when to compute, and where to show |
 | Target | Production Readiness Reset - UI/UX foundation track |

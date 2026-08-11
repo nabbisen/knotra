@@ -31,7 +31,6 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [044](./proposed/044-release-impact-warnings.md) | Release impact warnings | Production Readiness Reset - UI/UX foundation | Medium-high |
 
 ---
 
@@ -43,6 +42,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [044](./accepted/044-release-impact-warnings.md) | Release impact warnings | Production Readiness Reset - UI/UX foundation | Medium-high |
 | [043](./accepted/043-eliminate-dead-code-suppressions.md) | Eliminate `#[allow(dead_code)]` | Production Readiness Reset - operational hygiene | High |
 | [038](./accepted/038-settings-and-history.md) | Settings and History | Production Readiness Reset - UI/UX foundation | High |
 
