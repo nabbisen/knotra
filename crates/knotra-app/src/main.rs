@@ -3,6 +3,8 @@
 mod app;
 mod atomic_write;
 mod config;
+#[cfg(test)]
+mod dead_code_guard;
 mod fs_watcher;
 mod message;
 mod persistence;
