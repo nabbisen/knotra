@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-10, project owner) - implementation authorised, not yet shipped |
 | Priority | High - the suppressions have already cost two completed RFCs real work on unreachable code, and hid it from both |
 | Effort | Medium - 39 suppressions, 176 findings, most of the work is triage rather than deletion |
 | Target | Production Readiness Reset - operational hygiene track |
