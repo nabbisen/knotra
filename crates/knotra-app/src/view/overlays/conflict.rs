@@ -34,6 +34,7 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     let git_actions_supported = conflict_actions_supported_for_project(state, project_id);
     let abort_supported = git_actions_supported && project_has_git_merge_state(state, project_id);
     let editor_configured = state.config.external_editor.is_some();
+    let merge_tool_configured = state.config.external_merge_tool.is_some();
 
     // R5: the one invariant this migration must not drop. `close_msg` is
     // `None` while `Operating` — both the header close (via `surface`'s own
@@ -141,6 +142,12 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                 editor_configured.then_some(Message::ConflictOps(
                                     ConflictOpsMessage::OpenInEditorRequested(f.path.clone()),
                                 ));
+                            let merge_tool_reason = (!merge_tool_configured)
+                                .then_some(state.t("plain.resolve.merge_tool_not_configured"));
+                            let open_merge_tool_msg =
+                                merge_tool_configured.then_some(Message::ConflictOps(
+                                    ConflictOpsMessage::OpenInMergeToolRequested(f.path.clone()),
+                                ));
 
                             let mark_control: Element<'_, Message> = if git_actions_supported {
                                 let t = tokens.clone();
@@ -181,6 +188,21 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                         state.t("plain.resolve.open_editor"),
                                         open_editor_msg,
                                         editor_reason,
+                                        false,
+                                        style::secondary,
+                                    ),
+                                    // Handoff 058: same control, same weight,
+                                    // same reasoned-disabled shape as the
+                                    // editor button beside it — an editor and
+                                    // a merge tool are different jobs, always
+                                    // shown, each with its own reason when
+                                    // unconfigured, rather than the row's
+                                    // shape depending on Settings.
+                                    reasoned(
+                                        tokens,
+                                        state.t("plain.resolve.open_merge_tool"),
+                                        open_merge_tool_msg,
+                                        merge_tool_reason,
                                         false,
                                         style::secondary,
                                     ),

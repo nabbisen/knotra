@@ -224,6 +224,25 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
                 resolved.to_string_lossy().into_owned(),
             )))
         }
+        ConflictOpsMessage::OpenInMergeToolRequested(path) => {
+            let Some(project_id) = active_conflict_project_id(state) else {
+                return Task::none();
+            };
+            let Some(project) = shared::find_project(state, &project_id) else {
+                state.status_bar = Some(state.t("plain.error.path_missing").to_owned());
+                return Task::none();
+            };
+            let resolved = match resolve_project_file_path(&project, &path) {
+                Ok(path) => path,
+                Err(key) => {
+                    state.status_bar = Some(state.t(key).to_owned());
+                    return Task::none();
+                }
+            };
+            Task::done(Message::Launch(LaunchMessage::OpenInMergeTool(
+                resolved.to_string_lossy().into_owned(),
+            )))
+        }
         ConflictOpsMessage::PanelClosed => {
             if matches!(state.conflict_ops.phase, ConflictPhase::Operating { .. }) {
                 return Task::none();

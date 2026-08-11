@@ -535,6 +535,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "Open each file, choose the final version, then mark it done.",
     );
     m.insert("plain.resolve.open_editor", "Open in editor");
+    m.insert("plain.resolve.open_merge_tool", "Open in comparison tool");
     m.insert("plain.resolve.mark_done", "Mark done");
     m.insert("plain.resolve.stop_attempt", "Stop this fix attempt");
     m.insert("plain.resolve.loading", "Checking files…");
@@ -558,6 +559,10 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert(
         "plain.resolve.editor_not_configured",
         "Choose an editor in Settings first.",
+    );
+    m.insert(
+        "plain.resolve.merge_tool_not_configured",
+        "Choose a comparison tool in Settings first.",
     );
     m.insert(
         "plain.resolve.file_outside_project",
@@ -1355,6 +1360,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "各ファイルを開いて最終バージョンを選び、完了としてマークしてください。",
     );
     m.insert("plain.resolve.open_editor", "エディタで開く");
+    m.insert("plain.resolve.open_merge_tool", "比較ツールで開く");
     m.insert("plain.resolve.mark_done", "完了としてマーク");
     m.insert("plain.resolve.stop_attempt", "この修正を中断");
     m.insert("plain.resolve.loading", "ファイルを確認中…");
@@ -1378,6 +1384,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert(
         "plain.resolve.editor_not_configured",
         "先に設定でエディタを選んでください。",
+    );
+    m.insert(
+        "plain.resolve.merge_tool_not_configured",
+        "先に設定で比較ツールを選んでください。",
     );
     m.insert(
         "plain.resolve.file_outside_project",

@@ -59,17 +59,17 @@ mod tests {
     }
 
     /// The exact, justified set of `#[allow(dead_code)]` occurrences this
-    /// crate carries, as (file path relative to `src/`, count in that
-    /// file). RFC-044 gave `TopologyPhase::Ready`'s payload a real consumer
-    /// (the Freezer's impact warnings) and removed its entry here. The one
-    /// that remains is held for the owner (`053` §3) —
-    /// `LaunchMessage::OpenInMergeTool`, a live control with no producer,
-    /// a feature and compatibility decision, not a triage question. Adding
-    /// a new suppression means adding it here too, with the same per-item
-    /// justification this file's own doc comment describes — not widening
-    /// this count to cover something unrelated. This list's right end
-    /// state is empty.
-    const EXPECTED: &[(&str, usize)] = &[("message.rs", 1)];
+    /// crate carries. Handoff 058 gave `LaunchMessage::OpenInMergeTool` a
+    /// producer (a control in the conflict resolve panel, mirroring the
+    /// existing "open in editor" one) — the last of RFC-043's two held
+    /// items, and the enum-level allow it needed is gone with it. **This
+    /// crate now carries zero `#[allow(dead_code)]` anywhere**, which is
+    /// the state this list's own comment has called its right end state
+    /// since Handoff 053. Adding a new suppression means adding it here
+    /// too, with the same per-item justification this file's own doc
+    /// comment describes — never a blanket container-level allow, and
+    /// never silently.
+    const EXPECTED: &[(&str, usize)] = &[];
 
     fn count_occurrences(source: &str, pattern: &str) -> usize {
         let mut count = 0;

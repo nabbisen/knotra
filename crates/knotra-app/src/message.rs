@@ -280,6 +280,8 @@ pub enum ConflictOpsMessage {
     AbortMergeRequested(ProjectId),
     /// RFC-0021 Phase 3: open a conflicted file in the configured external editor.
     OpenInEditorRequested(String),
+    /// Handoff 058: open a conflicted file in the configured merge tool.
+    OpenInMergeToolRequested(String),
     /// RFC-0013: close the resolve panel.
     PanelClosed,
 }
@@ -307,7 +309,6 @@ pub enum TagPushMessage {
 
 // --- External tool launch ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum LaunchMessage {
     /// Open a file path in the configured external editor.
     OpenInEditor(String),
