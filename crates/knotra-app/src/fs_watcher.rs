@@ -16,16 +16,6 @@ use std::time::Duration;
 
 use crate::{message::Message, state::AppState};
 
-/// The message emitted when a FS change is detected in one or more projects.
-///
-/// Carries the project IDs that changed so the update handler can refresh
-/// only the affected projects rather than the whole workspace.
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct FsChangeMessage {
-    pub changed_project_ids: Vec<knotra_vcs::ProjectId>,
-}
-
 /// Build the FS-watch subscription from the current app state.
 ///
 /// Returns `Subscription::none()` when FS watching is disabled in config.
