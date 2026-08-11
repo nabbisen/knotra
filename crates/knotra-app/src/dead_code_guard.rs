@@ -69,7 +69,7 @@ mod tests {
     /// file's own doc comment describes — not widening one of these counts
     /// to cover something unrelated.
     const EXPECTED: &[(&str, usize)] = &[
-        ("message.rs", 7),
+        ("message.rs", 5),
         ("state.rs", 1),
         ("state/context.rs", 2),
         ("state/topology.rs", 1),

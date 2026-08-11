@@ -1484,21 +1484,6 @@ fn palette_changelog_action_dispatches_selected_project_modal() {
 }
 
 #[test]
-fn palette_disabled_confirm_keeps_palette_open_with_reason() {
-    let mut state = make_state();
-    state.palette.open_palette();
-
-    dispatch(
-        &mut state,
-        Message::Palette(PaletteMessage::QueryChanged("get latest".to_owned())),
-    );
-    dispatch(&mut state, Message::Palette(PaletteMessage::Confirmed));
-
-    assert!(state.palette.open);
-    assert_eq!(state.palette.notice_key, Some("plain.disabled.choose_one"));
-}
-
-#[test]
 fn palette_project_row_opens_detail_panel() {
     let mut state = make_state();
     let project = make_project("svc");
@@ -2430,29 +2415,6 @@ fn freezer_execute_confirmed_enters_executing_from_ready_validation() {
 
     assert!(matches!(state.freezer.phase, FreezerPhase::Executing));
     assert!(state.freezer.execution_started_at.is_some());
-}
-
-#[test]
-fn freezer_execute_requested_does_not_loop_back_to_confirmed() {
-    let mut state = make_state();
-    let project = make_project("svc");
-    install_workspaces(
-        &mut state,
-        vec![Workspace {
-            projects: vec![project.clone()],
-            ..Workspace::new("Main")
-        }],
-        0,
-    );
-    state.freezer.phase =
-        FreezerPhase::ValidationReady(ready_freeze_validation(&project, "v1.0.0"));
-
-    dispatch(
-        &mut state,
-        Message::Freezer(FreezerMessage::ExecuteRequested),
-    );
-
-    assert!(matches!(state.freezer.phase, FreezerPhase::Executing));
 }
 
 #[test]

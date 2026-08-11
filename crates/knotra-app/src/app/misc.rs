@@ -356,10 +356,8 @@ pub(super) fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<
             state.palette.notice_key = None;
             crate::state::palette::update_results(state);
         }
-        PaletteMessage::Confirmed | PaletteMessage::EntryClicked(_) => {
-            if let PaletteMessage::EntryClicked(i) = msg {
-                state.palette.highlighted = i;
-            }
+        PaletteMessage::EntryClicked(i) => {
+            state.palette.highlighted = i;
             match crate::state::palette::dispatch_entry(state) {
                 crate::state::palette::PaletteDispatch::Dispatched(msg) => {
                     state.palette.close();

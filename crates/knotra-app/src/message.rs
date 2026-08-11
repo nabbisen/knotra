@@ -143,14 +143,6 @@ pub enum FreezerMessage {
     ValidateRequested,
     /// User confirmed execution after seeing the validation results.
     ExecuteConfirmed,
-    // RFC-043 Handoff 053: triage error — the survey correctly found this
-    // has zero production constructors (superseded by `ExecuteConfirmed`
-    // sharing its match arm), but missed that `tests.rs:2452` constructs
-    // it directly to exercise that arm. R7 forbids editing `tests.rs`, so
-    // the variant stays, restored to its original shared-arm handling.
-    // Left pending owner ruling — see the Handoff 053 review request.
-    #[allow(dead_code)]
-    ExecuteRequested,
     // RFC-043 Handoff 053: triage error — `tests.rs:3434` constructs this
     // directly (`freezer_validation_parameter_changes_release_the_lease`).
     // R7 forbids editing `tests.rs`. Restored with its original handler.
@@ -423,13 +415,6 @@ pub enum PaletteMessage {
     Opened,
     Closed,
     QueryChanged(String),
-    // RFC-043 Handoff 053 explicitly directed deleting this despite `052`
-    // §3 naming its `tests.rs:1495` construction — but R7 forbids editing
-    // `tests.rs`, and the two cannot both hold. Restored with its original
-    // handler pending the owner's resolution of that conflict — see the
-    // Handoff 053 review request.
-    #[allow(dead_code)]
-    Confirmed,
     EntryClicked(usize),
 }
 

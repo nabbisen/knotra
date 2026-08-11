@@ -42,9 +42,7 @@ pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<
             state.freezer.tag_message = s;
             Task::none()
         }
-        FreezerMessage::ExecuteConfirmed | FreezerMessage::ExecuteRequested => {
-            start_freeze_execution(state)
-        }
+        FreezerMessage::ExecuteConfirmed => start_freeze_execution(state),
         FreezerMessage::BulkOpenRequested => {
             shared::cancel_freezer_validation(state);
             state.active_modal = crate::state::ActiveModal::Tag;
