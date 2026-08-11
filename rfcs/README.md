@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [043](./proposed/043-eliminate-dead-code-suppressions.md) | Eliminate `#[allow(dead_code)]` | Production Readiness Reset - operational hygiene | High |
 
 ---
 
