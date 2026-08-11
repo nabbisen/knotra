@@ -338,8 +338,6 @@ fn view_topology_section(state: &AppState) -> Element<'_, Message> {
                 state.t("settings.topology_scanning"),
             crate::state::topology::TopologyPhase::Ready(_) =>
                 state.t("settings.topology_scan_complete"),
-            crate::state::topology::TopologyPhase::Error(_) =>
-                state.t("settings.topology_scan_error"),
         })
         .size(12),
     ]

@@ -5,22 +5,11 @@ use knotra_vcs::VcsAdapter;
 
 use crate::{
     message::{BackgroundMessage, ChangelogMessage, Message},
-    state::{AppState, Screen, changelog::ChangelogPhase},
+    state::{AppState, changelog::ChangelogPhase},
 };
 
 pub(super) fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> Task<Message> {
     match msg {
-        ChangelogMessage::OpenRequested => {
-            state.changelog.invalidate_collection();
-            if let Some(ws) = &state.workspace {
-                let ids: Vec<_> = ws.projects.iter().map(|p| p.id.clone()).collect();
-                state.changelog.init_selection(&ids);
-            }
-            state.changelog.phase = ChangelogPhase::Idle;
-            state.active_modal = crate::state::ActiveModal::Changelog;
-            Task::none()
-        }
-
         ChangelogMessage::BulkOpenRequested => {
             let selected = state.selection_summary().selected_ids;
             if selected.is_empty() {
@@ -51,21 +40,6 @@ pub(super) fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> T
                 state.changelog.phase = ChangelogPhase::Idle;
             }
             state.changelog.invalidate_collection();
-            Task::none()
-        }
-
-        ChangelogMessage::LoadTagsRequested => {
-            // Load tags from the first selected project.
-            let project = state
-                .workspace
-                .as_ref()
-                .and_then(|ws| ws.projects.first().cloned());
-            if let Some(project) = project {
-                return Task::perform(
-                    async move { VcsAdapter::list_tags(&project).await },
-                    |tags| Message::Background(BackgroundMessage::TagsLoaded(tags)),
-                );
-            }
             Task::none()
         }
 
@@ -117,11 +91,6 @@ pub(super) fn handle_changelog(state: &mut AppState, msg: ChangelogMessage) -> T
             Task::none()
         }
 
-        ChangelogMessage::BackToDashboard => {
-            state.changelog.phase = ChangelogPhase::Idle;
-            state.screen = Screen::Dashboard;
-            Task::none()
-        }
         ChangelogMessage::CollectRequested => {
             Task::done(Message::Changelog(ChangelogMessage::GenerateRequested))
         }

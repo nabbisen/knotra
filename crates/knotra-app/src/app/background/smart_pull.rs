@@ -15,7 +15,7 @@ use crate::{
     message::Message,
     state::{
         AppState, LoadPhase, OperationLeaseId, RetryExclusion,
-        sync::{ProjectOutcome, RetryPreparationId, SyncKind, SyncPhase, SyncResult},
+        sync::{ProjectOutcome, RetryPreparationId, SyncPhase, SyncResult},
     },
 };
 
@@ -152,16 +152,12 @@ pub(super) fn smart_pull_project_completed(
     let retry_outcomes: Vec<ProjectOutcome> = retry_exclusions
         .iter()
         .map(|exclusion| ProjectOutcome {
-            project_id: exclusion.project_id.clone(),
             project_name: find_project_name(state, &exclusion.project_id)
                 .unwrap_or_else(|| state.t("plain.project").to_owned()),
             outcome: ProjectOperationOutcome::Skipped,
-            success: true,
             skip_reason: Some(exclusion.reason.code().to_owned()),
             commands_executed: Vec::new(),
-            stdout: String::new(),
             stderr: String::new(),
-            log_expanded: false,
         })
         .collect();
 
@@ -186,15 +182,11 @@ pub(super) fn smart_pull_project_completed(
             let total_val = *total;
 
             let outcome = ProjectOutcome {
-                project_id: progress.project_id.clone(),
                 project_name: progress.project_name.clone(),
                 outcome: progress.result.effective_outcome(),
-                success: progress.result.success,
                 skip_reason: progress.result.skip_reason.clone(),
                 commands_executed: progress.result.commands_executed.clone(),
-                stdout: progress.result.stdout.clone(),
                 stderr: progress.result.stderr.clone(),
-                log_expanded: false,
             };
             operation_results.push(progress.result.clone());
             completed.push(outcome);
@@ -214,11 +206,7 @@ pub(super) fn smart_pull_project_completed(
                     recovery_hints: Vec::new(),
                 });
                 completed_lease = Some(lease_id);
-                state.sync.phase = SyncPhase::Done(SyncResult {
-                    kind: SyncKind::Fetch,
-                    per_project,
-                    recovery_hints: vec![],
-                });
+                state.sync.phase = SyncPhase::Done(SyncResult { per_project });
             }
         }
         SyncPhase::PullRunning {
@@ -243,15 +231,11 @@ pub(super) fn smart_pull_project_completed(
                 let mut outcomes: Vec<ProjectOutcome> = completed
                     .iter()
                     .map(|p| ProjectOutcome {
-                        project_id: p.project_id.clone(),
                         project_name: p.project_name.clone(),
                         outcome: p.result.effective_outcome(),
-                        success: p.result.success,
                         skip_reason: p.result.skip_reason.clone(),
                         commands_executed: p.result.commands_executed.clone(),
-                        stdout: p.result.stdout.clone(),
                         stderr: p.result.stderr.clone(),
-                        log_expanded: false,
                     })
                     .collect();
                 outcomes.extend(retry_outcomes);
@@ -274,13 +258,11 @@ pub(super) fn smart_pull_project_completed(
                         rollback_attempted: false,
                         rollback_succeeded: None,
                     },
-                    recovery_hints: hints.clone(),
+                    recovery_hints: hints,
                 });
 
                 state.sync.phase = SyncPhase::Done(SyncResult {
-                    kind: SyncKind::SmartPull,
                     per_project: outcomes,
-                    recovery_hints: hints,
                 });
                 state.sync.retry_exclusions.clear();
                 completed_lease = Some(lease_id);

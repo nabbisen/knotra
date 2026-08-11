@@ -24,7 +24,6 @@ pub enum Message {
     Background(BackgroundMessage),
     Filter(FilterMessage),
     /// Open an external tool (editor or merge tool).
-    #[allow(dead_code)]
     Launch(LaunchMessage),
     TagPush(TagPushMessage),
     ConflictOps(ConflictOpsMessage),
@@ -52,7 +51,6 @@ pub enum Message {
 
 // --- Workspace ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum WorkspaceMessage {
     RefreshRequested,
     WorkspaceSwitched(WorkspaceId),
@@ -93,7 +91,6 @@ pub enum WorkspaceMessage {
 
 // --- Project ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum ProjectMessage {
     StatusRefreshRequested(ProjectId),
     FetchRequested(ProjectId),
@@ -101,18 +98,13 @@ pub enum ProjectMessage {
 
 // --- Sync ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum SyncMessage {
-    OpenRequested,
-    ProjectToggled(ProjectId, bool),
     DispositionChanged(ProjectId, knotra_vcs::SmartPullDisposition),
     BulkFetchRequested,
     BulkFetchAllRequested,
     SmartPullPlanRequested,
     SmartPullConfirmed(SmartPullPlan),
-    SmartPullCancelled,
     BulkPullRequested,
-    PlanRequested,
     ExecuteRequested,
     ModalClosed,
     Cancelled,
@@ -120,23 +112,24 @@ pub enum SyncMessage {
 
 // --- Context ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum ContextMessage {
     OpenRequested(Option<ProjectId>),
-    ProjectSelected(ProjectId),
     SearchChanged(String),
     SwitchTargetChosen(ProjectId, ContextTarget, String),
     SwitchConfirmed,
     SwitchCancelled,
-    BackToDashboard,
     BulkOpenRequested,
     BulkModalClosed,
+    // RFC-043 Handoff 053: triage error — `tests.rs:3485` constructs this
+    // directly. R7 forbids editing `tests.rs`. Restored with its original
+    // handler; the Handoff 052 review's uncertainty about whether this
+    // duplicates `BulkModalClosed` stands unresolved.
+    #[allow(dead_code)]
     Cancelled,
 }
 
 // --- Freezer ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum FreezerMessage {
     /// User navigated to the Freezer screen.
     OpenRequested,
@@ -146,35 +139,40 @@ pub enum FreezerMessage {
     TagMessageChanged(String),
     BulkOpenRequested,
     BulkModalClosed,
-    /// Alias for ExecuteConfirmed — used by bulk modal Execute button.
-    ExecuteRequested,
-    /// User toggled a project's inclusion.
-    ProjectToggled(ProjectId, bool),
     /// User requested pre-execution validation.
     ValidateRequested,
     /// User confirmed execution after seeing the validation results.
     ExecuteConfirmed,
-    /// User cancelled (returns to validation or idle).
+    // RFC-043 Handoff 053: triage error — the survey correctly found this
+    // has zero production constructors (superseded by `ExecuteConfirmed`
+    // sharing its match arm), but missed that `tests.rs:2452` constructs
+    // it directly to exercise that arm. R7 forbids editing `tests.rs`, so
+    // the variant stays, restored to its original shared-arm handling.
+    // Left pending owner ruling — see the Handoff 053 review request.
+    #[allow(dead_code)]
+    ExecuteRequested,
+    // RFC-043 Handoff 053: triage error — `tests.rs:3434` constructs this
+    // directly (`freezer_validation_parameter_changes_release_the_lease`).
+    // R7 forbids editing `tests.rs`. Restored with its original handler.
+    #[allow(dead_code)]
+    ProjectToggled(ProjectId, bool),
+    // RFC-043 Handoff 053: triage error — `tests.rs:3406` constructs this
+    // directly (part of the freezer bulk-modal-close/cancel/escape group
+    // test). R7 forbids editing `tests.rs`. Restored with its original
+    // handler.
+    #[allow(dead_code)]
     Cancelled,
-    /// User wants to re-run validation after fixing issues.
-    RevalidateRequested,
-    /// Navigate back to Dashboard after completion.
-    BackToDashboard,
 }
 
 // --- History ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum HistoryMessage {
     SearchChanged(String),
-    LogCopyRequested(OperationId),
     EntryToggled(OperationId),
-    BackToDashboard,
 }
 
 // --- Settings ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum SettingsMessage {
     LocaleChanged(knotra_ui::i18n::Locale),
     ThemeChanged(bool),
@@ -191,19 +189,12 @@ pub enum SettingsMessage {
     FsWatchEnabledChanged(bool),
     FsDebounceSecs(String),
     SaveRequested,
-    /// Navigate back to Dashboard.
-    BackToDashboard,
 }
 
 // --- Background ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum BackgroundMessage {
     WorkspaceStatusRefreshed(WorkspaceStatus),
-    BulkFetchCompleted(OperationLog),
-    SmartPullCompleted(OperationLog),
-    ContextSwitchCompleted(OperationLog),
-    FreezeCompleted(OperationLog),
     SingleFetchCompleted {
         lease_id: OperationLeaseId,
         log: OperationLog,
@@ -238,8 +229,6 @@ pub enum BackgroundMessage {
         request_id: u64,
         draft: knotra_vcs::ChangelogDraft,
     },
-    /// Available tags loaded for changelog since-selector.
-    TagsLoaded(Vec<String>),
     /// Topology graph scanned.
     TopologyScanned(knotra_vcs::DependencyGraph),
     /// Tag push completed for all offered projects.
@@ -248,8 +237,6 @@ pub enum BackgroundMessage {
         success_count: usize,
         fail_count: usize,
     },
-    /// Missing repository paths detected at refresh.
-    MissingProjectsDetected(Vec<ProjectId>),
     /// Validation phase completed.
     FreezeValidationDone {
         lease_id: OperationLeaseId,
@@ -264,6 +251,16 @@ pub enum BackgroundMessage {
         lease_id: OperationLeaseId,
         result: ContextSwitchResult,
     },
+    // RFC-043 Handoff 053 explicitly directed deleting this — it is
+    // literally RFC-043's own headline example of Unreached — despite `052`
+    // §3 naming its `tests.rs:366` construction
+    // (`dashboard_error_details_and_retry_follow_workspace_guard`). But R7
+    // forbids editing `tests.rs`, and the two cannot both hold. Restored
+    // with its original handler pending the owner's resolution of that
+    // conflict — see the Handoff 053 review request. Its downstream effect,
+    // `LoadPhase::Error`, is the same discovery noted at that variant's
+    // definition (`state.rs`).
+    #[allow(dead_code)]
     TaskError {
         description: String,
     },
@@ -271,16 +268,13 @@ pub enum BackgroundMessage {
 
 // --- Filter ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum FilterMessage {
     SearchChanged(String),
-    GroupChanged(Option<String>),
     StatusFilterToggled(StatusFilter),
     AllFiltersCleared,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(dead_code)]
 pub enum StatusFilter {
     AllSet,
     Behind,
@@ -289,7 +283,6 @@ pub enum StatusFilter {
     Conflict,
     NeedsHelp,
 }
-#[allow(dead_code)]
 impl StatusFilter {
     pub fn label_key(&self) -> &'static str {
         match self {
@@ -318,60 +311,41 @@ pub enum DashboardMessage {
 
 // --- Conflict resolution ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum ConflictOpsMessage {
     OpenRequested(Option<ProjectId>),
     ProjectSelected(ProjectId),
-    RecheckRequested(ProjectId),
     MarkResolvedRequested {
         project_id: ProjectId,
         file_path: String,
     },
     AbortMergeRequested(ProjectId),
-    AbortMergeConfirmed(ProjectId),
-    BackToDashboard,
-    /// RFC-0013: mark a file resolved in the resolve panel.
-    FileMarkedResolved(String),
     /// RFC-0021 Phase 3: open a conflicted file in the configured external editor.
     OpenInEditorRequested(String),
-    /// RFC-0013: abort merge in the resolve panel.
-    AbortRequested,
     /// RFC-0013: close the resolve panel.
     PanelClosed,
 }
 
 // --- Changelog ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum ChangelogMessage {
-    OpenRequested,
     BulkOpenRequested,
     SinceRefChanged(String),
     ProjectToggled(ProjectId, bool),
-    LoadTagsRequested,
     GenerateRequested,
     CopyRequested,
-    BackToDashboard,
     CollectRequested,
     ModalClosed,
 }
 
 // --- Topology ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum TopologyMessage {
     ScanRequested,
 }
 
 // --- Tag push (post-freeze) ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum TagPushMessage {
-    /// Offer to push after successful freeze.
-    OfferShown {
-        freeze_name: String,
-        project_ids: Vec<ProjectId>,
-    },
     /// User accepted the push.
     PushConfirmed,
     /// User declined.
@@ -390,7 +364,6 @@ pub enum LaunchMessage {
 
 // --- Shortcuts ---
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum ShortcutMessage {
     Refresh,
     OpenContextOps,
@@ -423,13 +396,10 @@ pub enum ShortcutMessage {
 // RFC-0009 — Selection messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum SelectionMessage {
     Toggled(ProjectId),
-    RangeTo(ProjectId),
     SelectAll,
     Clear,
-    FocusMoved(ProjectId),
     /// Enter selection mode (show checkboxes).
     ModeEntered,
     /// Exit selection mode and clear selection.
@@ -440,24 +410,25 @@ pub enum SelectionMessage {
 // RFC-0011 — Activity strip messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum ActivityMessage {
     RetryRequested { source_operation_id: OperationId },
     DetailsRequested { operation_id: OperationId },
-    Tick,
 }
 
 // ---------------------------------------------------------------------------
 // RFC-0012 — Command palette messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum PaletteMessage {
     Opened,
     Closed,
     QueryChanged(String),
-    MoveUp,
-    MoveDown,
+    // RFC-043 Handoff 053 explicitly directed deleting this despite `052`
+    // §3 naming its `tests.rs:1495` construction — but R7 forbids editing
+    // `tests.rs`, and the two cannot both hold. Restored with its original
+    // handler pending the owner's resolution of that conflict — see the
+    // Handoff 053 review request.
+    #[allow(dead_code)]
     Confirmed,
     EntryClicked(usize),
 }
@@ -466,11 +437,8 @@ pub enum PaletteMessage {
 // RFC-0016 — Keyboard messages
 // ---------------------------------------------------------------------------
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum KeyboardMessage {
     CheatSheetToggled,
-    LeaderGPressed,
-    LeaderCancelled,
 }
 
 // ---------------------------------------------------------------------------

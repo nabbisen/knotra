@@ -85,9 +85,6 @@ pub(super) fn handle_activity(state: &mut AppState, msg: ActivityMessage) -> Tas
             state.history_expanded.insert(operation_id);
             state.screen = Screen::History;
         }
-        ActivityMessage::Tick => {
-            state.activity.completed_secs = state.activity.completed_secs.saturating_add(1);
-        }
     }
     Task::none()
 }

@@ -1,8 +1,6 @@
 //! Context Operations screen state.
 
-use knotra_vcs::{
-    ContextCandidate, ContextList, ContextSwitchResult, ContextTarget, ProjectId, VcsKind,
-};
+use knotra_vcs::{ContextCandidate, ContextList, ContextSwitchResult, ContextTarget, ProjectId};
 
 // ---------------------------------------------------------------------------
 // Phase enum
@@ -10,7 +8,6 @@ use knotra_vcs::{
 
 /// The active phase of the Context Operations workflow.
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
 pub enum ContextPhase {
     /// No project selected; waiting for the user to pick one.
     #[default]
@@ -30,14 +27,19 @@ pub enum ContextPhase {
         project_name: String,
         target: ContextTarget,
         target_label: String,
-        vcs_kind: VcsKind,
         /// True when the working tree was detected as dirty.
         is_dirty: bool,
         disabled_reason_key: Option<&'static str>,
     },
     /// Switch in progress.
     Switching {
+        // RFC-043 Handoff 053: triage error — `tests.rs:3473-3474`
+        // constructs this variant with both fields
+        // (`install_switching_context`). R7 forbids editing `tests.rs`.
+        // Restored; neither field is read outside that test.
+        #[allow(dead_code)]
         project_id: ProjectId,
+        #[allow(dead_code)]
         target: ContextTarget,
         target_label: String,
     },
@@ -58,7 +60,6 @@ pub struct ContextOpsState {
 
 impl ContextOpsState {
     /// Return filtered candidates for the currently browsed project.
-    #[allow(dead_code)]
     pub fn filtered_candidates(&self) -> Vec<&ContextCandidate> {
         if let ContextPhase::BrowsingList { list, search, .. } = &self.phase {
             let q = search.to_lowercase();

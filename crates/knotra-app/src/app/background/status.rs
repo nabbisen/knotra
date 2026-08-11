@@ -3,7 +3,7 @@
 //! detection, and task-level errors.
 
 use iced::Task;
-use knotra_vcs::{ProjectId, WorkspaceStatus};
+use knotra_vcs::WorkspaceStatus;
 
 use crate::{
     message::Message,
@@ -59,15 +59,9 @@ pub(super) fn changelog_draft_ready(
     Task::none()
 }
 
-pub(super) fn missing_projects_detected(
-    state: &mut AppState,
-    ids: Vec<ProjectId>,
-) -> Task<Message> {
-    state.missing_projects = ids.into_iter().collect();
-    state.reconcile_selection_with_display();
-    Task::none()
-}
-
+// RFC-043 Handoff 053: restored — see `BackgroundMessage::TaskError`'s
+// definition in `message.rs` for why.
+#[allow(dead_code)]
 pub(super) fn task_error(state: &mut AppState, description: String) -> Task<Message> {
     state.load_phase = LoadPhase::Error(description.clone());
     state.is_refreshing = false;

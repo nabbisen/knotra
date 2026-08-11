@@ -21,7 +21,6 @@ pub enum FreezerPhase {
     /// Validation complete — awaiting user confirmation.
     ValidationReady(FreezeValidation),
     /// Execution in progress.
-    #[allow(dead_code)]
     Executing,
     /// Execution complete — show result.
     Done(FreezeResult),
@@ -53,11 +52,6 @@ impl FreezerState {
         // Remove stale entries.
         let id_set: HashSet<_> = project_ids.iter().collect();
         self.project_selection.retain(|id, _| id_set.contains(id));
-    }
-
-    #[allow(dead_code)]
-    pub fn is_selected(&self, id: &ProjectId) -> bool {
-        *self.project_selection.get(id).unwrap_or(&true)
     }
 
     pub fn selected_ids(&self) -> HashSet<ProjectId> {
@@ -106,7 +100,7 @@ mod tests {
         state.init_selection(&ids);
         state.project_selection.insert(ids[1].clone(), false);
         assert_eq!(state.selected_ids().len(), 2);
-        assert!(!state.is_selected(&ids[1]));
+        assert_eq!(state.project_selection.get(&ids[1]), Some(&false));
     }
 
     #[test]

@@ -9,7 +9,6 @@ pub enum TopologyPhase {
     Idle,
     Scanning,
     Ready(DependencyGraph),
-    Error(String),
 }
 
 #[derive(Debug, Default)]

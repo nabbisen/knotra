@@ -32,9 +32,7 @@ use crate::{
         PaletteMessage, ProjectMessage, SelectionMessage, SettingsMessage, TagPushMessage,
         TopologyMessage, WorkspaceMessage,
     },
-    state::{
-        AppState, LoadPhase, OperationOwner, PendingTagPush, Screen, focus, topology::TopologyPhase,
-    },
+    state::{AppState, LoadPhase, OperationOwner, focus, topology::TopologyPhase},
 };
 
 pub(super) fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
@@ -109,16 +107,6 @@ pub(super) fn handle_history(state: &mut AppState, msg: HistoryMessage) -> Task<
             } else {
                 state.history_expanded.insert(id);
             }
-        }
-        HistoryMessage::LogCopyRequested(_id) => {
-            // Clipboard access is platform-dependent; Phase 7 can wire iced's clipboard API.
-            // For now we record the intent and show a status-bar note.
-            // Real clipboard write is handled by Message::CopyToClipboard.
-            // This is a fallback status note in case no text was available.
-            state.status_bar = Some(state.t("plain.activity.copy_command_sent").to_owned());
-        }
-        HistoryMessage::BackToDashboard => {
-            state.screen = Screen::Dashboard;
         }
     }
     Task::none()
@@ -207,9 +195,6 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
                 state.settings_save_msg = Some(format!("{} {e}", state.t("settings.save_error")));
             }
         },
-        SettingsMessage::BackToDashboard => {
-            state.screen = Screen::Dashboard;
-        }
     }
     Task::none()
 }
@@ -261,18 +246,6 @@ pub(super) fn handle_topology(state: &mut AppState, msg: TopologyMessage) -> Tas
 
 pub(super) fn handle_tag_push(state: &mut AppState, msg: TagPushMessage) -> Task<Message> {
     match msg {
-        TagPushMessage::OfferShown {
-            freeze_name,
-            project_ids,
-        } => {
-            state.pending_tag_push = Some(PendingTagPush {
-                freeze_name,
-                project_ids,
-                is_pushing: false,
-            });
-            Task::none()
-        }
-
         TagPushMessage::PushConfirmed => {
             let push = match &state.pending_tag_push {
                 Some(p) => p.clone(),
@@ -356,13 +329,6 @@ pub(super) fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> T
             state.selection_mode = true; // selecting anything enters mode
             state.selection.toggle(id);
         }
-        SelectionMessage::RangeTo(id) => {
-            if !ordered.contains(&id) {
-                return Task::none();
-            }
-            state.selection_mode = true;
-            state.selection.select_range(&ordered, &id);
-        }
         SelectionMessage::SelectAll => {
             state.selection_mode = true;
             let ids = state.visible_project_ids();
@@ -370,7 +336,6 @@ pub(super) fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> T
             state.selection.select_all(&ids);
         }
         SelectionMessage::Clear => state.clear_selection_mode(),
-        SelectionMessage::FocusMoved(_) => {} // focus tracking only
     }
     Task::none()
 }
@@ -390,17 +355,6 @@ pub(super) fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<
             state.palette.query = q;
             state.palette.notice_key = None;
             crate::state::palette::update_results(state);
-        }
-        PaletteMessage::MoveUp => {
-            if state.palette.highlighted > 0 {
-                state.palette.highlighted -= 1;
-            }
-        }
-        PaletteMessage::MoveDown => {
-            let max = state.palette.results.len().saturating_sub(1);
-            if state.palette.highlighted < max {
-                state.palette.highlighted += 1;
-            }
         }
         PaletteMessage::Confirmed | PaletteMessage::EntryClicked(_) => {
             if let PaletteMessage::EntryClicked(i) = msg {

@@ -3,8 +3,8 @@
 use knotra_vcs::{
     OperationId, ProjectId, WorkspaceId, WorkspaceStatus,
     model::operation::{
-        ProjectOperationOutcome, RecoveryHint, SmartPullDisposition, SmartPullPlan,
-        SmartPullPlanEntry, SmartPullProgress, SmartPullSkipReason,
+        ProjectOperationOutcome, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry,
+        SmartPullProgress, SmartPullSkipReason,
     },
 };
 
@@ -50,7 +50,7 @@ pub enum SyncPhase {
     /// Retry status collection failed for every eligible project.
     RetryPreparationFailed,
     /// Plan ready — awaiting user confirmation.
-    AwaitingConfirm(#[allow(dead_code)] SmartPullPlan),
+    AwaitingConfirm(SmartPullPlan),
     /// Smart Pull in progress — collecting streaming results.
     PullRunning {
         plan: SmartPullPlan,
@@ -64,34 +64,19 @@ pub enum SyncPhase {
 
 /// Aggregate result shown after an operation completes.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct SyncResult {
-    pub kind: SyncKind,
     pub per_project: Vec<ProjectOutcome>,
-    pub recovery_hints: Vec<RecoveryHint>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SyncKind {
-    Fetch,
-    SmartPull,
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ProjectOutcome {
-    pub project_id: ProjectId,
     pub project_name: String,
     pub outcome: ProjectOperationOutcome,
-    pub success: bool,
     pub skip_reason: Option<String>,
     pub commands_executed: Vec<String>,
-    pub stdout: String,
     pub stderr: String,
-    pub log_expanded: bool,
 }
 
-#[allow(dead_code)]
 impl SyncResult {
     pub fn success_count(&self) -> usize {
         self.per_project
@@ -110,9 +95,6 @@ impl SyncResult {
             .iter()
             .filter(|p| p.outcome == ProjectOperationOutcome::Skipped)
             .count()
-    }
-    pub fn all_succeeded(&self) -> bool {
-        self.fail_count() == 0
     }
 }
 
@@ -138,16 +120,6 @@ impl SyncCenterState {
     pub fn next_retry_preparation_id(&mut self) -> RetryPreparationId {
         self.next_retry_preparation_id = self.next_retry_preparation_id.wrapping_add(1).max(1);
         RetryPreparationId(self.next_retry_preparation_id)
-    }
-
-    /// Initialise selection from workspace projects (all included by default).
-    pub fn init_selection(&mut self, projects: &[knotra_vcs::Project]) {
-        for p in projects {
-            self.project_selection.entry(p.id.clone()).or_insert(true);
-        }
-        // Remove stale entries.
-        let ids: std::collections::HashSet<_> = projects.iter().map(|p| &p.id).collect();
-        self.project_selection.retain(|id, _| ids.contains(id));
     }
 
     pub fn set_selection(
@@ -310,7 +282,7 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(std::slice::from_ref(&p));
+        sc.project_selection.insert(p.id.clone(), true);
         let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
 
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Pull);
@@ -326,7 +298,7 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(std::slice::from_ref(&p));
+        sc.project_selection.insert(p.id.clone(), true);
         let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
 
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::FetchOnly);
@@ -342,7 +314,7 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(std::slice::from_ref(&p));
+        sc.project_selection.insert(p.id.clone(), true);
         let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
 
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Excluded);
@@ -356,7 +328,7 @@ mod tests {
     fn deselected_project_is_excluded() {
         let p = make_project("svc");
         let mut sc = SyncCenterState::default();
-        sc.init_selection(std::slice::from_ref(&p));
+        sc.project_selection.insert(p.id.clone(), true);
         sc.project_selection.insert(p.id.clone(), false);
 
         let plan = sc.build_plan(std::slice::from_ref(&p), None);
@@ -377,7 +349,7 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(std::slice::from_ref(&p));
+        sc.project_selection.insert(p.id.clone(), true);
         let plan = sc.build_plan(std::slice::from_ref(&p), Some(&ws));
 
         assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Excluded);
@@ -400,7 +372,8 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(&[p1.clone(), p2.clone()]);
+        sc.project_selection.insert(p1.id.clone(), true);
+        sc.project_selection.insert(p2.id.clone(), true);
         let plan = sc.build_plan(&[p1, p2], Some(&ws));
 
         assert_eq!(plan.pull_count(), 1);
@@ -421,7 +394,7 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(std::slice::from_ref(&p));
+        sc.project_selection.insert(p.id.clone(), true);
         sc.disposition_overrides
             .insert(p.id.clone(), SmartPullDisposition::StashAndPull);
 
@@ -447,7 +420,9 @@ mod tests {
         };
 
         let mut sc = SyncCenterState::default();
-        sc.init_selection(&[p1.clone(), p2.clone(), p3.clone()]);
+        sc.project_selection.insert(p1.id.clone(), true);
+        sc.project_selection.insert(p2.id.clone(), true);
+        sc.project_selection.insert(p3.id.clone(), true);
         let plan = sc.build_plan(&[p1, p2, p3], Some(&ws));
 
         assert_eq!(plan.pull_count(), 1);

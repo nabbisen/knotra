@@ -33,7 +33,7 @@ use crate::{
         ShortcutMessage,
     },
     persistence::{load_recent_logs, load_workspaces},
-    state::{AppState, LeaderKeyState, LoadPhase, focus},
+    state::{AppState, LoadPhase, focus},
     view::app_view,
     view::dashboard::WidthMode,
 };
@@ -414,12 +414,6 @@ fn handle_key_event(state: &mut AppState, msg: KeyboardMessage) -> Task<Message>
     match msg {
         KeyboardMessage::CheatSheetToggled => {
             state.keyboard.cheat_sheet_open = !state.keyboard.cheat_sheet_open;
-        }
-        KeyboardMessage::LeaderGPressed => {
-            state.keyboard.leader = LeaderKeyState::G;
-        }
-        KeyboardMessage::LeaderCancelled => {
-            state.keyboard.leader = LeaderKeyState::None;
         }
     }
     Task::none()

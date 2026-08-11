@@ -17,8 +17,6 @@ pub struct ChangelogState {
     /// The "since" reference (tag or commit hash) for the Changelog modal.
     pub since_ref: String,
     pub phase: ChangelogPhase,
-    /// Available tags loaded from the first registered project (used for selector).
-    pub available_tags: Vec<String>,
     /// Per-project inclusion.
     pub project_selection: std::collections::HashMap<ProjectId, bool>,
     /// Latest in-flight collection request. Used to ignore stale async results.
@@ -27,14 +25,6 @@ pub struct ChangelogState {
 }
 
 impl ChangelogState {
-    pub fn init_selection(&mut self, project_ids: &[ProjectId]) {
-        for id in project_ids {
-            self.project_selection.entry(id.clone()).or_insert(true);
-        }
-        let id_set: std::collections::HashSet<_> = project_ids.iter().collect();
-        self.project_selection.retain(|id, _| id_set.contains(id));
-    }
-
     pub fn selected_ids(&self) -> Vec<ProjectId> {
         self.project_selection
             .iter()
@@ -71,17 +61,17 @@ mod tests {
 
     #[test]
     fn not_ready_without_since_ref() {
-        let ids = vec![ProjectId::new()];
+        let id = ProjectId::new();
         let mut s = ChangelogState::default();
-        s.init_selection(&ids);
+        s.project_selection.insert(id, true);
         assert!(!s.is_ready_to_collect());
     }
 
     #[test]
     fn ready_with_since_ref_and_selection() {
-        let ids = vec![ProjectId::new()];
+        let id = ProjectId::new();
         let mut s = ChangelogState::default();
-        s.init_selection(&ids);
+        s.project_selection.insert(id, true);
         s.since_ref = "v1.0.0".to_owned();
         assert!(s.is_ready_to_collect());
     }
@@ -89,9 +79,10 @@ mod tests {
     #[test]
     fn not_ready_when_all_deselected() {
         let id = ProjectId::new();
-        let mut s = ChangelogState::default();
-        s.init_selection(std::slice::from_ref(&id));
-        s.since_ref = "v1.0.0".to_owned();
+        let mut s = ChangelogState {
+            since_ref: "v1.0.0".to_owned(),
+            ..Default::default()
+        };
         s.project_selection.insert(id, false);
         assert!(!s.is_ready_to_collect());
     }

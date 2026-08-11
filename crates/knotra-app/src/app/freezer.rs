@@ -8,7 +8,7 @@ use super::focus_ops;
 use super::shared;
 use crate::{
     message::{BackgroundMessage, FreezerMessage, Message},
-    state::{AppState, OperationOwner, Screen, focus, freezer::FreezerPhase},
+    state::{AppState, OperationOwner, focus, freezer::FreezerPhase},
 };
 
 pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
@@ -82,7 +82,7 @@ pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<
             Task::none()
         }
 
-        FreezerMessage::ValidateRequested | FreezerMessage::RevalidateRequested => {
+        FreezerMessage::ValidateRequested => {
             if !state.freezer.freeze_name_is_valid() {
                 return Task::none(); // view blocks the button; defensive guard
             }
@@ -121,17 +121,6 @@ pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<
                 return Task::none();
             }
             shared::cancel_freezer_validation(state);
-            state.freezer.execution_started_at = None;
-            state.freezer.phase = FreezerPhase::Idle;
-            Task::none()
-        }
-
-        FreezerMessage::BackToDashboard => {
-            if focus_ops::freezer_is_running(state) {
-                return Task::none();
-            }
-            shared::cancel_freezer_validation(state);
-            state.screen = Screen::Dashboard;
             state.freezer.execution_started_at = None;
             state.freezer.phase = FreezerPhase::Idle;
             Task::none()

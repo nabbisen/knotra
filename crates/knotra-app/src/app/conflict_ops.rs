@@ -14,7 +14,7 @@ use knotra_vcs::{VcsKind, model::project::Project};
 use super::shared;
 use crate::{
     message::{BackgroundMessage, ConflictOpsMessage, LaunchMessage, Message},
-    state::{AppState, OperationOwner, Screen, conflict_ops::ConflictPhase},
+    state::{AppState, OperationOwner, conflict_ops::ConflictPhase},
 };
 use iced::Task;
 use knotra_vcs::VcsAdapter;
@@ -122,19 +122,6 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
             )
         }
 
-        ConflictOpsMessage::RecheckRequested(id) => {
-            state.conflict_ops.cached.remove(&id);
-            let project = match shared::find_project(state, &id) {
-                Some(p) => p,
-                None => return Task::none(),
-            };
-            state.conflict_ops.phase = ConflictPhase::Loading(id);
-            Task::perform(
-                async move { VcsAdapter::list_conflicted_files(&project).await },
-                |d| Message::Background(BackgroundMessage::ConflictFilesLoaded(d)),
-            )
-        }
-
         ConflictOpsMessage::MarkResolvedRequested {
             project_id,
             file_path,
@@ -218,25 +205,6 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
             )
         }
 
-        ConflictOpsMessage::AbortMergeConfirmed(id) => Task::done(Message::ConflictOps(
-            ConflictOpsMessage::AbortMergeRequested(id),
-        )),
-
-        ConflictOpsMessage::BackToDashboard => {
-            state.screen = Screen::Dashboard;
-            Task::none()
-        }
-        ConflictOpsMessage::FileMarkedResolved(path) => {
-            let Some(project_id) = active_conflict_project_id(state) else {
-                return Task::none();
-            };
-            Task::done(Message::ConflictOps(
-                ConflictOpsMessage::MarkResolvedRequested {
-                    project_id,
-                    file_path: path,
-                },
-            ))
-        }
         ConflictOpsMessage::OpenInEditorRequested(path) => {
             let Some(project_id) = active_conflict_project_id(state) else {
                 return Task::none();
@@ -255,14 +223,6 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
             Task::done(Message::Launch(LaunchMessage::OpenInEditor(
                 resolved.to_string_lossy().into_owned(),
             )))
-        }
-        ConflictOpsMessage::AbortRequested => {
-            let Some(project_id) = active_conflict_project_id(state) else {
-                return Task::none();
-            };
-            Task::done(Message::ConflictOps(
-                ConflictOpsMessage::AbortMergeRequested(project_id),
-            ))
         }
         ConflictOpsMessage::PanelClosed => {
             if matches!(state.conflict_ops.phase, ConflictPhase::Operating { .. }) {

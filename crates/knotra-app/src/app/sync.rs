@@ -21,7 +21,7 @@ use crate::{
     message::{BackgroundMessage, Message, SyncMessage},
     state::{
         AppState, OperationOwner,
-        sync::{ProjectOutcome, SyncKind, SyncPhase, SyncResult},
+        sync::{ProjectOutcome, SyncPhase, SyncResult},
     },
 };
 
@@ -37,20 +37,6 @@ fn smart_pull_skip_reason_text(reason: &SmartPullSkipReason) -> &'static str {
 
 pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Message> {
     match msg {
-        SyncMessage::OpenRequested => {
-            shared::clear_sync_retry_context(state);
-            if let Some(ws) = &state.workspace {
-                state.sync.init_selection(&ws.projects);
-            }
-            state.active_modal = crate::state::ActiveModal::Pull;
-            Task::none()
-        }
-
-        SyncMessage::ProjectToggled(id, included) => {
-            state.sync.project_selection.insert(id, included);
-            Task::none()
-        }
-
         SyncMessage::DispositionChanged(id, disposition) => {
             state
                 .sync
@@ -65,15 +51,6 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
             Task::none()
         }
 
-        SyncMessage::PlanRequested => {
-            if state.sync.retry_preparation.is_none() {
-                state.sync.retry_exclusions.clear();
-            }
-            // Open the pull modal and start planning.
-            state.active_modal = crate::state::ActiveModal::Pull;
-            state.sync.phase = SyncPhase::Planning;
-            Task::done(Message::Sync(SyncMessage::SmartPullPlanRequested))
-        }
         SyncMessage::ExecuteRequested => {
             if let SyncPhase::AwaitingConfirm(plan) = &state.sync.phase {
                 Task::done(Message::Sync(SyncMessage::SmartPullConfirmed(plan.clone())))
@@ -264,12 +241,6 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
             })
         }
 
-        SyncMessage::SmartPullCancelled => {
-            shared::clear_sync_retry_context(state);
-            state.sync.phase = SyncPhase::Idle;
-            Task::none()
-        }
-
         SyncMessage::ModalClosed => {
             if !focus_ops::smart_pull_is_running(state) {
                 shared::clear_sync_retry_context(state);
@@ -344,15 +315,11 @@ fn start_bulk_fetch(
             };
             skipped_results.push(result.clone());
             skipped.push(ProjectOutcome {
-                project_id: id,
                 project_name,
                 outcome: result.effective_outcome(),
-                success: result.success,
                 skip_reason: result.skip_reason,
                 commands_executed: result.commands_executed,
-                stdout: result.stdout,
                 stderr: result.stderr,
-                log_expanded: false,
             });
         }
     }
@@ -363,9 +330,7 @@ fn start_bulk_fetch(
     let done = skipped.len();
     if projects.is_empty() {
         state.sync.phase = SyncPhase::Done(SyncResult {
-            kind: SyncKind::Fetch,
             per_project: skipped,
-            recovery_hints: Vec::new(),
         });
         return Task::none();
     }

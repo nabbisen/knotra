@@ -158,24 +158,11 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
             fetch::single_fetch_completed(state, lease_id, log)
         }
 
-        BackgroundMessage::BulkFetchCompleted(log) => fetch::bulk_fetch_completed(state, log),
-
-        BackgroundMessage::SmartPullCompleted(log)
-        | BackgroundMessage::ContextSwitchCompleted(log)
-        | BackgroundMessage::FreezeCompleted(log) => {
-            persist_log(&log, state);
-            Task::none()
-        }
-
         BackgroundMessage::TagPushCompleted {
             lease_id,
             success_count,
             fail_count,
         } => freeze::tag_push_completed(state, lease_id, success_count, fail_count),
-
-        BackgroundMessage::MissingProjectsDetected(ids) => {
-            status::missing_projects_detected(state, ids)
-        }
 
         BackgroundMessage::ConflictFilesLoaded(detail) => {
             conflict::conflict_files_loaded(state, detail)
@@ -190,8 +177,6 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
         BackgroundMessage::ChangelogDraftReady { request_id, draft } => {
             status::changelog_draft_ready(state, request_id, draft)
         }
-
-        BackgroundMessage::TagsLoaded(tags) => freeze::tags_loaded(state, tags),
 
         BackgroundMessage::TopologyScanned(graph) => status::topology_scanned(state, graph),
 

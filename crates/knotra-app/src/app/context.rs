@@ -13,7 +13,7 @@ use knotra_vcs::{
 use super::shared;
 use crate::{
     message::{BackgroundMessage, ContextMessage, Message},
-    state::{AppState, OperationOwner, Screen, context::ContextPhase},
+    state::{AppState, OperationOwner, context::ContextPhase},
 };
 
 fn context_switch_disabled_reason(
@@ -64,29 +64,6 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
             Task::none()
         }
 
-        ContextMessage::ProjectSelected(id) => {
-            let project = match shared::find_project(state, &id) {
-                Some(p) => p,
-                None => return Task::none(),
-            };
-
-            // Use cached list if present, otherwise fetch.
-            if let Some(cached) = state.context_ops.cached_lists.get(&id).cloned() {
-                state.context_ops.phase = ContextPhase::BrowsingList {
-                    project_id: id,
-                    list: cached,
-                    search: String::new(),
-                };
-                return Task::none();
-            }
-
-            state.context_ops.phase = ContextPhase::LoadingList(id.clone());
-            Task::perform(
-                async move { VcsAdapter::list_contexts(&project).await },
-                |list| Message::Background(BackgroundMessage::ContextListLoaded(list)),
-            )
-        }
-
         ContextMessage::SearchChanged(s) => {
             if let ContextPhase::BrowsingList { search, .. } = &mut state.context_ops.phase {
                 *search = s;
@@ -103,9 +80,6 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
                 .workspace_status
                 .as_ref()
                 .and_then(|ws| ws.projects.iter().find(|s| s.project_id == project_id));
-            let vcs_kind = status
-                .map(|s| s.identity.vcs_kind)
-                .unwrap_or(knotra_vcs::VcsKind::Git);
 
             let is_dirty = status.map(|s| s.working_tree.is_dirty()).unwrap_or(false);
             let disabled_reason_key = context_switch_disabled_reason(status);
@@ -115,7 +89,6 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
                 project_name: project.name.clone(),
                 target,
                 target_label,
-                vcs_kind,
                 is_dirty,
                 disabled_reason_key,
             };
@@ -215,10 +188,6 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
             Task::none()
         }
 
-        ContextMessage::BackToDashboard => {
-            state.screen = Screen::Dashboard;
-            Task::none()
-        }
         ContextMessage::BulkOpenRequested => {
             let selected = state.selection_summary().selected_ids;
             let Some(project_id) = selected.first().cloned().filter(|_| selected.len() == 1) else {

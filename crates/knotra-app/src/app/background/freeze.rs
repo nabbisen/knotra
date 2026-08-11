@@ -78,11 +78,6 @@ pub(super) fn tag_push_completed(
     Task::none()
 }
 
-pub(super) fn tags_loaded(state: &mut AppState, tags: Vec<String>) -> Task<Message> {
-    state.changelog.available_tags = tags;
-    Task::none()
-}
-
 pub(super) fn freeze_validation_done(
     state: &mut AppState,
     lease_id: OperationLeaseId,

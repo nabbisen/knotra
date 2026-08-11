@@ -118,6 +118,18 @@ pub enum LoadPhase {
     Startup,
     Refreshing,
     Ready,
+    // RFC-043 Handoff 053: `status::task_error` is this variant's only
+    // constructor, and is itself only reachable via
+    // `BackgroundMessage::TaskError` — which has zero production
+    // constructors (RFC-043's own original survey). So the dashboard's
+    // error banner and retry button (`view/dashboard/mod.rs`,
+    // `view/dashboard/empty.rs`,
+    // `DashboardMessage::ErrorDetailsToggled`/`ErrorRetryRequested`) are
+    // real, tested, and built around this variant, but nothing in
+    // production ever constructs it. Discovered mid-deletion; see the
+    // Handoff 053 review request. `dead_code` doesn't flag this on its
+    // own — reachability only requires `task_error` to be called, not
+    // `TaskError` to ever be constructed — so no `#[allow]` is needed here.
     Error(String),
 }
 
@@ -190,28 +202,14 @@ impl SelectionState {
         }
     }
 
-    pub fn select_range(&mut self, ordered: &[knotra_vcs::ProjectId], to: &knotra_vcs::ProjectId) {
-        if let Some(anchor) = &self.anchor_id.clone() {
-            let ai = ordered.iter().position(|x| x == anchor).unwrap_or(0);
-            let bi = ordered.iter().position(|x| x == to).unwrap_or(0);
-            let (lo, hi) = if ai <= bi { (ai, bi) } else { (bi, ai) };
-            for id in &ordered[lo..=hi] {
-                self.selected_ids.insert(id.clone());
-            }
-        } else {
-            self.selected_ids.insert(to.clone());
-            self.anchor_id = Some(to.clone());
-        }
-    }
-
     pub fn clear(&mut self) {
         self.selected_ids.clear();
         self.anchor_id = None;
     }
-    #[allow(dead_code)]
-    pub fn is_empty(&self) -> bool {
-        self.selected_ids.is_empty()
-    }
+    // RFC-043 Handoff 053: triage error — `tests.rs` calls this five times
+    // (e.g. `state.selection.len()` at :1647) to assert selection state
+    // after dispatch. R7 forbids editing `tests.rs`. Restored; production
+    // callers still access `selected_ids` directly.
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.selected_ids.len()
@@ -450,9 +448,7 @@ pub struct DetailPanelState {
 // RFC-0013 — Active modal discriminant
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(dead_code)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ActiveModal {
     #[default]
     None,
@@ -463,25 +459,10 @@ pub enum ActiveModal {
     Changelog,
 }
 
-// ---------------------------------------------------------------------------
-// RFC-0016 — Keyboard leader-key state
-// ---------------------------------------------------------------------------
-
-/// Pending first key of a two-key sequence (e.g. `g` before `h` / `s`).
-#[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum LeaderKeyState {
-    #[default]
-    None,
-    /// `g` was pressed; waiting for the second key.
-    G,
-}
-
 /// Whether the keyboard cheat-sheet overlay is open.
 #[derive(Debug, Clone, Default)]
 pub struct KeyboardState {
     pub cheat_sheet_open: bool,
-    pub leader: LeaderKeyState,
 }
 
 // ---------------------------------------------------------------------------
@@ -679,7 +660,6 @@ impl AppState {
     pub fn apply_filter(&mut self, msg: FilterMessage) {
         match msg {
             FilterMessage::SearchChanged(s) => self.filter.search_text = s,
-            FilterMessage::GroupChanged(g) => self.filter.active_group = g,
             FilterMessage::StatusFilterToggled(sf) => {
                 if let Some(pos) = self.filter.status_filters.iter().position(|f| f == &sf) {
                     self.filter.status_filters.remove(pos);
@@ -754,21 +734,6 @@ impl AppState {
     pub fn clear_selection_mode(&mut self) {
         self.selection.clear();
         self.selection_mode = false;
-    }
-
-    #[allow(dead_code)]
-    pub fn all_groups(&self) -> Vec<String> {
-        self.workspace
-            .as_ref()
-            .map(|ws| {
-                ws.projects
-                    .iter()
-                    .filter_map(|p| p.group.clone())
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .into_iter()
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 }
 
