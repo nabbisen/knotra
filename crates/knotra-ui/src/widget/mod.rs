@@ -23,7 +23,7 @@ pub use buttons::{
     primary_maybe, reasoned, secondary, secondary_maybe, style,
 };
 pub use checkbox::checkbox;
-pub use field::{guided_field, guided_field_focused};
+pub use field::{guided_field, guided_field_focused, validated_field};
 pub use focus::{clear_input_focus, focus_id, focus_input};
 pub use layout::{
     Alignment, BUTTON_HEIGHT, CARD_GAP, CARD_MIN_WIDTH, CARD_PADDING, CARD_RADIUS, Color, Column,
