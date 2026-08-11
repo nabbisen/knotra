@@ -128,8 +128,6 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
             };
 
             state.context_ops.phase = ContextPhase::Switching {
-                project_id: project_id.clone(),
-                target: target.clone(),
                 target_label: target_label.clone(),
             };
             // Invalidate cached list for this project.
@@ -204,13 +202,6 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
             )
         }
         ContextMessage::BulkModalClosed => {
-            if matches!(state.context_ops.phase, ContextPhase::Switching { .. }) {
-                return Task::none();
-            }
-            state.active_modal = crate::state::ActiveModal::None;
-            Task::none()
-        }
-        ContextMessage::Cancelled => {
             if matches!(state.context_ops.phase, ContextPhase::Switching { .. }) {
                 return Task::none();
             }

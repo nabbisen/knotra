@@ -193,14 +193,6 @@ impl SelectionState {
         self.selected_ids.clear();
         self.anchor_id = None;
     }
-    // RFC-043 Handoff 053: triage error — `tests.rs` calls this five times
-    // (e.g. `state.selection.len()` at :1647) to assert selection state
-    // after dispatch. R7 forbids editing `tests.rs`. Restored; production
-    // callers still access `selected_ids` directly.
-    #[allow(dead_code)]
-    pub fn len(&self) -> usize {
-        self.selected_ids.len()
-    }
     pub fn contains(&self, id: &knotra_vcs::ProjectId) -> bool {
         self.selected_ids.contains(id)
     }

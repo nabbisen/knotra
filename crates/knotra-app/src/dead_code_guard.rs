@@ -60,23 +60,16 @@ mod tests {
 
     /// The exact, justified set of `#[allow(dead_code)]` occurrences this
     /// crate carries, as (file path relative to `src/`, count in that
-    /// file). One is `TopologyPhase` (Handoff 053 §3, held back for the
-    /// owner — a feature and compatibility decision, not a triage
-    /// question). The rest are items Handoff 054 could not resolve because
-    /// their `tests.rs` coverage is mixed with still-reachable behaviour
-    /// (`FreezerMessage::ProjectToggled`/`Cancelled`, `ContextMessage::Cancelled`,
-    /// `ContextPhase::Switching`'s fields, `SelectionState::len`) — see the
-    /// Handoff 054 review request for each test named and what editing it
-    /// would require. Adding a new suppression means adding it here too,
-    /// with the same per-item justification this file's own doc comment
-    /// describes — not widening one of these counts to cover something
-    /// unrelated.
-    const EXPECTED: &[(&str, usize)] = &[
-        ("message.rs", 4),
-        ("state.rs", 1),
-        ("state/context.rs", 2),
-        ("state/topology.rs", 1),
-    ];
+    /// file). Both are held back for the owner (`053` §3, `055` §5) —
+    /// `LaunchMessage::OpenInMergeTool` (a live control with no producer)
+    /// and `TopologyPhase::Ready`'s payload (a live scan whose result is
+    /// discarded) — feature and compatibility decisions, not triage
+    /// questions. Every item RFC-043's triage found was either deleted or
+    /// is one of these two; adding a new suppression means adding it here
+    /// too, with the same per-item justification this file's own doc
+    /// comment describes — not widening one of these counts to cover
+    /// something unrelated. This list's right end state is empty.
+    const EXPECTED: &[(&str, usize)] = &[("message.rs", 1), ("state/topology.rs", 1)];
 
     fn count_occurrences(source: &str, pattern: &str) -> usize {
         let mut count = 0;

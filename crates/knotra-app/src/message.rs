@@ -120,12 +120,6 @@ pub enum ContextMessage {
     SwitchCancelled,
     BulkOpenRequested,
     BulkModalClosed,
-    // RFC-043 Handoff 053: triage error — `tests.rs:3485` constructs this
-    // directly. R7 forbids editing `tests.rs`. Restored with its original
-    // handler; the Handoff 052 review's uncertainty about whether this
-    // duplicates `BulkModalClosed` stands unresolved.
-    #[allow(dead_code)]
-    Cancelled,
 }
 
 // --- Freezer ---
@@ -143,17 +137,6 @@ pub enum FreezerMessage {
     ValidateRequested,
     /// User confirmed execution after seeing the validation results.
     ExecuteConfirmed,
-    // RFC-043 Handoff 053: triage error — `tests.rs:3434` constructs this
-    // directly (`freezer_validation_parameter_changes_release_the_lease`).
-    // R7 forbids editing `tests.rs`. Restored with its original handler.
-    #[allow(dead_code)]
-    ProjectToggled(ProjectId, bool),
-    // RFC-043 Handoff 053: triage error — `tests.rs:3406` constructs this
-    // directly (part of the freezer bulk-modal-close/cancel/escape group
-    // test). R7 forbids editing `tests.rs`. Restored with its original
-    // handler.
-    #[allow(dead_code)]
-    Cancelled,
 }
 
 // --- History ---

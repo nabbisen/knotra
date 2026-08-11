@@ -1580,7 +1580,7 @@ fn selection_mode_enter_shows_empty_selection_state() {
     );
 
     assert!(state.selection_mode);
-    assert_eq!(state.selection.len(), 0);
+    assert_eq!(state.selection.selected_ids.len(), 0);
     assert!(state.selection.anchor_id.is_none());
     assert_eq!(state.selection_summary().selected_count, 0);
 }
@@ -1618,7 +1618,7 @@ fn selection_last_deselect_keeps_empty_mode_and_clears_anchor() {
     );
 
     assert!(state.selection_mode);
-    assert_eq!(state.selection.len(), 0);
+    assert_eq!(state.selection.selected_ids.len(), 0);
     assert!(state.selection.anchor_id.is_none());
 }
 
@@ -1642,7 +1642,7 @@ fn selection_toggle_rejects_project_outside_active_workspace() {
     );
 
     assert!(!state.selection_mode);
-    assert_eq!(state.selection.len(), 0);
+    assert_eq!(state.selection.selected_ids.len(), 0);
 }
 
 #[test]
@@ -1687,7 +1687,7 @@ fn workspace_switch_clears_selection_mode() {
     );
 
     assert!(!state.selection_mode);
-    assert_eq!(state.selection.len(), 0);
+    assert_eq!(state.selection.selected_ids.len(), 0);
 }
 
 #[test]
@@ -1712,7 +1712,7 @@ fn project_removal_prunes_selection_and_exits_empty_mode() {
     );
 
     assert!(!state.selection_mode);
-    assert_eq!(state.selection.len(), 0);
+    assert_eq!(state.selection.selected_ids.len(), 0);
     assert!(state.selection.anchor_id.is_none());
 }
 
@@ -3314,12 +3314,6 @@ fn freezer_validation_close_cancel_and_escape_release_the_lease() {
     assert_eq!(closed.active_modal, ActiveModal::None);
     assert!(matches!(closed.freezer.phase, FreezerPhase::Idle));
 
-    let mut cancelled = make_state();
-    install_validating_freezer(&mut cancelled);
-    dispatch(&mut cancelled, Message::Freezer(FreezerMessage::Cancelled));
-    assert!(!cancelled.operation_interlock.is_busy());
-    assert!(matches!(cancelled.freezer.phase, FreezerPhase::Idle));
-
     let mut escaped = make_state();
     install_validating_freezer(&mut escaped);
     dispatch(&mut escaped, Message::Shortcut(ShortcutMessage::Close));
@@ -3338,20 +3332,6 @@ fn freezer_validation_parameter_changes_release_the_lease() {
     );
     assert!(!renamed.operation_interlock.is_busy());
     assert!(matches!(renamed.freezer.phase, FreezerPhase::Idle));
-
-    let mut toggled = make_state();
-    let project_id = ProjectId::new();
-    install_validating_freezer(&mut toggled);
-    dispatch(
-        &mut toggled,
-        Message::Freezer(FreezerMessage::ProjectToggled(project_id.clone(), false)),
-    );
-    assert!(!toggled.operation_interlock.is_busy());
-    assert!(matches!(toggled.freezer.phase, FreezerPhase::Idle));
-    assert_eq!(
-        toggled.freezer.project_selection.get(&project_id),
-        Some(&false)
-    );
 }
 
 #[test]
@@ -3383,10 +3363,6 @@ fn install_switching_context(state: &mut AppState) {
         .expect("acquire context lease");
     state.active_modal = ActiveModal::Switch;
     state.context_ops.phase = ContextPhase::Switching {
-        project_id: ProjectId::new(),
-        target: ContextTarget::GitLocalBranch {
-            name: "feature/foo".to_owned(),
-        },
         target_label: "feature/foo".to_owned(),
     };
 }
@@ -3395,7 +3371,6 @@ fn install_switching_context(state: &mut AppState) {
 fn context_switch_close_cancel_and_escape_keep_progress_visible() {
     for message in [
         Message::Context(ContextMessage::BulkModalClosed),
-        Message::Context(ContextMessage::Cancelled),
         Message::Shortcut(ShortcutMessage::Close),
     ] {
         let mut state = make_state();

@@ -32,17 +32,7 @@ pub enum ContextPhase {
         disabled_reason_key: Option<&'static str>,
     },
     /// Switch in progress.
-    Switching {
-        // RFC-043 Handoff 053: triage error — `tests.rs:3473-3474`
-        // constructs this variant with both fields
-        // (`install_switching_context`). R7 forbids editing `tests.rs`.
-        // Restored; neither field is read outside that test.
-        #[allow(dead_code)]
-        project_id: ProjectId,
-        #[allow(dead_code)]
-        target: ContextTarget,
-        target_label: String,
-    },
+    Switching { target_label: String },
     /// Switch completed — show result.
     Done(ContextSwitchResult),
 }
