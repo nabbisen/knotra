@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [044](./proposed/044-release-impact-warnings.md) | Release impact warnings | Production Readiness Reset - UI/UX foundation | Medium-high |
 
 ---
 
