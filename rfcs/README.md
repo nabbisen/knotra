@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [045](./proposed/045-jujutsu-conflict-guidance.md) | Jujutsu conflict guidance | Production Readiness Reset - UI/UX foundation | Medium-high |
 
 ---
 
