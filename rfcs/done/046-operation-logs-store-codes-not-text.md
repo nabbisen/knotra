@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-12, project owner); amended 2026-08-12 (A1, architect - see Amendments) |
+| Status | Implemented (main: 3102098) - amended 2026-08-12 (A1, architect); see Amendments |
 | Priority | High - it corrupts persisted user data, and every release shipped before it lands adds more |
 | Effort | Small - one write site, one catalog removal, one guard |
 | Target | Production Readiness Reset - data correctness |

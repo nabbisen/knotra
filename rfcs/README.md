@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [046](./accepted/046-operation-logs-store-codes-not-text.md) | Operation logs store codes, not rendered text | Production Readiness Reset - data correctness | High |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [046](./done/046-operation-logs-store-codes-not-text.md) | Operation logs store codes, not rendered text | main: 3102098 |
 | [043](./done/043-eliminate-dead-code-suppressions.md) | Eliminate `#[allow(dead_code)]` (39 to 0) | main: 584b7b2 |
 | [038](./done/038-settings-and-history.md) | Settings and History | main: 4d44366 |
 | [044](./done/044-release-impact-warnings.md) | Release impact warnings | main: c3f044a |
