@@ -427,7 +427,11 @@ mod tests {
 
     use super::*;
 
-    fn sample_result(per_project: Vec<ProjectOperationResult>) -> OperationResult {
+    fn sample_result(
+        per_project: Vec<ProjectOperationResult>,
+        rollback_attempted: bool,
+        rollback_succeeded: Option<bool>,
+    ) -> OperationResult {
         let now = chrono::Utc::now();
         OperationResult {
             operation_id: OperationId::new(),
@@ -435,8 +439,8 @@ mod tests {
             started_at: now,
             finished_at: now,
             per_project,
-            rollback_attempted: false,
-            rollback_succeeded: None,
+            rollback_attempted,
+            rollback_succeeded,
         }
     }
 
@@ -454,13 +458,41 @@ mod tests {
         }
     }
 
+    fn failed_project(id: ProjectId) -> ProjectOperationResult {
+        ProjectOperationResult {
+            project_id: id,
+            outcome: ProjectOperationOutcome::Failed,
+            success: false,
+            skip_reason: None,
+            commands_executed: Vec::new(),
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: Some(1),
+            error_message: None,
+        }
+    }
+
+    fn skipped_project(id: ProjectId, skip_reason: Option<String>) -> ProjectOperationResult {
+        ProjectOperationResult {
+            project_id: id,
+            outcome: ProjectOperationOutcome::Skipped,
+            success: true,
+            skip_reason,
+            commands_executed: Vec::new(),
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: None,
+            error_message: None,
+        }
+    }
+
     /// RFC-038 A1's core guarantee: the export names the operation and its
     /// status in fixed English, never through `t()` — `export_text` cannot
     /// call it, since it does not take `&AppState`.
     #[test]
     fn export_text_reports_a_successful_entry_in_english() {
         let id = ProjectId::new();
-        let result = sample_result(vec![succeeded_project(id.clone())]);
+        let result = sample_result(vec![succeeded_project(id.clone())], false, None);
 
         let text = export_text(&result);
 
@@ -489,18 +521,8 @@ mod tests {
     #[test]
     fn export_text_emits_the_skip_reason_code_verbatim() {
         let id = ProjectId::new();
-        let skipped = ProjectOperationResult {
-            project_id: id,
-            outcome: ProjectOperationOutcome::Skipped,
-            success: true,
-            skip_reason: Some("retry:not_in_active_workspace".to_owned()),
-            commands_executed: Vec::new(),
-            stdout: String::new(),
-            stderr: String::new(),
-            exit_code: None,
-            error_message: None,
-        };
-        let result = sample_result(vec![skipped]);
+        let skipped = skipped_project(id, Some("retry:not_in_active_workspace".to_owned()));
+        let result = sample_result(vec![skipped], false, None);
 
         let text = export_text(&result);
 
@@ -527,7 +549,7 @@ mod tests {
             exit_code: Some(1),
             error_message: Some("fatal: could not read remote".to_owned()),
         };
-        let result = sample_result(vec![failed]);
+        let result = sample_result(vec![failed], false, None);
 
         let text = export_text(&result);
 
@@ -543,5 +565,59 @@ mod tests {
             text.contains("[FAILED]"),
             "expected the failed outcome tag, got: {text}"
         );
+    }
+
+    /// Handoff 061: nothing keeps `StatusSummary::label_en` agreeing with
+    /// the English catalog entry `label_key` names — if they drift, the
+    /// export and the on-screen UI disagree about what a status is called,
+    /// silently. Driving `summarise_status` for each of its six arms (rather
+    /// than asserting a table of six literal pairs) proves the arm this test
+    /// believes it reaches is the arm that actually runs.
+    #[test]
+    fn label_en_matches_the_english_catalog_for_every_status_arm() {
+        let en = knotra_ui::i18n::Catalog::for_locale(knotra_ui::i18n::Locale::En);
+        let id = ProjectId::new();
+
+        let cases: Vec<(&str, OperationResult)> = vec![
+            (
+                "rolled back",
+                sample_result(vec![succeeded_project(id.clone())], true, Some(true)),
+            ),
+            (
+                "rollback failed",
+                sample_result(vec![succeeded_project(id.clone())], true, Some(false)),
+            ),
+            (
+                "success",
+                sample_result(vec![succeeded_project(id.clone())], false, None),
+            ),
+            (
+                "partial",
+                sample_result(
+                    vec![succeeded_project(id.clone()), failed_project(id.clone())],
+                    false,
+                    None,
+                ),
+            ),
+            (
+                "skipped",
+                sample_result(vec![skipped_project(id.clone(), None)], false, None),
+            ),
+            (
+                "failed",
+                sample_result(vec![failed_project(id.clone())], false, None),
+            ),
+        ];
+
+        for (case, result) in cases {
+            let summary = summarise_status(&result);
+            assert_eq!(
+                summary.label_en,
+                en.t(summary.label_key),
+                "label_en drifted from the English catalog for the `{case}` status arm \
+                 (label_key = `{}`)",
+                summary.label_key
+            );
+        }
     }
 }
