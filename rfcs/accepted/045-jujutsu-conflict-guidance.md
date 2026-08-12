@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-12, project owner); amended 2026-08-12 (A1, architect - see Amendments) |
 | Priority | Medium-high - a dead end for every Jujutsu user who hits a conflicted file |
 | Effort | Small |
 | Target | Production Readiness Reset - UI/UX foundation |
@@ -129,7 +129,27 @@ list, so naming the command is allowed.
 | R5 | `plain.activity.copy_command_sent` is **orphaned today** - present in both catalogs, zero code referents. It is either adopted by D3 or removed. Not left as-is |
 | R6 | `VcsKind` is matched exhaustively; a future third variant fails to compile |
 | R7 | If D3 ships, the path is shell-quoted, and a test covers a path containing a quote and a semicolon |
-| R8 | Co-located tests; `tests.rs` is not edited |
+| R8 | **Amended - see A1.** Co-located tests. `tests.rs` is edited only to delete the two now-invalid `note: None,` lines |
+
+## Amendments
+
+### A1. R8 as written is unsatisfiable (2026-08-12, architect)
+
+**Recorded before implementation, while scoping the handoff.**
+
+R8 said `tests.rs` is not edited. But `ProjectConflictDetail` is constructed at two sites
+in that file - `tests.rs:2740` and `:2785` - each setting `note: None`. **D1 removes the
+field, which makes both lines a compile error.** The RFC forbade the edit its own decision
+requires.
+
+**R8 becomes**: `tests.rs` is edited only to delete those two `note: None,` lines. No
+assertion changes, no fixture semantics change. If anything else in that file needs
+touching, that is a signal to stop, not to widen the exception.
+
+Recorded rather than fixed silently because this is the fifth requirement in this stretch
+that held in the sentence I wrote and failed against the tree - after RFC-044 D1, Handoff
+058 SS8, Handoff 061 SS4, and Handoff 063 SS6. It is the first caught before issue rather
+than by the dev team, which is the only thing that distinguishes it.
 
 ## Test Plan
 
