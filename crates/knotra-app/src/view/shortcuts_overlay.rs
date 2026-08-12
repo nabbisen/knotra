@@ -1,5 +1,16 @@
 #![allow(unused_imports, unused_variables, dead_code)]
 //! RFC-0016 — Keyboard shortcuts cheat-sheet overlay.
+//!
+//! RFC-049: `BINDINGS`' `context`/`desc` fields were `&'static str` English
+//! text, invisible to RFC-048's text-outside-the-catalog guard because they
+//! are field accesses, not literal call arguments (that guard's own doc
+//! comment names this as a blind spot). `Binding` now stores `context_key`/
+//! `desc_key` — catalog keys, resolved at render time — the same
+//! `label_key` shape `StatusSummary` and `RetryExclusionReason::i18n_key()`
+//! already use. `keys` stays a literal (D1): `Esc`, `Ctrl`, `⌘` are
+//! hardware legends, identical on a Japanese keyboard, and translating them
+//! would break the correspondence between the overlay and the key being
+//! hunted for.
 
 use iced::{
     Alignment, Element, Length,
@@ -13,110 +24,112 @@ use crate::{
 
 struct Binding {
     keys: &'static str,
-    context: &'static str,
-    desc: &'static str,
+    context_key: &'static str,
+    desc_key: &'static str,
 }
 
 const BINDINGS: &[Binding] = &[
     Binding {
         keys: "Ctrl+K / ⌘K",
-        context: "Global",
-        desc: "Open command palette",
+        context_key: "shortcut.ctx_global",
+        desc_key: "shortcut.desc_open_palette",
     },
     Binding {
         keys: "?",
-        context: "Global",
-        desc: "Show / hide this cheat sheet",
+        context_key: "shortcut.ctx_global",
+        desc_key: "shortcut.desc_toggle_cheatsheet",
     },
     Binding {
         keys: "Ctrl+R",
-        context: "Global",
-        desc: "Refresh workspace",
+        context_key: "shortcut.ctx_global",
+        desc_key: "shortcut.desc_refresh_workspace",
     },
     Binding {
         keys: "⌘1 … ⌘9",
-        context: "Global",
-        desc: "Switch workspace by index",
+        context_key: "shortcut.ctx_global",
+        desc_key: "shortcut.desc_switch_workspace_by_index",
     },
     Binding {
         keys: "/",
-        context: "Dashboard",
-        desc: "Focus search field",
+        context_key: "shortcut.ctx_dashboard",
+        desc_key: "shortcut.desc_focus_search",
     },
     Binding {
         keys: "↑ / ↓ / j / k",
-        context: "Dashboard",
-        desc: "Move focus between cards",
+        context_key: "shortcut.ctx_dashboard",
+        desc_key: "shortcut.desc_move_focus",
     },
     Binding {
         keys: "Space",
-        context: "Dashboard",
-        desc: "Toggle selection on focused card",
+        context_key: "shortcut.ctx_dashboard",
+        desc_key: "shortcut.desc_toggle_card_selection",
     },
     Binding {
         keys: "Shift+Space",
-        context: "Dashboard",
-        desc: "Range-select to focused card",
+        context_key: "shortcut.ctx_dashboard",
+        desc_key: "shortcut.desc_range_select",
     },
     Binding {
         keys: "Ctrl+A / ⌘A",
-        context: "Dashboard",
-        desc: "Select all visible projects",
+        context_key: "shortcut.ctx_dashboard",
+        desc_key: "shortcut.desc_select_all",
     },
     Binding {
         keys: "Esc",
-        context: "Dashboard",
-        desc: "Clear selection / close dialog",
+        context_key: "shortcut.ctx_dashboard",
+        desc_key: "shortcut.desc_clear_selection",
     },
     Binding {
         keys: "f",
-        context: "Selection",
-        desc: "Check for updates (fetch)",
+        context_key: "shortcut.ctx_selection",
+        desc_key: "shortcut.desc_fetch",
     },
     Binding {
         keys: "p",
-        context: "Selection",
-        desc: "Get latest safely (pull)",
+        context_key: "shortcut.ctx_selection",
+        desc_key: "shortcut.desc_pull",
     },
     Binding {
         keys: "t",
-        context: "Selection",
-        desc: "Save release point (tag)",
+        context_key: "shortcut.ctx_selection",
+        desc_key: "shortcut.desc_tag",
     },
     Binding {
         keys: "b",
-        context: "Selection",
-        desc: "Change work area (switch branch)",
+        context_key: "shortcut.ctx_selection",
+        desc_key: "shortcut.desc_switch_branch",
     },
     Binding {
         keys: "g h",
-        context: "Global",
-        desc: "Go to History",
+        context_key: "shortcut.ctx_global",
+        desc_key: "shortcut.desc_goto_history",
     },
     Binding {
         keys: "g s",
-        context: "Global",
-        desc: "Go to Settings",
+        context_key: "shortcut.ctx_global",
+        desc_key: "shortcut.desc_goto_settings",
     },
     Binding {
         keys: "Esc",
-        context: "Modal",
-        desc: "Close modal / palette",
+        context_key: "shortcut.ctx_modal",
+        desc_key: "shortcut.desc_close_modal",
     },
     Binding {
         keys: "↑ / ↓",
-        context: "Palette",
-        desc: "Navigate results",
+        context_key: "shortcut.ctx_palette",
+        desc_key: "shortcut.desc_navigate_results",
     },
     Binding {
         keys: "Enter",
-        context: "Palette",
-        desc: "Confirm highlighted entry",
+        context_key: "shortcut.ctx_palette",
+        desc_key: "shortcut.desc_confirm_entry",
     },
 ];
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
-    let close_btn = button(text("✕  Close").size(12))
+    // RFC-049 §2: `action.close` already exists in both catalogs — reused,
+    // not duplicated. The glyph stays a literal; only the word is resolved.
+    let close_btn = button(text(format!("✕  {}", state.t("action.close"))).size(12))
         .on_press(Message::KeyEvent(KeyboardMessage::CheatSheetToggled));
 
     let header = row![
@@ -139,8 +152,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .map(|b| {
             row![
                 text(b.keys).size(12),
-                text(b.context).size(11),
-                text(b.desc).size(12),
+                text(state.t(b.context_key)).size(11),
+                text(state.t(b.desc_key)).size(12),
             ]
             .spacing(16)
             .into()
@@ -154,4 +167,40 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     )
     .width(Length::Fixed(600.0))
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use knotra_ui::i18n::{Catalog, Locale};
+
+    /// RFC-049 D4/R6: `every_literal_t_call_names_an_existing_key` only sees
+    /// literal `t(...)` calls written with the key inline — resolving
+    /// `b.context_key`/`b.desc_key` through a variable is invisible to it,
+    /// the same gap RFC-038 needed a dedicated guard for (`label_en`,
+    /// `061`/`062`). Driven from `BINDINGS` itself, not a hand-copied list
+    /// of the 24 keys, so a new row added without adding its keys fails
+    /// here rather than shipping a key rendered as its own name.
+    #[test]
+    fn every_binding_key_resolves_in_both_catalogs() {
+        let en = Catalog::for_locale(Locale::En);
+        let ja = Catalog::for_locale(Locale::Ja);
+
+        let mut missing = Vec::new();
+        for b in BINDINGS {
+            for key in [b.context_key, b.desc_key] {
+                if !en.contains_key(key) {
+                    missing.push(format!("{key} (missing from English)"));
+                }
+                if !ja.contains_key(key) {
+                    missing.push(format!("{key} (missing from Japanese)"));
+                }
+            }
+        }
+
+        assert!(
+            missing.is_empty(),
+            "these shortcut.* keys, referenced by BINDINGS, do not resolve: {missing:?}"
+        );
+    }
 }

@@ -21,21 +21,21 @@
 //! - **Literals that do not start with a letter.** A string beginning with a
 //!   digit or punctuation (not a glyph — glyphs are excluded on purpose, R8)
 //!   would slip past the leading-letter check the same way a glyph does.
-//! - **Struct fields populated from a `const` table**, e.g.
-//!   `shortcuts_overlay.rs`'s `BINDINGS: &[Binding]`, whose `keys`/`context`/
-//!   `desc` fields are real English text rendered via `text(b.desc)` —
-//!   `b.desc` is a field access, not a literal, so no scan of `text(...)`
-//!   call arguments will ever see it regardless of pattern. Found while
-//!   scoping this handoff; out of RFC-048's stated scope (`shortcut.*` is
-//!   four keys, not a `Binding` redesign) and not fixed here — flagged in
-//!   the Handoff 067 review request instead.
-//! - **A literal that starts with a glyph but also carries real text**, e.g.
-//!   `shortcuts_overlay.rs`'s `text("✕  Close")` — the leading character is
-//!   `✕`, not a letter, so this guard treats it the same as a pure-glyph
-//!   string and does not flag it, even though "Close" inside it is
-//!   translatable English. Also found while scoping; also flagged rather
-//!   than silently fixed, since RFC-048 named this file's four strings
-//!   specifically and this was not one of them.
+//! - **Struct fields populated from a `const` table** — a field access is
+//!   not a literal, so no scan of `text(...)` call arguments will ever see
+//!   it regardless of pattern. `shortcuts_overlay.rs`'s `BINDINGS: &[Binding]`
+//!   was exactly this (its `context`/`desc` fields held real English text,
+//!   rendered via `text(b.desc)`) until RFC-049 moved those fields to
+//!   catalog keys resolved at render time — fixed now, but the blind spot
+//!   itself is permanent: the next `const` table of `&'static str` UI text
+//!   would be just as invisible here.
+//! - **A literal that starts with a glyph but also carries real text** — the
+//!   leading-letter check treats it the same as a pure-glyph string.
+//!   `shortcuts_overlay.rs`'s `text("✕  Close")` was exactly this (`✕`
+//!   leads, `Close` inside it was untranslated English) until RFC-049
+//!   resolved the word through the catalog and kept only the glyph literal
+//!   — fixed now, same permanent blind spot: a future glyph+text literal
+//!   would slip past this check exactly the same way.
 //!
 //! Text-scanning, not a real parser — same tradeoff `dead_code_guard.rs` and
 //! `i18n.rs`'s guards accept, and the same reason R3-style planted-violation

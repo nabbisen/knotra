@@ -59,6 +59,16 @@ impl Catalog {
     pub fn locale(&self) -> Locale {
         self.locale
     }
+
+    /// RFC-049 D4: whether `key` resolves in this catalog, without `t()`'s
+    /// fallback-to-the-key-itself masking a miss. Lets a consumer outside
+    /// this module (`knotra-app`'s `shortcuts_overlay.rs`, checking every
+    /// `BINDINGS` row's `context_key`/`desc_key` against both locales) build
+    /// a full list of what is missing, rather than stopping at the first
+    /// `t()` call's `debug_assert!` panic.
+    pub fn contains_key(&self, key: Key) -> bool {
+        self.strings.contains_key(key)
+    }
 }
 
 fn en_strings() -> HashMap<Key, &'static str> {
@@ -246,11 +256,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.activity.fs_watch_disabled", "FS watching disabled.");
     m.insert("plain.activity.launched", "Launched:");
     m.insert("plain.activity.check_complete", "project(s) checked.");
-    // Keyboard shortcuts hint
-    m.insert("shortcut.refresh", "Ctrl+R  Refresh");
-    m.insert("shortcut.context", "Ctrl+K  Context");
-    m.insert("shortcut.freezer", "Ctrl+T  Freezer");
-    m.insert("shortcut.search", "Ctrl+/  Search");
     // Errors
     m.insert("error.read_failed", "Failed to read repository status.");
     m.insert("error.no_repo", "No Git or jj repository found.");
@@ -888,14 +893,61 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("detail.refresh", "Refresh");
     m.insert("detail.fetch", "Fetch");
     m.insert("detail.remove_from_workspace", "Remove from workspace");
-    // RFC-048 D2: the keyboard-shortcuts cheat sheet, under the existing
-    // `shortcut.*` prefix (already localised in both catalogs for the
-    // shell's own shortcut hints — `shortcut.refresh` etc.) — new key names
-    // chosen not to collide with those.
+    // RFC-048 D2 / RFC-049: the keyboard-shortcuts cheat sheet's own
+    // `shortcut.*` keys. RFC-048 added these four (title, three column
+    // headers) beside four *other* `shortcut.*` keys that looked like live
+    // shell hints but were not — nothing rendered them, and one described a
+    // `Ctrl+T` binding that does not exist anywhere in the code. RFC-049
+    // removed those four (both locales), corrected this comment (it used to
+    // vouch for them as "already localised... shell's own shortcut hints",
+    // which is what made them look load-bearing), and moved the table's
+    // `context`/`desc` fields to catalog keys too (D2) — `keys` (`Esc`,
+    // `Ctrl`, `⌘` …) stays a literal, since those are hardware legends, the
+    // same on a Japanese keyboard, and translating them would break the
+    // correspondence between the overlay and the key being hunted for.
     m.insert("shortcut.overlay_title", "Keyboard Shortcuts");
     m.insert("shortcut.column_keys", "Keys");
     m.insert("shortcut.column_context", "Context");
     m.insert("shortcut.column_action", "Action");
+    m.insert("shortcut.ctx_global", "Global");
+    m.insert("shortcut.ctx_dashboard", "Dashboard");
+    m.insert("shortcut.ctx_selection", "Selection");
+    m.insert("shortcut.ctx_modal", "Modal");
+    m.insert("shortcut.ctx_palette", "Palette");
+    m.insert("shortcut.desc_open_palette", "Open command palette");
+    m.insert(
+        "shortcut.desc_toggle_cheatsheet",
+        "Show / hide this cheat sheet",
+    );
+    m.insert("shortcut.desc_refresh_workspace", "Refresh workspace");
+    m.insert(
+        "shortcut.desc_switch_workspace_by_index",
+        "Switch workspace by index",
+    );
+    m.insert("shortcut.desc_focus_search", "Focus search field");
+    m.insert("shortcut.desc_move_focus", "Move focus between cards");
+    m.insert(
+        "shortcut.desc_toggle_card_selection",
+        "Toggle selection on focused card",
+    );
+    m.insert("shortcut.desc_range_select", "Range-select to focused card");
+    m.insert("shortcut.desc_select_all", "Select all visible projects");
+    m.insert(
+        "shortcut.desc_clear_selection",
+        "Clear selection / close dialog",
+    );
+    m.insert("shortcut.desc_fetch", "Check for updates (fetch)");
+    m.insert("shortcut.desc_pull", "Get latest safely (pull)");
+    m.insert("shortcut.desc_tag", "Save release point (tag)");
+    m.insert(
+        "shortcut.desc_switch_branch",
+        "Change work area (switch branch)",
+    );
+    m.insert("shortcut.desc_goto_history", "Go to History");
+    m.insert("shortcut.desc_goto_settings", "Go to Settings");
+    m.insert("shortcut.desc_close_modal", "Close modal / palette");
+    m.insert("shortcut.desc_navigate_results", "Navigate results");
+    m.insert("shortcut.desc_confirm_entry", "Confirm highlighted entry");
     m
 }
 
@@ -1086,11 +1138,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     );
     m.insert("plain.activity.launched", "起動しました:");
     m.insert("plain.activity.check_complete", "件確認しました。");
-    // Keyboard shortcuts hint
-    m.insert("shortcut.refresh", "Ctrl+R  更新");
-    m.insert("shortcut.context", "Ctrl+K  コンテキスト");
-    m.insert("shortcut.freezer", "Ctrl+T  フリーザー");
-    m.insert("shortcut.search", "Ctrl+/  検索");
     // Errors
     m.insert(
         "error.read_failed",
@@ -1724,6 +1771,48 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("shortcut.column_keys", "キー");
     m.insert("shortcut.column_context", "コンテキスト");
     m.insert("shortcut.column_action", "アクション");
+    m.insert("shortcut.ctx_global", "グローバル");
+    m.insert("shortcut.ctx_dashboard", "ダッシュボード");
+    m.insert("shortcut.ctx_selection", "選択");
+    m.insert("shortcut.ctx_modal", "モーダル");
+    m.insert("shortcut.ctx_palette", "パレット");
+    m.insert("shortcut.desc_open_palette", "コマンドパレットを開く");
+    m.insert(
+        "shortcut.desc_toggle_cheatsheet",
+        "このチートシートの表示切り替え",
+    );
+    m.insert("shortcut.desc_refresh_workspace", "ワークスペースを更新");
+    m.insert(
+        "shortcut.desc_switch_workspace_by_index",
+        "番号でワークスペースを切り替え",
+    );
+    m.insert("shortcut.desc_focus_search", "検索欄にフォーカス");
+    m.insert("shortcut.desc_move_focus", "カード間でフォーカス移動");
+    m.insert(
+        "shortcut.desc_toggle_card_selection",
+        "フォーカス中のカードの選択切り替え",
+    );
+    m.insert(
+        "shortcut.desc_range_select",
+        "フォーカス中のカードまで範囲選択",
+    );
+    m.insert("shortcut.desc_select_all", "表示中の全プロジェクトを選択");
+    m.insert(
+        "shortcut.desc_clear_selection",
+        "選択解除 / ダイアログを閉じる",
+    );
+    m.insert("shortcut.desc_fetch", "更新を確認 (fetch)");
+    m.insert("shortcut.desc_pull", "安全に最新化 (pull)");
+    m.insert("shortcut.desc_tag", "リリース地点を保存 (tag)");
+    m.insert(
+        "shortcut.desc_switch_branch",
+        "作業エリアを変更 (ブランチ切替)",
+    );
+    m.insert("shortcut.desc_goto_history", "履歴へ移動");
+    m.insert("shortcut.desc_goto_settings", "設定へ移動");
+    m.insert("shortcut.desc_close_modal", "モーダル / パレットを閉じる");
+    m.insert("shortcut.desc_navigate_results", "結果を移動");
+    m.insert("shortcut.desc_confirm_entry", "選択中の項目を確定");
     m
 }
 
