@@ -2044,7 +2044,7 @@ fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
     assert_eq!(state.operation_logs[0].result.failed_projects().len(), 0);
     assert_eq!(state.operation_logs[0].result.skipped_projects().len(), 1);
 
-    let loaded = crate::persistence::load_recent_logs(&paths, 10);
+    let loaded = crate::persistence::load_recent_logs(&paths, 10).logs;
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].result.skipped_projects().len(), 1);
     assert_eq!(
@@ -2475,7 +2475,7 @@ fn freezer_completion_persists_log_and_offers_git_push() {
     assert_eq!(pending.freeze_name, "v1.0.0");
     assert_eq!(pending.project_ids, vec![project.id.clone()]);
 
-    let loaded = crate::persistence::load_recent_logs(&paths, 10);
+    let loaded = crate::persistence::load_recent_logs(&paths, 10).logs;
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].result.kind, OperationKind::Freeze);
 }

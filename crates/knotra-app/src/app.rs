@@ -76,7 +76,10 @@ pub fn init() -> (AppState, Task<Message>) {
     state.workspace = state.all_workspaces.first().cloned();
     state.load_phase = LoadPhase::Refreshing;
     state.is_refreshing = true;
-    state.operation_logs = load_recent_logs(&paths, config.max_log_entries);
+    let loaded_logs = load_recent_logs(&paths, config.max_log_entries);
+    state.operation_logs = loaded_logs.logs;
+    state.history_unreadable_count = loaded_logs.unreadable;
+    state.history_directory_unreadable = loaded_logs.directory_unreadable;
 
     let task = Task::batch([
         shared::refresh_workspace_task(&state),

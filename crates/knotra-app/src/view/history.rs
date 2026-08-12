@@ -85,13 +85,29 @@ fn view_toolbar(state: &AppState) -> Element<'_, Message> {
 // ---------------------------------------------------------------------------
 
 fn view_body(state: &AppState) -> Element<'_, Message> {
+    // RFC-047 D3: a directory that could not be read is its own state, not
+    // "no history yet" — checked before the empty-list branch below, since
+    // an unreadable directory always yields zero logs and would otherwise
+    // be indistinguishable from a genuine first run.
+    if state.history_directory_unreadable {
+        return empty_state(state.t("history.directory_unreadable"));
+    }
+
     if state.operation_logs.is_empty() {
-        return empty_state(state.t("history.empty"));
+        // RFC-047 D2: "N entries could not be read" is the more important
+        // message when the list is otherwise empty — it replaces
+        // `history.empty` rather than sitting beside it, since there is
+        // nothing else on screen for it to sit above.
+        return if state.history_unreadable_count > 0 {
+            empty_state(unreadable_count_message(state))
+        } else {
+            empty_state(state.t("history.empty"))
+        };
     }
 
     let q = state.history_search.to_lowercase();
 
-    let entries: Vec<Element<'_, Message>> = state
+    let mut entries: Vec<Element<'_, Message>> = state
         .operation_logs
         .iter()
         .filter(|log| {
@@ -116,15 +132,34 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         return empty_state(state.t("history.no_match"));
     }
 
+    // RFC-047 D2: above the populated list, not replacing it — the list is
+    // still the useful content here.
+    if state.history_unreadable_count > 0 {
+        entries.insert(0, text(unreadable_count_message(state)).size(12).into());
+    }
+
     column(entries).spacing(6).padding(12).into()
+}
+
+fn unreadable_count_message(state: &AppState) -> String {
+    format!(
+        "{} {}",
+        state.t("history.unreadable_count_label"),
+        state.history_unreadable_count
+    )
 }
 
 /// H4: near the content origin, not vertically centred in a large reserved
 /// block. Was `container(...).height(250).center_y(250)` — the message sat
 /// 125px down inside a fixed dead area regardless of how little content
 /// surrounded it. Now top-of-content, ordinary padding, no reserved height.
-fn empty_state(message: &str) -> Element<'_, Message> {
-    container(text(message).size(14))
+///
+/// RFC-047: takes `impl Into<String>` rather than `&str` so the two states
+/// that carry a count (`unreadable_count_message`) can build an owned
+/// message alongside the two that don't (`state.t(...)`), through the same
+/// helper rather than a parallel one.
+fn empty_state(message: impl Into<String>) -> Element<'static, Message> {
+    container(text(message.into()).size(14))
         .width(Length::Fill)
         .padding(24)
         .into()

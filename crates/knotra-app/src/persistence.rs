@@ -101,25 +101,76 @@ pub fn save_operation_log(log: &OperationLog, paths: &AppPaths) -> Result<(), St
     crate::atomic_write::write(&path, text).map_err(|e| format!("write error: {e}"))
 }
 
+/// `load_recent_logs`'s result (RFC-047 D2/D3): the logs themselves plus
+/// what could not be produced, so a caller can state the loss instead of
+/// rendering it as silence.
+pub struct LoadedLogs {
+    pub logs: Vec<OperationLog>,
+    /// Directory entries that could not be read or parsed as an
+    /// `OperationLog`, within the most-recent-`limit` window actually
+    /// requested (RFC-047 D1) — not a count of every bad file that may sit
+    /// further back in the directory, unrequested.
+    pub unreadable: usize,
+    /// The history directory itself could not be read (e.g. a permissions
+    /// failure or a missing mount) — distinct from the directory never
+    /// having been created, which is genuinely "no history yet" (RFC-047
+    /// D3): `save_operation_log` creates the directory on first write, so a
+    /// `NotFound` here is a first run, not a loss.
+    pub directory_unreadable: bool,
+}
+
 /// Load the most recent `limit` operation logs from the history directory.
-pub fn load_recent_logs(paths: &AppPaths, limit: usize) -> Vec<OperationLog> {
+///
+/// RFC-047 D1: filters before taking. `read_dir` yields every directory
+/// entry — a corrupt file, a stray `.DS_Store`, a half-written file — and
+/// the previous `.take(limit)` ran before parsing, so any one of those
+/// consumed a slot a valid older entry could have filled. This walks
+/// entries newest-first and keeps going until `limit` *valid* logs are
+/// collected (or the directory is exhausted), so `limit` means what its
+/// name says.
+pub fn load_recent_logs(paths: &AppPaths, limit: usize) -> LoadedLogs {
     let dir = &paths.history_dir;
     let mut entries: Vec<_> = match std::fs::read_dir(dir) {
         Ok(e) => e.flatten().collect(),
-        Err(_) => return Vec::new(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return LoadedLogs {
+                logs: Vec::new(),
+                unreadable: 0,
+                directory_unreadable: false,
+            };
+        }
+        Err(_) => {
+            return LoadedLogs {
+                logs: Vec::new(),
+                unreadable: 0,
+                directory_unreadable: true,
+            };
+        }
     };
 
     // Sort descending by file name (timestamp prefix).
     entries.sort_by_key(|b| std::cmp::Reverse(b.file_name()));
 
-    entries
-        .into_iter()
-        .take(limit)
-        .filter_map(|e| {
-            let text = std::fs::read_to_string(e.path()).ok()?;
-            serde_json::from_str::<OperationLog>(&text).ok()
-        })
-        .collect()
+    let mut logs = Vec::new();
+    let mut unreadable = 0;
+    for entry in entries {
+        if logs.len() >= limit {
+            break;
+        }
+        let parsed = std::fs::read_to_string(entry.path())
+            .ok()
+            .and_then(|text| serde_json::from_str::<OperationLog>(&text).ok());
+        match parsed {
+            Some(log) => logs.push(log),
+            None => unreadable += 1,
+        }
+    }
+
+    LoadedLogs {
+        logs,
+        unreadable,
+        directory_unreadable: false,
+    }
 }
 
 #[cfg(test)]
@@ -136,6 +187,38 @@ mod tests {
             workspaces_dir: tmp.path().join("workspaces"),
             history_dir: tmp.path().join("history"),
         }
+    }
+
+    /// A minimal, valid log at an explicit, controllable timestamp — RFC-047's
+    /// tests need deterministic newest-first ordering, which `Utc::now()`
+    /// calls a few microseconds apart cannot reliably guarantee at
+    /// second-resolution filenames.
+    fn log_at(seconds: i64) -> OperationLog {
+        let ts = chrono::DateTime::from_timestamp(seconds, 0).unwrap();
+        OperationLog {
+            result: OperationResult {
+                operation_id: OperationId::new(),
+                kind: OperationKind::Fetch,
+                started_at: ts,
+                finished_at: ts,
+                per_project: Vec::new(),
+                rollback_attempted: false,
+                rollback_succeeded: None,
+            },
+            recovery_hints: Vec::new(),
+        }
+    }
+
+    /// A file `load_recent_logs` will encounter and fail to parse, named to
+    /// sort at the given position among real log files (same
+    /// `{timestamp}_{suffix}.json` shape `save_operation_log` uses).
+    fn write_corrupt_file(paths: &AppPaths, seconds: i64) {
+        std::fs::create_dir_all(&paths.history_dir).expect("create history dir");
+        let ts = chrono::DateTime::from_timestamp(seconds, 0)
+            .unwrap()
+            .format("%Y%m%dT%H%M%SZ");
+        let path = paths.history_dir.join(format!("{ts}_corrupt.json"));
+        std::fs::write(path, "not valid json").expect("write corrupt file");
     }
 
     /// RFC-046 D4/R7: an entry written before D1's contract was enforced
@@ -177,7 +260,7 @@ mod tests {
 
         save_operation_log(&log, &paths).expect("save a pre-fix record");
 
-        let loaded = load_recent_logs(&paths, 10);
+        let loaded = load_recent_logs(&paths, 10).logs;
         assert_eq!(loaded.len(), 1, "a pre-fix record must not be dropped");
         assert_eq!(
             loaded[0].result.per_project[0].skip_reason.as_deref(),
@@ -197,5 +280,98 @@ mod tests {
             rendered, prose,
             "an unrecognised value must render verbatim -- no panic, no blank"
         );
+    }
+
+    /// RFC-047 D1, the reordering fix itself. Five valid logs plus one
+    /// corrupt file *newer than all of them*, `limit` smaller than the
+    /// total file count. At `9db1296` (before this handoff)
+    /// `.take(limit)` ran before parsing, so the corrupt file — sorted
+    /// first — consumed one of the 3 requested slots and this assertion
+    /// failed with `left: 2, right: 3`. Confirmed by running this exact
+    /// scenario against the unmodified baseline before writing the fix,
+    /// reported verbatim in the review request per the handoff's request —
+    /// a reordering fix whose test passes before the change was not
+    /// testing the reorder.
+    #[test]
+    fn load_recent_logs_fills_the_limit_with_valid_logs_despite_a_newer_corrupt_file() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = paths_in(&tmp);
+
+        for s in [100, 101, 102, 103, 104] {
+            save_operation_log(&log_at(s), &paths).expect("save a valid log");
+        }
+        write_corrupt_file(&paths, 105); // newer than every valid log
+
+        let loaded = load_recent_logs(&paths, 3);
+        assert_eq!(
+            loaded.logs.len(),
+            3,
+            "expected the 3 most recent VALID logs, not limit - 1"
+        );
+        assert_eq!(loaded.unreadable, 1);
+        assert!(!loaded.directory_unreadable);
+    }
+
+    /// RFC-047 D2: a corrupt file among valid ones is reported, not just
+    /// silently absorbed — the valid ones all still load (D1's slot
+    /// behaviour), and the skipped count says one entry could not be read.
+    #[test]
+    fn load_recent_logs_reports_the_unreadable_count() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = paths_in(&tmp);
+
+        for s in [100, 101, 102] {
+            save_operation_log(&log_at(s), &paths).expect("save a valid log");
+        }
+        write_corrupt_file(&paths, 103);
+
+        let loaded = load_recent_logs(&paths, 10);
+        assert_eq!(loaded.logs.len(), 3, "all three valid logs must load");
+        assert_eq!(loaded.unreadable, 1);
+        assert!(!loaded.directory_unreadable);
+    }
+
+    /// RFC-047 D3: an unreadable directory is its own, distinct state, not
+    /// indistinguishable from "no history yet". A directory that was never
+    /// created (no prior `save_operation_log` call) is the first-run case
+    /// and must NOT report `directory_unreadable` — only a directory that
+    /// exists but genuinely cannot be read should.
+    #[test]
+    #[cfg(unix)]
+    fn load_recent_logs_reports_an_unreadable_directory_distinctly() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = paths_in(&tmp);
+        std::fs::create_dir_all(&paths.history_dir).expect("create history dir");
+        std::fs::set_permissions(&paths.history_dir, std::fs::Permissions::from_mode(0o000))
+            .expect("remove read permission");
+
+        let loaded = load_recent_logs(&paths, 10);
+
+        // Restore permissions before the tempdir is dropped, or cleanup fails.
+        std::fs::set_permissions(&paths.history_dir, std::fs::Permissions::from_mode(0o755))
+            .expect("restore permission for cleanup");
+
+        assert!(loaded.logs.is_empty());
+        assert_eq!(loaded.unreadable, 0);
+        assert!(
+            loaded.directory_unreadable,
+            "a permissions failure must be reported, not read as an empty directory"
+        );
+    }
+
+    /// The other half of D3: a directory that has simply never been
+    /// created is genuinely "no history yet", not an error.
+    #[test]
+    fn load_recent_logs_treats_a_missing_directory_as_no_history_not_an_error() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = paths_in(&tmp); // history_dir never created
+
+        let loaded = load_recent_logs(&paths, 10);
+
+        assert!(loaded.logs.is_empty());
+        assert_eq!(loaded.unreadable, 0);
+        assert!(!loaded.directory_unreadable);
     }
 }

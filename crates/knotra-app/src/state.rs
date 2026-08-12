@@ -460,6 +460,18 @@ pub struct AppState {
     pub load_phase: LoadPhase,
     pub filter: FilterState,
     pub operation_logs: Vec<OperationLog>,
+    /// RFC-047 D2: entries `load_recent_logs` could not read or parse,
+    /// within the most-recent-`max_log_entries` window loaded at startup.
+    /// Deliberately not folded into `operation_logs` — this is a startup
+    /// fact about the history directory, not a property of the in-memory
+    /// list, and five other sites read `operation_logs` (including
+    /// `background/mod.rs`, which appends to it at runtime as operations
+    /// complete) without needing to know or preserve this count.
+    pub history_unreadable_count: usize,
+    /// RFC-047 D3: the history directory itself could not be read, distinct
+    /// from a directory that has simply never been created (genuinely "no
+    /// history yet" — see `persistence::LoadedLogs`'s own doc comment).
+    pub history_directory_unreadable: bool,
     pub history_search: String,
     pub status_bar: Option<String>,
     pub add_project_dialog: Option<AddProjectDialog>,
@@ -588,6 +600,8 @@ impl AppState {
             load_phase: LoadPhase::Startup,
             filter: FilterState::default(),
             operation_logs: Vec::new(),
+            history_unreadable_count: 0,
+            history_directory_unreadable: false,
             history_search: String::new(),
             status_bar: None,
             add_project_dialog: None,

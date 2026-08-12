@@ -759,6 +759,17 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("history.search_hint", "Search history…");
     m.insert("history.empty", "No operations recorded yet.");
     m.insert("history.no_match", "No entries match the search.");
+    // RFC-047 D2/D3: distinct from both of the above — entries exist and
+    // could not be read (a count follows this label), or the directory
+    // itself could not be read. Neither implies the user caused it.
+    m.insert(
+        "history.unreadable_count_label",
+        "History entries that could not be read:",
+    );
+    m.insert(
+        "history.directory_unreadable",
+        "The history folder could not be read.",
+    );
     m.insert("history.expand", "Details");
     m.insert("history.collapse", "Hide");
     m.insert("history.copy_log", "Copy log");
@@ -1589,6 +1600,11 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("history.search_hint", "履歴を検索…");
     m.insert("history.empty", "まだ操作が記録されていません。");
     m.insert("history.no_match", "検索に一致する項目はありません。");
+    m.insert("history.unreadable_count_label", "読み込めなかった履歴:");
+    m.insert(
+        "history.directory_unreadable",
+        "履歴フォルダーを読み込めませんでした。",
+    );
     m.insert("history.expand", "詳細");
     m.insert("history.collapse", "閉じる");
     m.insert("history.copy_log", "ログをコピー");
