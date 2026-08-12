@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [047](./accepted/047-unreadable-history-is-stated.md) | Unreadable history is stated, not swallowed | Production Readiness Reset - data correctness | Medium |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [047](./done/047-unreadable-history-is-stated.md) | Unreadable history is stated, not swallowed | main: 95d07a3 |
 | [045](./done/045-jujutsu-conflict-guidance.md) | Jujutsu conflict guidance | main: bf7aec9 |
 | [046](./done/046-operation-logs-store-codes-not-text.md) | Operation logs store codes, not rendered text | main: 3102098 |
 | [043](./done/043-eliminate-dead-code-suppressions.md) | Eliminate `#[allow(dead_code)]` (39 to 0) | main: 584b7b2 |

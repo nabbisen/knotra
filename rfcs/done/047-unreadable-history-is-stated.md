@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-12, project owner) |
+| Status | Implemented (main: 95d07a3) |
 | Priority | Medium - silent data loss, though bounded to the History screen |
 | Effort | Small - one function, one state field, one notice |
 | Target | Production Readiness Reset - data correctness |
