@@ -31,7 +31,6 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [047](./proposed/047-unreadable-history-is-stated.md) | Unreadable history is stated, not swallowed | Production Readiness Reset - data correctness | Medium |
 
 ---
 
@@ -43,6 +42,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [047](./accepted/047-unreadable-history-is-stated.md) | Unreadable history is stated, not swallowed | Production Readiness Reset - data correctness | Medium |
 
 ---
 
