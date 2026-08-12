@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-12, project owner) |
+| Status | Accepted (2026-08-12, project owner); amended 2026-08-12 (A1, architect - see Amendments) |
 | Priority | High - it corrupts persisted user data, and every release shipped before it lands adds more |
 | Effort | Small - one write site, one catalog removal, one guard |
 | Target | Production Readiness Reset - data correctness |
@@ -136,6 +136,53 @@ text to assert certain assignments **do** route through `t()`. This is its mirro
 
 Same file-scanning helpers, same `files.len() > 50` sanity assertion, opposite polarity.
 
+## Amendments
+
+### A1. The Smart Pull results overlay renders `skip_reason` raw — it must map codes (2026-08-12, architect)
+
+**Recorded before any implementation. This is a defect in the RFC above, found while
+scoping its handoff.**
+
+The Problem section traced every *writer* of `skip_reason` and did not trace the
+*readers* of `ProjectOutcome`, the struct that carries a copy of the value into the Smart
+Pull results view.
+
+`view/overlays/smart_pull.rs:415-419` renders it verbatim:
+
+```rust
+ProjectOperationOutcome::Skipped => (
+    "-",
+    pp.skip_reason.as_deref().unwrap_or(state.t("plain.get_latest.skipped_row"))),
+```
+
+`RetryExclusionReason::from_code` is applied in exactly **one** place in the whole
+application — `view/history.rs:289`. This overlay has no equivalent.
+
+**Two consequences, both material:**
+
+1. **A live, pre-existing, user-visible defect.** `app/background/smart_pull.rs:158` and
+   `app/background/mod.rs:115` already write `exclusion.reason.code()` into
+   `ProjectOutcome.skip_reason`. Users are shown **`retry:not_in_active_workspace`** in
+   that column today, where a sentence belongs. The column currently mixes forms: a raw
+   code from those two writers, a translated sentence from `app/sync.rs:309`.
+2. **D2 would make it worse.** Converting `app/sync.rs:309` to a code turns the one
+   remaining sentence in that column into a code as well. **The RFC as written would ship
+   a visible regression.**
+
+**Added: D6.** `view/overlays/smart_pull.rs` maps `skip_reason` through
+`RetryExclusionReason::from_code(...).map(|r| state.t(r.i18n_key()))`, falling back to the
+stored string verbatim — the same shape as `skip_reason_text` (`view/history.rs:288`), for
+the same backward-compatibility reason given in D4.
+
+Whether the mapper is extracted for reuse or written twice is an implementation call; two
+copies of a four-line fallback that must stay identical is the kind of drift RFC-038's
+`label_en` pairing already needed a guard for.
+
+**This amendment is mine, not the owner's.** It does not change what RFC-046 promises the
+user — skip reasons read as sentences — it makes the accepted decision achievable without
+a regression. Recorded here rather than folded silently into a handoff, and reversible on
+one word.
+
 ## Requirements
 
 | # | Requirement |
@@ -149,6 +196,8 @@ Same file-scanning helpers, same `files.len() > 50` sanity assertion, opposite p
 | R7 | A log file containing pre-fix prose still loads, renders, and exports verbatim - no panic, no dropped record |
 | R8 | `tests.rs:2021`'s fixture changes from prose to a code. That test asserts round-trip persistence and currently documents prose as an expected value shape |
 | R9 | `all_keys_are_localised_in_both_catalogs` and `every_literal_t_call_names_an_existing_key` stay green |
+| R10 | **A1.** `view/overlays/smart_pull.rs` maps `skip_reason` codes through the catalog, with the same verbatim fallback as `skip_reason_text`. No surface renders a `retry:` code to the user |
+| R11 | **A1.** If the mapping is duplicated rather than shared, the duplication is justified in the report - two copies that must stay identical is what `label_en` needed a guard for |
 
 **`tests.rs` is editable under this RFC** (R8). RFC-038's zero-lines rule was RFC-038's,
 and R8 names the single edit intended - the fixture value, not the assertions around it.
