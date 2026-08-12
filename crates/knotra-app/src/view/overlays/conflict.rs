@@ -32,7 +32,7 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     let name = project_name_for(state, project_id);
     let ops = &state.conflict_ops;
     let vcs_kind = conflict_vcs_kind_for_project(state, project_id);
-    let git_actions_supported = vcs_kind == VcsKind::Git;
+    let git_actions_supported = vcs_kind == Some(VcsKind::Git);
     let abort_supported = git_actions_supported && project_has_git_merge_state(state, project_id);
     let editor_configured = state.config.external_editor.is_some();
     let merge_tool_configured = state.config.external_merge_tool.is_some();
@@ -150,11 +150,13 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                     ConflictOpsMessage::OpenInMergeToolRequested(f.path.clone()),
                                 ));
 
-                            // RFC-045 D2/R6: exhaustive over `VcsKind` — a
-                            // third variant is a compile error here, not a
-                            // silent fallthrough to Git's wording.
+                            // RFC-045 D2/R6, Handoff 065: exhaustive over
+                            // `Option<VcsKind>` — a third `VcsKind` is still
+                            // a compile error, and `None` (no evidence
+                            // either way) is its own arm rather than being
+                            // folded into `Jujutsu`.
                             let mark_control: Element<'_, Message> = match vcs_kind {
-                                VcsKind::Git => {
+                                Some(VcsKind::Git) => {
                                     let t = tokens.clone();
                                     iced::widget::button(
                                         text(state.t("plain.resolve.mark_done"))
@@ -184,9 +186,17 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                 // plus this row's own file path, so it is
                                 // never English-only prose baked into a
                                 // record (RFC-046 D1's contract).
-                                VcsKind::Jujutsu => {
+                                Some(VcsKind::Jujutsu) => {
                                     text(jj_finish_hint(state, &f.path)).size(FONT_SMALL).into()
                                 }
+                                // Handoff 065: no evidence either way — the
+                                // pre-RFC-045 message, generic and therefore
+                                // not asserting anything that could be
+                                // false, rather than guessing a specific
+                                // command that might be wrong.
+                                None => text(state.t("plain.resolve.unsupported"))
+                                    .size(FONT_SMALL)
+                                    .into(),
                             };
 
                             column![
@@ -318,17 +328,24 @@ fn styled_button<'a>(
         .into()
 }
 
-/// RFC-045 D2: returns the kind itself, not a Git-only bool, so the view can
-/// choose wording rather than merely gate a button. The fallback branch is
-/// an isomorphic rewrite of the bool this replaced — `!jj_dir && git_exists`
-/// mapped to `Git`, everything else to `Jujutsu` — so `vcs_kind ==
-/// VcsKind::Git` reproduces the exact same boolean the pre-RFC-045 version
-/// returned for every project that has a `workspace_status` entry or an
-/// on-disk `.git`/`.jj` marker (R3: Git rows are unchanged). The one case
-/// that changes label is a project found in neither source at all — never
-/// reachable in practice, since `resolve_panel` is only opened for a
-/// project already known to the workspace.
-fn conflict_vcs_kind_for_project(state: &AppState, project_id: &ProjectId) -> VcsKind {
+/// RFC-045 D2, Handoff 065: `Option<VcsKind>`, not a bare `VcsKind` — there
+/// is no value in a two-variant enum that means "I could not tell," and this
+/// function sometimes cannot tell. `None` covers exactly the cases the old
+/// Git-only bool this replaced had no evidence for: a project in neither
+/// `workspace_status` nor `workspace.projects`, and a project present in
+/// `workspace.projects` whose path has neither a `.git` nor a `.jj` marker
+/// (the state `missing_projects` tracks, `!VcsAdapter::repo_exists`,
+/// RFC-046). `Some(Jujutsu)` is returned whenever `.jj` is a directory,
+/// including a colocated repo that also has `.git` — a `.jj` marker is
+/// still evidence, so this is not a no-evidence case. Every reachable
+/// outcome now either matches the pre-RFC-045 boolean exactly (`Some(Git)`
+/// where it was `true`, `Some(Jujutsu)`/`None` both where it was `false`,
+/// collapsed there because that old bool never distinguished "confirmed
+/// Jujutsu" from "unknown") or is the new distinction RFC-045 exists to
+/// draw — with no appeal to how rarely the no-evidence path is reached,
+/// because `mark_control`'s `None` arm renders the same generic,
+/// nothing-asserted message the bool's `false` case always rendered.
+fn conflict_vcs_kind_for_project(state: &AppState, project_id: &ProjectId) -> Option<VcsKind> {
     state
         .workspace_status
         .as_ref()
@@ -338,20 +355,21 @@ fn conflict_vcs_kind_for_project(state: &AppState, project_id: &ProjectId) -> Vc
                 .find(|status| &status.project_id == project_id)
         })
         .map(|status| status.identity.vcs_kind)
-        .unwrap_or_else(|| {
+        .or_else(|| {
             state
                 .workspace
                 .as_ref()
                 .and_then(|ws| ws.projects.iter().find(|project| &project.id == project_id))
-                .map(|project| {
+                .and_then(|project| {
                     let path = std::path::Path::new(&project.path);
-                    if !path.join(".jj").is_dir() && path.join(".git").exists() {
-                        VcsKind::Git
+                    if path.join(".jj").is_dir() {
+                        Some(VcsKind::Jujutsu)
+                    } else if path.join(".git").exists() {
+                        Some(VcsKind::Git)
                     } else {
-                        VcsKind::Jujutsu
+                        None
                     }
                 })
-                .unwrap_or(VcsKind::Jujutsu)
         })
 }
 
@@ -439,7 +457,7 @@ mod tests {
         let (state, project_id) = state_with_status(VcsKind::Jujutsu);
         assert_eq!(
             conflict_vcs_kind_for_project(&state, &project_id),
-            VcsKind::Jujutsu
+            Some(VcsKind::Jujutsu)
         );
     }
 
@@ -451,8 +469,38 @@ mod tests {
         let (state, project_id) = state_with_status(VcsKind::Git);
         assert_eq!(
             conflict_vcs_kind_for_project(&state, &project_id),
-            VcsKind::Git
+            Some(VcsKind::Git)
         );
+    }
+
+    /// Handoff 065: a project the workspace knows about, but whose on-disk
+    /// path has neither a `.git` nor a `.jj` marker — exactly what
+    /// `missing_projects` tracks (RFC-046, `!VcsAdapter::repo_exists`), not
+    /// a hypothetical. No `workspace_status` entry either, so this drives
+    /// the fallback's on-disk check through a real empty directory rather
+    /// than asserting the `None` branch in isolation.
+    #[test]
+    fn conflict_vcs_kind_for_project_reports_none_with_neither_marker_present() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let mut state = AppState::new(AppConfig::default());
+        let project = knotra_vcs::Project::new("svc", tmp.path().to_string_lossy());
+        let project_id = project.id.clone();
+        state.workspace = Some(knotra_vcs::Workspace {
+            projects: vec![project],
+            ..knotra_vcs::Workspace::new("Test")
+        });
+
+        assert_eq!(conflict_vcs_kind_for_project(&state, &project_id), None);
+    }
+
+    /// Handoff 065: a project absent from both `workspace_status` and
+    /// `workspace.projects` — the other no-evidence case named in `154` §3.
+    #[test]
+    fn conflict_vcs_kind_for_project_reports_none_when_absent_from_both_sources() {
+        let state = AppState::new(AppConfig::default());
+        let project_id = ProjectId::new();
+
+        assert_eq!(conflict_vcs_kind_for_project(&state, &project_id), None);
     }
 
     /// The content half: the jj hint names the completing action and this
