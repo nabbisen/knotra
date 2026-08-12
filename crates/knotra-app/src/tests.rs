@@ -2018,7 +2018,7 @@ fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
                     project_id: project.id.clone(),
                     outcome: ProjectOperationOutcome::Skipped,
                     success: true,
-                    skip_reason: Some("No update source is configured.".to_owned()),
+                    skip_reason: Some("retry:not_in_active_workspace".to_owned()),
                     commands_executed: vec![],
                     stdout: "[excluded]".to_owned(),
                     stderr: String::new(),
@@ -2049,7 +2049,7 @@ fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
     assert_eq!(loaded[0].result.skipped_projects().len(), 1);
     assert_eq!(
         loaded[0].result.per_project[0].skip_reason.as_deref(),
-        Some("No update source is configured.")
+        Some("retry:not_in_active_workspace")
     );
 }
 

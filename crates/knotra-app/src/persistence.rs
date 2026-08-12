@@ -121,3 +121,81 @@ pub fn load_recent_logs(paths: &AppPaths, limit: usize) -> Vec<OperationLog> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use knotra_vcs::model::operation::{
+        OperationId, OperationKind, OperationResult, ProjectOperationOutcome,
+        ProjectOperationResult,
+    };
+
+    fn paths_in(tmp: &tempfile::TempDir) -> AppPaths {
+        AppPaths {
+            config_file: tmp.path().join("config.toml"),
+            workspaces_dir: tmp.path().join("workspaces"),
+            history_dir: tmp.path().join("history"),
+        }
+    }
+
+    /// RFC-046 D4/R7: an entry written before D1's contract was enforced
+    /// holds rendered prose in `skip_reason`, not a code. D4 chose not to
+    /// migrate existing log files — this pins that decision as a test, so a
+    /// later change cannot quietly start discarding or mangling pre-fix
+    /// records. Covers the full chain R7 names: the record survives
+    /// `save_operation_log` -> `load_recent_logs` (no panic, not dropped),
+    /// and still renders through the same fallback the on-screen path uses.
+    #[test]
+    fn a_pre_fix_prose_skip_reason_round_trips_and_still_renders() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = paths_in(&tmp);
+        let now = chrono::Utc::now();
+        let prose = "このプロジェクトは今は確認できません。";
+
+        let log = OperationLog {
+            result: OperationResult {
+                operation_id: OperationId::new(),
+                kind: OperationKind::Fetch,
+                started_at: now,
+                finished_at: now,
+                per_project: vec![ProjectOperationResult {
+                    project_id: knotra_vcs::ProjectId::new(),
+                    outcome: ProjectOperationOutcome::Skipped,
+                    success: true,
+                    skip_reason: Some(prose.to_owned()),
+                    commands_executed: Vec::new(),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: None,
+                }],
+                rollback_attempted: false,
+                rollback_succeeded: None,
+            },
+            recovery_hints: Vec::new(),
+        };
+
+        save_operation_log(&log, &paths).expect("save a pre-fix record");
+
+        let loaded = load_recent_logs(&paths, 10);
+        assert_eq!(loaded.len(), 1, "a pre-fix record must not be dropped");
+        assert_eq!(
+            loaded[0].result.per_project[0].skip_reason.as_deref(),
+            Some(prose),
+            "a pre-fix prose value must round-trip byte-for-byte"
+        );
+
+        let state = crate::state::AppState::new(crate::config::AppConfig::default());
+        let rendered = crate::view::skip_reason_display(
+            &state,
+            loaded[0].result.per_project[0]
+                .skip_reason
+                .as_deref()
+                .unwrap(),
+        );
+        assert_eq!(
+            rendered, prose,
+            "an unrecognised value must render verbatim -- no panic, no blank"
+        );
+    }
+}

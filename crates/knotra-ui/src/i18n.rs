@@ -306,10 +306,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "plain.selection.choose_one_work_area",
         "Choose one project to change work area.",
     );
-    m.insert(
-        "plain.fetch.skipped_unavailable",
-        "This project cannot be checked right now.",
-    );
 
     m.insert("plain.status.all_set", "All set");
     m.insert("plain.status.unsaved_work", "Unsaved work");
@@ -1116,10 +1112,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "plain.selection.choose_one_work_area",
         "作業エリアを変更するプロジェクトを1つ選んでください。",
     );
-    m.insert(
-        "plain.fetch.skipped_unavailable",
-        "このプロジェクトは今は確認できません。",
-    );
 
     m.insert("plain.status.all_set", "問題なし");
     m.insert("plain.status.unsaved_work", "未保存の作業");
@@ -1895,6 +1887,85 @@ mod tests {
             violations.is_empty(),
             "these assignments contain a string literal with no `.t(...)` \
              call anywhere in the expression: {violations:?}"
+        );
+    }
+
+    /// The struct-literal sibling of `assignment_rhs`: extracts the RHS of
+    /// every `field: ...,` struct-literal assignment to `field` from
+    /// `source`, bounded by the first depth-0 `,` rather than `;`. Needed
+    /// because most `skip_reason` writers use struct-literal syntax
+    /// (`ProjectOperationResult { skip_reason: ..., .. }`), the form
+    /// `assignment_rhs` was not built to bound. Also matches a field
+    /// *declaration* (`pub skip_reason: Option<String>,`) — harmless, since
+    /// a type has no `.t(` in it and the check below only flags that
+    /// substring's presence.
+    fn struct_literal_rhs<'a>(source: &'a str, field: &str) -> Vec<&'a str> {
+        let marker = format!("{field}: ");
+        let mut found = Vec::new();
+        let mut rest = source;
+        while let Some(pos) = rest.find(&marker) {
+            let body = &rest[pos + marker.len()..];
+            let mut depth = 0i32;
+            let mut end = None;
+            for (i, c) in body.char_indices() {
+                match c {
+                    '(' | '{' | '[' => depth += 1,
+                    ')' | '}' | ']' => depth -= 1,
+                    ',' if depth == 0 => {
+                        end = Some(i);
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            let Some(end) = end else { break };
+            found.push(&body[..end]);
+            rest = &body[end..];
+        }
+        found
+    }
+
+    /// RFC-046 D5: the mirror of `status_bar_and_settings_save_msg_always_route_through_t`,
+    /// opposite polarity — that test asserts certain fields **must** route
+    /// through `t()`; this one asserts `skip_reason` **never** does.
+    /// `skip_reason` is a stable `RetryExclusionReason` code (D1), persisted
+    /// to disk and reloaded at startup — a `t()` call baked into it would
+    /// permanently freeze whatever locale was active at write time into a
+    /// user's history (RFC-046's Problem section). Scans both assignment
+    /// shapes seen in this codebase: `field = ...;` (`app/sync.rs:49`) and
+    /// `field: ...,` (every other writer). No test-file exclusion is
+    /// needed — once `tests.rs`'s one prose fixture becomes a code (RFC-046
+    /// R8), no test assigns `skip_reason` through `t()` either, so scanning
+    /// everything `is_scan_target` already allows is simpler and stricter
+    /// than carving out an exception.
+    #[test]
+    fn skip_reason_never_routes_through_t() {
+        let files = rust_files_under(&crates_dir());
+        assert!(
+            files.len() > 50,
+            "found only {} .rs files under crates/ -- path resolution is \
+             broken (expected 90+), not that nothing needed checking",
+            files.len()
+        );
+
+        let mut violations = Vec::new();
+        for file in files.iter().filter(|f| is_scan_target(f)) {
+            let Ok(source) = std::fs::read_to_string(file) else {
+                continue;
+            };
+            let mut rhs_values = assignment_rhs(&source, "skip_reason");
+            rhs_values.extend(struct_literal_rhs(&source, "skip_reason"));
+            for rhs in rhs_values {
+                if rhs.contains(".t(") {
+                    violations.push(format!("skip_reason in {}: {rhs}", file.display()));
+                }
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "RFC-046 D1: skip_reason must hold a stable RetryExclusionReason \
+             code, never rendered text -- these assignments route through \
+             `.t(...)`: {violations:?}"
         );
     }
 

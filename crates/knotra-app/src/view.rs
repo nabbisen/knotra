@@ -239,3 +239,19 @@ pub(crate) fn operation_kind_label<'a>(
         OperationKind::FreezeRollback => "plain.activity.kind_freeze_rollback",
     })
 }
+
+/// Maps a persisted `skip_reason` (RFC-046 D1: a stable `RetryExclusionReason`
+/// code) through the catalog for on-screen display, falling back to the
+/// stored value verbatim when it is not a recognised code — a value written
+/// before that contract was enforced, RFC-046 D4's deliberate forward/backward
+/// compatibility, not an error case. Moved here (from `history.rs`, its only
+/// caller before RFC-046 A1/D6/R10) so `overlays/smart_pull.rs` can share this
+/// one mapping too, rather than writing a second copy that must stay
+/// identical to the first — the same parallel-systems shape
+/// `operation_kind_label` above exists to prevent (RFC-034 R7), now also the
+/// case RFC-038's `label_en` pairing needed a guard for (RFC-046 A1 R11).
+pub(crate) fn skip_reason_display<'a>(state: &'a AppState, reason: &'a str) -> &'a str {
+    knotra_vcs::model::operation::RetryExclusionReason::from_code(reason)
+        .map(|reason| state.t(reason.i18n_key()))
+        .unwrap_or(reason)
+}

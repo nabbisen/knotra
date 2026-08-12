@@ -8,8 +8,8 @@ use knotra_vcs::{
     VcsAdapter,
     model::{
         operation::{
-            OperationId, ProjectOperationOutcome, ProjectOperationResult, SmartPullDisposition,
-            SmartPullProgress, SmartPullSkipReason,
+            OperationId, ProjectOperationOutcome, ProjectOperationResult, RetryExclusionReason,
+            SmartPullDisposition, SmartPullProgress, SmartPullSkipReason,
         },
         project::Project,
     },
@@ -297,7 +297,18 @@ fn start_bulk_fetch(
         .filter_map(|id| project_map.get(id).cloned())
         .collect();
     for id in ids {
-        if !project_map.contains_key(&id) || state.missing_projects.contains(&id) {
+        // RFC-046 D2: two distinct situations, not one vague message.
+        // Workspace membership is tested first because a project absent
+        // from the active workspace is not in `project_map` at all, so the
+        // folder-existence check below cannot be meaningful for it.
+        let code = if !project_map.contains_key(&id) {
+            Some(RetryExclusionReason::NotInActiveWorkspace.code())
+        } else if state.missing_projects.contains(&id) {
+            Some(RetryExclusionReason::ProjectPathMissing.code())
+        } else {
+            None
+        };
+        if let Some(code) = code {
             let project_name = project_map
                 .get(&id)
                 .map(|project| project.name.clone())
@@ -306,7 +317,7 @@ fn start_bulk_fetch(
                 project_id: id.clone(),
                 outcome: ProjectOperationOutcome::Skipped,
                 success: true,
-                skip_reason: Some(state.t("plain.fetch.skipped_unavailable").to_owned()),
+                skip_reason: Some(code.to_owned()),
                 commands_executed: Vec::new(),
                 stdout: String::new(),
                 stderr: String::new(),
@@ -364,4 +375,65 @@ fn start_bulk_fetch(
             },
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use knotra_vcs::{Project, Workspace};
+
+    fn state_with_workspace(names: &[&str]) -> (AppState, Vec<knotra_vcs::ProjectId>) {
+        let mut state = AppState::new(AppConfig::default());
+        let projects: Vec<Project> = names.iter().map(|n| Project::new(*n, "/tmp")).collect();
+        let ids: Vec<_> = projects.iter().map(|p| p.id.clone()).collect();
+        state.workspace = Some(Workspace {
+            projects,
+            ..Workspace::new("Test")
+        });
+        (state, ids)
+    }
+
+    /// RFC-046 D2: a project absent from the active workspace produces
+    /// `NotInActiveWorkspace`'s code — and does so even when it is
+    /// (artificially, here) also present in `missing_projects`, proving
+    /// workspace membership is genuinely tested first rather than merely
+    /// happening to run first because the two conditions never coincide in
+    /// practice.
+    #[test]
+    fn a_project_absent_from_the_workspace_produces_not_in_active_workspace() {
+        let (mut state, _ids) = state_with_workspace(&["alpha"]);
+        let ghost_id = knotra_vcs::ProjectId::new();
+        state.missing_projects.insert(ghost_id.clone());
+
+        let _ = start_bulk_fetch(&mut state, vec![ghost_id], Vec::new());
+
+        let SyncPhase::Done(result) = &state.sync.phase else {
+            panic!("expected a synchronous Done phase with no fetchable projects");
+        };
+        assert_eq!(result.per_project.len(), 1);
+        assert_eq!(
+            result.per_project[0].skip_reason.as_deref(),
+            Some(RetryExclusionReason::NotInActiveWorkspace.code())
+        );
+    }
+
+    /// RFC-046 D2: a project present in the workspace but with a missing
+    /// folder produces `ProjectPathMissing`'s code.
+    #[test]
+    fn a_project_with_a_missing_folder_produces_project_path_missing() {
+        let (mut state, ids) = state_with_workspace(&["alpha"]);
+        state.missing_projects.insert(ids[0].clone());
+
+        let _ = start_bulk_fetch(&mut state, ids.clone(), Vec::new());
+
+        let SyncPhase::Done(result) = &state.sync.phase else {
+            panic!("expected a synchronous Done phase with no fetchable projects");
+        };
+        assert_eq!(result.per_project.len(), 1);
+        assert_eq!(
+            result.per_project[0].skip_reason.as_deref(),
+            Some(RetryExclusionReason::ProjectPathMissing.code())
+        );
+    }
 }

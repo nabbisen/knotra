@@ -414,8 +414,15 @@ fn pull_result_view<'a>(
                 ProjectOperationOutcome::Failed => ("!", state.t("plain.needs_help")),
                 ProjectOperationOutcome::Skipped => (
                     "-",
+                    // RFC-046 A1/D6/R10: map a persisted code through the
+                    // catalog rather than rendering it raw — this overlay
+                    // was showing `retry:not_in_active_workspace` verbatim
+                    // beside a translated sentence from another writer
+                    // before this fix. `None` (no reason recorded) keeps
+                    // its own, unrelated fallback below.
                     pp.skip_reason
                         .as_deref()
+                        .map(|reason| crate::view::skip_reason_display(state, reason))
                         .unwrap_or(state.t("plain.get_latest.skipped_row")),
                 ),
             };

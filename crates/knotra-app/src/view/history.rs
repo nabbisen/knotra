@@ -250,7 +250,7 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
         rows.push(text(format!("  {icon} {}", pr.project_id)).size(12).into());
         if let Some(reason) = &pr.skip_reason {
             rows.push(
-                text(format!("    {}", skip_reason_text(state, reason)))
+                text(format!("    {}", super::skip_reason_display(state, reason)))
                     .size(10)
                     .into(),
             );
@@ -285,12 +285,6 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
     column(rows).spacing(2).padding([4, 12]).into()
 }
 
-fn skip_reason_text<'a>(state: &'a AppState, reason: &'a str) -> &'a str {
-    knotra_vcs::model::operation::RetryExclusionReason::from_code(reason)
-        .map(|reason| state.t(reason.i18n_key()))
-        .unwrap_or(reason)
-}
-
 // ---------------------------------------------------------------------------
 // Clipboard/export text — RFC-038 A1
 // ---------------------------------------------------------------------------
@@ -312,13 +306,14 @@ fn skip_reason_text<'a>(state: &'a AppState, reason: &'a str) -> &'a str {
 /// `RetryExclusionReason` codes (`retry:not_in_active_workspace` and
 /// friends, `knotra-vcs/src/model/operation.rs:93`) this is the canonical,
 /// greppable identifier — stable across users and locales, needing no
-/// second English mapping that could drift from the code. One skip-reason
-/// source outside that enum (`app/sync.rs:309`'s "project cannot be checked
-/// right now" path) instead stores already-rendered, locale-baked text at
-/// write time; for that source the export inherits whatever locale was
-/// active when the entry was logged, exactly as the on-screen path already
-/// does via `skip_reason_text`'s same fallback. Pre-existing, not
-/// introduced here — see the Handoff 060 review request.
+/// second English mapping that could drift from the code. RFC-046 D1 made
+/// this the only shape `skip_reason` is ever written in going forward
+/// (`app/sync.rs`'s prior locale-baked-text writer was fixed at the source,
+/// not papered over here); a log entry written before that fix still holds
+/// rendered prose, and this export inherits whatever locale was active when
+/// such an entry was logged, same as the on-screen path's
+/// `skip_reason_display` fallback (`view.rs`) — RFC-046 D4's deliberate
+/// compatibility with pre-fix records, not a live defect.
 fn export_text(result: &OperationResult) -> String {
     let kind = result.kind.to_string();
     let ts = result

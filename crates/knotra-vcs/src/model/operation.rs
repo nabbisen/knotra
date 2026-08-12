@@ -136,6 +136,17 @@ pub struct ProjectOperationResult {
     #[serde(default = "ProjectOperationResult::default_outcome")]
     pub outcome: ProjectOperationOutcome,
     pub success: bool,
+    /// RFC-046 D1: a stable [`RetryExclusionReason`] code (`.code()`),
+    /// **never rendered UI text**. This value is serialised to disk and
+    /// reloaded at startup, so it outlives the locale — and the knotra
+    /// version — that produced it; a rendered sentence baked in here would
+    /// be permanent, wrong-language history a user cannot fix by changing
+    /// their locale later. Readers map a code back to display text through
+    /// the catalog at render time (`view.rs`'s `skip_reason_display`),
+    /// falling back to the stored value verbatim for a value that predates
+    /// this contract (RFC-046 D4) — deliberate forward/backward
+    /// compatibility with logs written before this field's contract was
+    /// enforced, not an oversight.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skip_reason: Option<String>,
     /// The VCS command(s) that were executed, for transparency.
