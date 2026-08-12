@@ -3,6 +3,13 @@
 //!
 //! Opens as a right-docked panel when the user clicks a project name.
 //! Showing all status fields, recent operations, and available actions.
+//!
+//! RFC-048: every user-facing string here now routes through `state.t()`
+//! under the `detail.*` prefix — the panel made zero `t()` calls before
+//! this and was entirely English for every Japanese user. `detail.*` is
+//! deliberately not a first-level prefix (RFC-048 D1): this is the expert
+//! surface RFC-021's plain-language layer defers *to*, so `Branch`,
+//! `Fetch`, `Conflict` etc. are translated, not re-worded.
 
 use iced::{
     Alignment, Element, Length,
@@ -13,6 +20,32 @@ use crate::{
     message::{DetailPanelMessage, Message, ProjectMessage, WorkspaceMessage},
     state::AppState,
 };
+
+/// RFC-048 D3: label/value pairs laid out as two columns sized by the
+/// layout engine, not by space-padding the label string to a fixed
+/// character count (the pre-RFC-048 shape — `format!("Branch:     {}",
+/// branch)`). No catalog value carries alignment whitespace in either
+/// locale; `label_width` is chosen per section to fit that section's
+/// longest label, matching the old padded columns' per-section grouping
+/// rather than one width shared across the whole panel.
+fn field_row<'a>(
+    label: &'a str,
+    value: impl std::fmt::Display,
+    label_width: f32,
+) -> Element<'a, Message> {
+    row![
+        text(label).size(11).width(Length::Fixed(label_width)),
+        text(value.to_string()).size(11),
+    ]
+    .into()
+}
+
+/// Fits `detail.label_remote` ("Remote:"), the longest label in the
+/// Identity section, at `.size(11)`.
+const IDENTITY_LABEL_WIDTH: f32 = 56.0;
+/// Fits `detail.label_untracked` ("Untracked:"), the longest label in the
+/// Status section, at `.size(11)`.
+const STATUS_LABEL_WIDTH: f32 = 72.0;
 
 pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     let id = state.detail_panel.open_project_id.as_ref()?;
@@ -48,10 +81,10 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .unwrap_or_else(|| "—".into());
 
     let identity = column![
-        text("Identity").size(12),
-        text(format!("VCS:    {}", vcs)).size(11),
-        text(format!("Path:   {}", path)).size(11),
-        text(format!("Remote: {}", remote)).size(11),
+        text(state.t("detail.section_identity")).size(12),
+        field_row(state.t("detail.label_vcs"), vcs, IDENTITY_LABEL_WIDTH),
+        field_row(state.t("detail.label_path"), path, IDENTITY_LABEL_WIDTH),
+        field_row(state.t("detail.label_remote"), remote, IDENTITY_LABEL_WIDTH),
     ]
     .spacing(3);
 
@@ -63,25 +96,36 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         let dirty = s.working_tree.uncommitted_count;
         let untracked = s.working_tree.untracked_count;
         let conflict = if s.conflict.has_conflict {
-            "Yes"
+            state.t("detail.conflict_yes")
         } else if s.conflict.detection_unavailable {
-            "Unknown"
+            state.t("detail.conflict_unknown")
         } else {
-            "No"
+            state.t("detail.conflict_no")
         };
 
         column![
-            text("Status").size(12),
-            text(format!("Branch:     {}", branch)).size(11),
-            text(format!("Ahead:      {}", ahead)).size(11),
-            text(format!("Behind:     {}", behind)).size(11),
-            text(format!("Dirty:      {}", dirty)).size(11),
-            text(format!("Untracked:  {}", untracked)).size(11),
-            text(format!("Conflict:   {}", conflict)).size(11),
+            text(state.t("detail.section_status")).size(12),
+            field_row(state.t("detail.label_branch"), branch, STATUS_LABEL_WIDTH),
+            field_row(state.t("detail.label_ahead"), ahead, STATUS_LABEL_WIDTH),
+            field_row(state.t("detail.label_behind"), behind, STATUS_LABEL_WIDTH),
+            field_row(state.t("detail.label_dirty"), dirty, STATUS_LABEL_WIDTH),
+            field_row(
+                state.t("detail.label_untracked"),
+                untracked,
+                STATUS_LABEL_WIDTH
+            ),
+            field_row(
+                state.t("detail.label_conflict"),
+                conflict,
+                STATUS_LABEL_WIDTH
+            ),
         ]
         .spacing(3)
     } else {
-        column![text("Status").size(12), text("Loading…").size(11)]
+        column![
+            text(state.t("detail.section_status")).size(12),
+            text(state.t("detail.loading")).size(11)
+        ]
     };
 
     // --- Recent operations section (last 5 involving this project) ---
@@ -100,10 +144,13 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                 .map(|pp| pp.success)
                 .unwrap_or(false);
             let icon = if ok { "✓" } else { "✗" };
+            // RFC-048 §2: `operation_kind_label` (`view.rs`), not
+            // `log.result.kind`'s raw English `Display` — the fourth
+            // consumer, after `activity_strip.rs` and `history.rs`'s two.
             text(format!(
                 "{} {} — {}",
                 icon,
-                log.result.kind,
+                super::operation_kind_label(state, &log.result.kind),
                 log.result.started_at.format("%m/%d %H:%M")
             ))
             .size(11)
@@ -112,32 +159,35 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .collect();
 
     let recent = column(
-        std::iter::once(text("Recent operations").size(12).into()).chain(
-            if recent_ops.is_empty() {
-                vec![text("None").size(11).into()]
-            } else {
-                recent_ops
-            },
-        ),
+        std::iter::once(
+            text(state.t("detail.section_recent_operations"))
+                .size(12)
+                .into(),
+        )
+        .chain(if recent_ops.is_empty() {
+            vec![text(state.t("detail.none")).size(11).into()]
+        } else {
+            recent_ops
+        }),
     )
     .spacing(3);
 
     // --- Actions ---
-    let refresh_btn = button(text("Refresh").size(12)).on_press(Message::Project(
+    let refresh_btn = button(text(state.t("detail.refresh")).size(12)).on_press(Message::Project(
         ProjectMessage::StatusRefreshRequested(id.clone()),
     ));
 
-    let fetch_btn = button(text("Fetch").size(12)).on_press_maybe(
+    let fetch_btn = button(text(state.t("detail.fetch")).size(12)).on_press_maybe(
         (!state.operation_interlock.is_busy())
             .then_some(Message::Project(ProjectMessage::FetchRequested(id.clone()))),
     );
 
-    let remove_btn = button(text("Remove from workspace").size(12)).on_press(Message::Workspace(
-        WorkspaceMessage::RemoveProjectRequested(id.clone()),
-    ));
+    let remove_btn = button(text(state.t("detail.remove_from_workspace")).size(12)).on_press(
+        Message::Workspace(WorkspaceMessage::RemoveProjectRequested(id.clone())),
+    );
 
     let actions = column![
-        text("Actions").size(12),
+        text(state.t("detail.section_actions")).size(12),
         row![refresh_btn, fetch_btn].spacing(6),
         remove_btn,
     ]

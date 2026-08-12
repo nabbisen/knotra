@@ -861,6 +861,41 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // Settings-panel one, and the call sites already named it this way.
     m.insert("tool.not_configured", "Choose a tool in Settings first.");
     m.insert("tool.launch_failed", "Could not launch");
+    // RFC-048 D1: the project detail panel — the expert surface RFC-021's
+    // plain-language layer defers *to*. `detail.*` is deliberately not a
+    // first-level prefix, so `first_level_wording_has_no_developer_jargon`
+    // does not apply here and `Branch`/`Fetch`/`Conflict` are not re-worded
+    // — this RFC translates, it does not re-word (R3: English unchanged
+    // from what shipped before this RFC).
+    m.insert("detail.section_identity", "Identity");
+    m.insert("detail.section_status", "Status");
+    m.insert("detail.section_recent_operations", "Recent operations");
+    m.insert("detail.section_actions", "Actions");
+    m.insert("detail.label_vcs", "VCS:");
+    m.insert("detail.label_path", "Path:");
+    m.insert("detail.label_remote", "Remote:");
+    m.insert("detail.label_branch", "Branch:");
+    m.insert("detail.label_ahead", "Ahead:");
+    m.insert("detail.label_behind", "Behind:");
+    m.insert("detail.label_dirty", "Dirty:");
+    m.insert("detail.label_untracked", "Untracked:");
+    m.insert("detail.label_conflict", "Conflict:");
+    m.insert("detail.conflict_yes", "Yes");
+    m.insert("detail.conflict_unknown", "Unknown");
+    m.insert("detail.conflict_no", "No");
+    m.insert("detail.loading", "Loading…");
+    m.insert("detail.none", "None");
+    m.insert("detail.refresh", "Refresh");
+    m.insert("detail.fetch", "Fetch");
+    m.insert("detail.remove_from_workspace", "Remove from workspace");
+    // RFC-048 D2: the keyboard-shortcuts cheat sheet, under the existing
+    // `shortcut.*` prefix (already localised in both catalogs for the
+    // shell's own shortcut hints — `shortcut.refresh` etc.) — new key names
+    // chosen not to collide with those.
+    m.insert("shortcut.overlay_title", "Keyboard Shortcuts");
+    m.insert("shortcut.column_keys", "Keys");
+    m.insert("shortcut.column_context", "Context");
+    m.insert("shortcut.column_action", "Action");
     m
 }
 
@@ -1664,6 +1699,31 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.fs_watch_interval_label", "変更検出の間隔");
     m.insert("tool.not_configured", "先に設定でツールを選んでください。");
     m.insert("tool.launch_failed", "起動できませんでした");
+    m.insert("detail.section_identity", "識別情報");
+    m.insert("detail.section_status", "ステータス");
+    m.insert("detail.section_recent_operations", "最近の操作");
+    m.insert("detail.section_actions", "アクション");
+    m.insert("detail.label_vcs", "VCS:");
+    m.insert("detail.label_path", "パス:");
+    m.insert("detail.label_remote", "リモート:");
+    m.insert("detail.label_branch", "ブランチ:");
+    m.insert("detail.label_ahead", "先行:");
+    m.insert("detail.label_behind", "遅れ:");
+    m.insert("detail.label_dirty", "未コミット:");
+    m.insert("detail.label_untracked", "未追跡:");
+    m.insert("detail.label_conflict", "競合:");
+    m.insert("detail.conflict_yes", "はい");
+    m.insert("detail.conflict_unknown", "不明");
+    m.insert("detail.conflict_no", "いいえ");
+    m.insert("detail.loading", "読み込み中…");
+    m.insert("detail.none", "なし");
+    m.insert("detail.refresh", "更新");
+    m.insert("detail.fetch", "フェッチ");
+    m.insert("detail.remove_from_workspace", "ワークスペースから削除");
+    m.insert("shortcut.overlay_title", "キーボードショートカット");
+    m.insert("shortcut.column_keys", "キー");
+    m.insert("shortcut.column_context", "コンテキスト");
+    m.insert("shortcut.column_action", "アクション");
     m
 }
 

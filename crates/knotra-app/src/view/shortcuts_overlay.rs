@@ -120,7 +120,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .on_press(Message::KeyEvent(KeyboardMessage::CheatSheetToggled));
 
     let header = row![
-        text("Keyboard Shortcuts").size(15),
+        text(state.t("shortcut.overlay_title")).size(15),
         Space::new().width(Length::Fill),
         close_btn,
     ]
@@ -128,9 +128,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .padding([0, 0]);
 
     let col_header = row![
-        text("Keys").size(11),
-        text("Context").size(11),
-        text("Action").size(11),
+        text(state.t("shortcut.column_keys")).size(11),
+        text(state.t("shortcut.column_context")).size(11),
+        text(state.t("shortcut.column_action")).size(11),
     ]
     .spacing(16);
 
@@ -146,8 +146,6 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .into()
         })
         .collect();
-
-    let _ = state; // unused but kept for symmetry with other view functions
 
     container(
         column![header, col_header, column(rows).spacing(4),]

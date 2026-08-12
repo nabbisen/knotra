@@ -9,6 +9,8 @@ mod fs_watcher;
 mod message;
 mod persistence;
 mod state;
+#[cfg(test)]
+mod text_outside_catalog_guard;
 mod view;
 
 #[cfg(test)]
