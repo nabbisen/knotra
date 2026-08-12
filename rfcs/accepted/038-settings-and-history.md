@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-10, project owner) - implementation authorised, not yet shipped |
+| Status | Accepted (2026-08-10, project owner); **amended 2026-08-12 (A1, project owner)** - Stages 1-4 shipped, Stage 5 outstanding |
 | Priority | High - the last two unmigrated screens, and the RFC that must build the field primitive RFC-034 never did |
 | Effort | Medium-to-large - two screens, a new `knotra-ui` primitive, and a localisation gap wider than previously recorded |
 | Target | Production Readiness Reset - UI/UX foundation track |
@@ -165,7 +165,7 @@ intact and does not need to.
 | 2 | The validated field primitive in `knotra-ui`, with tests | Must exist before Settings can use it |
 | 3 | Settings migration onto the primitive and the form grid | The primitive's first consumer |
 | 4 | History migration and the record-list extraction | The largest, and RFC-039's dependency |
-| 5 | `log_to_markdown`'s locale | Export path; last because it is the least visible |
+| 5 | **Re-scoped 2026-08-12 (A1).** Make the history export consistently English | Its original subject was deleted by RFC-043; the surviving export path is inconsistent and unguarded |
 
 Stage 1 ships a user-visible fix before any structural work, which is the ordering
 0.27.0's two defect fixes argue for.
@@ -174,16 +174,64 @@ Stage 1 ships a user-visible fix before any structural work, which is the orderi
 
 | # | Requirement |
 |---|---|
-| R1 | No user-facing English string remains in `settings.rs` or `history.rs`, visible path or export |
+| R1 | **Amended 2026-08-12 — see Amendment A1.** No user-facing English string remains in the **visible path** of `settings.rs` or `history.rs`. Export text is English by design and is out of scope |
 | R2 | Both catalogs carry every new key; `i18n.rs:1564`'s jargon guard stays green |
 | R3 | The new field primitive lives in `knotra-ui`, has its own tests, and does not modify `guided_field` |
 | R4 | A numeric setting given invalid input shows a persistent error and does **not** silently coerce |
 | R5 | `AppConfig`'s schema is unchanged - no field added, removed, or retyped |
 | R6 | The record-list pattern is extracted in a form RFC-039 can consume, with its location justified |
-| R7 | `log_to_markdown` receives a locale and emits localised labels |
+| R7 | **Withdrawn 2026-08-12 — see Amendment A1.** `log_to_markdown` was deleted as dead code by RFC-043 R6; this requirement has no subject. Replaced by R7a |
+| R7a | The history export closure makes **no catalog lookup**. Its labels are source literals, so the exported artifact is a pure function of the operation record |
 | R8 | `tests.rs` is not edited - zero lines |
 | R9 | Every touched file stays under 500 ELOC |
 | R10 | `knotra-vcs` is not modified |
+
+## Amendments
+
+### A1. Export text is English by design (2026-08-12, project owner)
+
+**What forced this.** R7's subject, `log_to_markdown`, no longer exists — RFC-043 R6
+deleted it as dead code, and `view/history.rs:188` records the removal. Stage 5 was
+scoped entirely around a function that is gone, so the stage could not be executed as
+written.
+
+**What checking it turned up.** R1 required no English string "visible path or export",
+but the surviving export — the copy-log closure in `view/history.rs` — is **already
+mixed**: it localises the status label (`state.t(status.label_key)`) and the skip reason
+(`state.t(reason.i18n_key())`) while emitting `ok`/`FAILED`/`SKIPPED` and the operation
+`kind` as raw English. A Japanese user's copied log today reads `✓ 成功` on one line and
+`[ok]` on the next. There was no exemption in force to preserve; there was an
+inconsistency nobody had looked at, because the stage that would have collided with it
+was the one whose subject got deleted.
+
+**The decision: the export is English, and the split is deliberate.** The visible path
+and the export are the same information in two media with two audiences. On-screen text
+is read by the user, in the app, in their locale — localised, and that work is done. The
+export **leaves the app**: it is pasted into issue trackers, chats, and search boxes,
+where the reader is frequently not the user. R1 collapsing both media into one
+requirement was the original error.
+
+**Why English rather than full localisation**, on safety rather than taste:
+
+- The export's two catalog lookups pass **variable** keys (`status.label_key`,
+  `reason.i18n_key()`). `every_literal_t_call_names_an_existing_key` matches the literal
+  text `.t("` and cannot see either one. They are the only two lookups in the export, and
+  they are exactly the two no guard covers.
+- `Catalog::t()` is `debug_assert!` then `unwrap_or(key)`. A **release** build with a
+  missing key emits `history.status_success` as raw text into the user's clipboard — on
+  the one surface where the user sends the artifact onward before reading it.
+- Under localisation the same failure produces different text depending on the *sender's*
+  locale, so two users' logs do not match one grep pattern.
+
+Removing the lookups therefore removes an existing exposure rather than merely declining
+to add one. The export stops depending on catalog completeness and on the sender's
+locale, and depends only on the operation record — R7a.
+
+**Scope of the change**: the labels only. No data is added or dropped either way;
+commands, stderr, project ids and timestamps were never localised and are untouched.
+
+**Behaviour change to note in the changelog**: a Japanese user's copied logs will show
+`Success` where they showed `成功`.
 
 ## Verification
 
