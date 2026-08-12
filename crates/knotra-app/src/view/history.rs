@@ -178,44 +178,8 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
                 .align_y(Alignment::Center)
         )
         .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle))),
-        button(text(state.t("history.copy_log")).size(11)).on_press({
-            // Build a text representation of the log entry for clipboard.
-            // `kind` stays `OperationKind`'s raw English `Display`
-            // deliberately — this closure builds clipboard/export text, the
-            // same category as `ok`/`FAILED`/`SKIPPED` below: export text,
-            // not on-screen text, so it is exempt from this stage's
-            // localisation work. Only the on-screen `primary_row` above
-            // changed. (`log_to_markdown` was the same category before its
-            // removal, RFC-043 R6 — this is now the only such exception.)
-            let kind = result.kind.to_string();
-            let ts = result
-                .started_at
-                .format("%Y-%m-%d %H:%M:%S UTC")
-                .to_string();
-            let status = summarise_status(result);
-            let status_text = format!("{} {}", status.glyph, state.t(status.label_key));
-            let mut text_parts = vec![format!("# {} — {} — {}", kind, ts, status_text)];
-            for pr in &result.per_project {
-                let ok = match pr.effective_outcome() {
-                    ProjectOperationOutcome::Succeeded => "ok",
-                    ProjectOperationOutcome::Failed => "FAILED",
-                    ProjectOperationOutcome::Skipped => "SKIPPED",
-                };
-                text_parts.push(format!("  {} [{}]", pr.project_id, ok));
-                if let Some(reason) = &pr.skip_reason {
-                    text_parts.push(format!("    {}", skip_reason_text(state, reason)));
-                }
-                for cmd in &pr.commands_executed {
-                    text_parts.push(format!("    $ {}", cmd));
-                }
-                if !pr.stderr.is_empty() {
-                    for line in pr.stderr.lines().take(5) {
-                        text_parts.push(format!("    {}", line));
-                    }
-                }
-            }
-            Message::CopyToClipboard(text_parts.join("\n"))
-        }),
+        button(text(state.t("history.copy_log")).size(11))
+            .on_press(Message::CopyToClipboard(export_text(result))),
     ]
     .spacing(8)
     .align_y(Alignment::Center);
@@ -328,17 +292,82 @@ fn skip_reason_text<'a>(state: &'a AppState, reason: &'a str) -> &'a str {
 }
 
 // ---------------------------------------------------------------------------
+// Clipboard/export text — RFC-038 A1
+// ---------------------------------------------------------------------------
+
+/// Builds this operation's clipboard/export text. RFC-038 A1: the export is
+/// English by design — it leaves the app and lands in issue trackers and
+/// search boxes where the reader is frequently not the localised user, and
+/// each catalog lookup here would be a *variable*-keyed one, the one shape
+/// `every_literal_t_call_names_an_existing_key` cannot check; a missing key
+/// in a release build would paste the raw catalog key straight into the
+/// user's pasted report (`Catalog::t()` is `debug_assert!` then
+/// `unwrap_or(key)`). Taking `&OperationResult` rather than `&AppState`
+/// makes that guarantee structural: `t()` is a method on `AppState`, so this
+/// function cannot regain a catalog lookup without the parameter coming
+/// back — R7a is enforced by the signature, not merely followed by the
+/// body.
+///
+/// `skip_reason` is emitted verbatim, not translated: for the stable
+/// `RetryExclusionReason` codes (`retry:not_in_active_workspace` and
+/// friends, `knotra-vcs/src/model/operation.rs:93`) this is the canonical,
+/// greppable identifier — stable across users and locales, needing no
+/// second English mapping that could drift from the code. One skip-reason
+/// source outside that enum (`app/sync.rs:309`'s "project cannot be checked
+/// right now" path) instead stores already-rendered, locale-baked text at
+/// write time; for that source the export inherits whatever locale was
+/// active when the entry was logged, exactly as the on-screen path already
+/// does via `skip_reason_text`'s same fallback. Pre-existing, not
+/// introduced here — see the Handoff 060 review request.
+fn export_text(result: &OperationResult) -> String {
+    let kind = result.kind.to_string();
+    let ts = result
+        .started_at
+        .format("%Y-%m-%d %H:%M:%S UTC")
+        .to_string();
+    let status = summarise_status(result);
+    let status_text = format!("{} {}", status.glyph, status.label_en);
+    let mut text_parts = vec![format!("# {} — {} — {}", kind, ts, status_text)];
+    for pr in &result.per_project {
+        let ok = match pr.effective_outcome() {
+            ProjectOperationOutcome::Succeeded => "ok",
+            ProjectOperationOutcome::Failed => "FAILED",
+            ProjectOperationOutcome::Skipped => "SKIPPED",
+        };
+        text_parts.push(format!("  {} [{}]", pr.project_id, ok));
+        if let Some(reason) = &pr.skip_reason {
+            text_parts.push(format!("    {}", reason));
+        }
+        for cmd in &pr.commands_executed {
+            text_parts.push(format!("    $ {}", cmd));
+        }
+        if !pr.stderr.is_empty() {
+            for line in pr.stderr.lines().take(5) {
+                text_parts.push(format!("    {}", line));
+            }
+        }
+    }
+    text_parts.join("\n")
+}
+
+// ---------------------------------------------------------------------------
 // Status label helper
 // ---------------------------------------------------------------------------
 
-/// A history entry's overall status: a stable glyph plus the i18n key for
-/// its translated label, kept apart rather than one baked-together catalog
-/// string (RFC-038 Stage 1 §4). The glyph is a status signal, not language —
-/// composing it in the view keeps a translator from being able to drop or
-/// reorder it, and keeps it from being duplicated across both catalogs.
+/// A history entry's overall status: a stable glyph, the i18n key for its
+/// translated on-screen label, and the fixed English label the export uses
+/// (RFC-038 A1) — all three set in the same match arm so they cannot drift
+/// apart. The glyph is a status signal, not language — composing it in the
+/// view keeps a translator from being able to drop or reorder it, and keeps
+/// it from being duplicated across both catalogs. `label_en` exists so the
+/// export never has to call `t()` to get English text; it must read the same
+/// as the English catalog entry named beside it, but nothing enforces that
+/// mechanically — if you retext a `history.status_*`/`history.rollback_note`
+/// English value, update the matching `label_en` here too.
 struct StatusSummary {
     glyph: &'static str,
     label_key: &'static str,
+    label_en: &'static str,
 }
 
 fn summarise_status(result: &OperationResult) -> StatusSummary {
@@ -353,32 +382,166 @@ fn summarise_status(result: &OperationResult) -> StatusSummary {
             StatusSummary {
                 glyph: "↩",
                 label_key: "history.rollback_note",
+                label_en: "Rolled back",
             }
         } else {
             StatusSummary {
                 glyph: "✗",
                 label_key: "history.status_rollback_failed",
+                label_en: "Rollback failed",
             }
         }
     } else if succeeded > 0 && failed == 0 && skipped == 0 {
         StatusSummary {
             glyph: "✓",
             label_key: "history.status_success",
+            label_en: "Success",
         }
     } else if failed > 0 && (succeeded > 0 || skipped > 0) {
         StatusSummary {
             glyph: "⚠",
             label_key: "history.status_partial",
+            label_en: "Partial",
         }
     } else if skipped > 0 && failed == 0 {
         StatusSummary {
             glyph: "-",
             label_key: "history.status_skipped",
+            label_en: "Skipped",
         }
     } else {
         StatusSummary {
             glyph: "✗",
             label_key: "history.status_failed",
+            label_en: "Failed",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use knotra_vcs::model::{
+        operation::{OperationId, OperationKind, ProjectOperationResult},
+        project::ProjectId,
+    };
+
+    use super::*;
+
+    fn sample_result(per_project: Vec<ProjectOperationResult>) -> OperationResult {
+        let now = chrono::Utc::now();
+        OperationResult {
+            operation_id: OperationId::new(),
+            kind: OperationKind::Fetch,
+            started_at: now,
+            finished_at: now,
+            per_project,
+            rollback_attempted: false,
+            rollback_succeeded: None,
+        }
+    }
+
+    fn succeeded_project(id: ProjectId) -> ProjectOperationResult {
+        ProjectOperationResult {
+            project_id: id,
+            outcome: ProjectOperationOutcome::Succeeded,
+            success: true,
+            skip_reason: None,
+            commands_executed: vec!["git fetch".to_owned()],
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: Some(0),
+            error_message: None,
+        }
+    }
+
+    /// RFC-038 A1's core guarantee: the export names the operation and its
+    /// status in fixed English, never through `t()` — `export_text` cannot
+    /// call it, since it does not take `&AppState`.
+    #[test]
+    fn export_text_reports_a_successful_entry_in_english() {
+        let id = ProjectId::new();
+        let result = sample_result(vec![succeeded_project(id.clone())]);
+
+        let text = export_text(&result);
+
+        assert!(
+            text.starts_with("# Fetch — "),
+            "expected an English kind label, got: {text}"
+        );
+        assert!(
+            text.contains("✓ Success"),
+            "expected the fixed English status label, got: {text}"
+        );
+        assert!(
+            text.contains(&format!("{id} [ok]")),
+            "expected the project id with its outcome tag, got: {text}"
+        );
+        assert!(
+            text.contains("$ git fetch"),
+            "expected the executed command, got: {text}"
+        );
+    }
+
+    /// A skip reason is emitted verbatim — the stable `RetryExclusionReason`
+    /// code, not a translated (or mistranslated) sentence — so a maintainer
+    /// reading a pasted log sees the same greppable identifier regardless of
+    /// the reporting user's locale.
+    #[test]
+    fn export_text_emits_the_skip_reason_code_verbatim() {
+        let id = ProjectId::new();
+        let skipped = ProjectOperationResult {
+            project_id: id,
+            outcome: ProjectOperationOutcome::Skipped,
+            success: true,
+            skip_reason: Some("retry:not_in_active_workspace".to_owned()),
+            commands_executed: Vec::new(),
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: None,
+            error_message: None,
+        };
+        let result = sample_result(vec![skipped]);
+
+        let text = export_text(&result);
+
+        assert!(
+            text.contains("retry:not_in_active_workspace"),
+            "expected the raw code, untranslated, got: {text}"
+        );
+    }
+
+    /// Stderr lines are copied through unchanged (already raw command
+    /// output, not catalog-sourced), capped at 5 lines as the on-screen path
+    /// caps at 3 — both existing behaviour, unaffected by this stage.
+    #[test]
+    fn export_text_includes_stderr_lines() {
+        let id = ProjectId::new();
+        let failed = ProjectOperationResult {
+            project_id: id,
+            outcome: ProjectOperationOutcome::Failed,
+            success: false,
+            skip_reason: None,
+            commands_executed: Vec::new(),
+            stdout: String::new(),
+            stderr: "fatal: could not read remote\nauthentication failed".to_owned(),
+            exit_code: Some(1),
+            error_message: Some("fatal: could not read remote".to_owned()),
+        };
+        let result = sample_result(vec![failed]);
+
+        let text = export_text(&result);
+
+        assert!(
+            text.contains("fatal: could not read remote"),
+            "expected the first stderr line, got: {text}"
+        );
+        assert!(
+            text.contains("authentication failed"),
+            "expected the second stderr line, got: {text}"
+        );
+        assert!(
+            text.contains("[FAILED]"),
+            "expected the failed outcome tag, got: {text}"
+        );
     }
 }
