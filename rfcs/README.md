@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [049](./proposed/049-shortcuts-overlay-localisation.md) | The shortcuts overlay is localised, and its stale twin is removed | Production Readiness Reset - UI/UX foundation | High |
 
 ---
 
