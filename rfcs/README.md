@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [043](./accepted/043-eliminate-dead-code-suppressions.md) | Eliminate `#[allow(dead_code)]` | Production Readiness Reset - operational hygiene | High |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [043](./done/043-eliminate-dead-code-suppressions.md) | Eliminate `#[allow(dead_code)]` (39 to 0) | main: 584b7b2 |
 | [038](./done/038-settings-and-history.md) | Settings and History | main: 4d44366 |
 | [044](./done/044-release-impact-warnings.md) | Release impact warnings | main: c3f044a |
 | [035](./done/035-dashboard-and-selection-migration.md) | Dashboard and selection migration | main: f605834 |
