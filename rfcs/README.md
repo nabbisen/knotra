@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [048](./accepted/048-detail-panel-localisation.md) | The detail panel is localised, and text outside the catalog is caught | Production Readiness Reset - UI/UX foundation | High |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [048](./done/048-detail-panel-localisation.md) | Detail panel localisation; guard for text outside the catalog | main: ba9cf30 |
 | [047](./done/047-unreadable-history-is-stated.md) | Unreadable history is stated, not swallowed | main: 95d07a3 |
 | [045](./done/045-jujutsu-conflict-guidance.md) | Jujutsu conflict guidance | main: bf7aec9 |
 | [046](./done/046-operation-logs-store-codes-not-text.md) | Operation logs store codes, not rendered text | main: 3102098 |

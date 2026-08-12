@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-12, project owner) |
+| Status | Implemented (main: ba9cf30) |
 | Priority | High - a shipped panel that is entirely English for every Japanese user |
 | Effort | Small-to-medium - 22 strings, one layout fix, one guard |
 | Target | Production Readiness Reset - UI/UX foundation |
@@ -27,9 +27,9 @@ A survey of all 22 files under `view/`:
 | File | `t()` calls | literals | Verdict |
 |---|---|---|---|
 | `detail_panel.rs` | **0** | **18** | unlocalised |
-| `shortcuts_overlay.rs` | **0** | **4** | unlocalised |
+| `shortcuts_overlay.rs` | **0** | **4** | unlocalised - **and a further 58 strings this survey could not see**: `BINDINGS`' 19x3 field accesses and one glyph-led `text("X  Close")`. Found during implementation; see `157` SS3 and RFC-049 |
 | `overlays/conflict.rs` | 17 | 4 | `command:`/`stdout:`/`stderr:`/`error:` on raw tool output - justified |
-| `settings.rs` | 30 | 1 | `text("English")` - a language name, correctly untranslated |
+| `settings.rs` | 30 | **2** | `text("English")` and `text("日本語")` - language names, correctly untranslated. The RFC said 1; the ASCII-only survey grep missed the second (see `157` SS2) |
 | the other 18 | 3-49 | 0 | clean |
 
 A Japanese user opening the project detail panel gets an English panel: section headers
