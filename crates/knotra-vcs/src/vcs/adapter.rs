@@ -470,7 +470,6 @@ impl VcsAdapter {
                 project_id: project.id.clone(),
                 project_name: project.name.clone(),
                 conflicted_files: vec![],
-                note: None,
                 read_error: Some(format!("no repository at {}", project.path)),
             },
         }

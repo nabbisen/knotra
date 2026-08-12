@@ -50,7 +50,6 @@ mod tests {
             project_id: ProjectId::new(),
             project_name: "svc".to_owned(),
             conflicted_files: vec![],
-            note: None,
             read_error: None,
         };
         assert!(detail.is_resolved());
@@ -65,7 +64,6 @@ mod tests {
                 path: "src/lib.rs".to_owned(),
                 marker: ConflictMarker::BothModified,
             }],
-            note: None,
             read_error: None,
         };
         assert!(!detail.is_resolved());

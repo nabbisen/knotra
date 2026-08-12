@@ -448,7 +448,6 @@ pub async fn list_conflicted_files(
                 project_id,
                 project_name,
                 conflicted_files: vec![],
-                note: None,
                 read_error: Some(e.to_string()),
             },
             Ok(o) => {
@@ -465,7 +464,6 @@ pub async fn list_conflicted_files(
                     project_id,
                     project_name,
                     conflicted_files: files,
-                    note: Some("Use `jj resolve <file>` or your merge tool.".to_owned()),
                     read_error: None,
                 }
             }
@@ -476,7 +474,6 @@ pub async fn list_conflicted_files(
         project_id: project.id.clone(),
         project_name: project.name.clone(),
         conflicted_files: vec![],
-        note: None,
         read_error: Some(format!("task join error: {e}")),
     })
 }

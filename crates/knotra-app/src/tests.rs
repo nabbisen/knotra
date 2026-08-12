@@ -2737,7 +2737,6 @@ fn conflict_operation_completion_success_refreshes_browsing_detail() {
         project_id: project.id.clone(),
         project_name: project.name.clone(),
         conflicted_files: Vec::new(),
-        note: None,
         read_error: None,
     };
     let lease_id = state
@@ -2782,7 +2781,6 @@ fn conflict_operation_completion_failure_keeps_panel_error_visible() {
             path: "src/lib.rs".to_owned(),
             marker: ConflictMarker::BothModified,
         }],
-        note: None,
         read_error: None,
     };
     let lease_id = state

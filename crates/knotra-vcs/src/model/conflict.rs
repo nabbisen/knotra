@@ -41,8 +41,6 @@ pub struct ProjectConflictDetail {
     pub project_id: ProjectId,
     pub project_name: String,
     pub conflicted_files: Vec<ConflictedFile>,
-    /// Non-fatal note from the VCS layer (e.g. jj limitation).
-    pub note: Option<String>,
     pub read_error: Option<String>,
 }
 

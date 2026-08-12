@@ -31,7 +31,8 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     let tokens = &state.theme.tokens;
     let name = project_name_for(state, project_id);
     let ops = &state.conflict_ops;
-    let git_actions_supported = conflict_actions_supported_for_project(state, project_id);
+    let vcs_kind = conflict_vcs_kind_for_project(state, project_id);
+    let git_actions_supported = vcs_kind == VcsKind::Git;
     let abort_supported = git_actions_supported && project_has_git_merge_state(state, project_id);
     let editor_configured = state.config.external_editor.is_some();
     let merge_tool_configured = state.config.external_merge_tool.is_some();
@@ -149,27 +150,43 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                     ConflictOpsMessage::OpenInMergeToolRequested(f.path.clone()),
                                 ));
 
-                            let mark_control: Element<'_, Message> = if git_actions_supported {
-                                let t = tokens.clone();
-                                iced::widget::button(
-                                    text(state.t("plain.resolve.mark_done")).size(FONT_SMALL + 1.0),
-                                )
-                                .height(36.0)
-                                .padding([0, 10])
-                                .on_press(Message::ConflictOps(
-                                    ConflictOpsMessage::MarkResolvedRequested {
-                                        project_id: project_id.clone(),
-                                        file_path: f.path.clone(),
-                                    },
-                                ))
-                                .style(move |_theme, status| {
-                                    style::with_focus_ring(&t, false, style::secondary(&t, status))
-                                })
-                                .into()
-                            } else {
-                                text(state.t("plain.resolve.unsupported"))
-                                    .size(FONT_SMALL)
+                            // RFC-045 D2/R6: exhaustive over `VcsKind` — a
+                            // third variant is a compile error here, not a
+                            // silent fallthrough to Git's wording.
+                            let mark_control: Element<'_, Message> = match vcs_kind {
+                                VcsKind::Git => {
+                                    let t = tokens.clone();
+                                    iced::widget::button(
+                                        text(state.t("plain.resolve.mark_done"))
+                                            .size(FONT_SMALL + 1.0),
+                                    )
+                                    .height(36.0)
+                                    .padding([0, 10])
+                                    .on_press(Message::ConflictOps(
+                                        ConflictOpsMessage::MarkResolvedRequested {
+                                            project_id: project_id.clone(),
+                                            file_path: f.path.clone(),
+                                        },
+                                    ))
+                                    .style(move |_theme, status| {
+                                        style::with_focus_ring(
+                                            &t,
+                                            false,
+                                            style::secondary(&t, status),
+                                        )
+                                    })
                                     .into()
+                                }
+                                // D1 deleted `ProjectConflictDetail.note`,
+                                // the VCS layer's discarded English sentence
+                                // for this same slot — the completing action
+                                // is computed here instead, from `VcsKind`
+                                // plus this row's own file path, so it is
+                                // never English-only prose baked into a
+                                // record (RFC-046 D1's contract).
+                                VcsKind::Jujutsu => {
+                                    text(jj_finish_hint(state, &f.path)).size(FONT_SMALL).into()
+                                }
                             };
 
                             column![
@@ -301,7 +318,17 @@ fn styled_button<'a>(
         .into()
 }
 
-fn conflict_actions_supported_for_project(state: &AppState, project_id: &ProjectId) -> bool {
+/// RFC-045 D2: returns the kind itself, not a Git-only bool, so the view can
+/// choose wording rather than merely gate a button. The fallback branch is
+/// an isomorphic rewrite of the bool this replaced — `!jj_dir && git_exists`
+/// mapped to `Git`, everything else to `Jujutsu` — so `vcs_kind ==
+/// VcsKind::Git` reproduces the exact same boolean the pre-RFC-045 version
+/// returned for every project that has a `workspace_status` entry or an
+/// on-disk `.git`/`.jj` marker (R3: Git rows are unchanged). The one case
+/// that changes label is a project found in neither source at all — never
+/// reachable in practice, since `resolve_panel` is only opened for a
+/// project already known to the workspace.
+fn conflict_vcs_kind_for_project(state: &AppState, project_id: &ProjectId) -> VcsKind {
     state
         .workspace_status
         .as_ref()
@@ -310,7 +337,7 @@ fn conflict_actions_supported_for_project(state: &AppState, project_id: &Project
                 .iter()
                 .find(|status| &status.project_id == project_id)
         })
-        .map(|status| status.identity.vcs_kind == VcsKind::Git)
+        .map(|status| status.identity.vcs_kind)
         .unwrap_or_else(|| {
             state
                 .workspace
@@ -318,10 +345,27 @@ fn conflict_actions_supported_for_project(state: &AppState, project_id: &Project
                 .and_then(|ws| ws.projects.iter().find(|project| &project.id == project_id))
                 .map(|project| {
                     let path = std::path::Path::new(&project.path);
-                    !path.join(".jj").is_dir() && path.join(".git").exists()
+                    if !path.join(".jj").is_dir() && path.join(".git").exists() {
+                        VcsKind::Git
+                    } else {
+                        VcsKind::Jujutsu
+                    }
                 })
-                .unwrap_or(false)
+                .unwrap_or(VcsKind::Jujutsu)
         })
+}
+
+/// RFC-045 D2/D4: names the completing action with this row's own file
+/// path — `jj resolve <path>`, not a generic sentence — in place of the
+/// discarded `ProjectConflictDetail.note` (D1). `resolve` and `jj` are not
+/// in `FORBIDDEN_EN`; extracted from the match arm that calls it so its
+/// wording is a plain string comparison in tests rather than something only
+/// checkable by rendering an `Element`.
+fn jj_finish_hint(state: &AppState, file_path: &str) -> String {
+    format!(
+        "{} `jj resolve {file_path}`",
+        state.t("plain.resolve.jj_finish_hint")
+    )
 }
 
 fn project_has_git_merge_state(state: &AppState, project_id: &ProjectId) -> bool {
@@ -349,4 +393,75 @@ fn project_name_for(state: &AppState, id: &ProjectId) -> String {
         .and_then(|ws| ws.projects.iter().find(|p| &p.id == id))
         .map(|p| p.name.clone())
         .unwrap_or_else(|| id.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use knotra_vcs::{
+        ConflictStatus, RemoteStatus, RepositoryIdentity, WorkingTreeStatus, WorkspaceStatus,
+    };
+
+    fn status_for(project_id: ProjectId, vcs_kind: VcsKind) -> knotra_vcs::ProjectStatus {
+        knotra_vcs::ProjectStatus {
+            project_id,
+            identity: RepositoryIdentity {
+                path: "/tmp".into(),
+                vcs_kind,
+            },
+            context: None,
+            remote: RemoteStatus::default(),
+            working_tree: WorkingTreeStatus::default(),
+            conflict: ConflictStatus::default(),
+            refreshed_at: chrono::Utc::now(),
+            read_error: None,
+        }
+    }
+
+    fn state_with_status(vcs_kind: VcsKind) -> (AppState, ProjectId) {
+        let mut state = AppState::new(AppConfig::default());
+        let project_id = ProjectId::new();
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![status_for(project_id.clone(), vcs_kind)],
+            last_refresh: None,
+        });
+        (state, project_id)
+    }
+
+    /// RFC-045 D2/R6: this is the coverage half — a Jujutsu project's own
+    /// recorded `VcsKind` must actually reach `conflict_vcs_kind_for_project`
+    /// as `Jujutsu`, not merely happen to pair correctly with whichever arm
+    /// a broken lookup fell into (the same coverage-vs-pairing distinction
+    /// `062` drew for `label_en`).
+    #[test]
+    fn conflict_vcs_kind_for_project_reports_jujutsu_for_a_jj_project() {
+        let (state, project_id) = state_with_status(VcsKind::Jujutsu);
+        assert_eq!(
+            conflict_vcs_kind_for_project(&state, &project_id),
+            VcsKind::Jujutsu
+        );
+    }
+
+    /// The Git-side counterpart — R3 requires Git rows stay unchanged, which
+    /// starts with this refactored lookup still resolving Git projects to
+    /// `VcsKind::Git` exactly as the bool it replaced did.
+    #[test]
+    fn conflict_vcs_kind_for_project_reports_git_for_a_git_project() {
+        let (state, project_id) = state_with_status(VcsKind::Git);
+        assert_eq!(
+            conflict_vcs_kind_for_project(&state, &project_id),
+            VcsKind::Git
+        );
+    }
+
+    /// The content half: the jj hint names the completing action and this
+    /// row's own file path, not a generic sentence — the thing `note`
+    /// (RFC-046 D1, deleted here) used to say and nothing since replaced.
+    #[test]
+    fn jj_finish_hint_names_the_command_with_the_files_path() {
+        let state = AppState::new(AppConfig::default());
+        let hint = jj_finish_hint(&state, "src/lib.rs");
+        assert_eq!(hint, "Finish with: `jj resolve src/lib.rs`");
+    }
 }
