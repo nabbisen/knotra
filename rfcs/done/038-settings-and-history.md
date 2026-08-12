@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-10, project owner); **amended 2026-08-12 (A1, project owner)** - Stages 1-4 shipped, Stage 5 outstanding |
+| Status | Implemented (main: 4d44366) - amended 2026-08-12 (A1, project owner); see Amendments |
 | Priority | High - the last two unmigrated screens, and the RFC that must build the field primitive RFC-034 never did |
 | Effort | Medium-to-large - two screens, a new `knotra-ui` primitive, and a localisation gap wider than previously recorded |
 | Target | Production Readiness Reset - UI/UX foundation track |
