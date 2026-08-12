@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-12, project owner); amended 2026-08-12 (A1, architect - see Amendments) |
+| Status | Implemented (main: bf7aec9) - amended 2026-08-12 (A1, architect); see Amendments |
 | Priority | Medium-high - a dead end for every Jujutsu user who hits a conflicted file |
 | Effort | Small |
 | Target | Production Readiness Reset - UI/UX foundation |

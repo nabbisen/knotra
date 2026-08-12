@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [045](./accepted/045-jujutsu-conflict-guidance.md) | Jujutsu conflict guidance | Production Readiness Reset - UI/UX foundation | Medium-high |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [045](./done/045-jujutsu-conflict-guidance.md) | Jujutsu conflict guidance | main: bf7aec9 |
 | [046](./done/046-operation-logs-store-codes-not-text.md) | Operation logs store codes, not rendered text | main: 3102098 |
 | [043](./done/043-eliminate-dead-code-suppressions.md) | Eliminate `#[allow(dead_code)]` (39 to 0) | main: 584b7b2 |
 | [038](./done/038-settings-and-history.md) | Settings and History | main: 4d44366 |
