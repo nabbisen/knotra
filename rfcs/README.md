@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [049](./accepted/049-shortcuts-overlay-localisation.md) | The shortcuts overlay is localised, and its stale twin is removed | Production Readiness Reset - UI/UX foundation | High |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [049](./done/049-shortcuts-overlay-localisation.md) | Shortcuts overlay localisation; four stale keys removed | main: 9f5a069 |
 | [048](./done/048-detail-panel-localisation.md) | Detail panel localisation; guard for text outside the catalog | main: ba9cf30 |
 | [047](./done/047-unreadable-history-is-stated.md) | Unreadable history is stated, not swallowed | main: 95d07a3 |
 | [045](./done/045-jujutsu-conflict-guidance.md) | Jujutsu conflict guidance | main: bf7aec9 |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-12, project owner) |
+| Status | Implemented (main: 9f5a069) |
 | Priority | High - 58 English strings in a shipped overlay, plus four catalog entries that describe bindings which do not exist |
 | Effort | Small - one table, one file, an established pattern |
 | Target | Production Readiness Reset - UI/UX foundation |
