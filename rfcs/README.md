@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [046](./proposed/046-operation-logs-store-codes-not-text.md) | Operation logs store codes, not rendered text | Production Readiness Reset - data correctness | High |
 
 ---
 
