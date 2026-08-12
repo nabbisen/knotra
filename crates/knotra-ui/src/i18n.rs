@@ -806,7 +806,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.max_concurrent_label", "Max concurrent reads");
     m.insert("settings.editor_label", "External editor path");
     m.insert("settings.editor_hint", "/usr/bin/nvim (optional)");
-    m.insert("settings.merge_tool_label", "Merge tool path");
+    m.insert("settings.merge_tool_label", "Comparison tool path");
     m.insert("settings.merge_tool_hint", "/usr/bin/meld (optional)");
     m.insert("settings.max_logs_label", "Max operation log entries");
     m.insert(
@@ -1630,7 +1630,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.max_concurrent_label", "最大同時読み込み数");
     m.insert("settings.editor_label", "外部エディタのパス");
     m.insert("settings.editor_hint", "/usr/bin/nvim （任意）");
-    m.insert("settings.merge_tool_label", "マージツールのパス");
+    m.insert("settings.merge_tool_label", "比較ツールのパス");
     m.insert("settings.merge_tool_hint", "/usr/bin/meld （任意）");
     m.insert("settings.max_logs_label", "操作ログの最大保持数");
     m.insert(
