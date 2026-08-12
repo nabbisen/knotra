@@ -567,29 +567,37 @@ mod tests {
         );
     }
 
-    /// Handoff 061: nothing keeps `StatusSummary::label_en` agreeing with
-    /// the English catalog entry `label_key` names — if they drift, the
+    /// Handoff 061/062: nothing keeps `StatusSummary::label_en` agreeing
+    /// with the English catalog entry `label_key` names — if they drift, the
     /// export and the on-screen UI disagree about what a status is called,
     /// silently. Driving `summarise_status` for each of its six arms (rather
-    /// than asserting a table of six literal pairs) proves the arm this test
-    /// believes it reaches is the arm that actually runs.
+    /// than asserting a table of six literal pairs) is the point only if
+    /// each fixture is also checked to land on the arm it claims to —
+    /// otherwise a fixture that fell through to a neighbouring arm would
+    /// still pass, since that arm's own pairing holds too. Each case
+    /// therefore carries its own expected `label_key` and is checked twice:
+    /// coverage (the fixture reached the arm it names) before pairing
+    /// (`label_en` agrees with the catalog for whichever arm that was).
     #[test]
     fn label_en_matches_the_english_catalog_for_every_status_arm() {
         let en = knotra_ui::i18n::Catalog::for_locale(knotra_ui::i18n::Locale::En);
         let id = ProjectId::new();
 
-        let cases: Vec<(&str, OperationResult)> = vec![
+        let cases: Vec<(&str, OperationResult, &str)> = vec![
             (
                 "rolled back",
                 sample_result(vec![succeeded_project(id.clone())], true, Some(true)),
+                "history.rollback_note",
             ),
             (
                 "rollback failed",
                 sample_result(vec![succeeded_project(id.clone())], true, Some(false)),
+                "history.status_rollback_failed",
             ),
             (
                 "success",
                 sample_result(vec![succeeded_project(id.clone())], false, None),
+                "history.status_success",
             ),
             (
                 "partial",
@@ -598,19 +606,28 @@ mod tests {
                     false,
                     None,
                 ),
+                "history.status_partial",
             ),
             (
                 "skipped",
                 sample_result(vec![skipped_project(id.clone(), None)], false, None),
+                "history.status_skipped",
             ),
             (
                 "failed",
                 sample_result(vec![failed_project(id.clone())], false, None),
+                "history.status_failed",
             ),
         ];
 
-        for (case, result) in cases {
+        for (case, result, expected_key) in cases {
             let summary = summarise_status(&result);
+            assert_eq!(
+                summary.label_key, expected_key,
+                "the `{case}` fixture no longer reaches the `{expected_key}` arm of \
+                 summarise_status — it landed on `{}` instead",
+                summary.label_key
+            );
             assert_eq!(
                 summary.label_en,
                 en.t(summary.label_key),
