@@ -31,7 +31,6 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [048](./proposed/048-detail-panel-localisation.md) | The detail panel is localised, and text outside the catalog is caught | Production Readiness Reset - UI/UX foundation | High |
 
 ---
 
@@ -43,6 +42,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [048](./accepted/048-detail-panel-localisation.md) | The detail panel is localised, and text outside the catalog is caught | Production Readiness Reset - UI/UX foundation | High |
 
 ---
 

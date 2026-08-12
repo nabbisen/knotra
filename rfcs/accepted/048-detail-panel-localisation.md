@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-12, project owner) |
 | Priority | High - a shipped panel that is entirely English for every Japanese user |
 | Effort | Small-to-medium - 22 strings, one layout fix, one guard |
 | Target | Production Readiness Reset - UI/UX foundation |
