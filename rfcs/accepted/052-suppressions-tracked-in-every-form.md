@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-13, project owner) |
 | Priority | High - a guard this project has cited since RFC-043 does not check what its own documentation claims |
 | Effort | Small-to-medium - three deletions, one guard rewritten, every survivor justified |
 | Target | Production Readiness Reset - operational hygiene |

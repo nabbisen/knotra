@@ -31,7 +31,6 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [052](./proposed/052-suppressions-tracked-in-every-form.md) | Suppressions are tracked in every form, not one spelling | Production Readiness Reset - operational hygiene | High |
 
 ---
 
@@ -43,6 +42,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [052](./accepted/052-suppressions-tracked-in-every-form.md) | Suppressions are tracked in every form, not one spelling | Production Readiness Reset - operational hygiene | High |
 
 ---
 
