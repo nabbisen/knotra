@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-13, project owner) |
+| Status | Accepted (2026-08-13, project owner); amended 2026-08-13 (A1, architect - see Amendments) |
 | Priority | High - a guard this project has cited since RFC-043 does not check what its own documentation claims |
 | Effort | Small-to-medium - three deletions, one guard rewritten, every survivor justified |
 | Target | Production Readiness Reset - operational hygiene |
@@ -105,11 +105,50 @@ Whatever D2 lands on, the prose must describe it exactly. The defect this RFC re
 not the matcher - it was a matcher and a claim that disagreed, with only the claim being
 read.
 
+## Amendments
+
+### A1. "They mask nothing" was measured against the wrong target (2026-08-13, architect)
+
+**Recorded before implementation, while scoping the handoff.**
+
+The Problem section claims forcing the three lints produces **zero** warnings in the three
+files. That was measured with `cargo clippy -p knotra --bin knotra`. **The project's gate
+is `cargo clippy --workspace --all-targets -- -D warnings`**, and under it seven findings
+appear:
+
+| File | Finding |
+|---|---|
+| `command_palette.rs:17` | `view` never used |
+| `detail_panel.rs:31/45/48/50` | `field_row`, `IDENTITY_LABEL_WIDTH`, `STATUS_LABEL_WIDTH`, `view` never used |
+| `shortcuts_overlay.rs:26/129` | field `keys` never read, `view` never used |
+
+**All seven are test-target artifacts.** Each named item *is* used by the binary - `view.rs`
+calls every one of those `view` functions, and `text(b.keys)` reads that field. They read
+as unused only when the test target is compiled, where no view code is reached.
+`--bin knotra` reporting zero is the correct measure of genuine dead code and the wrong
+measure of "can this attribute be deleted."
+
+**D1 is amended.** Deleting the three attributes outright would fail the project's own
+gate with seven errors. Instead:
+
+- `unused_imports` and `unused_variables` **are** masking nothing in any target and are
+  removed from all three attributes.
+- `dead_code` is narrowed to where it is actually needed - **under `cfg(test)` only** -
+  so the binary build carries no suppression at all and the test build suppresses exactly
+  the noise its own compilation shape creates.
+- The narrowed attribute stays **visible to D2's guard** and carries a justification at
+  its site naming the test-target reason.
+
+R1 is amended to match. The rest of the RFC stands.
+
+This is the third time this cycle a `--bin knotra` versus `--all-targets` distinction has
+changed an answer, and the first where it was mine.
+
 ## Requirements
 
 | # | Requirement |
 |---|---|
-| R1 | The three file-level blanket allows are removed; the workspace builds and lints clean at `-D warnings` |
+| R1 | **Amended - see A1.** `unused_imports`/`unused_variables` are removed from all three attributes; `dead_code` is narrowed to `cfg(test)` only. The workspace lints clean at `-D warnings` under `--all-targets` |
 | R2 | The guard matches inner **and** outer attributes, single- and multi-lint, any lint name |
 | R3 | The guard covers `knotra-app`, `knotra-ui` and `knotra-vcs`, or states its true scope in both prose and name |
 | R4 | Every surviving suppression appears in the expected map **and** carries a justification comment at its own site |
