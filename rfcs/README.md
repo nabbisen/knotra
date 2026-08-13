@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [053](./accepted/053-three-suppressions-removed.md) | Three suppressions removed | Production Readiness Reset - operational hygiene | Medium |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [053](./done/053-three-suppressions-removed.md) | Three suppressions removed (eight to five) | main: 2c0b94d |
 | [052](./done/052-suppressions-tracked-in-every-form.md) | Suppressions tracked in every form, not one spelling | main: 0ef3c34 |
 | [051](./done/051-overlay-widths-scale-with-the-window.md) | Overlay widths scale with the window | main: cf2b53e |
 | [050](./done/050-wording-accuracy-and-one-disclosure-vocabulary.md) | FS-watch hint accuracy; one disclosure vocabulary | main: ee763a6 |
