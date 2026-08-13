@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [053](./proposed/053-three-suppressions-removed.md) | Three suppressions removed | Production Readiness Reset - operational hygiene | Medium |
 
 ---
 
