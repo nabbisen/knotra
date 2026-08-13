@@ -150,96 +150,77 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                     ConflictOpsMessage::OpenInMergeToolRequested(f.path.clone()),
                                 ));
 
-                            // RFC-045 D2/R6, Handoff 065: exhaustive over
-                            // `Option<VcsKind>` — a third `VcsKind` is still
-                            // a compile error, and `None` (no evidence
-                            // either way) is its own arm rather than being
-                            // folded into `Jujutsu`.
-                            let mark_control: Element<'_, Message> = match vcs_kind {
-                                Some(VcsKind::Git) => {
-                                    let t = tokens.clone();
-                                    iced::widget::button(
-                                        text(state.t("plain.resolve.mark_done"))
-                                            .size(FONT_SMALL + 1.0),
-                                    )
-                                    .height(36.0)
-                                    .padding([0, 10])
-                                    .on_press(Message::ConflictOps(
-                                        ConflictOpsMessage::MarkResolvedRequested {
-                                            project_id: project_id.clone(),
-                                            file_path: f.path.clone(),
-                                        },
-                                    ))
-                                    .style(move |_theme, status| {
-                                        style::with_focus_ring(
-                                            &t,
-                                            false,
-                                            style::secondary(&t, status),
-                                        )
-                                    })
-                                    .into()
-                                }
-                                // D1 deleted `ProjectConflictDetail.note`,
-                                // the VCS layer's discarded English sentence
-                                // for this same slot — the completing action
-                                // is computed here instead, from `VcsKind`
-                                // plus this row's own file path, so it is
-                                // never English-only prose baked into a
-                                // record (RFC-046 D1's contract).
-                                Some(VcsKind::Jujutsu) => {
-                                    text(jj_finish_hint(state, &f.path)).size(FONT_SMALL).into()
-                                }
-                                // Handoff 065: no evidence either way — the
-                                // pre-RFC-045 message, generic and therefore
-                                // not asserting anything that could be
-                                // false, rather than guessing a specific
-                                // command that might be wrong.
-                                None => text(state.t("plain.resolve.unsupported"))
-                                    .size(FONT_SMALL)
-                                    .into(),
-                            };
-
-                            column![
-                                row![
-                                    text("!").size(FONT_BODY).width(Length::Fixed(22.0)),
-                                    text(&f.path).size(FONT_BODY).width(Length::Fill),
-                                    Space::new().width(Length::Fixed(8.0)),
-                                    // RFC-037 Stage 6: migrated onto the
-                                    // shared `reasoned` primitive.
-                                    // `style::secondary` matches
-                                    // `mark_control`'s own weight — both are
-                                    // peripheral row actions, not this
-                                    // phase's one completing action.
-                                    reasoned(
-                                        tokens,
-                                        state.t("plain.resolve.open_editor"),
-                                        open_editor_msg,
-                                        editor_reason,
-                                        false,
-                                        style::secondary,
-                                    ),
-                                    // Handoff 058: same control, same weight,
-                                    // same reasoned-disabled shape as the
-                                    // editor button beside it — an editor and
-                                    // a merge tool are different jobs, always
-                                    // shown, each with its own reason when
-                                    // unconfigured, rather than the row's
-                                    // shape depending on Settings.
-                                    reasoned(
-                                        tokens,
-                                        state.t("plain.resolve.open_merge_tool"),
-                                        open_merge_tool_msg,
-                                        merge_tool_reason,
-                                        false,
-                                        style::secondary,
-                                    ),
-                                    mark_control,
-                                ]
-                                .align_y(Alignment::Center)
-                                .spacing(6),
+                            // RFC-054 D1/D4: line 1 always has the icon,
+                            // path, spacer and the two launch controls — a
+                            // button-kind third slot joins them inline
+                            // (R1/R3: Git rows are otherwise unchanged);
+                            // prose gets its own full-width line instead
+                            // (R2), because a row sized for buttons cannot
+                            // hold a sentence up to four times as wide.
+                            let mut line1 = row![
+                                text("!").size(FONT_BODY).width(Length::Fixed(22.0)),
+                                text(&f.path).size(FONT_BODY).width(Length::Fill),
+                                Space::new().width(Length::Fixed(8.0)),
+                                // RFC-037 Stage 6: migrated onto the shared
+                                // `reasoned` primitive. `style::secondary`
+                                // matches the third slot's own weight when
+                                // it is a button — both are peripheral row
+                                // actions, not this phase's one completing
+                                // action.
+                                reasoned(
+                                    tokens,
+                                    state.t("plain.resolve.open_editor"),
+                                    open_editor_msg,
+                                    editor_reason,
+                                    false,
+                                    style::secondary,
+                                ),
+                                // Handoff 058: same control, same weight,
+                                // same reasoned-disabled shape as the editor
+                                // button beside it — an editor and a merge
+                                // tool are different jobs, always shown,
+                                // each with its own reason when
+                                // unconfigured, rather than the row's shape
+                                // depending on Settings.
+                                reasoned(
+                                    tokens,
+                                    state.t("plain.resolve.open_merge_tool"),
+                                    open_merge_tool_msg,
+                                    merge_tool_reason,
+                                    false,
+                                    style::secondary,
+                                ),
                             ]
-                            .spacing(4)
-                            .into()
+                            .align_y(Alignment::Center)
+                            .spacing(6);
+
+                            let mut file_col = column![].spacing(4);
+                            match third_slot_for(state, tokens, vcs_kind, project_id, &f.path) {
+                                ThirdSlot::Button(control) => {
+                                    line1 = line1.push(control);
+                                    file_col = file_col.push(line1);
+                                }
+                                ThirdSlot::Prose(sentence) => {
+                                    file_col = file_col.push(line1);
+                                    // RFC-054 D3: indented 28px — the 22px
+                                    // glyph plus line 1's own 6px
+                                    // `.spacing(6)` before the path — so
+                                    // this reads as belonging to that file,
+                                    // not as a new list item. Wraps rather
+                                    // than truncates (§4): the sentence is
+                                    // the thing the user needs to read, and
+                                    // this line exists to give it room —
+                                    // `text`'s default behaviour under a
+                                    // constrained `Fill` width already
+                                    // wraps, so no extra configuration is
+                                    // needed to get that.
+                                    file_col = file_col.push(row![
+                                        Space::new().width(Length::Fixed(28.0)),
+                                        text(sentence).size(FONT_SMALL).width(Length::Fill),
+                                    ]);
+                                }
+                            }
+                            file_col.into()
                         })
                         .collect();
                     // No inner `scrollable` here (unlike the original) —
@@ -331,6 +312,73 @@ fn styled_button<'a>(
         .on_press_maybe(on_press)
         .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
         .into()
+}
+
+/// RFC-054 D4: the conflicted-file row's third slot, as a value rather than
+/// something implied by which match arm happened to build which widget.
+/// Neither this project nor its reviewer can render this panel, so without
+/// this enum "prose and buttons are laid out differently" would only be
+/// checkable by looking at it — with it, R7's test asserts the
+/// classification directly and only the pixels stay unverifiable.
+enum ThirdSlot<'a> {
+    /// Git: a real completing action, styled like `plain.resolve.open_editor`
+    /// and `plain.resolve.open_merge_tool` beside it — stays inline on the
+    /// row (D1/R1).
+    Button(Element<'a, Message>),
+    /// Jujutsu's hint or the no-evidence `None` case — a sentence, not a
+    /// control. Owned rather than borrowed: `jj_finish_hint` builds it with
+    /// `format!`, so there is no existing `&str` of the right lifetime to
+    /// borrow (D4's "shape is yours" — this is the shape that avoids
+    /// threading a lifetime through a value that is not always a borrow to
+    /// begin with).
+    Prose(String),
+}
+
+/// RFC-054 D4/R6/R7: the same exhaustive `Option<VcsKind>` match Handoff 065
+/// built for `mark_control`, now returning the row's third-slot *kind*
+/// rather than a pre-laid-out `Element` — `resolve_panel` decides where each
+/// kind goes (D1-D3), this function only decides which kind a project gets.
+/// Still exhaustive, still wildcard-free: a third `VcsKind` is a compile
+/// error here exactly as it was before this handoff.
+fn third_slot_for<'a>(
+    state: &'a AppState,
+    tokens: &Tokens,
+    vcs_kind: Option<VcsKind>,
+    project_id: &ProjectId,
+    file_path: &str,
+) -> ThirdSlot<'a> {
+    match vcs_kind {
+        Some(VcsKind::Git) => {
+            let t = tokens.clone();
+            ThirdSlot::Button(
+                iced::widget::button(
+                    text(state.t("plain.resolve.mark_done")).size(FONT_SMALL + 1.0),
+                )
+                .height(36.0)
+                .padding([0, 10])
+                .on_press(Message::ConflictOps(
+                    ConflictOpsMessage::MarkResolvedRequested {
+                        project_id: project_id.clone(),
+                        file_path: file_path.to_owned(),
+                    },
+                ))
+                .style(move |_theme, status| {
+                    style::with_focus_ring(&t, false, style::secondary(&t, status))
+                })
+                .into(),
+            )
+        }
+        // D1 deleted `ProjectConflictDetail.note`, the VCS layer's discarded
+        // English sentence for this same slot — the completing action is
+        // computed here instead, from `VcsKind` plus this row's own file
+        // path, so it is never English-only prose baked into a record
+        // (RFC-046 D1's contract).
+        Some(VcsKind::Jujutsu) => ThirdSlot::Prose(jj_finish_hint(state, file_path)),
+        // Handoff 065: no evidence either way — the pre-RFC-045 message,
+        // generic and therefore not asserting anything that could be false,
+        // rather than guessing a specific command that might be wrong.
+        None => ThirdSlot::Prose(state.t("plain.resolve.unsupported").to_owned()),
+    }
 }
 
 /// RFC-045 D2, Handoff 065: `Option<VcsKind>`, not a bare `VcsKind` — there
@@ -516,5 +564,45 @@ mod tests {
         let state = AppState::new(AppConfig::default());
         let hint = jj_finish_hint(&state, "src/lib.rs");
         assert_eq!(hint, "Finish with: `jj resolve src/lib.rs`");
+    }
+
+    /// RFC-054 D4/R7: the classification the whole RFC exists to make
+    /// assertable. Without `ThirdSlot` as a value, "Git gets a button, jj
+    /// and `None` get prose" is only checkable by rendering the panel,
+    /// which nobody working on this project can do. `matches!` only checks
+    /// the variant, not the inner content — the content itself
+    /// (`plain.resolve.mark_done`'s label, the jj hint's exact text) is
+    /// already covered by other tests; this one is purely about which kind
+    /// each `Option<VcsKind>` produces.
+    #[test]
+    fn third_slot_is_a_button_for_git_and_prose_for_jujutsu_and_none() {
+        let state = AppState::new(AppConfig::default());
+        let tokens = &state.theme.tokens;
+        let project_id = ProjectId::new();
+
+        assert!(matches!(
+            third_slot_for(
+                &state,
+                tokens,
+                Some(VcsKind::Git),
+                &project_id,
+                "src/lib.rs"
+            ),
+            ThirdSlot::Button(_)
+        ));
+        assert!(matches!(
+            third_slot_for(
+                &state,
+                tokens,
+                Some(VcsKind::Jujutsu),
+                &project_id,
+                "src/lib.rs"
+            ),
+            ThirdSlot::Prose(_)
+        ));
+        assert!(matches!(
+            third_slot_for(&state, tokens, None, &project_id, "src/lib.rs"),
+            ThirdSlot::Prose(_)
+        ));
     }
 }
