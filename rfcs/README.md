@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [051](./proposed/051-overlay-widths-scale-with-the-window.md) | Overlay widths scale with the window | Production Readiness Reset - UI/UX foundation | Medium |
 
 ---
 
