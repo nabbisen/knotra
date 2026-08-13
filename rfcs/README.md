@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [054](./proposed/054-conflict-row-prose-gets-its-own-line.md) | The conflict row's prose gets its own line | Production Readiness Reset - UI/UX foundation | Medium |
 
 ---
 
