@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-13, project owner) |
 | Priority | Medium - hygiene, on evidence already gathered |
 | Effort | Small - two deletions, one newtype, seven call sites |
 | Target | Production Readiness Reset - operational hygiene |
