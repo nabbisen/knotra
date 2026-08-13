@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-13, project owner) |
 | Priority | Medium - one user-facing sentence is inaccurate for Jujutsu users; one control uses a word that means something else |
 | Effort | Small - two catalog edits, one call site, one doc table |
 | Target | Production Readiness Reset - UI/UX foundation |

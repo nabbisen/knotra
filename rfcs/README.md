@@ -31,7 +31,6 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [050](./proposed/050-wording-accuracy-and-one-disclosure-vocabulary.md) | Wording accuracy: the FS-watch hint, and one disclosure vocabulary | Production Readiness Reset - UI/UX foundation | Medium |
 
 ---
 
@@ -43,6 +42,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [050](./accepted/050-wording-accuracy-and-one-disclosure-vocabulary.md) | Wording accuracy: the FS-watch hint, and one disclosure vocabulary | Production Readiness Reset - UI/UX foundation | Medium |
 
 ---
 
