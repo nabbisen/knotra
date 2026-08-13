@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-13, project owner) |
+| Status | Implemented (main: 1cb9940) |
 | Priority | Medium - one of three states is unreadable at the minimum window width |
 | Effort | Small - one row split, one classification made explicit |
 | Target | Production Readiness Reset - UI/UX foundation |
