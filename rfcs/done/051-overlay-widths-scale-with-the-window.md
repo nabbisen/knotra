@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-13, project owner) |
+| Status | Implemented (main: cf2b53e) |
 | Priority | Medium - proportion and comfort, plus one overlay that is measurably too narrow for its content |
 | Effort | Medium - a `knotra-ui` signature change, one new state field, seven call sites |
 | Target | Production Readiness Reset - UI/UX foundation |
