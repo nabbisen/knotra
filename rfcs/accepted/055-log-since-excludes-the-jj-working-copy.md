@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-13, project owner) |
 | Priority | High - a jj project's changelog leads with a blank entry, and a changelog is a published artifact |
 | Effort | Small - one revset, one verification |
 | Target | Production Readiness Reset - correctness |
