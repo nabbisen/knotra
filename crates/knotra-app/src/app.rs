@@ -239,6 +239,7 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         Message::Launch(msg) => misc::handle_launch(state, msg),
         Message::WindowResized(size) => {
             state.width_mode = WidthMode::from_width(size.width);
+            state.window_width = size.width;
             Task::none()
         }
     }
@@ -447,5 +448,30 @@ mod tests {
 
         let _ = handle_shortcut(&mut state, ShortcutMessage::CardFocusPrevious);
         assert_eq!(state.dashboard_focus, Some(search_target));
+    }
+
+    /// RFC-051 R2: `window_width` and `width_mode` are both set on the same
+    /// line in `Message::WindowResized`'s handler, so they cannot drift in
+    /// that handler today — but the only way they *could* drift is someone
+    /// editing exactly that line later, which is exactly when nobody
+    /// re-checks a property that was true "by construction". Drives the
+    /// real `update()` dispatch rather than re-deriving the pairing by
+    /// hand, so this fails the moment the handler actually stops setting
+    /// them together, not only when a hand-written duplicate of the
+    /// invariant would.
+    #[test]
+    fn window_resized_keeps_window_width_and_width_mode_paired() {
+        let mut state = AppState::new(AppConfig::default());
+
+        let _ = update(
+            &mut state,
+            Message::WindowResized(iced::Size::new(900.0, 700.0)),
+        );
+
+        assert_eq!(state.window_width, 900.0);
+        assert_eq!(
+            state.width_mode,
+            crate::view::dashboard::WidthMode::from_width(state.window_width)
+        );
     }
 }

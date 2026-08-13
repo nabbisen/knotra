@@ -576,6 +576,14 @@ pub struct AppState {
     /// rendering could not derive from the same value under the original
     /// mechanism. See `width_mode.rs`'s module doc for the full history.
     pub width_mode: WidthMode,
+    /// The window's current width in logical pixels (RFC-051 D1) — kept
+    /// alongside `width_mode` rather than only the derived band, so overlay
+    /// sizing (`OverlayWidth::pixels`) can scale continuously with the
+    /// window instead of only in `WidthMode`'s coarse steps. Set on the same
+    /// line as `width_mode` in `Message::WindowResized`'s handler, and
+    /// seeded here from the same `INITIAL_WINDOW_SIZE` — the two must never
+    /// be set independently, which is what R2's pairing test checks.
+    pub window_width: f32,
 }
 
 impl AppState {
@@ -638,6 +646,7 @@ impl AppState {
             dashboard_focus: None,
             overlay_focus: None,
             width_mode: WidthMode::from_width(INITIAL_WINDOW_SIZE.width),
+            window_width: INITIAL_WINDOW_SIZE.width,
             paths,
             config,
         }

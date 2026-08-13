@@ -249,6 +249,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     surface(
         tokens,
         OverlayWidth::Standard,
+        state.window_width,
         title,
         Some(Message::Workspace(cancel)),
         is_focused(state, focus_target::CLOSE),
@@ -333,6 +334,7 @@ fn delete_dialog<'a>(
     surface(
         tokens,
         OverlayWidth::Standard,
+        state.window_width,
         state.t("workspace.delete.title"),
         Some(Message::Workspace(
             WorkspaceMessage::DeleteWorkspaceCancelled,

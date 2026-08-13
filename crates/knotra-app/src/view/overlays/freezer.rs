@@ -345,6 +345,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
     surface(
         tokens,
         OverlayWidth::Large,
+        state.window_width,
         state.t("plain.save_release_point"),
         close_msg,
         false,

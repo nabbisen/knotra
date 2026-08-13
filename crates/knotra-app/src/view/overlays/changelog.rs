@@ -159,6 +159,7 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
     surface(
         tokens,
         OverlayWidth::Large,
+        state.window_width,
         state.t("plain.changelog.title"),
         close_msg,
         false,

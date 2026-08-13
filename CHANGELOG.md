@@ -7,6 +7,19 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Changed — `knotra-ui` breaking change
+
+`knotra_ui::widget::overlay::surface()` gained a required `available: f32`
+parameter (window width in logical pixels), inserted after `width:
+OverlayWidth`. `OverlayWidth::pixels()` now resolves each variant as a
+fraction of that width, clamped to a floor and ceiling, instead of a fixed
+constant — overlays scale with the window rather than staying a fixed size
+from 800px up to any display width (RFC-051). knotra is `knotra-ui`'s only
+consumer today, but this is a source-breaking change to a published crate's
+public API and is recorded here for that reason.
+
 ## [0.27.0] — 2026-08-10
 
 **The overlay release.** Every modal in knotra — Smart Pull, Freezer, context

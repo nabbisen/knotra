@@ -290,7 +290,13 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
 
     surface(
         tokens,
-        OverlayWidth::Small,
+        // RFC-051 D4: was Small — 400px, chosen when each file row held one
+        // control. It now holds up to three (editor, comparison tool,
+        // mark-done or the Jujutsu hint), which need roughly 300px between
+        // them; see the Handoff 070 review request for the row arithmetic
+        // this floor was set against.
+        OverlayWidth::Large,
+        state.window_width,
         format!("{} — {}", state.t("plain.resolve.title"), name),
         close_msg,
         // No real focus-order exists for this overlay's controls yet — R3
