@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [055](./proposed/055-log-since-excludes-the-jj-working-copy.md) | `log_since` excludes the jj working copy | Production Readiness Reset - correctness | High |
 
 ---
 
