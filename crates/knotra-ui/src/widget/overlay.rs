@@ -52,7 +52,30 @@ impl OverlayWidth {
         };
         (fraction * available).clamp(floor, ceiling)
     }
+
+    /// RFC-053 D2: the only route to a [`ResolvedWidth`] — resolves this
+    /// variant against `available` (the window width) via the same private
+    /// `pixels`, unchanged. A call site chooses `Small`/`Standard`/`Large`
+    /// and passes the window width; it cannot construct a `ResolvedWidth`
+    /// any other way, since that type's field is private to this module.
+    /// This is what let `surface()` drop back to seven parameters (RFC-053
+    /// D3) without losing the enforcement RFC-051 D3 chose the
+    /// eight-parameter shape for in the first place.
+    #[must_use]
+    pub fn resolve(self, available: f32) -> ResolvedWidth {
+        ResolvedWidth(self.pixels(available))
+    }
 }
+
+/// RFC-053 D2: an overlay width already resolved against the window — the
+/// only way to build one is [`OverlayWidth::resolve`], since the field is
+/// private to this module. A call site can hold, pass, and return a
+/// `ResolvedWidth`, but cannot construct one from an arbitrary `f32` in
+/// place of a real `OverlayWidth` choice — the same enforcement property
+/// `surface()`'s previous `width: OverlayWidth, available: f32` pair had,
+/// without the extra parameter.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ResolvedWidth(f32);
 
 /// Cap on the scrollable body's height so a long body never pushes the
 /// footer off-screen at the application's 600px minimum window height,
@@ -73,24 +96,18 @@ const BODY_MAX_HEIGHT: f32 = 420.0;
 /// true (RFC-036 Stage 5 R8) — ignored when `on_close` is `None`, since
 /// there is no close button to ring.
 ///
-/// `available` (RFC-051 D3) is the window's current width in logical
-/// pixels, passed by the caller (`state.window_width`) rather than read
-/// from anywhere in `knotra-ui`, which has no `AppState` to read it from.
-/// `width` stays the enum — `Small`/`Standard`/`Large` remains the
-/// vocabulary a call site chooses; only `OverlayWidth::pixels` (private to
-/// this module) resolves it against `available`, so a call site can never
-/// pass an arbitrary, unenforced pixel value in its place.
+/// `width` (RFC-053 D2/D3) is a [`ResolvedWidth`] — a window width already
+/// resolved against a chosen `OverlayWidth` variant via
+/// [`OverlayWidth::resolve`], its only constructor. This is what lets
+/// `surface()` take a plain, single width parameter instead of the pair
+/// `width: OverlayWidth, available: f32` RFC-051 D3 introduced: a call site
+/// still cannot pass an arbitrary, unenforced pixel value in this
+/// argument's place, because nothing outside this module can build a
+/// `ResolvedWidth` any other way.
 #[must_use]
-// RFC-051 D3: `available` is the eighth parameter, over clippy's default
-// `too_many_arguments` threshold of seven. Keeping `width: OverlayWidth`
-// rather than collapsing it with `available` into one caller-resolved
-// `f32` (the rejected alternative — see the Handoff 070 review request) is
-// what pushes the count past seven; accepted deliberately, not missed.
-#[allow(clippy::too_many_arguments)]
 pub fn surface<'a, Message: Clone + 'a>(
     tokens: &Tokens,
-    width: OverlayWidth,
-    available: f32,
+    width: ResolvedWidth,
     title: impl Into<String>,
     on_close: Option<Message>,
     is_close_focused: bool,
@@ -124,7 +141,7 @@ pub fn surface<'a, Message: Clone + 'a>(
 
     let content = column![header, bounded_body, footer.into()].spacing(16);
 
-    let sized = container(content).width(Length::Fixed(width.pixels(available)));
+    let sized = container(content).width(Length::Fixed(width.0));
 
     raised_card(tokens, sized)
 }

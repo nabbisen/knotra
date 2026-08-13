@@ -10,16 +10,7 @@ use knotra_vcs::{
 use crate::state::sync::RetryPreparationId;
 use crate::state::{OperationLeaseId, Screen};
 
-// RFC-052 R4: could not find a reason this exists. Tested by removing it —
-// `cargo clippy --workspace --all-targets -- -D warnings` stays clean
-// either way, so it currently masks nothing (unlike `state/palette.rs`'s
-// `PaletteDispatch`, which does: removing that one produces a real "large
-// size difference between variants" error). Not removed here — widening or
-// narrowing a lint beyond RFC-052 A1's own change is out of this handoff's
-// scope — but not left silently unexplained either; see the Handoff 071
-// review request.
 #[derive(Debug, Clone)]
-#[allow(clippy::large_enum_variant)]
 pub enum Message {
     Navigate(Screen),
     Workspace(WorkspaceMessage),

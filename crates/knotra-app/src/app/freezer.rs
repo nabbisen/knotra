@@ -12,15 +12,6 @@ use crate::{
 };
 
 pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
-    // RFC-052 R4: could not find a reason this exists. Tested by removing
-    // it — `cargo clippy --workspace --all-targets -- -D warnings` stays
-    // clean either way; the match below covers all seven `FreezerMessage`
-    // variants with no wildcard and no duplicate pattern, so nothing here
-    // is actually unreachable today. Not removed here — widening or
-    // narrowing a lint beyond RFC-052 A1's own change is out of this
-    // handoff's scope — but not left silently unexplained either; see the
-    // Handoff 071 review request.
-    #[allow(unreachable_patterns)]
     match msg {
         FreezerMessage::OpenRequested => {
             shared::cancel_freezer_validation(state);

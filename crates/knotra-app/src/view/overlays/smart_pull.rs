@@ -352,8 +352,7 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
 
     surface(
         tokens,
-        OverlayWidth::Large,
-        state.window_width,
+        OverlayWidth::Large.resolve(state.window_width),
         state.t("plain.get_latest"),
         close_msg,
         false,

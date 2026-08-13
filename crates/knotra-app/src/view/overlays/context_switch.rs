@@ -262,8 +262,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
     surface(
         tokens,
-        OverlayWidth::Large,
-        state.window_width,
+        OverlayWidth::Large.resolve(state.window_width),
         state.t("plain.change_work_area"),
         close_msg,
         false,

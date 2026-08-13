@@ -158,8 +158,7 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
     // Close stay exactly where they were, preserving the original layout.
     surface(
         tokens,
-        OverlayWidth::Large,
-        state.window_width,
+        OverlayWidth::Large.resolve(state.window_width),
         state.t("plain.changelog.title"),
         close_msg,
         false,

@@ -11,14 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed — `knotra-ui` breaking change
 
-`knotra_ui::widget::overlay::surface()` gained a required `available: f32`
-parameter (window width in logical pixels), inserted after `width:
-OverlayWidth`. `OverlayWidth::pixels()` now resolves each variant as a
-fraction of that width, clamped to a floor and ceiling, instead of a fixed
-constant — overlays scale with the window rather than staying a fixed size
-from 800px up to any display width (RFC-051). knotra is `knotra-ui`'s only
-consumer today, but this is a source-breaking change to a published crate's
-public API and is recorded here for that reason.
+Overlays now scale with the window instead of staying a fixed pixel size
+from 800px up to any display width. Each `OverlayWidth` variant (`Small`,
+`Standard`, `Large`) resolves as a fraction of the window's current width,
+clamped to a floor and ceiling, rather than a fixed constant (RFC-051).
+
+`knotra_ui::widget::overlay::surface()`'s `width` parameter changes type
+from `OverlayWidth` to a new `ResolvedWidth`, produced by
+`OverlayWidth::resolve(window_width)` — the enum still chooses the
+vocabulary (`Small`/`Standard`/`Large`), but a call site now resolves it
+against the window width itself before passing it in, rather than passing
+both separately (RFC-053). knotra is `knotra-ui`'s only consumer today, but
+this is a source-breaking change to a published crate's public API and is
+recorded here for that reason.
 
 ## [0.27.0] — 2026-08-10
 

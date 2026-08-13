@@ -125,24 +125,25 @@ mod tests {
     }
 
     /// The exact, justified set of suppressions this project carries,
-    /// across all three crates, verified at Handoff 071's baseline
-    /// (`487425a`). Each entry has a comment at its own site naming why —
-    /// see that site, not this list, for the justification itself. Two
-    /// entries (`app/freezer.rs`, `message.rs`) are here without a real
-    /// justification: tested by removing each and re-running the gate,
-    /// both stay clean either way, so neither currently masks anything —
-    /// kept because widening or narrowing a lint beyond RFC-052 A1's own
-    /// change is out of that handoff's scope, not because a reason was
-    /// found. `knotra-vcs/src/vcs/git.rs`'s `tag_exists` entry is
-    /// deliberately kept, not up for removal (RFC-052 non-goals).
+    /// across all three crates, verified at Handoff 072's baseline
+    /// (`a09105a`). Each entry has a comment at its own site naming why —
+    /// see that site, not this list, for the justification itself.
+    ///
+    /// RFC-053 removed three of the eight RFC-052 tracked: `message.rs`'s
+    /// `large_enum_variant` and `app/freezer.rs`'s `unreachable_patterns`
+    /// (both confirmed inert — tested by removing each and re-running the
+    /// gate, which stayed clean either way — and this RFC was the
+    /// authority Handoff 071 lacked to delete them), and
+    /// `knotra-ui/src/widget/overlay.rs`'s `too_many_arguments` (the
+    /// `ResolvedWidth` newtype gave `surface()` back its seventh parameter
+    /// without losing the enforcement the eighth parameter existed for).
+    /// `knotra-vcs/src/vcs/git.rs`'s `tag_exists` entry is deliberately
+    /// kept, not up for removal (RFC-052/RFC-053 non-goals, both).
     const EXPECTED: &[(&str, usize)] = &[
-        ("knotra-app/src/app/freezer.rs", 1),
-        ("knotra-app/src/message.rs", 1),
         ("knotra-app/src/state/palette.rs", 1),
         ("knotra-app/src/view/command_palette.rs", 1),
         ("knotra-app/src/view/detail_panel.rs", 1),
         ("knotra-app/src/view/shortcuts_overlay.rs", 1),
-        ("knotra-ui/src/widget/overlay.rs", 1),
         ("knotra-vcs/src/vcs/git.rs", 1),
     ];
 
