@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [039](./accepted/039-per-project-vcs-history.md) | Per-project VCS history | Production Readiness Reset - UI/UX foundation | Medium |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [039](./done/039-per-project-vcs-history.md) | Per-project VCS history | main: 1e86b9e |
 | [054](./done/054-conflict-row-prose-gets-its-own-line.md) | The conflict row's prose gets its own line | main: 1cb9940 |
 | [053](./done/053-three-suppressions-removed.md) | Three suppressions removed (eight to five) | main: 2c0b94d |
 | [052](./done/052-suppressions-tracked-in-every-form.md) | Suppressions tracked in every form, not one spelling | main: 0ef3c34 |

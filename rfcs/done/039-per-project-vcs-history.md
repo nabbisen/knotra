@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-13, project owner) |
+| Status | Implemented (main: 1e86b9e) |
 | Priority | Medium - the last roadmap feature; everything it depended on now exists |
 | Effort | Medium - a new adapter call in three files, a cached load, one panel section |
 | Target | Production Readiness Reset - UI/UX foundation |
