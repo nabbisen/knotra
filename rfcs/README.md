@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [052](./accepted/052-suppressions-tracked-in-every-form.md) | Suppressions are tracked in every form, not one spelling | Production Readiness Reset - operational hygiene | High |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [052](./done/052-suppressions-tracked-in-every-form.md) | Suppressions tracked in every form, not one spelling | main: 0ef3c34 |
 | [051](./done/051-overlay-widths-scale-with-the-window.md) | Overlay widths scale with the window | main: cf2b53e |
 | [050](./done/050-wording-accuracy-and-one-disclosure-vocabulary.md) | FS-watch hint accuracy; one disclosure vocabulary | main: ee763a6 |
 | [049](./done/049-shortcuts-overlay-localisation.md) | Shortcuts overlay localisation; four stale keys removed | main: 9f5a069 |
