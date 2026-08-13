@@ -15,6 +15,13 @@ pub enum PaletteAvailability {
     Hidden,
 }
 
+// RFC-052 R4: justified, confirmed by testing — removing this produces
+// "large size difference between variants... the largest variant contains
+// at least 312 bytes" (`Dispatched(Message)`, next to `Noop`'s near-zero
+// size). `Message` is the application's top-level message enum, wrapped
+// here directly rather than boxed; boxing would touch every call site that
+// constructs a `PaletteDispatch`, out of this RFC's scope (tracking and
+// justifying, not resizing).
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum PaletteDispatch {

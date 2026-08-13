@@ -1,4 +1,11 @@
-#![allow(unused_imports, unused_variables, dead_code)]
+// RFC-052 A1: `unused_imports`/`unused_variables` masked nothing in any
+// target and are gone. `dead_code` is narrowed to the test build only —
+// `view()`, and `field_row`/`IDENTITY_LABEL_WIDTH`/`STATUS_LABEL_WIDTH`
+// (only reachable from inside it), are called/used from `view.rs` in the
+// real binary, but no `#[test]` in this crate calls into the render tree,
+// so the test compilation's call graph never reaches them and flags all
+// four as dead. The binary build carries no suppression at all.
+#![cfg_attr(test, allow(dead_code))]
 //! RFC-0014 — Project detail side panel.
 //!
 //! Opens as a right-docked panel when the user clicks a project name.

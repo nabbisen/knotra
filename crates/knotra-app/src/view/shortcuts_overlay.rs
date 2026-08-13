@@ -1,4 +1,10 @@
-#![allow(unused_imports, unused_variables, dead_code)]
+// RFC-052 A1: `unused_imports`/`unused_variables` masked nothing in any
+// target and are gone. `dead_code` is narrowed to the test build only —
+// `view()` (and `Binding::keys`, only read inside it) is called from
+// `view.rs` in the real binary, but no `#[test]` in this crate calls into
+// the render tree, so the test compilation's call graph never reaches it
+// and flags both as dead. The binary build carries no suppression at all.
+#![cfg_attr(test, allow(dead_code))]
 //! RFC-0016 — Keyboard shortcuts cheat-sheet overlay.
 //!
 //! RFC-049: `BINDINGS`' `context`/`desc` fields were `&'static str` English

@@ -575,6 +575,17 @@ pub async fn tag_delete(project: &Project, tag_name: &str) -> ProjectOperationRe
     run_git(project, &["tag", "-d", tag_name]).await
 }
 
+// RFC-052 R4: no internal caller exists in `knotra-app` today (confirmed —
+// this is the one persistent `--force-warn dead_code` finding across every
+// RFC that has touched dead code this cycle, including RFC-043's original
+// 39→0 pass, which left it explicitly). `knotra-vcs` is a published crate
+// and this function is `pub`, alongside `tag_create`/`tag_delete` above —
+// my inference is that it's kept as API-completeness surface (a consumer
+// linking `knotra-vcs` directly could reasonably want to check before
+// creating or after deleting a tag), not something I can verify against a
+// recorded decision. Flagged as an inference, not an established fact, in
+// the Handoff 071 review request. Not removed — this RFC's non-goals name
+// it explicitly as tracked, not re-litigated.
 #[allow(dead_code)]
 pub async fn tag_exists(project: &Project, tag_name: &str) -> bool {
     let path = std::path::Path::new(&project.path).to_path_buf();

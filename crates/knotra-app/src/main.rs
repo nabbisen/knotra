@@ -3,12 +3,12 @@
 mod app;
 mod atomic_write;
 mod config;
-#[cfg(test)]
-mod dead_code_guard;
 mod fs_watcher;
 mod message;
 mod persistence;
 mod state;
+#[cfg(test)]
+mod suppressions_guard;
 #[cfg(test)]
 mod text_outside_catalog_guard;
 mod view;

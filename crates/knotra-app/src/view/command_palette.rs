@@ -1,4 +1,10 @@
-#![allow(unused_imports, unused_variables, dead_code)]
+// RFC-052 A1: `unused_imports`/`unused_variables` masked nothing in any
+// target and are gone. `dead_code` is narrowed to the test build only —
+// `view()` (and everything it alone reaches) is called from `view.rs` in
+// the real binary, but no `#[test]` in this crate calls into the
+// render tree, so the test compilation's call graph never reaches it and
+// flags it as dead. The binary build carries no suppression at all.
+#![cfg_attr(test, allow(dead_code))]
 //! RFC-0012 — Command palette overlay view.
 //!
 //! Rendered as a floating centered modal when `state.palette.open == true`.
