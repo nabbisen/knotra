@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [039](./proposed/039-per-project-vcs-history.md) | Per-project VCS history | Production Readiness Reset - UI/UX foundation | Medium |
 
 ---
 
