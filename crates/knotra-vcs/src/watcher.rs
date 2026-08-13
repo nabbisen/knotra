@@ -20,6 +20,7 @@
 //! | `.git/index` | Stage/unstage |
 //! | `.git/refs/` (dir mtime) | Branch creation/deletion, tag |
 //! | `.jj/working_copy/` (dir mtime) | jj working-copy change |
+//! | `.jj/op_heads/` (dir mtime) | jj operation-log change |
 //!
 //! The poller runs at a configurable interval (default 2 s) and emits a
 //! `FsChangeEvent` for each repository where any sentinel changed.

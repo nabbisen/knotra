@@ -181,10 +181,15 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         .to_string();
     let project_count = result.per_project.len();
 
+    // RFC-050 D3: the shared disclosure vocabulary (`plain.show_details`/
+    // `plain.hide_details`, already used by five other call sites) rather
+    // than this file's own `history.expand`/`history.collapse` — whose
+    // Japanese used 閉じる ("close") for a control that closes nothing;
+    // `action.close` already owns that word for actual closing.
     let toggle_label = if expanded {
-        state.t("history.collapse")
+        state.t("plain.hide_details")
     } else {
-        state.t("history.expand")
+        state.t("plain.show_details")
     };
     // H4: a text-only toggle read as a generic button, not a disclosure
     // control. `chevron_right`/`chevron_down` are the same idiom already

@@ -775,8 +775,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "history.directory_unreadable",
         "The history folder could not be read.",
     );
-    m.insert("history.expand", "Details");
-    m.insert("history.collapse", "Hide");
     m.insert("history.copy_log", "Copy log");
     m.insert("history.commands_header", "Commands");
     m.insert("history.recovery_header", "Recovery steps");
@@ -850,7 +848,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.fs_watch_disabled", "Disabled");
     m.insert(
         "settings.fs_watch_hint",
-        "When enabled, knotra watches .git/HEAD and index for changes and refreshes automatically.",
+        "When enabled, knotra refreshes sooner after activity in your projects, instead of waiting for the next scheduled check.",
     );
     // RFC-038 Stage 3: trimmed "(seconds)" — same reason as the refresh
     // interval label above.
@@ -1687,8 +1685,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "history.directory_unreadable",
         "履歴フォルダーを読み込めませんでした。",
     );
-    m.insert("history.expand", "詳細");
-    m.insert("history.collapse", "閉じる");
     m.insert("history.copy_log", "ログをコピー");
     m.insert("history.commands_header", "コマンド");
     m.insert("history.recovery_header", "回復手順");
@@ -1741,7 +1737,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.fs_watch_disabled", "無効");
     m.insert(
         "settings.fs_watch_hint",
-        "有効にすると、knotra は .git/HEAD と index の変更を監視し、自動的に更新します。",
+        "有効にすると、次の定期チェックを待たずに、プロジェクト内の操作後により早く更新します。",
     );
     m.insert("settings.fs_watch_interval_label", "変更検出の間隔");
     m.insert("tool.not_configured", "先に設定でツールを選んでください。");
