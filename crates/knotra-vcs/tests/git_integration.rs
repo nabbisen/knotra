@@ -86,6 +86,56 @@ fn make_project(dir: &Path) -> Project {
     Project::new("test-repo", dir.to_str().unwrap())
 }
 
+/// True if a real `jj` binary is on `PATH`. Several tests in this suite
+/// (`jj_repo_uses_jujutsu_vcs_kind`'s own precedent) skip rather than fail
+/// when it is absent, since jj is optional for a git-only contributor —
+/// this suite must not require it to pass overall.
+fn jj_available() -> bool {
+    Command::new("jj").arg("--version").status().is_ok()
+}
+
+/// Mirrors `git_command`'s environment isolation for `jj`: `JJ_CONFIG`
+/// points at a path guaranteed not to exist, so no developer's real jj
+/// config (user- or system-level) is ever read, and `--config` supplies the
+/// one thing these tests need — a deterministic commit author — without
+/// writing to any file, repo-local or otherwise.
+fn jj_command(args: &[&str], cwd: &Path) -> Command {
+    let mut cmd = Command::new("jj");
+    cmd.args(args)
+        .arg("--config")
+        .arg("user.name=Test")
+        .arg("--config")
+        .arg("user.email=test@test.local")
+        .current_dir(cwd)
+        .env("JJ_CONFIG", nonexistent_global_gitconfig());
+    cmd
+}
+
+/// Run a jj command inside `dir`, panic on failure.
+fn jj(args: &[&str], cwd: &Path) {
+    let status = jj_command(args, cwd)
+        .status()
+        .expect("jj command failed to spawn");
+    assert!(status.success(), "jj {:?} failed in {:?}", args, cwd);
+}
+
+/// `jj git init --colocate` — both `.git` and `.jj` exist, the common
+/// real-world shape (and the one `VcsAdapter`'s own kind-detection prefers,
+/// `.jj` first).
+fn init_jj_repo(dir: &Path) {
+    jj(&["git", "init", "--colocate"], dir);
+}
+
+/// Writes `filename` and finalises the working copy's current content as a
+/// new commit with `message`, via `jj commit` — which also starts a fresh,
+/// empty working-copy commit immediately after, the jj behaviour
+/// `recent_commits`'s `..@-` revset (`jj.rs`) exists to not count as a
+/// "recent commit".
+fn jj_commit(dir: &Path, filename: &str, contents: &str, message: &str) {
+    fs::write(dir.join(filename), contents).unwrap();
+    jj(&["commit", "-m", message], dir);
+}
+
 // ---------------------------------------------------------------------------
 // §16.4 State 1: Clean
 // ---------------------------------------------------------------------------
@@ -873,4 +923,142 @@ async fn jj_repo_uses_jujutsu_vcs_kind() {
 
     // The project should be recognised as jj, not produce a read error.
     assert_eq!(status.identity.vcs_kind, VcsKind::Jujutsu);
+}
+
+// ---------------------------------------------------------------------------
+// RFC-039: `VcsAdapter::recent_commits` — no since-ref, `-n <limit>`/jj `..@-`
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn git_recent_commits_respects_limit_newest_first() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path()); // one commit, "initial"
+    fs::write(dir.path().join("a.txt"), "a").unwrap();
+    git(&["add", "a.txt"], dir.path());
+    git(&["commit", "-m", "second"], dir.path());
+    fs::write(dir.path().join("b.txt"), "b").unwrap();
+    git(&["add", "b.txt"], dir.path());
+    git(&["commit", "-m", "third"], dir.path());
+
+    let project = make_project(dir.path());
+    let result = VcsAdapter::recent_commits(&project, 2).await;
+
+    assert!(
+        result.error.is_none(),
+        "unexpected error: {:?}",
+        result.error
+    );
+    assert_eq!(result.entries.len(), 2, "limit=2 over 3 real commits");
+    assert_eq!(result.entries[0].subject, "third");
+    assert_eq!(result.entries[1].subject, "second");
+}
+
+#[tokio::test]
+async fn git_recent_commits_returns_what_it_has_under_the_limit() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path()); // one commit, "initial"
+
+    let project = make_project(dir.path());
+    let result = VcsAdapter::recent_commits(&project, 5).await;
+
+    assert!(
+        result.error.is_none(),
+        "unexpected error: {:?}",
+        result.error
+    );
+    assert_eq!(
+        result.entries.len(),
+        1,
+        "one real commit, limit 5 -- must return what exists, not error"
+    );
+    assert_eq!(result.entries[0].subject, "initial");
+}
+
+#[tokio::test]
+async fn jj_recent_commits_respects_limit_and_excludes_the_working_copy() {
+    if !jj_available() {
+        eprintln!("jj not found — skipping jj integration test");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    init_jj_repo(dir.path());
+    jj_commit(dir.path(), "a.txt", "a", "first");
+    jj_commit(dir.path(), "b.txt", "b", "second");
+    jj_commit(dir.path(), "c.txt", "c", "third");
+
+    let project = Project::new("jj-repo", dir.path().to_str().unwrap());
+    let result = VcsAdapter::recent_commits(&project, 2).await;
+
+    assert!(
+        result.error.is_none(),
+        "unexpected error: {:?}",
+        result.error
+    );
+    assert_eq!(
+        result.entries.len(),
+        2,
+        "limit=2 over 3 real commits -- must not include the always-present, \
+         always-empty working-copy commit as a fourth"
+    );
+    assert_eq!(result.entries[0].subject, "third");
+    assert_eq!(result.entries[1].subject, "second");
+}
+
+#[tokio::test]
+async fn jj_recent_commits_returns_what_it_has_under_the_limit() {
+    if !jj_available() {
+        eprintln!("jj not found — skipping jj integration test");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    init_jj_repo(dir.path());
+    jj_commit(dir.path(), "a.txt", "a", "only commit");
+
+    let project = Project::new("jj-repo", dir.path().to_str().unwrap());
+    let result = VcsAdapter::recent_commits(&project, 5).await;
+
+    assert!(
+        result.error.is_none(),
+        "unexpected error: {:?}",
+        result.error
+    );
+    assert_eq!(
+        result.entries.len(),
+        1,
+        "one real commit, limit 5 -- must return what exists, not error"
+    );
+    assert_eq!(result.entries[0].subject, "only commit");
+}
+
+/// RFC-039 D7's central finding, as a test rather than only a comment: a
+/// fresh jj repository's working-copy commit (`@`) always exists and is
+/// always empty/description-less until the first `jj commit`. If
+/// `recent_commits` used `..@` (as `log_since` does) instead of `..@-`,
+/// this would return one spurious entry — indistinguishable from a real
+/// commit to the panel — for every repository that has never been
+/// committed to, which is exactly the state D5 calls "no commits yet".
+#[tokio::test]
+async fn jj_recent_commits_on_a_fresh_repo_returns_empty_not_the_working_copy() {
+    if !jj_available() {
+        eprintln!("jj not found — skipping jj integration test");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    init_jj_repo(dir.path());
+    // No commits made — only the initial, empty working-copy commit exists.
+
+    let project = Project::new("jj-repo", dir.path().to_str().unwrap());
+    let result = VcsAdapter::recent_commits(&project, 5).await;
+
+    assert!(
+        result.error.is_none(),
+        "unexpected error: {:?}",
+        result.error
+    );
+    assert!(
+        result.entries.is_empty(),
+        "a repository with zero real commits must report zero entries, \
+         not the empty working-copy commit as one: {:?}",
+        result.entries
+    );
 }

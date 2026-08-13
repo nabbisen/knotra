@@ -224,6 +224,8 @@ pub enum BackgroundMessage {
         lease_id: OperationLeaseId,
         result: ContextSwitchResult,
     },
+    /// Recent-commits list loaded for the detail panel (RFC-039 D4).
+    RecentCommitsLoaded(knotra_vcs::RecentCommits),
 }
 
 // --- Filter ---

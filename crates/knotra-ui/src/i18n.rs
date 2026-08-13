@@ -891,6 +891,15 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("detail.refresh", "Refresh");
     m.insert("detail.fetch", "Fetch");
     m.insert("detail.remove_from_workspace", "Remove from workspace");
+    // RFC-039 D3/D5: the "Recent commits" section — three distinct
+    // sentences for loading / no-commits-yet / could-not-be-read, none of
+    // them an empty section (RFC-044 D3). `commits_error` is a prefix; the
+    // VCS layer's own error string is appended at the call site, not
+    // discarded (§5).
+    m.insert("detail.section_recent_commits", "Recent commits");
+    m.insert("detail.commits_loading", "Loading commits…");
+    m.insert("detail.commits_empty", "No commits yet.");
+    m.insert("detail.commits_error", "Could not read commits:");
     // RFC-048 D2 / RFC-049: the keyboard-shortcuts cheat sheet's own
     // `shortcut.*` keys. RFC-048 added these four (title, three column
     // headers) beside four *other* `shortcut.*` keys that looked like live
@@ -1763,6 +1772,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("detail.refresh", "更新");
     m.insert("detail.fetch", "フェッチ");
     m.insert("detail.remove_from_workspace", "ワークスペースから削除");
+    m.insert("detail.section_recent_commits", "最近のコミット");
+    m.insert("detail.commits_loading", "コミットを読み込み中…");
+    m.insert("detail.commits_empty", "コミットはまだありません。");
+    m.insert("detail.commits_error", "コミットを読み込めませんでした:");
     m.insert("shortcut.overlay_title", "キーボードショートカット");
     m.insert("shortcut.column_keys", "キー");
     m.insert("shortcut.column_context", "コンテキスト");

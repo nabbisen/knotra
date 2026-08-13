@@ -9,7 +9,7 @@ pub use endringer_core::types::WorktreeStatus as BackendWorktreeStatus;
 pub use error::EndringerError;
 pub use model::topology::parse_cargo_toml;
 pub use model::{
-    changelog::{ChangelogDraft, CommitEntry, ProjectCommits},
+    changelog::{ChangelogDraft, CommitEntry, ProjectCommits, RecentCommits},
     conflict::{ConflictMarker, ConflictedFile, ProjectConflictDetail},
     operation::{
         ContextSwitchResult, FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,

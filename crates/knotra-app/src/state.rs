@@ -4,6 +4,7 @@ pub mod changelog;
 pub mod conflict_ops;
 pub mod context;
 pub mod dashboard;
+pub mod detail_panel;
 pub mod focus;
 pub mod freezer;
 pub mod palette;
@@ -415,15 +416,6 @@ impl PaletteState {
 }
 
 // ---------------------------------------------------------------------------
-// RFC-0014 — Project detail panel state
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Default)]
-pub struct DetailPanelState {
-    pub open_project_id: Option<knotra_vcs::ProjectId>,
-}
-
-// ---------------------------------------------------------------------------
 // RFC-0013 — Active modal discriminant
 // ---------------------------------------------------------------------------
 
@@ -528,7 +520,7 @@ pub struct AppState {
     // ------------------------------------------------------------------
     // RFC-0014 project detail panel
     // ------------------------------------------------------------------
-    pub detail_panel: DetailPanelState,
+    pub detail_panel: detail_panel::DetailPanelState,
     // ------------------------------------------------------------------
     // RFC-0013 active modal
     // ------------------------------------------------------------------
@@ -636,7 +628,7 @@ impl AppState {
             activity: ActivityStripState::default(),
             palette: PaletteState::default(),
             keyboard: KeyboardState::default(),
-            detail_panel: DetailPanelState::default(),
+            detail_panel: detail_panel::DetailPanelState::default(),
             active_modal: ActiveModal::default(),
             selection_mode: false,
             show_op_details: false,

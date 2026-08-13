@@ -426,6 +426,85 @@ pub async fn log_since(
     })
 }
 
+/// RFC-039 D1: the most recent `limit` commits, no since-ref — `log_since`
+/// requires one and this query does not have one. Same `--format` shape
+/// `log_since` uses (`%H|%s|%an|%aI`, `--no-merges`) so the parser below is
+/// identical; only the range selector changes, from `<since>..<until>` to
+/// `-n <limit>`.
+pub async fn recent_commits(
+    project: &Project,
+    limit: usize,
+) -> crate::model::changelog::RecentCommits {
+    use crate::model::changelog::{CommitEntry, RecentCommits};
+
+    let path = project.path.clone();
+    let project_id = project.id.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let fmt = "%H|%s|%an|%aI";
+        let output = Command::new("git")
+            .args([
+                "log",
+                &format!("-n{limit}"),
+                &format!("--format={fmt}"),
+                "--no-merges",
+            ])
+            .current_dir(&path)
+            .output();
+
+        match output {
+            Err(e) => RecentCommits {
+                project_id,
+                entries: vec![],
+                error: Some(e.to_string()),
+            },
+            Ok(o) if !o.status.success() => {
+                let stderr = String::from_utf8_lossy(&o.stderr).trim().to_owned();
+                RecentCommits {
+                    project_id,
+                    entries: vec![],
+                    error: Some(stderr),
+                }
+            }
+            Ok(o) => {
+                let text = String::from_utf8_lossy(&o.stdout);
+                let entries = text
+                    .lines()
+                    .filter(|l| !l.trim().is_empty())
+                    .filter_map(|l| {
+                        let mut p = l.splitn(4, '|');
+                        let hash = p.next()?.to_owned();
+                        let subject = p.next()?.to_owned();
+                        let author = p.next()?.to_owned();
+                        let date = p
+                            .next()?
+                            .trim()
+                            .parse::<chrono::DateTime<chrono::Utc>>()
+                            .ok()?;
+                        Some(CommitEntry {
+                            hash,
+                            subject,
+                            author,
+                            date,
+                        })
+                    })
+                    .collect();
+                RecentCommits {
+                    project_id,
+                    entries,
+                    error: None,
+                }
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|e| crate::model::changelog::RecentCommits {
+        project_id: project.id.clone(),
+        entries: vec![],
+        error: Some(format!("task join error: {e}")),
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Tag operations — via backend-async
 // ---------------------------------------------------------------------------

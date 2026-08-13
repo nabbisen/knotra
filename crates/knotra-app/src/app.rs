@@ -5,6 +5,7 @@ mod background;
 mod changelog;
 mod conflict_ops;
 mod context;
+mod detail_panel;
 mod focus_ops;
 mod freezer;
 mod misc;
@@ -221,14 +222,7 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
         // ---------------------------------------------------------------
         // RFC-0014 — Detail panel
         // ---------------------------------------------------------------
-        Message::DetailPanel(dp) => {
-            use crate::message::DetailPanelMessage;
-            match dp {
-                DetailPanelMessage::Opened(id) => state.detail_panel.open_project_id = Some(id),
-                DetailPanelMessage::Closed => state.detail_panel.open_project_id = None,
-            }
-            Task::none()
-        }
+        Message::DetailPanel(dp) => detail_panel::handle_detail_panel(state, dp),
 
         Message::CopyToClipboard(text) => clipboard::write(text),
         Message::ToggleOpDetails => {

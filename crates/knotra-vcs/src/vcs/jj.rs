@@ -336,6 +336,108 @@ pub async fn log_since(
     })
 }
 
+/// RFC-039 D1/D7: the most recent `limit` commits, no since-ref.
+///
+/// **Verified against a real `jj 0.44.0` binary and real repositories**
+/// (jj was not installed in this project's environment before this
+/// handoff; see Review Request 074 and its ruling) — not inferred from
+/// documentation alone, per D7's explicit requirement.
+///
+/// The revset is `..@-`, **not** `..@` — this is a deliberate, stated
+/// difference from `log_since`'s `{since}..@` shape, not an oversight.
+/// `@` is jj's working-copy commit, which always exists and is frequently
+/// empty and description-less (jj auto-creates a new one after every
+/// `jj commit`/`jj describe`). Confirmed directly: `jj log -r ..@ -n <N>`
+/// on a real repo returns the empty working-copy commit as its *first*
+/// entry, ahead of the real commits beneath it, and on a **brand-new
+/// repository with zero real commits**, `..@` returns one spurious
+/// empty/authorless entry while `..@-` (excluding the working copy,
+/// starting from its parent) correctly returns nothing — the right input
+/// for D5's "no commits yet" state. `git log -n <limit>` has no equivalent
+/// of "the commit currently being written" to begin with, so `..@-` is the
+/// revset that actually answers the same question `-n <limit>` answers for
+/// git; `..@` would not.
+pub async fn recent_commits(
+    project: &Project,
+    limit: usize,
+) -> crate::model::changelog::RecentCommits {
+    use crate::model::changelog::{CommitEntry, RecentCommits};
+
+    let path = project.path.clone();
+    let pid = project.id.clone();
+    let limit = limit.to_string();
+
+    tokio::task::spawn_blocking(move || {
+        let tmpl = concat!(
+            "change_id.short(8)",
+            r#" ++ "|" ++ description.first_line()"#,
+            r#" ++ "|" ++ author.name()"#,
+            r#" ++ "|" ++ committer.timestamp().format("%Y-%m-%dT%H:%M:%S+00:00")"#,
+            r#" ++ "
+""#,
+        );
+        let out = std::process::Command::new("jj")
+            .args(["log", "-r", "..@-", "--no-graph", "-T", tmpl, "-n", &limit])
+            .current_dir(&path)
+            .output();
+
+        match out {
+            Err(e) => RecentCommits {
+                project_id: pid,
+                entries: vec![],
+                error: Some(format!("jj not available: {e}")),
+            },
+            Ok(o) if !o.status.success() => {
+                let stderr = String::from_utf8_lossy(&o.stderr).trim().to_owned();
+                RecentCommits {
+                    project_id: pid,
+                    entries: vec![],
+                    error: Some(if stderr.is_empty() {
+                        format!("jj log exited with code {:?}", o.status.code())
+                    } else {
+                        stderr
+                    }),
+                }
+            }
+            Ok(o) => {
+                let text = String::from_utf8_lossy(&o.stdout);
+                let entries = text
+                    .lines()
+                    .filter(|l| !l.trim().is_empty())
+                    .filter_map(|l| {
+                        let mut p = l.splitn(4, '|');
+                        let hash = p.next()?.to_owned();
+                        let subject = p.next()?.to_owned();
+                        let author = p.next()?.to_owned();
+                        let date = p
+                            .next()?
+                            .trim()
+                            .parse::<chrono::DateTime<chrono::Utc>>()
+                            .ok()?;
+                        Some(CommitEntry {
+                            hash,
+                            subject,
+                            author,
+                            date,
+                        })
+                    })
+                    .collect();
+                RecentCommits {
+                    project_id: pid,
+                    entries,
+                    error: None,
+                }
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|e| RecentCommits {
+        project_id: project.id.clone(),
+        entries: vec![],
+        error: Some(format!("task join: {e}")),
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Write operations
 // ---------------------------------------------------------------------------

@@ -29,6 +29,23 @@ pub struct ProjectCommits {
     pub error: Option<String>,
 }
 
+/// The most recent commits for one project, with no since-ref (RFC-039 D2)
+/// — the project detail panel's "Recent commits" section, not changelog
+/// generation. A distinct type from `ProjectCommits` rather than a reuse:
+/// that type's `since_ref: String` has no meaning for this query, and a
+/// `String` field accepts anything put in it — the same shape of defect
+/// RFC-046 spent an RFC removing from `skip_reason`, which held a stable
+/// code from three writers and locale-baked rendered prose from a fourth
+/// for as long as nothing distinguished the two meanings. `project_name` is
+/// also dropped: the panel already has it from the project it opened for.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentCommits {
+    pub project_id: ProjectId,
+    /// Commits in reverse-chronological order.
+    pub entries: Vec<CommitEntry>,
+    pub error: Option<String>,
+}
+
 /// A complete changelog draft spanning multiple repositories.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangelogDraft {

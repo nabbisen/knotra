@@ -751,6 +751,26 @@ impl VcsAdapter {
             },
         }
     }
+
+    /// The most recent `limit` commits, no since-ref (RFC-039 D1) — the
+    /// project detail panel's "Recent commits" section. `log_since` cannot
+    /// answer this query; see `git::recent_commits`/`jj::recent_commits`
+    /// for the two VCS invocations, including D7's stated jj revset choice.
+    pub async fn recent_commits(
+        project: &Project,
+        limit: usize,
+    ) -> crate::model::changelog::RecentCommits {
+        let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
+        match kind {
+            Some(VcsKind::Git) => git::recent_commits(project, limit).await,
+            Some(VcsKind::Jujutsu) => jj::recent_commits(project, limit).await,
+            None => crate::model::changelog::RecentCommits {
+                project_id: project.id.clone(),
+                entries: vec![],
+                error: Some(format!("no repository at {}", project.path)),
+            },
+        }
+    }
 }
 
 impl VcsAdapter {

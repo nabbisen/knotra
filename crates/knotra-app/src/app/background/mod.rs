@@ -33,6 +33,7 @@ use crate::{
 
 mod conflict;
 mod context_switch;
+mod detail_panel;
 mod fetch;
 mod freeze;
 mod smart_pull;
@@ -195,6 +196,10 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
 
         BackgroundMessage::ContextSwitchDone { lease_id, result } => {
             context_switch::context_switch_done(state, lease_id, result)
+        }
+
+        BackgroundMessage::RecentCommitsLoaded(commits) => {
+            detail_panel::recent_commits_loaded(state, commits)
         }
     }
 }

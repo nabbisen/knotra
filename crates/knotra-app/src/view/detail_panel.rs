@@ -23,9 +23,11 @@ use iced::{
     widget::{Space, button, column, container, row, scrollable, text},
 };
 
+use knotra_ui::widget::record_row;
+
 use crate::{
     message::{DetailPanelMessage, Message, ProjectMessage, WorkspaceMessage},
-    state::AppState,
+    state::{AppState, detail_panel::RecentCommitsPhase},
 };
 
 /// RFC-048 D3: label/value pairs laid out as two columns sized by the
@@ -179,6 +181,58 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     )
     .spacing(3);
 
+    // --- Recent commits section (RFC-039 D3/D5) ---
+    // Three states, three sentences (D5/R5) — none of them an empty section
+    // (RFC-044 D3). The VCS layer's `error` string is shown, not discarded
+    // (§5's explicit anti-pattern: `ProjectConflictDetail.note`, deleted
+    // unread by RFC-045).
+    let commits_body: Vec<Element<'_, Message>> = match &state.detail_panel.commits_phase {
+        RecentCommitsPhase::Loading(loading_id) if loading_id == id => {
+            vec![text(state.t("detail.commits_loading")).size(11).into()]
+        }
+        RecentCommitsPhase::Loaded {
+            project_id,
+            commits,
+        } if project_id == id => {
+            if let Some(err) = &commits.error {
+                vec![
+                    text(format!("{} {}", state.t("detail.commits_error"), err))
+                        .size(11)
+                        .into(),
+                ]
+            } else if commits.entries.is_empty() {
+                vec![text(state.t("detail.commits_empty")).size(11).into()]
+            } else {
+                commits
+                    .entries
+                    .iter()
+                    .map(|entry| {
+                        let short_hash = &entry.hash[..entry.hash.len().min(7)];
+                        let summary = text(format!("{short_hash}  {}", entry.subject)).size(11);
+                        let detail = text(format!(
+                            "{} — {}",
+                            entry.author,
+                            entry.date.format("%Y-%m-%d %H:%M")
+                        ))
+                        .size(10);
+                        record_row(summary.into(), Some(detail.into()))
+                    })
+                    .collect()
+            }
+        }
+        _ => vec![text(state.t("detail.commits_loading")).size(11).into()],
+    };
+
+    let commits = column(
+        std::iter::once(
+            text(state.t("detail.section_recent_commits"))
+                .size(12)
+                .into(),
+        )
+        .chain(commits_body),
+    )
+    .spacing(3);
+
     // --- Actions ---
     let refresh_btn = button(text(state.t("detail.refresh")).size(12)).on_press(Message::Project(
         ProjectMessage::StatusRefreshRequested(id.clone()),
@@ -200,7 +254,7 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     ]
     .spacing(6);
 
-    let content = column![header, identity, status_col, recent, actions,]
+    let content = column![header, identity, status_col, recent, commits, actions,]
         .spacing(16)
         .padding(16);
 
