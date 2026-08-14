@@ -256,8 +256,11 @@ pub async fn log_since(
     let pname = project.name.clone();
 
     tokio::task::spawn_blocking(move || {
-        // Use `jj log -r <bookmark>..@` — ref-based, no timestamp ambiguity.
-        let rev = format!("{since}..@");
+        // Use `jj log -r <bookmark>..@-` — ref-based, no timestamp ambiguity.
+        // `..@-`, not `..@` (RFC-055 D1): see `recent_commits`'s doc comment
+        // below for why `@`, jj's working-copy commit, must be excluded —
+        // the same reasoning applies here unchanged, so it is not restated.
+        let rev = format!("{since}..@-");
         let tmpl = concat!(
             "change_id.short(8)",
             r#" ++ "|" ++ description.first_line()"#,

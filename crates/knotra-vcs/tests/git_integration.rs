@@ -1032,11 +1032,12 @@ async fn jj_recent_commits_returns_what_it_has_under_the_limit() {
 
 /// RFC-039 D7's central finding, as a test rather than only a comment: a
 /// fresh jj repository's working-copy commit (`@`) always exists and is
-/// always empty/description-less until the first `jj commit`. If
-/// `recent_commits` used `..@` (as `log_since` does) instead of `..@-`,
-/// this would return one spurious entry — indistinguishable from a real
-/// commit to the panel — for every repository that has never been
-/// committed to, which is exactly the state D5 calls "no commits yet".
+/// always empty/description-less until the first `jj commit`. Had
+/// `recent_commits` used `..@` instead of `..@-` (the shape `log_since` also
+/// carried until RFC-055 corrected it), this would return one spurious
+/// entry — indistinguishable from a real commit to the panel — for every
+/// repository that has never been committed to, which is exactly the state
+/// D5 calls "no commits yet".
 #[tokio::test]
 async fn jj_recent_commits_on_a_fresh_repo_returns_empty_not_the_working_copy() {
     if !jj_available() {
@@ -1060,5 +1061,98 @@ async fn jj_recent_commits_on_a_fresh_repo_returns_empty_not_the_working_copy() 
         "a repository with zero real commits must report zero entries, \
          not the empty working-copy commit as one: {:?}",
         result.entries
+    );
+}
+
+// ---------------------------------------------------------------------------
+// RFC-055: `VcsAdapter::log_since` — jj excludes the working copy (`..@-`)
+// ---------------------------------------------------------------------------
+
+/// Writes `filename` and sets a description on the *current* working-copy
+/// commit via `jj describe` — without finalising it (RFC-055 D2's
+/// described-but-uncommitted case). Unlike `jj_commit`, this does not start
+/// a fresh working-copy commit afterward; `@` stays exactly where it was,
+/// now with a message.
+fn jj_describe_uncommitted(dir: &Path, filename: &str, contents: &str, message: &str) {
+    fs::write(dir.join(filename), contents).unwrap();
+    jj(&["describe", "-m", message], dir);
+}
+
+#[tokio::test]
+async fn jj_log_since_excludes_the_phantom_working_copy_entry() {
+    if !jj_available() {
+        eprintln!("jj not found — skipping jj integration test");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    init_jj_repo(dir.path());
+    jj_commit(dir.path(), "a.txt", "a", "commit 1");
+    jj_commit(dir.path(), "b.txt", "b", "commit 2");
+    jj_commit(dir.path(), "c.txt", "c", "commit 3");
+
+    let project = Project::new("jj-repo", dir.path().to_str().unwrap());
+    // `root()` as the since-ref: a jj revset function, valid wherever this
+    // string is substituted into `{since}..@-` (`jj.rs`) -- no bookmark
+    // needed to exercise the fix.
+    let commits = VcsAdapter::log_since(&project, "root()", None).await;
+
+    assert!(
+        commits.error.is_none(),
+        "log_since error: {:?}",
+        commits.error
+    );
+    assert!(
+        commits.entries.iter().all(|e| !e.subject.is_empty()),
+        "no returned entry may have an empty subject -- that is the \
+         always-present, always-empty working-copy commit leaking through: {:?}",
+        commits.entries
+    );
+    assert_eq!(commits.entries.len(), 3, "3 real commits, none phantom");
+    assert_eq!(commits.entries[0].subject, "commit 3");
+    assert_eq!(commits.entries[1].subject, "commit 2");
+    assert_eq!(commits.entries[2].subject, "commit 1");
+}
+
+/// RFC-055 D2: a description set on `@` without finalising it (`jj
+/// describe`, no `jj commit`) is deliberately excluded from the changelog --
+/// a changelog documents what has been committed, and the working copy is
+/// by definition still being written. Proven by exercising the real case,
+/// not by asserting its absence in the abstract.
+#[tokio::test]
+async fn jj_log_since_excludes_a_described_but_uncommitted_change() {
+    if !jj_available() {
+        eprintln!("jj not found — skipping jj integration test");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    init_jj_repo(dir.path());
+    jj_commit(dir.path(), "a.txt", "a", "commit 1");
+    jj_commit(dir.path(), "b.txt", "b", "commit 2");
+    jj_commit(dir.path(), "c.txt", "c", "commit 3");
+    jj_describe_uncommitted(dir.path(), "d.txt", "d", "wip: uncommitted change");
+
+    let project = Project::new("jj-repo", dir.path().to_str().unwrap());
+    let commits = VcsAdapter::log_since(&project, "root()", None).await;
+
+    assert!(
+        commits.error.is_none(),
+        "log_since error: {:?}",
+        commits.error
+    );
+    assert_eq!(
+        commits.entries.len(),
+        3,
+        "the described-but-uncommitted change must not appear as a 4th \
+         entry: {:?}",
+        commits.entries
+    );
+    assert!(
+        commits
+            .entries
+            .iter()
+            .all(|e| e.subject != "wip: uncommitted change"),
+        "the description on `@` must not leak into the changelog before \
+         it is committed: {:?}",
+        commits.entries
     );
 }
