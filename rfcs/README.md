@@ -42,7 +42,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [055](./accepted/055-log-since-excludes-the-jj-working-copy.md) | `log_since` excludes the jj working copy | Production Readiness Reset - correctness | High |
 
 ---
 
@@ -55,6 +54,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [055](./done/055-log-since-excludes-the-jj-working-copy.md) | `log_since` excludes the jj working copy | main: 8cd6396 |
 | [039](./done/039-per-project-vcs-history.md) | Per-project VCS history | main: 1e86b9e |
 | [054](./done/054-conflict-row-prose-gets-its-own-line.md) | The conflict row's prose gets its own line | main: 1cb9940 |
 | [053](./done/053-three-suppressions-removed.md) | Three suppressions removed (eight to five) | main: 2c0b94d |
