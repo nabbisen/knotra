@@ -9,21 +9,96 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed — `knotra-ui` breaking change
+## [0.28.0] — 2026-08-15
 
-Overlays now scale with the window instead of staying a fixed pixel size
-from 800px up to any display width. Each `OverlayWidth` variant (`Small`,
-`Standard`, `Large`) resolves as a fraction of the window's current width,
-clamped to a floor and ceiling, rather than a fixed constant (RFC-051).
+**The release for everyone not using knotra in English, on Git.** Two entire
+screens had never been translated. Jujutsu support had never been run. Both
+turned out to be true for the same reason: nothing checked, so nobody looked.
 
-`knotra_ui::widget::overlay::surface()`'s `width` parameter changes type
-from `OverlayWidth` to a new `ResolvedWidth`, produced by
-`OverlayWidth::resolve(window_width)` — the enum still chooses the
-vocabulary (`Small`/`Standard`/`Large`), but a call site now resolves it
-against the window width itself before passing it in, rather than passing
-both separately (RFC-053). knotra is `knotra-ui`'s only consumer today, but
-this is a source-breaking change to a published crate's public API and is
-recorded here for that reason.
+### Fixed — two screens were in English regardless of your language setting
+
+The **project detail panel** — every field label, every button, every status —
+and the **keyboard shortcuts overlay**, including its whole table of bindings,
+were hardcoded English. Selecting Japanese changed the rest of the application
+and left these two exactly as they were.
+
+They were missed because every check we had verified that text *reaching* the
+catalog was correct. Nothing verified that text reached the catalog at all, so a
+file that never asked for a translation was invisible. There is now a check for
+that, and it found a second thing on its first run.
+
+Four shortcut entries were also removed. They described a keyboard layout that no
+longer exists — one of them named a key combination absent from the application
+entirely — and nothing had displayed them for some time.
+
+### Fixed — Jujutsu
+
+jj is a first-class VCS in knotra and had never been executed against a real
+binary. Installing one to build a new feature turned up three defects in code
+that had shipped:
+
+- **Changelogs led with a blank entry**, or worse. jj always has a working-copy
+  commit, usually empty; it was being collected as a real one. If you had
+  described that commit without finalising it, your changelog led with your
+  unfinished work instead — which reads like a genuine entry and would have been
+  published as one.
+- **Conflict resolution was a dead end.** The panel told you the remaining action
+  was "available for Git projects only" and stopped. The command that finishes
+  the job was being computed one layer down and discarded. It is now shown, with
+  the file's own path.
+- **The file-system monitoring setting described a Git-only feature**, naming
+  `.git/HEAD` and omitting Jujutsu entirely — so a jj user would reasonably
+  conclude it did not apply to them. It always had.
+
+### Fixed — knotra kept some of what it knew to itself
+
+- A project skipped during a check said *"This project cannot be checked right
+  now."* when knotra knew whether it was **not in the active workspace** or its
+  **folder was missing**. It now says which.
+- A **corrupt or unreadable history file vanished silently** — indistinguishable
+  from having no history. It also cost you a valid older entry, because the limit
+  was applied before the unreadable ones were discarded. Both fixed; unreadable
+  entries are now counted and stated.
+- The **Freezer** now tells you which of your other projects depend on what you
+  are about to freeze — computed from the projects actually selected, not the
+  whole workspace — and says so explicitly when it has not checked yet, rather
+  than showing nothing.
+
+### Added
+
+- **Recent commits per project.** The detail panel showed what knotra had done to
+  a project and nothing about what happened *in* it. It now lists the five most
+  recent commits, on Git and Jujutsu.
+- **Open a conflicted file in your comparison tool.** knotra has accepted a tool
+  path in Settings for a long time and never launched it. The conflict panel now
+  has the control.
+
+### Changed
+
+- **Copied operation logs are English.** They leave the application — into issue
+  trackers, chats, search boxes — where the reader is often not you, and they
+  interleave command output that is English regardless. A Japanese user's copied
+  log now reads `Success` where it read `成功`. On-screen text is unaffected.
+- **Settings' "Merge tool path" is now "Comparison tool path"**, matching what the
+  conflict panel calls it. The configuration key is unchanged.
+- **Overlays scale with the window** instead of holding one fixed width from 800px
+  to any display size. At the default window size they are within a pixel of where
+  they were.
+- **`knotra-ui` breaking change.** `overlay::surface()`'s `width` parameter is now
+  a `ResolvedWidth`, produced by `OverlayWidth::resolve(window_width)`. The enum
+  still chooses the vocabulary; the call site resolves it against the window first.
+  knotra is this crate's only consumer today, but the API is public and published.
+
+### Internal
+
+`#[allow(...)]` suppressions went from 39 to 0 under a guard — which then turned
+out to check one spelling of the attribute in one crate, while three files carried
+a broader form it could not see. The guard was rebuilt to match every form across
+all three crates, and every surviving suppression now carries a justification at
+its own site. Five remain, two of which were kept only because proving them inert
+was not the same as being authorised to delete them.
+
+Tests: 259 → 299.
 
 ## [0.27.0] — 2026-08-10
 
