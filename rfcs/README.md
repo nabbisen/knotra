@@ -160,27 +160,27 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
-| [0009](./done/0009-selection-model.md)        | Selection model and selection bar               | v0.12.0 |
-| [0010](./done/0010-attention-tiers.md)        | Three-tier attention grouping                   | v0.12.0 |
-| [0011](./done/0011-activity-strip.md)         | Activity strip at bottom of window              | v0.12.0 |
-| [0012](./done/0012-command-palette.md)        | Command palette (⌘K)                            | v0.12.0 |
-| [0013](./done/0013-bulk-action-modals.md)     | Bulk action modals (replaces 5 screens)         | v0.12.0 |
-| [0014](./done/0014-project-detail-panel.md)   | Project detail side panel                       | v0.12.0 |
-| [0015](./done/0015-workspace-tabs.md)         | Workspace tabs                                  | v0.12.0 |
-| [0016](./done/0016-keyboard-shortcuts.md)     | Keyboard shortcuts and cheat sheet              | v0.12.0 |
+| [0009](./done/009-selection-model.md)        | Selection model and selection bar               | v0.12.0 |
+| [0010](./done/010-attention-tiers.md)        | Three-tier attention grouping                   | v0.12.0 |
+| [0011](./done/011-activity-strip.md)         | Activity strip at bottom of window              | v0.12.0 |
+| [0012](./done/012-command-palette.md)        | Command palette (⌘K)                            | v0.12.0 |
+| [0013](./done/013-bulk-action-modals.md)     | Bulk action modals (replaces 5 screens)         | v0.12.0 |
+| [0014](./done/014-project-detail-panel.md)   | Project detail side panel                       | v0.12.0 |
+| [0015](./done/015-workspace-tabs.md)         | Workspace tabs                                  | v0.12.0 |
+| [0016](./done/016-keyboard-shortcuts.md)     | Keyboard shortcuts and cheat sheet              | v0.12.0 |
 
 ### v0.11.0 — Technical correctness
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
-| [0001](./done/0001-history-log-copy.md)        | Complete `HistoryMessage::LogCopyRequested`    | v0.11.0 |
-| [0002](./done/0002-stash-entry-commit-id.md)   | Add `commit_id` to `StashEntry`               | v0.11.0 |
-| [0003](./done/0003-jj-conflict-detection.md)   | jj conflict detection — documented CLI exception | v0.11.0 |
-| [0004](./done/0004-ahead-behind-gix.md)        | Ahead/Behind counts via gix                   | v0.11.0 |
-| [0005](./done/0005-annotated-tag-freezer.md)   | Annotated tag support in the Freezer          | v0.11.0 |
-| [0006](./done/0006-jj-log-since-range.md)      | Accurate `log_since` range for jj             | v0.11.0 |
-| [0007](./done/0007-topology-multi-manifest.md) | Topology scan: Cargo.toml-only scope          | v0.11.0 |
-| [0008](./done/0008-fspoller-prune-on-switch.md)| Prune `FsPoller` snapshots on workspace switch | v0.11.0 |
+| [0001](./done/001-history-log-copy.md)        | Complete `HistoryMessage::LogCopyRequested`    | v0.11.0 |
+| [0002](./done/002-stash-entry-commit-id.md)   | Add `commit_id` to `StashEntry`               | v0.11.0 |
+| [0003](./done/003-jj-conflict-detection.md)   | jj conflict detection — documented CLI exception | v0.11.0 |
+| [0004](./done/004-ahead-behind-gix.md)        | Ahead/Behind counts via gix                   | v0.11.0 |
+| [0005](./done/005-annotated-tag-freezer.md)   | Annotated tag support in the Freezer          | v0.11.0 |
+| [0006](./done/006-jj-log-since-range.md)      | Accurate `log_since` range for jj             | v0.11.0 |
+| [0007](./done/007-topology-multi-manifest.md) | Topology scan: Cargo.toml-only scope          | v0.11.0 |
+| [0008](./done/008-fspoller-prune-on-switch.md)| Prune `FsPoller` snapshots on workspace switch | v0.11.0 |
 
 ### Policy
 
