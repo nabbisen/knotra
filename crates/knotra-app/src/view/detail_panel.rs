@@ -46,8 +46,11 @@ fn field_row<'a>(
     row![
         text(label)
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
             .width(Length::Fixed(label_width)),
-        text(value.to_string()).size(snora::design::style::text::body_small_size(tokens)),
+        text(value.to_string())
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
     ]
     .into()
 }
@@ -76,11 +79,17 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .and_then(|ws| ws.projects.iter().find(|ps| &ps.project_id == id));
 
     // --- Header ---
-    let close_btn = button(text("✕").size(snora::design::style::text::body_small_size(tokens)))
-        .on_press(Message::DetailPanel(DetailPanelMessage::Closed));
+    let close_btn = button(
+        text("✕")
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+    )
+    .on_press(Message::DetailPanel(DetailPanelMessage::Closed));
 
     let header = row![
-        text(project.name.clone()).size(snora::design::style::text::body_size(tokens)),
+        text(project.name.clone())
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
         close_btn,
     ]
@@ -97,7 +106,8 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
 
     let identity = column![
         text(state.t("detail.section_identity"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         field_row(
             tokens,
             state.t("detail.label_vcs"),
@@ -136,7 +146,8 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
 
         column![
             text(state.t("detail.section_status"))
-                .size(snora::design::style::text::body_small_size(tokens)),
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
             field_row(
                 tokens,
                 state.t("detail.label_branch"),
@@ -178,9 +189,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     } else {
         column![
             text(state.t("detail.section_status"))
-                .size(snora::design::style::text::body_small_size(tokens)),
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
             text(state.t("detail.loading"))
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
         ]
     };
 
@@ -210,6 +223,7 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                 log.result.started_at.format("%m/%d %H:%M")
             ))
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
             .into()
         })
         .collect();
@@ -218,12 +232,14 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         std::iter::once(
             text(state.t("detail.section_recent_operations"))
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
                 .into(),
         )
         .chain(if recent_ops.is_empty() {
             vec![
                 text(state.t("detail.none"))
                     .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
                     .into(),
             ]
         } else {
@@ -242,6 +258,7 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
             vec![
                 text(state.t("detail.commits_loading"))
                     .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
                     .into(),
             ]
         }
@@ -253,12 +270,14 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                 vec![
                     text(format!("{} {}", state.t("detail.commits_error"), err))
                         .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens))
                         .into(),
                 ]
             } else if commits.entries.is_empty() {
                 vec![
                     text(state.t("detail.commits_empty"))
                         .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens))
                         .into(),
                 ]
             } else {
@@ -268,13 +287,17 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                     .map(|entry| {
                         let short_hash = &entry.hash[..entry.hash.len().min(7)];
                         let summary = text(format!("{short_hash}  {}", entry.subject))
-                            .size(snora::design::style::text::body_small_size(tokens));
+                            .size(snora::design::style::text::body_small_size(tokens))
+                            .line_height(snora::design::style::text::body_small_line_height(
+                                tokens,
+                            ));
                         let detail = text(format!(
                             "{} — {}",
                             entry.author,
                             entry.date.format("%Y-%m-%d %H:%M")
                         ))
-                        .size(snora::design::style::text::body_small_size(tokens));
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens));
                         record_row(summary.into(), Some(detail.into()))
                     })
                     .collect()
@@ -283,6 +306,7 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         _ => vec![
             text(state.t("detail.commits_loading"))
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
                 .into(),
         ],
     };
@@ -291,6 +315,7 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         std::iter::once(
             text(state.t("detail.section_recent_commits"))
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
                 .into(),
         )
         .chain(commits_body),
@@ -299,14 +324,18 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
 
     // --- Actions ---
     let refresh_btn = button(
-        text(state.t("detail.refresh")).size(snora::design::style::text::body_small_size(tokens)),
+        text(state.t("detail.refresh"))
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
     )
     .on_press(Message::Project(ProjectMessage::StatusRefreshRequested(
         id.clone(),
     )));
 
     let fetch_btn = button(
-        text(state.t("detail.fetch")).size(snora::design::style::text::body_small_size(tokens)),
+        text(state.t("detail.fetch"))
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
     )
     .on_press_maybe(
         (!state.operation_interlock.is_busy())
@@ -315,7 +344,8 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
 
     let remove_btn = button(
         text(state.t("detail.remove_from_workspace"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
     )
     .on_press(Message::Workspace(
         WorkspaceMessage::RemoveProjectRequested(id.clone()),
@@ -323,7 +353,8 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
 
     let actions = column![
         text(state.t("detail.section_actions"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         row![refresh_btn, fetch_btn].spacing(6),
         remove_btn,
     ]

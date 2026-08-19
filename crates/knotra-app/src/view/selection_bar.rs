@@ -204,7 +204,9 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
     );
 
     let command_row = row![
-        text(label).size(snora::design::style::text::body_small_size(tokens)),
+        text(label)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         Space::new().width(Length::Fill),
         clear_btn,
     ]
@@ -246,13 +248,19 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
 
     let mut content = column![command_row].spacing(6);
     if let Some(reason) = group_reason {
-        content =
-            content.push(text(reason).size(snora::design::style::text::body_small_size(tokens)));
+        content = content.push(
+            text(reason)
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+        );
     }
     content = content.push(actions);
     for reason in contextual_reasons {
-        content =
-            content.push(text(reason).size(snora::design::style::text::body_small_size(tokens)));
+        content = content.push(
+            text(reason)
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+        );
     }
 
     let bar = container(content.padding([6, 12])).width(Length::Fill);
@@ -280,27 +288,33 @@ fn action_button<'a>(
     is_focused: bool,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(text(label).size(snora::design::style::text::body_size(tokens)))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 18])
-        .on_press_maybe(on_press)
-        .style(move |_theme, status| {
-            style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
-        })
-        .into()
+    button(
+        text(label)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    )
+    .height(BUTTON_HEIGHT)
+    .padding([0, 18])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| {
+        style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
+    })
+    .into()
 }
 
 /// Exit selection: `ghost`-styled, matching `row.rs`'s "Show details" —
 /// a non-mutating, lower-weight action, not a fourth `secondary` button.
 fn exit_button<'a>(tokens: &Tokens, label: &'a str, is_focused: bool) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(text(label).size(snora::design::style::text::body_small_size(tokens)))
-        .height(BUTTON_HEIGHT)
-        .on_press(Message::Selection(SelectionMessage::ModeExited))
-        .style(move |_theme, status| {
-            style::with_focus_ring(&t, is_focused, style::ghost(&t, status))
-        })
-        .into()
+    button(
+        text(label)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+    )
+    .height(BUTTON_HEIGHT)
+    .on_press(Message::Selection(SelectionMessage::ModeExited))
+    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style::ghost(&t, status)))
+    .into()
 }
 
 #[cfg(test)]

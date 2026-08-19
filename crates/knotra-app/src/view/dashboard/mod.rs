@@ -147,9 +147,13 @@ pub fn view(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     if let Some(message) = &state.status_bar {
         body = body.push(
             container(
-                text(message).size(snora::design::style::text::body_small_size(
-                    &state.theme.tokens,
-                )),
+                text(message)
+                    .size(snora::design::style::text::body_small_size(
+                        &state.theme.tokens,
+                    ))
+                    .line_height(snora::design::style::text::body_small_line_height(
+                        &state.theme.tokens,
+                    )),
             )
             .width(Length::Fill)
             .padding([3, 12]),
@@ -172,11 +176,13 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
     let refresh: Element<'_, Message> = if state.is_refreshing {
         text(state.t("plain.status.checking"))
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
             .into()
     } else {
         button(
             text(state.t("plain.check_now"))
-                .size(snora::design::style::text::body_small_size(tokens)),
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
         )
         .on_press(Message::Workspace(WorkspaceMessage::RefreshRequested))
         .into()
@@ -207,9 +213,15 @@ fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     let mut content: Vec<Element<'_, Message>> = Vec::new();
     match &state.load_phase {
         LoadPhase::Startup | LoadPhase::Refreshing => content.push(
-            container(text(state.t("plain.status.checking")).size(
-                snora::design::style::text::body_small_size(&state.theme.tokens),
-            ))
+            container(
+                text(state.t("plain.status.checking"))
+                    .size(snora::design::style::text::body_small_size(
+                        &state.theme.tokens,
+                    ))
+                    .line_height(snora::design::style::text::body_small_line_height(
+                        &state.theme.tokens,
+                    )),
+            )
             .width(Length::Fill)
             .padding([5, 12])
             .into(),

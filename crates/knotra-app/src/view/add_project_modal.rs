@@ -27,16 +27,22 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         AddProjectStep::NameProject => (state.t("plain.add_project.step2_of2"), "2"),
     };
 
-    let close_btn = button(text("✕").size(snora::design::style::text::body_size(tokens)))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 12])
-        .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled));
+    let close_btn = button(
+        text("✕")
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    )
+    .height(BUTTON_HEIGHT)
+    .padding([0, 12])
+    .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled));
 
     let header = row![
         column![
             text(state.t("plain.add_project.title"))
                 .size(snora::design::style::text::title_size(tokens)),
-            text(step_label).size(snora::design::style::text::body_small_size(tokens)),
+            text(step_label)
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
         ]
         .spacing(2),
         Space::new().width(Length::Fill),
@@ -61,7 +67,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
 
             let browse_btn = button(
                 text(state.t("plain.add_project.browse"))
-                    .size(snora::design::style::text::body_size(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             )
             .height(BUTTON_HEIGHT)
             .padding([0, 18])
@@ -86,7 +93,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 Space::new().width(Length::Fill),
                 button(
                     text(state.t("action.cancel"))
-                        .size(snora::design::style::text::body_size(tokens)),
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
                 )
                 .height(BUTTON_HEIGHT)
                 .padding([0, 18])
@@ -96,7 +104,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
 
             column![
                 text(state.t("plain.add_project.step1_instruction"))
-                    .size(snora::design::style::text::body_size(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
                 path_field,
                 browse_btn,
                 footer,
@@ -113,8 +122,11 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             let folder_display = container(
                 column![
                     text(state.t("plain.add_project.folder_chosen"))
-                        .size(snora::design::style::text::body_small_size(tokens)),
-                    text(&dialog.path).size(snora::design::style::text::body_size(tokens)),
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    text(&dialog.path)
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
                 ]
                 .spacing(4),
             )
@@ -149,7 +161,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 Space::new().width(Length::Fill),
                 button(
                     text(state.t("plain.add_project.back"))
-                        .size(snora::design::style::text::body_size(tokens)),
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
                 )
                 .height(BUTTON_HEIGHT)
                 .padding([0, 18])
@@ -159,7 +172,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
 
             column![
                 text(state.t("plain.add_project.step2_instruction"))
-                    .size(snora::design::style::text::body_size(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
                 folder_display,
                 name_field,
                 footer,

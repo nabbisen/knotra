@@ -20,11 +20,14 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         );
         let snackbar = container(
             row![
-                text(msg).size(snora::design::style::text::body_small_size(tokens)),
+                text(msg)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 Space::new().width(Length::Fill),
                 button(
                     text(state.t("plain.undo.undo"))
                         .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens))
                 )
                 .height(30.0)
                 .padding([0, 12])
@@ -32,6 +35,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 button(
                     text(state.t("plain.undo.dismiss"))
                         .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens))
                 )
                 .height(30.0)
                 .padding([0, 12])
@@ -59,7 +63,10 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 container(
                     row![
                         text(progress_label)
-                            .size(snora::design::style::text::body_small_size(tokens)),
+                            .size(snora::design::style::text::body_small_size(tokens))
+                            .line_height(snora::design::style::text::body_small_line_height(
+                                tokens
+                            )),
                         Space::new().width(Length::Fill)
                     ]
                     .spacing(8)
@@ -108,7 +115,9 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             );
 
             let mut content = row![
-                text(label).size(snora::design::style::text::body_small_size(tokens)),
+                text(label)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 Space::new().width(Length::Fill)
             ]
             .spacing(8)
@@ -136,21 +145,31 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     );
                     content = content.push(
                         button(
-                            text(label).size(snora::design::style::text::body_small_size(tokens)),
+                            text(label)
+                                .size(snora::design::style::text::body_small_size(tokens))
+                                .line_height(snora::design::style::text::body_small_line_height(
+                                    tokens,
+                                )),
                         )
                         .on_press_maybe(retry),
                     );
                     if state.operation_interlock.is_busy() {
                         content = content.push(
                             text(state.t("plain.activity.busy"))
-                                .size(snora::design::style::text::body_small_size(tokens)),
+                                .size(snora::design::style::text::body_small_size(tokens))
+                                .line_height(snora::design::style::text::body_small_line_height(
+                                    tokens,
+                                )),
                         );
                     }
                 }
                 RetryAvailability::Unavailable(reason) => {
                     content = content.push(
                         text(state.t(reason.i18n_key()))
-                            .size(snora::design::style::text::body_small_size(tokens)),
+                            .size(snora::design::style::text::body_small_size(tokens))
+                            .line_height(snora::design::style::text::body_small_line_height(
+                                tokens,
+                            )),
                     );
                 }
                 RetryAvailability::NotApplicable => {}
@@ -159,7 +178,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             content = content.push(
                 button(
                     text(state.t("plain.activity.details"))
-                        .size(snora::design::style::text::body_small_size(tokens)),
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 )
                 .on_press(Message::Activity(ActivityMessage::DetailsRequested {
                     operation_id: log.result.operation_id.clone(),

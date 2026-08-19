@@ -213,13 +213,17 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     let confirm_focused = is_focused(state, focus_target::CONFIRM);
     let confirm_btn = {
         let t = tokens.clone();
-        button(text(confirm_label).size(snora::design::style::text::body_size(tokens)))
-            .height(BUTTON_HEIGHT)
-            .padding([0, 18])
-            .on_press_maybe(confirm_on_press.clone())
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, confirm_focused, style::primary(&t, status))
-            })
+        button(
+            text(confirm_label)
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        )
+        .height(BUTTON_HEIGHT)
+        .padding([0, 18])
+        .on_press_maybe(confirm_on_press.clone())
+        .style(move |_theme, status| {
+            style::with_focus_ring(&t, confirm_focused, style::primary(&t, status))
+        })
     };
     let confirm: Element<'_, Message> = if confirm_shows_reason(confirm_on_press.is_some(), reason)
     {
@@ -227,6 +231,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
             confirm_btn,
             text(reason.unwrap_or_default())
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
         ]
         .spacing(6)
         .into()
@@ -237,13 +242,17 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     let cancel_focused = is_focused(state, focus_target::CANCEL);
     let cancel_btn = {
         let t = tokens.clone();
-        button(text(state.t("action.cancel")).size(snora::design::style::text::body_size(tokens)))
-            .height(BUTTON_HEIGHT)
-            .padding([0, 18])
-            .on_press(Message::Workspace(cancel.clone()))
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, cancel_focused, style::secondary(&t, status))
-            })
+        button(
+            text(state.t("action.cancel"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        )
+        .height(BUTTON_HEIGHT)
+        .padding([0, 18])
+        .on_press(Message::Workspace(cancel.clone()))
+        .style(move |_theme, status| {
+            style::with_focus_ring(&t, cancel_focused, style::secondary(&t, status))
+        })
     };
 
     let footer =
@@ -292,7 +301,8 @@ fn delete_dialog<'a>(
         let t = tokens.clone();
         button(
             text(state.t("workspace.delete.confirm"))
-                .size(snora::design::style::text::body_size(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
         )
         .height(BUTTON_HEIGHT)
         .padding([0, 18])
@@ -307,6 +317,7 @@ fn delete_dialog<'a>(
             confirm_btn,
             text(reason.unwrap_or_default())
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
         ]
         .spacing(6)
         .into()
@@ -317,23 +328,31 @@ fn delete_dialog<'a>(
     let cancel_focused = is_focused(state, focus_target::CANCEL);
     let cancel_btn = {
         let t = tokens.clone();
-        button(text(state.t("action.cancel")).size(snora::design::style::text::body_size(tokens)))
-            .height(BUTTON_HEIGHT)
-            .padding([0, 18])
-            .on_press(Message::Workspace(
-                WorkspaceMessage::DeleteWorkspaceCancelled,
-            ))
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, cancel_focused, style::secondary(&t, status))
-            })
+        button(
+            text(state.t("action.cancel"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        )
+        .height(BUTTON_HEIGHT)
+        .padding([0, 18])
+        .on_press(Message::Workspace(
+            WorkspaceMessage::DeleteWorkspaceCancelled,
+        ))
+        .style(move |_theme, status| {
+            style::with_focus_ring(&t, cancel_focused, style::secondary(&t, status))
+        })
     };
 
     let footer =
         row![confirm, Space::new().width(Length::Fill), cancel_btn].align_y(Alignment::Center);
 
     let body = column![
-        text(body_text).size(snora::design::style::text::body_size(tokens)),
-        text(project_count).size(snora::design::style::text::body_small_size(tokens)),
+        text(body_text)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+        text(project_count)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
     ]
     .spacing(8);
 

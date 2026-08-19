@@ -48,20 +48,23 @@ pub fn reasoned<'a, Message: Clone + 'a>(
     let t = tokens.clone();
     let show_reason = reason_row_needed(on_press.is_none(), reason.is_some());
 
-    let btn: Element<'a, Message> =
-        button(text(label.into()).size(snora::design::style::text::body_size(tokens)))
-            .height(BUTTON_HEIGHT)
-            .padding([0, 18])
-            .on_press_maybe(on_press)
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, is_focused, style_fn(&t, status))
-            })
-            .into();
+    let btn: Element<'a, Message> = button(
+        text(label.into())
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    )
+    .height(BUTTON_HEIGHT)
+    .padding([0, 18])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
+    .into();
 
     match reason {
         Some(r) if show_reason => column![
             btn,
-            text(r).size(snora::design::style::text::body_small_size(tokens))
+            text(r)
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
         ]
         .spacing(6)
         .into(),
@@ -292,7 +295,9 @@ pub fn icon_button_maybe<'a, Message: Clone + 'a>(
         btn,
         super::overlay::raised_card(
             tokens,
-            text(accessible_label.into()).size(snora::design::style::text::body_small_size(tokens)),
+            text(accessible_label.into())
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
         ),
         tooltip::Position::Bottom,
     )

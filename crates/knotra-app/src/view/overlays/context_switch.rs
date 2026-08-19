@@ -51,6 +51,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
             column![
                 text(state.t("plain.switch.no_project"))
                     .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
             ]
             .spacing(8)
             .into(),
@@ -60,9 +61,11 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
         ContextPhase::LoadingList(_) => (
             column![
                 text(state.t("plain.status.checking"))
-                    .size(snora::design::style::text::body_size(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
                 text(state.t("plain.switch.loading_hint"))
-                    .size(snora::design::style::text::body_small_size(tokens)),
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -87,7 +90,8 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
             if candidates.is_empty() {
                 rows = rows.push(
                     text(state.t("plain.switch.no_targets"))
-                        .size(snora::design::style::text::body_small_size(tokens)),
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 );
             } else {
                 let mut list = column![].spacing(4);
@@ -99,9 +103,13 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     let detail = candidate.target.display_target();
                     let label = column![
                         text(candidate.label.as_str())
-                            .size(snora::design::style::text::body_size(tokens)),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                         text(format!("{kind} · {detail}"))
-                            .size(snora::design::style::text::body_small_size(tokens)),
+                            .size(snora::design::style::text::body_small_size(tokens))
+                            .line_height(snora::design::style::text::body_small_line_height(
+                                tokens
+                            )),
                     ]
                     .spacing(2);
                     let press = reason_key.is_none().then_some(Message::Context(
@@ -122,7 +130,10 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     if let Some(reason_key) = reason_key {
                         row_col = row_col.push(
                             text(state.t(reason_key))
-                                .size(snora::design::style::text::body_small_size(tokens)),
+                                .size(snora::design::style::text::body_small_size(tokens))
+                                .line_height(snora::design::style::text::body_small_line_height(
+                                    tokens,
+                                )),
                         );
                     }
                     list = list.push(row_col.spacing(2));
@@ -190,11 +201,18 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
             (
                 column![
-                    text(project_name).size(snora::design::style::text::body_size(tokens)),
-                    text(target_label).size(snora::design::style::text::body_size(tokens)),
+                    text(project_name)
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
+                    text(target_label)
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
                     text(state.t(context_target_kind_key(target)))
-                        .size(snora::design::style::text::body_small_size(tokens)),
-                    text(caution).size(snora::design::style::text::body_small_size(tokens)),
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    text(caution)
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 ]
                 .spacing(12)
                 .into(),
@@ -205,8 +223,11 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
         ContextPhase::Switching { target_label, .. } => (
             column![
                 text(state.t("plain.switch.working"))
-                    .size(snora::design::style::text::body_size(tokens)),
-                text(target_label).size(snora::design::style::text::body_small_size(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+                text(target_label)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -229,8 +250,11 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
             let mut detail_col = column![
                 text(title).size(snora::design::style::text::title_size(tokens)),
                 text(result.target.as_str())
-                    .size(snora::design::style::text::body_small_size(tokens)),
-                text(body).size(snora::design::style::text::body_size(tokens)),
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                text(body)
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             ]
             .spacing(8);
 
@@ -238,19 +262,28 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                 if let Some(hint) = &result.recovery_hint {
                     detail_col = detail_col.push(
                         text(hint.situation.as_str())
-                            .size(snora::design::style::text::body_small_size(tokens)),
+                            .size(snora::design::style::text::body_small_size(tokens))
+                            .line_height(snora::design::style::text::body_small_line_height(
+                                tokens,
+                            )),
                     );
                     for cmd in &hint.suggested_commands {
                         detail_col = detail_col.push(
                             text(format!("  {}", cmd))
-                                .size(snora::design::style::text::body_small_size(tokens)),
+                                .size(snora::design::style::text::body_small_size(tokens))
+                                .line_height(snora::design::style::text::body_small_line_height(
+                                    tokens,
+                                )),
                         );
                     }
                 }
                 for cmd in &result.operation_result.commands_executed {
                     detail_col = detail_col.push(
                         text(format!("  {}", cmd))
-                            .size(snora::design::style::text::body_small_size(tokens)),
+                            .size(snora::design::style::text::body_small_size(tokens))
+                            .line_height(snora::design::style::text::body_small_line_height(
+                                tokens,
+                            )),
                     );
                 }
             }
@@ -309,10 +342,14 @@ fn styled_button<'a>(
     style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    iced::widget::button(text(label).size(snora::design::style::text::body_size(tokens)))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 18])
-        .on_press_maybe(on_press)
-        .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
-        .into()
+    iced::widget::button(
+        text(label)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    )
+    .height(BUTTON_HEIGHT)
+    .padding([0, 18])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
+    .into()
 }

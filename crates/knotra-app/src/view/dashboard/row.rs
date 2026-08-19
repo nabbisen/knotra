@@ -115,12 +115,16 @@ fn name_button<'a>(
 ) -> Element<'a, Message> {
     let focused = is_focused(state, &name_key(&project.id));
     let t = tokens.clone();
-    button(text(project.name.as_str()).size(snora::design::style::text::body_small_size(tokens)))
-        .on_press(Message::DetailPanel(DetailPanelMessage::Opened(
-            project.id.clone(),
-        )))
-        .style(move |_theme, status| style::with_focus_ring(&t, focused, style::ghost(&t, status)))
-        .into()
+    button(
+        text(project.name.as_str())
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+    )
+    .on_press(Message::DetailPanel(DetailPanelMessage::Opened(
+        project.id.clone(),
+    )))
+    .style(move |_theme, status| style::with_focus_ring(&t, focused, style::ghost(&t, status)))
+    .into()
 }
 
 /// The tier-specific row action — shared between layouts. `Space::new()` for
@@ -195,14 +199,18 @@ fn view_standard_row<'a>(
             .status
             .map(|status| status.identity.vcs_kind.to_string())
             .unwrap_or_else(|| state.t("status.unknown").to_owned());
-        identity_details = identity_details
-            .push(text(vcs).size(snora::design::style::text::body_small_size(tokens)));
+        identity_details = identity_details.push(
+            text(vcs)
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+        );
     }
     identity = identity.push(identity_details);
 
     let middle: Element<'_, Message> = match entry.tier {
         DashboardTier::NeedsHelp => text(cause_label(state, entry.cause))
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
             .into(),
         DashboardTier::InProgress => {
             let count = entry
@@ -210,14 +218,19 @@ fn view_standard_row<'a>(
                 .map(|count| format!("{}: {}", progress_label(state, count.kind), count.value))
                 .unwrap_or_else(|| state.t("plain.status.unsaved_work").to_owned());
             column![
-                text(work_area).size(snora::design::style::text::body_small_size(tokens)),
-                text(count).size(snora::design::style::text::body_small_size(tokens))
+                text(work_area)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                text(count)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
             ]
             .spacing(2)
             .into()
         }
         DashboardTier::AllSet => text(work_area)
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
             .into(),
     };
 
@@ -262,9 +275,13 @@ fn view_compact_row<'a>(
     container(
         column![
             line_one,
-            text(line_two).size(snora::design::style::text::body_small_size(
-                &state.theme.tokens
-            ))
+            text(line_two)
+                .size(snora::design::style::text::body_small_size(
+                    &state.theme.tokens
+                ))
+                .line_height(snora::design::style::text::body_small_line_height(
+                    &state.theme.tokens
+                ))
         ]
         .spacing(2),
     )
@@ -316,16 +333,22 @@ fn row_action_button<'a>(
     let t = tokens.clone();
     let show_reason = on_press.is_none();
 
-    let btn = button(text(label).size(snora::design::style::text::body_small_size(tokens)))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 12])
-        .on_press_maybe(on_press)
-        .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)));
+    let btn = button(
+        text(label)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+    )
+    .height(BUTTON_HEIGHT)
+    .padding([0, 12])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)));
 
     match reason {
         Some(r) if show_reason => column![
             btn,
-            text(r).size(snora::design::style::text::body_small_size(tokens))
+            text(r)
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
         ]
         .spacing(4)
         .into(),

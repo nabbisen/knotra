@@ -21,7 +21,8 @@ pub(super) fn empty_workspace(state: &AppState) -> Element<'_, Message> {
             text(state.t("plain.empty.welcome_title"))
                 .size(snora::design::style::text::heading_size(tokens)),
             text(state.t("plain.empty.welcome_body"))
-                .size(snora::design::style::text::body_size(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
             button(text(state.t("plain.empty.add_first")))
                 .height(BUTTON_HEIGHT)
                 .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened,)),
@@ -62,9 +63,12 @@ pub(super) fn view_confirm_remove_dialog(state: &AppState) -> Element<'_, Messag
         column![
             text(state.t("plain.remove.title"))
                 .size(snora::design::style::text::title_size(tokens)),
-            text(dialog.project_name.as_str()).size(snora::design::style::text::body_size(tokens)),
+            text(dialog.project_name.as_str())
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
             text(state.t("plain.remove.body"))
-                .size(snora::design::style::text::body_small_size(tokens)),
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
             row![
                 // Neither call here ever carried a `reason` (both passed
                 // `None`), so the plain `_maybe` constructors are the

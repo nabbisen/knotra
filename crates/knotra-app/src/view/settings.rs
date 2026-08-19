@@ -78,7 +78,8 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         view_fs_watch_section(state),
         view_save_row(state),
         text(state.t("settings.restart_hint"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
     ]
     .spacing(16)
     .width(Length::Fill)
@@ -111,7 +112,8 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     let locale_row = row![
         text(state.t("settings.locale_label"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         Space::new().width(Length::Fill),
         button(text("English")).on_press_maybe(if state.config.locale != Locale::En {
             Some(Message::Settings(SettingsMessage::LocaleChanged(
@@ -133,7 +135,8 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
 
     let theme_row = row![
         text(state.t("settings.theme_label"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         Space::new().width(Length::Fill),
         button(text(state.t("settings.theme_dark"))).on_press_maybe(if !state.config.dark_theme {
             Some(Message::Settings(SettingsMessage::ThemeChanged(true)))
@@ -174,9 +177,13 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
 
     column![
         locale_row,
-        text(active_locale_note).size(snora::design::style::text::body_small_size(tokens)),
+        text(active_locale_note)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         theme_row,
-        text(active_theme_note).size(snora::design::style::text::body_small_size(tokens)),
+        text(active_theme_note)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
     ]
     .spacing(8)
     .into()
@@ -324,7 +331,8 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
         // `FIRST_LEVEL_PREFIXES`, so `first_level_wording_has_no_developer_jargon`
         // does not and will not police it either way.
         text(state.t("settings.fs_watch_hint"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         view_fs_debounce_field(state),
     ]
     .spacing(12)
@@ -343,6 +351,7 @@ fn view_save_row(state: &AppState) -> Element<'_, Message> {
     let save_msg: Element<'_, Message> = if let Some(ref msg) = state.settings_save_msg {
         text(msg.as_str())
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
             .into()
     } else {
         Space::new().into()
@@ -358,6 +367,7 @@ fn view_save_row(state: &AppState) -> Element<'_, Message> {
 fn section_header<'a>(tokens: &Tokens, label: &'a str) -> Element<'a, Message> {
     text(label)
         .size(snora::design::style::text::body_size(tokens))
+        .line_height(snora::design::style::text::body_line_height(tokens))
         .into()
 }
 
@@ -367,7 +377,9 @@ fn labeled_row<'a>(
     widget: Element<'a, Message>,
 ) -> Element<'a, Message> {
     row![
-        text(label).size(snora::design::style::text::body_small_size(tokens)),
+        text(label)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         Space::new().width(Length::Fill),
         widget,
     ]

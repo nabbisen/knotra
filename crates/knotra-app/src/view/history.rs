@@ -141,6 +141,7 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
             0,
             text(unreadable_count_message(state))
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
                 .into(),
         );
     }
@@ -218,12 +219,17 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     // string-padding standing in for real spacing.
     let primary_row = row![
         text(super::operation_kind_label(state, &result.kind))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         Space::new().width(Length::Fill),
-        text(status_label).size(snora::design::style::text::body_small_size(tokens)),
+        text(status_label)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         button(
             row![
-                text(toggle_label).size(snora::design::style::text::body_small_size(tokens)),
+                text(toggle_label)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 icon::icon_element(&chevron)
             ]
             .spacing(4)
@@ -233,6 +239,7 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         button(
             text(state.t("history.copy_log"))
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
         )
         .on_press(Message::CopyToClipboard(export_text(result))),
     ]
@@ -240,13 +247,16 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     .align_y(Alignment::Center);
 
     let secondary_row = row![
-        text(timestamp).size(snora::design::style::text::body_small_size(tokens)),
+        text(timestamp)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         text(format!(
             "{} {}",
             state.t("history.project_count_label"),
             project_count
         ))
-        .size(snora::design::style::text::body_small_size(tokens)),
+        .size(snora::design::style::text::body_small_size(tokens))
+        .line_height(snora::design::style::text::body_small_line_height(tokens)),
     ]
     .spacing(12);
 
@@ -296,6 +306,7 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
         rows.push(
             text(rb_text)
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
                 .into(),
         );
     }
@@ -310,12 +321,14 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
         rows.push(
             text(format!("  {icon} {}", pr.project_id))
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
                 .into(),
         );
         if let Some(reason) = &pr.skip_reason {
             rows.push(
                 text(format!("    {}", super::skip_reason_display(state, reason)))
                     .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
                     .into(),
             );
         }
@@ -325,12 +338,14 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
             rows.push(
                 text(state.t("history.commands_header"))
                     .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
                     .into(),
             );
             for cmd in &pr.commands_executed {
                 rows.push(
                     text(format!("    $ {cmd}"))
                         .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens))
                         .into(),
                 );
             }
@@ -342,6 +357,7 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
             rows.push(
                 text(format!("    {preview}"))
                     .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
                     .into(),
             );
         }
@@ -352,18 +368,21 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
         rows.push(
             text(state.t("history.recovery_header"))
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
                 .into(),
         );
         for hint in &log.recovery_hints {
             rows.push(
                 text(format!("  {}", hint.situation))
                     .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
                     .into(),
             );
             for cmd in &hint.suggested_commands {
                 rows.push(
                     text(format!("    $ {cmd}"))
                         .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens))
                         .into(),
                 );
             }

@@ -138,12 +138,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // not duplicated. The glyph stays a literal; only the word is resolved.
     let close_btn = button(
         text(format!("✕  {}", state.t("action.close")))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
     )
     .on_press(Message::KeyEvent(KeyboardMessage::CheatSheetToggled));
 
     let header = row![
-        text(state.t("shortcut.overlay_title")).size(snora::design::style::text::body_size(tokens)),
+        text(state.t("shortcut.overlay_title"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
         close_btn,
     ]
@@ -152,11 +155,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let col_header = row![
         text(state.t("shortcut.column_keys"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         text(state.t("shortcut.column_context"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         text(state.t("shortcut.column_action"))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
     ]
     .spacing(16);
 
@@ -164,10 +170,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .iter()
         .map(|b| {
             row![
-                text(b.keys).size(snora::design::style::text::body_small_size(tokens)),
+                text(b.keys)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 text(state.t(b.context_key))
-                    .size(snora::design::style::text::body_small_size(tokens)),
-                text(state.t(b.desc_key)).size(snora::design::style::text::body_small_size(tokens)),
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                text(state.t(b.desc_key))
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
             ]
             .spacing(16)
             .into()

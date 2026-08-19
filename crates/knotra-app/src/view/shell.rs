@@ -115,7 +115,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let switcher_trigger = button(
         row![
-            text(switcher_label).size(snora::design::style::text::body_size(tokens)),
+            text(switcher_label)
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
             widget::icon::icon_element(&icon::chevron_down()),
         ]
         .spacing(6)
@@ -135,19 +137,24 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let nav_button = |label: &str, active: bool, target: Screen, tokens: &Tokens, focused: bool| {
         let t = tokens.clone();
-        button(text(label.to_owned()).size(snora::design::style::text::body_size(tokens)))
-            .on_press_maybe((!active).then_some(Message::Navigate(target)))
-            .style(move |_theme, status| {
-                // R12: the current destination must be the *most* salient
-                // item, not the least — see `current_or`'s own doc comment
-                // for why a fixed status is fed in (RFC-033 D4; review 066).
-                widget::current_or(active, &t, status, focused)
-            })
+        button(
+            text(label.to_owned())
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        )
+        .on_press_maybe((!active).then_some(Message::Navigate(target)))
+        .style(move |_theme, status| {
+            // R12: the current destination must be the *most* salient
+            // item, not the least — see `current_or`'s own doc comment
+            // for why a fixed status is fed in (RFC-033 D4; review 066).
+            widget::current_or(active, &t, status, focused)
+        })
     };
 
     let status_text: Element<'_, Message> = if state.is_refreshing {
         text(state.t("plain.status.checking"))
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
             .into()
     } else {
         Space::new().width(Length::Shrink).into()
@@ -229,22 +236,30 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
         let is_active = Some(&ws.id) == active_id.as_ref();
         let t = tokens.clone();
         items = items.push(
-            button(text(ws.name.clone()).size(snora::design::style::text::body_size(tokens)))
-                .width(Length::Fill)
-                .on_press_maybe((!is_active).then_some(Message::Workspace(
-                    WorkspaceMessage::WorkspaceSwitched(ws.id.clone()),
-                )))
-                .style(move |_theme, status| widget::style::ghost(&t, status)),
+            button(
+                text(ws.name.clone())
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+            )
+            .width(Length::Fill)
+            .on_press_maybe((!is_active).then_some(Message::Workspace(
+                WorkspaceMessage::WorkspaceSwitched(ws.id.clone()),
+            )))
+            .style(move |_theme, status| widget::style::ghost(&t, status)),
         );
     }
 
     let can_delete = state.all_workspaces.len() > 1;
     let menu_action = |label: &str, msg: Message, tokens: &Tokens| {
         let t = tokens.clone();
-        button(text(label.to_owned()).size(snora::design::style::text::body_size(tokens)))
-            .width(Length::Fill)
-            .on_press(msg)
-            .style(move |_theme, status| widget::style::ghost(&t, status))
+        button(
+            text(label.to_owned())
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        )
+        .width(Length::Fill)
+        .on_press(msg)
+        .style(move |_theme, status| widget::style::ghost(&t, status))
     };
 
     let content = column![
@@ -289,11 +304,15 @@ fn danger_menu_action<'a>(
     tokens: &Tokens,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(text(label).size(snora::design::style::text::body_size(tokens)))
-        .width(Length::Fill)
-        .on_press_maybe(on_press)
-        .style(move |_theme, status| widget::style::danger(&t, status))
-        .into()
+    button(
+        text(label)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    )
+    .width(Length::Fill)
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| widget::style::danger(&t, status))
+    .into()
 }
 
 /// Shared page-header pattern: title on the left, contextual actions on the

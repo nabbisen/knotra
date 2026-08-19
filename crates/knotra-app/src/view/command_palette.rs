@@ -41,19 +41,24 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             };
             let label = format!("{}{}", prefix, entry.label);
             let highlighted = i == state.palette.highlighted;
-            let btn = button(text(label).size(snora::design::style::text::body_small_size(tokens)))
-                .on_press_maybe(
-                    entry
-                        .disabled_reason_key
-                        .is_none()
-                        .then_some(Message::Palette(PaletteMessage::EntryClicked(i))),
-                )
-                .width(Length::Fill);
+            let btn = button(
+                text(label)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            )
+            .on_press_maybe(
+                entry
+                    .disabled_reason_key
+                    .is_none()
+                    .then_some(Message::Palette(PaletteMessage::EntryClicked(i))),
+            )
+            .width(Length::Fill);
             let mut row = column![btn].spacing(2);
             if let Some(reason_key) = entry.disabled_reason_key {
                 row = row.push(
                     text(state.t(reason_key))
-                        .size(snora::design::style::text::body_small_size(tokens)),
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 );
             }
             let _ = highlighted; // styling hook for later theming
@@ -61,11 +66,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         })
         .collect();
 
-    let close_btn = button(text("✕ Esc").size(snora::design::style::text::body_small_size(tokens)))
-        .on_press(Message::Palette(PaletteMessage::Closed));
+    let close_btn = button(
+        text("✕ Esc")
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+    )
+    .on_press(Message::Palette(PaletteMessage::Closed));
 
     let header = row![
-        text(state.t("palette.title")).size(snora::design::style::text::body_small_size(tokens)),
+        text(state.t("palette.title"))
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         Space::new().width(Length::Fill),
         close_btn,
     ]
@@ -75,7 +86,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let mut body = column![header, input].spacing(6);
     if let Some(notice_key) = state.palette.notice_key {
         body = body.push(
-            text(state.t(notice_key)).size(snora::design::style::text::body_small_size(tokens)),
+            text(state.t(notice_key))
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
         );
     }
     if !results.is_empty() {
@@ -83,7 +96,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     } else if !state.palette.query.is_empty() {
         body = body.push(
             text(state.t("palette.no_matches"))
-                .size(snora::design::style::text::body_small_size(tokens)),
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
         );
     }
 

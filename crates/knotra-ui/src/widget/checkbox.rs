@@ -61,7 +61,9 @@ pub fn checkbox<'a, Message: Clone + 'a>(
         mouse_area(target).on_press(toggle_message),
         super::overlay::raised_card(
             tokens,
-            text(accessible_label.into()).size(snora::design::style::text::body_small_size(tokens)),
+            text(accessible_label.into())
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
         ),
         tooltip::Position::Bottom,
     )

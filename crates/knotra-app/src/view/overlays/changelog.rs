@@ -96,6 +96,7 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
 
         ChangelogPhase::Collecting => text(state.t("plain.changelog.collecting"))
             .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into(),
 
         ChangelogPhase::Ready(draft) => {
@@ -108,10 +109,13 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
             let preview_text = changelog_markdown_preview(draft);
             let mut result_col = column![
                 text(changelog_summary_text(state, counts))
-                    .size(snora::design::style::text::body_size(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
                 changelog_result_notice(tokens, state, draft, counts),
                 changelog_project_results(tokens, state, draft, counts),
-                text(preview_text).size(snora::design::style::text::body_small_size(tokens)),
+                text(preview_text)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
             ]
             .spacing(8);
 
@@ -183,12 +187,16 @@ fn styled_button<'a>(
     style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    iced::widget::button(text(label).size(snora::design::style::text::body_size(tokens)))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 18])
-        .on_press_maybe(on_press)
-        .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
-        .into()
+    iced::widget::button(
+        text(label)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    )
+    .height(BUTTON_HEIGHT)
+    .padding([0, 18])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
+    .into()
 }
 
 fn changelog_project_picker<'a>(
@@ -199,18 +207,21 @@ fn changelog_project_picker<'a>(
     let Some(workspace) = &state.workspace else {
         return text(state.t("plain.changelog.no_projects"))
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
             .into();
     };
 
     if workspace.projects.is_empty() {
         return text(state.t("plain.changelog.no_projects"))
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
             .into();
     }
 
     let mut rows = column![
         text(state.t("plain.changelog.projects_label"))
             .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
     ]
     .spacing(6);
     for project in &workspace.projects {
@@ -229,7 +240,9 @@ fn changelog_project_picker<'a>(
         let t = tokens.clone();
         rows = rows.push(
             iced::widget::button(
-                text(label).size(snora::design::style::text::body_small_size(tokens)),
+                text(label)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
             )
             .height(BUTTON_HEIGHT)
             .padding([0, 12])
@@ -310,6 +323,7 @@ fn changelog_result_notice<'a>(
 
     text(notice)
         .size(snora::design::style::text::body_small_size(tokens))
+        .line_height(snora::design::style::text::body_small_line_height(tokens))
         .into()
 }
 
@@ -335,7 +349,8 @@ fn changelog_project_results<'a>(
                 state.t("plain.changelog.no_change_projects"),
                 names
             ))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         );
     }
 
@@ -355,7 +370,8 @@ fn changelog_project_results<'a>(
                     error
                 }
             ))
-            .size(snora::design::style::text::body_small_size(tokens)),
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens)),
         );
     }
 

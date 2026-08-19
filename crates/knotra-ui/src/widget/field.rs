@@ -65,20 +65,27 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
         .on_input(on_change)
         .padding([0, 12])
         .width(Length::Fill)
-        .size(snora::design::style::text::body_size(tokens));
+        .size(snora::design::style::text::body_size(tokens))
+        .line_height(snora::design::style::text::body_line_height(tokens));
 
     if let Some(widget_id) = id {
         field = field.id(widget_id);
     }
 
     let mut group = column![
-        text(label).size(snora::design::style::text::body_size(tokens)),
+        text(label)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         field,
     ]
     .spacing(8);
 
     if let Some(err) = error {
-        group = group.push(text(err).size(snora::design::style::text::body_small_size(tokens)));
+        group = group.push(
+            text(err)
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+        );
     }
 
     group.width(Length::Fill).into()
@@ -125,16 +132,22 @@ pub fn validated_field<'a, Message: Clone + 'a>(
         .on_input(on_change)
         .padding([0, 12])
         .width(Length::Fill)
-        .size(snora::design::style::text::body_size(tokens));
+        .size(snora::design::style::text::body_size(tokens))
+        .line_height(snora::design::style::text::body_line_height(tokens));
 
     let mut field_row = row![field].spacing(8).align_y(iced::Alignment::Center);
     if let Some(unit) = unit {
-        field_row =
-            field_row.push(text(unit).size(snora::design::style::text::body_small_size(tokens)));
+        field_row = field_row.push(
+            text(unit)
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+        );
     }
 
     let mut group = column![
-        text(label).size(snora::design::style::text::body_size(tokens)),
+        text(label)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         field_row
     ]
     .spacing(8);
@@ -144,6 +157,7 @@ pub fn validated_field<'a, Message: Clone + 'a>(
         group = group.push(
             text(error.unwrap_or_default())
                 .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens))
                 .color(danger),
         );
     }

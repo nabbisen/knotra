@@ -87,7 +87,9 @@ fn section_header<'a>(
         };
         button(
             row![
-                text(label).size(snora::design::style::text::body_small_size(&tokens)),
+                text(label)
+                    .size(snora::design::style::text::body_small_size(&tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(&tokens)),
                 icon::icon_element(&chevron)
             ]
             .spacing(6)
@@ -101,9 +103,13 @@ fn section_header<'a>(
         .into()
     } else {
         container(
-            text(label).size(snora::design::style::text::body_small_size(
-                &state.theme.tokens,
-            )),
+            text(label)
+                .size(snora::design::style::text::body_small_size(
+                    &state.theme.tokens,
+                ))
+                .line_height(snora::design::style::text::body_small_line_height(
+                    &state.theme.tokens,
+                )),
         )
         .width(Length::Fill)
         .padding([5, 8])
