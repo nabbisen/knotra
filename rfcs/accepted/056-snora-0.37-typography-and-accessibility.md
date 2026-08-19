@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1, A2, architect - see Amendments) |
+| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1, A2, A3, architect - see Amendments) |
 | Priority | High - the version gap is free to cross, and crossing it is what makes the typography work possible |
 | Effort | Medium-to-large - one dependency line, then four stages of adoption |
 | Target | Production Readiness Reset - UI/UX foundation |
@@ -320,6 +320,57 @@ our migration depends on it. It does not: our two `notice()` call sites
 non-wrapping messages - "Done.", "We could not finish that action." Saying
 otherwise would move their priority on a dependency we cannot demonstrate.
 
+### A3. `body_small` is 13.0, not 12.0 - and the constants are not ignored (2026-08-19, architect)
+
+**Recorded while scoping Stage 2, before it was issued.** Two measurements in
+this RFC were wrong, and they point the same way.
+
+**1. The Problem section says ninety call sites "bypass" knotra's two font
+constants. They do - but 150 others use them.** Measured:
+
+| Form | Occurrences |
+|---|---|
+| `.size(FONT_BODY)` | 80 |
+| `.size(FONT_SMALL)` | 70 |
+| `.size(FONT_BODY + 2.0)` / `+ 6.0)` / `.size(FONT_SMALL + 1.0)` | 9 |
+| raw `.size(<literal>)` | 90 |
+
+D3 called them *"two constants that ninety call sites ignore"*. That is true of
+ninety and false of a hundred and fifty. knotra does have a scale; it is
+two-valued, escaped by a third of its sites, and derived from by arithmetic in
+nine more.
+
+**This makes Stage 2 cheaper, not dearer.** Redefining `FONT_BODY`/`FONT_SMALL`
+in terms of roles fixes 150 sites at two definitions. Only the 90 raw literals
+need per-site judgement.
+
+**2. A1's `body_small = 12.0` would shrink 70 compliant sites.** A1 chose 12.0
+to keep the 11px rows dense, reasoning from an 11px baseline. But `FONT_SMALL`
+**is 13.0**, used at 70 sites: knotra's dense default is already 13, and the 11px
+sites are the outliers.
+
+At `body_small = 12.0`, those 70 sites shrink 13 -> 12 to gain one pixel on 32.
+**That is a regression on the many to spare the few**, and neither of us can see
+it happen.
+
+**`body_small` is 13.0.** Then:
+
+| Current | Sites | Becomes | Delta |
+|---|---|---|---|
+| 10px | 6 | `body_small` 13 | up, was below floor |
+| 11px | 32 | `body_small` 13 | up, was below floor |
+| 12px | 29 | `body_small` 13 | up 1 |
+| 13px + `FONT_SMALL` | 14 + 70 | `body_small` 13 | **unchanged** |
+
+**Nothing shrinks.** That is the rule Stage 2 is held to (R10), and it is the one
+A1 would have broken.
+
+The floor still governs: 13 clears 12 with a pixel to spare, and snora's
+`readability.md` now states the floor is 12 and nothing else.
+
+**A1's mechanism stands** - knotra supplies its own `Typography`, and overriding
+`body_small` reaches nothing snora renders. Only the value changes.
+
 ## Stages
 
 | Stage | Content | Why here |
@@ -342,6 +393,7 @@ otherwise would move their priority on a dependency we cannot demonstrate.
 | R7 | The smallest interactive pointer target is measured and reported, and anything under 24x24 is raised |
 | R8 | A guard prevents a new sub-floor size or raw literal from re-entering the view tree |
 | R9 | `crates/knotra-vcs` is not modified; the suppression map stays at five |
+| R10 | **A3.** No text size decreases. Any site whose role assignment would shrink it is reported, not shrunk |
 
 ## Test Plan
 
