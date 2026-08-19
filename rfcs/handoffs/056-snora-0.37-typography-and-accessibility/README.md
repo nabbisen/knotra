@@ -13,7 +13,7 @@ own and do not move between state folders.
 |---|---|---|
 | 1 — the snora 0.38 bump | *predates this folder* — `.git-exclude/tasks/developer/077-rfc-056-stage-1-snora-0.38-bump.md` | complete |
 | 2 — typography roles and the 12px floor | [`stage-2-typography-roles.md`](stage-2-typography-roles.md) | issued |
-| 3 — line-height | not yet drafted | — |
+| 3 — line-height | [`stage-3-line-height.md`](stage-3-line-height.md) | issued |
 | 4 — pointer targets | not yet drafted | — |
 
 ## Why Stage 1 is not here
