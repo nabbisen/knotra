@@ -226,10 +226,18 @@ mod tests {
     }
 
     /// R5: every mandatory-contrast text role (`text_primary`,
-    /// `text_secondary`) meets WCAG AA against every surface role it can
-    /// render on, in both themes. `text_muted` is intentionally excluded —
-    /// `snora_design::Palette`'s own documentation marks it exempt from the
-    /// mandatory body-text check.
+    /// `text_secondary`, `text_muted`) meets WCAG AA against every surface
+    /// role it can render on, in both themes.
+    ///
+    /// **`text_muted` was excluded until RFC-056 Stage 1** on the strength
+    /// of `snora_design::Palette`'s own documentation, which marked it
+    /// exempt from the mandatory body-text check. snora 0.34.0 withdrew
+    /// that exemption: WCAG grants no such exemption in the first place —
+    /// its actual exemptions are incidental, decorative or invisible text,
+    /// logotypes, and large text — and knotra's own use of `text_muted`
+    /// (`select.rs`'s `placeholder_color`) is none of those; it is text a
+    /// user reads to know what a field expects. Included here now for the
+    /// same reason `text_primary`/`text_secondary` always were.
     #[test]
     fn text_roles_meet_wcag_aa_against_every_surface_role_in_both_themes() {
         for (theme_name, theme) in [
@@ -241,9 +249,10 @@ mod tests {
                 ("surface", theme.surface()),
                 ("surface_raised", theme.surface_raised()),
             ];
-            let texts: [(&str, Color); 2] = [
+            let texts: [(&str, Color); 3] = [
                 ("text_primary", theme.text_primary()),
                 ("text_secondary", theme.text_secondary()),
+                ("text_muted", theme.text_muted()),
             ];
 
             for (text_label, text_color) in texts {
@@ -617,12 +626,14 @@ mod tests {
     /// instead of closing it). `Palette` documents `border` as "borders and
     /// separators" — a role never intended to carry mandatory text contrast,
     /// unlike `accent`/`success`/`warning`/`danger`/`info` — and it measures
-    /// 1.28:1 (light) / 1.32:1 (dark) against `surface`, far under AA in
-    /// both. That failure is asserted below rather than silently dropped,
-    /// and is exactly why `notice.rs`'s `NoticeTone` (the wrapper's own
-    /// public parameter type, narrower than `snora::design::Tone`) excludes
-    /// `Neutral` at the type level — `Tone::Neutral` itself is unchanged and
-    /// still reachable through `snora` directly, just not through `notice`.
+    /// 3.12:1 (light) / 3.50:1 (dark) against `surface` (RFC-056 Stage 1,
+    /// snora 0.34.0's border-contrast repair — up from 1.28:1/1.32:1 before
+    /// it), still under AA in both. That failure is asserted below rather
+    /// than silently dropped, and is exactly why `notice.rs`'s `NoticeTone`
+    /// (the wrapper's own public parameter type, narrower than
+    /// `snora::design::Tone`) excludes `Neutral` at the type level —
+    /// `Tone::Neutral` itself is unchanged and still reachable through
+    /// `snora` directly, just not through `notice`.
     #[test]
     fn notice_tone_colors_meet_wcag_aa_against_surface_in_both_themes() {
         for (theme_name, theme) in [
@@ -650,8 +661,12 @@ mod tests {
             // Tone::Neutral is excluded from NoticeTone (Handoff 031 Finding
             // 2/notice.rs) precisely because it fails here — asserted, not
             // omitted from the loop, per Handoff 031 §3's "no exclusions".
-            // Measured at 1.28:1 (light) and 1.32:1 (dark), both confirmed
-            // by a temporary probe before writing this assertion.
+            // Re-measured at 3.12:1 (light) and 3.50:1 (dark) after the
+            // RFC-056 Stage 1 snora 0.38 bump (was 1.28:1/1.32:1 before
+            // snora 0.34.0 raised border contrast) — confirmed by a
+            // temporary probe before writing this assertion, same as
+            // before. The conclusion below is unchanged: both remain under
+            // AA (4.5:1).
             let neutral_ratio = snora::design::contrast::contrast_ratio(p.border, surface);
             assert!(
                 neutral_ratio < AA_NORMAL,

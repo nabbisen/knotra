@@ -31,8 +31,10 @@
 //! with the tone's accent color unconditionally (`match self.tone {
 //! Tone::Accent => p.accent, ..., Tone::Neutral => p.border, }`) — correct
 //! for the five semantic tones, but `p.border` is a decorative/separator
-//! role, not a text role, and measures 1.28:1 (light) / 1.32:1 (dark)
-//! against `surface`, far under WCAG AA
+//! role, not a text role, and measures 3.12:1 (light) / 3.50:1 (dark)
+//! against `surface` (RFC-056 Stage 1: re-measured after the snora 0.38
+//! bump raised border contrast; was 1.28:1/1.32:1 before), still under
+//! WCAG AA
 //! (`theme.rs::notice_tone_colors_meet_wcag_aa_against_surface_in_both_themes`).
 //! `snora::design::Tone` itself is unchanged — narrowing it, or `Notice`'s
 //! own tone-to-color mapping, is out of this wrapper's scope. Instead

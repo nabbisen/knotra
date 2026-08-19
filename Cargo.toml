@@ -26,7 +26,7 @@ endringer-git               = "0.33"
 endringer-jj                = "0.33"
 
 iced                        = { version = "0.14", features = ["tokio", "image", "svg", "advanced"] }
-snora                       = { version = "0.25", features = ["design", "lucide-icons"] }
+snora                       = { version = "0.38", features = ["design", "lucide-icons"] }
 
 chrono                      = { version = "0.4", features = ["serde"] }
 dirs                        = "5"
