@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1, architect - see Amendments) |
+| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1, A2, architect - see Amendments) |
 | Priority | High - the version gap is free to cross, and crossing it is what makes the typography work possible |
 | Effort | Medium-to-large - one dependency line, then four stages of adoption |
 | Target | Production Readiness Reset - UI/UX foundation |
@@ -267,6 +267,58 @@ was implemented.
 
 **R2 is unchanged** - nothing renders below 12. What changes is the cost and the
 mechanism.
+
+### A2. Target 0.38, and line-height has helpers now (2026-08-19, architect)
+
+**Source: snora 0.38.0 and its letter, 2026-08-19.** Recorded before Stage 1 is
+issued; Handoff 077 is revised rather than amended, because it had not been
+handed over.
+
+**0.38.0 exists because of our report.** We told them we had set no line-height
+anywhere; they went looking for why we found the size half of the problem and not
+the other, and the answer was theirs - *"the size half had a floor and a helper;
+the line-height half had neither."*
+
+**The target moves 0.37 -> 0.38.** Not cosmetic: `snora = "0.37"` is `^0.37`, and
+cargo treats a 0.x minor bump as incompatible, so it will **not** resolve 0.38.
+Reaching it requires an explicit change, and doing it now is one bump instead of
+two. 0.38.0 is purely additive over 0.37, carries no rendered change by their
+statement, and contains what Stage 3 needs.
+
+**D5's idiom is withdrawn.** RFC-056 D5 specified
+`LineHeight::Relative(tokens.typography.<role>.line_height)`, quoting
+`typography.md`'s *"line-height is not wrapped in a helper."* 0.38.0 adds six:
+
+```rust
+.size(snora::design::style::text::body_size(&tokens))
+.line_height(snora::design::style::text::body_line_height(&tokens))
+```
+
+Verified present in the 0.38.0 source (`snora-style/src/text.rs:45-105`), one per
+role. They return `LineHeight::Relative`, not `f32`, deliberately - *"1.4 is a
+plausible-looking absolute line height and a catastrophic one."*
+
+The old form still works; `tokens.typography` is public and stays supported.
+**Stage 3 uses the helpers**, because they are the documented form and they make
+the size and leading calls read as a pair.
+
+**Their re-check, answered: nothing to unwind.** They asked whether we had
+written our own wrapper because they said none existed. We had not - `line_height`
+and `LineHeight` have **zero occurrences** across all three knotra crates. We
+skipped leading entirely rather than hand-rolling it, so the withdrawn claim cost
+us nothing.
+
+**A1 is confirmed by their documentation, not only by our reading.**
+`readability.md` now states the floor is 12 and nothing else, with the role
+preference stated separately as a preference - and names our resolution outright:
+redefine `body_small` on your own `Tokens`.
+
+**One dependency we checked and do not have.** snora's prefab widgets still do
+not apply line-height internally, deferred deliberately, and they asked whether
+our migration depends on it. It does not: our two `notice()` call sites
+(`overlays/conflict.rs:81`, `overlays/changelog.rs:110`) carry short,
+non-wrapping messages - "Done.", "We could not finish that action." Saying
+otherwise would move their priority on a dependency we cannot demonstrate.
 
 ## Stages
 
