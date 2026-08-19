@@ -21,11 +21,12 @@ use crate::{
 
 /// Render the palette overlay (call only when `state.palette.open`).
 pub fn view(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     let input = text_input(state.t("palette.search_placeholder"), &state.palette.query)
         .id(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
         .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
         .padding([8, 12])
-        .size(14);
+        .size(snora::design::style::text::label_size(tokens));
 
     let results: Vec<Element<'_, Message>> = state
         .palette
@@ -40,7 +41,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             };
             let label = format!("{}{}", prefix, entry.label);
             let highlighted = i == state.palette.highlighted;
-            let btn = button(text(label).size(13))
+            let btn = button(text(label).size(snora::design::style::text::body_small_size(tokens)))
                 .on_press_maybe(
                     entry
                         .disabled_reason_key
@@ -50,18 +51,21 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .width(Length::Fill);
             let mut row = column![btn].spacing(2);
             if let Some(reason_key) = entry.disabled_reason_key {
-                row = row.push(text(state.t(reason_key)).size(11));
+                row = row.push(
+                    text(state.t(reason_key))
+                        .size(snora::design::style::text::body_small_size(tokens)),
+                );
             }
             let _ = highlighted; // styling hook for later theming
             row.into()
         })
         .collect();
 
-    let close_btn =
-        button(text("✕ Esc").size(11)).on_press(Message::Palette(PaletteMessage::Closed));
+    let close_btn = button(text("✕ Esc").size(snora::design::style::text::body_small_size(tokens)))
+        .on_press(Message::Palette(PaletteMessage::Closed));
 
     let header = row![
-        text(state.t("palette.title")).size(13),
+        text(state.t("palette.title")).size(snora::design::style::text::body_small_size(tokens)),
         Space::new().width(Length::Fill),
         close_btn,
     ]
@@ -70,12 +74,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let mut body = column![header, input].spacing(6);
     if let Some(notice_key) = state.palette.notice_key {
-        body = body.push(text(state.t(notice_key)).size(12));
+        body = body.push(
+            text(state.t(notice_key)).size(snora::design::style::text::body_small_size(tokens)),
+        );
     }
     if !results.is_empty() {
         body = body.push(column(results).spacing(2));
     } else if !state.palette.query.is_empty() {
-        body = body.push(text(state.t("palette.no_matches")).size(12));
+        body = body.push(
+            text(state.t("palette.no_matches"))
+                .size(snora::design::style::text::body_small_size(tokens)),
+        );
     }
 
     container(body.padding(16))

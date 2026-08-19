@@ -23,7 +23,7 @@
 use iced::widget::{checkbox as iced_checkbox, container, mouse_area, text, tooltip};
 use snora::design::Tokens;
 
-use super::layout::{Element, FONT_SMALL, Length};
+use super::layout::{Element, Length};
 use super::ring::ring_color_for;
 
 /// The drawn box size — the 44px target is the *interactive* area, not
@@ -59,7 +59,10 @@ pub fn checkbox<'a, Message: Clone + 'a>(
 
     tooltip(
         mouse_area(target).on_press(toggle_message),
-        super::overlay::raised_card(tokens, text(accessible_label.into()).size(FONT_SMALL)),
+        super::overlay::raised_card(
+            tokens,
+            text(accessible_label.into()).size(snora::design::style::text::body_small_size(tokens)),
+        ),
         tooltip::Position::Bottom,
     )
     .into()

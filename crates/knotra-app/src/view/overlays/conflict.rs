@@ -16,7 +16,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, NoticeTone, Tokens, notice,
+    BUTTON_HEIGHT, NoticeTone, Tokens, notice,
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
@@ -51,15 +51,16 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     let content: Element<'_, Message> = match &ops.phase {
         crate::state::conflict_ops::ConflictPhase::Loading(id) if id == project_id => {
             text(state.t("plain.resolve.loading"))
-                .size(FONT_BODY)
+                .size(snora::design::style::text::body_size(tokens))
                 .into()
         }
         crate::state::conflict_ops::ConflictPhase::Operating {
             project_id: id,
             action,
         } if id == project_id => column![
-            text(action).size(FONT_BODY),
-            text(state.t("plain.resolve.working_hint")).size(FONT_SMALL),
+            text(action).size(snora::design::style::text::body_size(tokens)),
+            text(state.t("plain.resolve.working_hint"))
+                .size(snora::design::style::text::body_small_size(tokens)),
         ]
         .spacing(8)
         .into(),
@@ -100,19 +101,28 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                 && let Some(result) = result
             {
                 for command in &result.commands_executed {
-                    result_col =
-                        result_col.push(text(format!("command: {command}")).size(FONT_SMALL));
+                    result_col = result_col.push(
+                        text(format!("command: {command}"))
+                            .size(snora::design::style::text::body_small_size(tokens)),
+                    );
                 }
                 if !result.stdout.is_empty() {
-                    result_col = result_col
-                        .push(text(format!("stdout: {}", result.stdout)).size(FONT_SMALL));
+                    result_col = result_col.push(
+                        text(format!("stdout: {}", result.stdout))
+                            .size(snora::design::style::text::body_small_size(tokens)),
+                    );
                 }
                 if !result.stderr.is_empty() {
-                    result_col = result_col
-                        .push(text(format!("stderr: {}", result.stderr)).size(FONT_SMALL));
+                    result_col = result_col.push(
+                        text(format!("stderr: {}", result.stderr))
+                            .size(snora::design::style::text::body_small_size(tokens)),
+                    );
                 }
                 if let Some(error) = &result.error_message {
-                    result_col = result_col.push(text(format!("error: {error}")).size(FONT_SMALL));
+                    result_col = result_col.push(
+                        text(format!("error: {error}"))
+                            .size(snora::design::style::text::body_small_size(tokens)),
+                    );
                 }
             }
 
@@ -130,7 +140,7 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
             if let Some(detail) = detail {
                 if detail.conflicted_files.is_empty() {
                     text(state.t("plain.resolve.no_files"))
-                        .size(FONT_BODY)
+                        .size(snora::design::style::text::body_size(tokens))
                         .into()
                 } else {
                     let file_rows: Vec<Element<'_, Message>> = detail
@@ -158,8 +168,12 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                             // (R2), because a row sized for buttons cannot
                             // hold a sentence up to four times as wide.
                             let mut line1 = row![
-                                text("!").size(FONT_BODY).width(Length::Fixed(22.0)),
-                                text(&f.path).size(FONT_BODY).width(Length::Fill),
+                                text("!")
+                                    .size(snora::design::style::text::body_size(tokens))
+                                    .width(Length::Fixed(22.0)),
+                                text(&f.path)
+                                    .size(snora::design::style::text::body_size(tokens))
+                                    .width(Length::Fill),
                                 Space::new().width(Length::Fixed(8.0)),
                                 // RFC-037 Stage 6: migrated onto the shared
                                 // `reasoned` primitive. `style::secondary`
@@ -216,7 +230,11 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                     // needed to get that.
                                     file_col = file_col.push(row![
                                         Space::new().width(Length::Fixed(28.0)),
-                                        text(sentence).size(FONT_SMALL).width(Length::Fill),
+                                        text(sentence)
+                                            .size(snora::design::style::text::body_small_size(
+                                                tokens
+                                            ))
+                                            .width(Length::Fill),
                                     ]);
                                 }
                             }
@@ -232,7 +250,7 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                 }
             } else {
                 text(state.t("plain.resolve.loading"))
-                    .size(FONT_BODY)
+                    .size(snora::design::style::text::body_size(tokens))
                     .into()
             }
         }
@@ -264,7 +282,8 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     .align_y(Alignment::Center);
 
     let body = column![
-        text(state.t("plain.resolve.instruction")).size(FONT_BODY),
+        text(state.t("plain.resolve.instruction"))
+            .size(snora::design::style::text::body_size(tokens)),
         content,
     ]
     .spacing(14);
@@ -306,7 +325,7 @@ fn styled_button<'a>(
     style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    iced::widget::button(text(label).size(FONT_BODY))
+    iced::widget::button(text(label).size(snora::design::style::text::body_size(tokens)))
         .height(BUTTON_HEIGHT)
         .padding([0, 18])
         .on_press_maybe(on_press)
@@ -352,7 +371,8 @@ fn third_slot_for<'a>(
             let t = tokens.clone();
             ThirdSlot::Button(
                 iced::widget::button(
-                    text(state.t("plain.resolve.mark_done")).size(FONT_SMALL + 1.0),
+                    text(state.t("plain.resolve.mark_done"))
+                        .size(snora::design::style::text::label_size(tokens)),
                 )
                 .height(36.0)
                 .padding([0, 10])

@@ -5,14 +5,13 @@ use iced::{
     widget::{Space, button, container, row, text},
 };
 
-use knotra_ui::widget::FONT_SMALL;
-
 use crate::{
     message::{ActivityMessage, Message, WorkspaceMessage},
     state::{ActivityRetryAction, AppState, LatestOpState, RetryAvailability},
 };
 
 pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
+    let tokens = &state.theme.tokens;
     if let Some(removal) = &state.recent_removal {
         let msg = format!(
             "{} {}.",
@@ -21,16 +20,22 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         );
         let snackbar = container(
             row![
-                text(msg).size(FONT_SMALL),
+                text(msg).size(snora::design::style::text::body_small_size(tokens)),
                 Space::new().width(Length::Fill),
-                button(text(state.t("plain.undo.undo")).size(FONT_SMALL))
-                    .height(30.0)
-                    .padding([0, 12])
-                    .on_press(Message::Workspace(WorkspaceMessage::UndoRemoval)),
-                button(text(state.t("plain.undo.dismiss")).size(FONT_SMALL))
-                    .height(30.0)
-                    .padding([0, 12])
-                    .on_press(Message::Workspace(WorkspaceMessage::DismissUndoSnackbar)),
+                button(
+                    text(state.t("plain.undo.undo"))
+                        .size(snora::design::style::text::body_small_size(tokens))
+                )
+                .height(30.0)
+                .padding([0, 12])
+                .on_press(Message::Workspace(WorkspaceMessage::UndoRemoval)),
+                button(
+                    text(state.t("plain.undo.dismiss"))
+                        .size(snora::design::style::text::body_small_size(tokens))
+                )
+                .height(30.0)
+                .padding([0, 12])
+                .on_press(Message::Workspace(WorkspaceMessage::DismissUndoSnackbar)),
             ]
             .spacing(8)
             .align_y(Alignment::Center)
@@ -53,7 +58,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             Some(
                 container(
                     row![
-                        text(progress_label).size(FONT_SMALL),
+                        text(progress_label)
+                            .size(snora::design::style::text::body_small_size(tokens)),
                         Space::new().width(Length::Fill)
                     ]
                     .spacing(8)
@@ -102,7 +108,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             );
 
             let mut content = row![
-                text(label).size(FONT_SMALL),
+                text(label).size(snora::design::style::text::body_small_size(tokens)),
                 Space::new().width(Length::Fill)
             ]
             .spacing(8)
@@ -128,25 +134,36 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                             source_operation_id: source_operation_id.clone(),
                         }),
                     );
-                    content =
-                        content.push(button(text(label).size(FONT_SMALL)).on_press_maybe(retry));
+                    content = content.push(
+                        button(
+                            text(label).size(snora::design::style::text::body_small_size(tokens)),
+                        )
+                        .on_press_maybe(retry),
+                    );
                     if state.operation_interlock.is_busy() {
-                        content =
-                            content.push(text(state.t("plain.activity.busy")).size(FONT_SMALL));
+                        content = content.push(
+                            text(state.t("plain.activity.busy"))
+                                .size(snora::design::style::text::body_small_size(tokens)),
+                        );
                     }
                 }
                 RetryAvailability::Unavailable(reason) => {
-                    content = content.push(text(state.t(reason.i18n_key())).size(FONT_SMALL));
+                    content = content.push(
+                        text(state.t(reason.i18n_key()))
+                            .size(snora::design::style::text::body_small_size(tokens)),
+                    );
                 }
                 RetryAvailability::NotApplicable => {}
             }
 
             content = content.push(
-                button(text(state.t("plain.activity.details")).size(FONT_SMALL)).on_press(
-                    Message::Activity(ActivityMessage::DetailsRequested {
-                        operation_id: log.result.operation_id.clone(),
-                    }),
-                ),
+                button(
+                    text(state.t("plain.activity.details"))
+                        .size(snora::design::style::text::body_small_size(tokens)),
+                )
+                .on_press(Message::Activity(ActivityMessage::DetailsRequested {
+                    operation_id: log.result.operation_id.clone(),
+                })),
             );
             Some(
                 container(content.padding([4, 12]))

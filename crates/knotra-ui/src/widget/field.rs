@@ -10,7 +10,7 @@
 
 use snora::design::Tokens;
 
-use super::layout::{Element, FONT_BODY, FONT_SMALL, Length};
+use super::layout::{Element, Length};
 
 /// A labelled text input with persistent label above and optional inline error.
 ///
@@ -18,18 +18,20 @@ use super::layout::{Element, FONT_BODY, FONT_SMALL, Length};
 /// focus). An error message, when present, appears beneath the field in a
 /// small, clearly distinct style.
 pub fn guided_field<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
     label: &'a str,
     placeholder: &'a str,
     value: &'a str,
     on_change: impl Fn(String) -> Message + 'a,
     error: Option<&'a str>,
 ) -> iced::Element<'a, Message> {
-    guided_field_with_id(label, placeholder, value, on_change, error, None)
+    guided_field_with_id(tokens, label, placeholder, value, on_change, error, None)
 }
 
 /// Same as [`guided_field`] but assigns a [`iced::widget::Id`] to the input for
 /// programmatic focus (e.g. auto-focus when a dialog opens).
 pub fn guided_field_focused<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
     label: &'a str,
     placeholder: &'a str,
     value: &'a str,
@@ -37,10 +39,19 @@ pub fn guided_field_focused<'a, Message: Clone + 'a>(
     error: Option<&'a str>,
     id: iced::widget::Id,
 ) -> iced::Element<'a, Message> {
-    guided_field_with_id(label, placeholder, value, on_change, error, Some(id))
+    guided_field_with_id(
+        tokens,
+        label,
+        placeholder,
+        value,
+        on_change,
+        error,
+        Some(id),
+    )
 }
 
 fn guided_field_with_id<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
     label: &'a str,
     placeholder: &'a str,
     value: &'a str,
@@ -54,16 +65,20 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
         .on_input(on_change)
         .padding([0, 12])
         .width(Length::Fill)
-        .size(FONT_BODY);
+        .size(snora::design::style::text::body_size(tokens));
 
     if let Some(widget_id) = id {
         field = field.id(widget_id);
     }
 
-    let mut group = column![text(label).size(FONT_BODY), field,].spacing(8);
+    let mut group = column![
+        text(label).size(snora::design::style::text::body_size(tokens)),
+        field,
+    ]
+    .spacing(8);
 
     if let Some(err) = error {
-        group = group.push(text(err).size(FONT_SMALL));
+        group = group.push(text(err).size(snora::design::style::text::body_small_size(tokens)));
     }
 
     group.width(Length::Fill).into()
@@ -110,20 +125,25 @@ pub fn validated_field<'a, Message: Clone + 'a>(
         .on_input(on_change)
         .padding([0, 12])
         .width(Length::Fill)
-        .size(FONT_BODY);
+        .size(snora::design::style::text::body_size(tokens));
 
     let mut field_row = row![field].spacing(8).align_y(iced::Alignment::Center);
     if let Some(unit) = unit {
-        field_row = field_row.push(text(unit).size(FONT_SMALL));
+        field_row =
+            field_row.push(text(unit).size(snora::design::style::text::body_small_size(tokens)));
     }
 
-    let mut group = column![text(label).size(FONT_BODY), field_row].spacing(8);
+    let mut group = column![
+        text(label).size(snora::design::style::text::body_size(tokens)),
+        field_row
+    ]
+    .spacing(8);
 
     if shows_error(error) {
         let danger = snora::design::style::color::to_iced_color(tokens.palette.danger_text);
         group = group.push(
             text(error.unwrap_or_default())
-                .size(FONT_SMALL)
+                .size(snora::design::style::text::body_small_size(tokens))
                 .color(danger),
         );
     }

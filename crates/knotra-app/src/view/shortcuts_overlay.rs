@@ -133,13 +133,17 @@ const BINDINGS: &[Binding] = &[
 ];
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     // RFC-049 §2: `action.close` already exists in both catalogs — reused,
     // not duplicated. The glyph stays a literal; only the word is resolved.
-    let close_btn = button(text(format!("✕  {}", state.t("action.close"))).size(12))
-        .on_press(Message::KeyEvent(KeyboardMessage::CheatSheetToggled));
+    let close_btn = button(
+        text(format!("✕  {}", state.t("action.close")))
+            .size(snora::design::style::text::body_small_size(tokens)),
+    )
+    .on_press(Message::KeyEvent(KeyboardMessage::CheatSheetToggled));
 
     let header = row![
-        text(state.t("shortcut.overlay_title")).size(15),
+        text(state.t("shortcut.overlay_title")).size(snora::design::style::text::body_size(tokens)),
         Space::new().width(Length::Fill),
         close_btn,
     ]
@@ -147,9 +151,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .padding([0, 0]);
 
     let col_header = row![
-        text(state.t("shortcut.column_keys")).size(11),
-        text(state.t("shortcut.column_context")).size(11),
-        text(state.t("shortcut.column_action")).size(11),
+        text(state.t("shortcut.column_keys"))
+            .size(snora::design::style::text::body_small_size(tokens)),
+        text(state.t("shortcut.column_context"))
+            .size(snora::design::style::text::body_small_size(tokens)),
+        text(state.t("shortcut.column_action"))
+            .size(snora::design::style::text::body_small_size(tokens)),
     ]
     .spacing(16);
 
@@ -157,9 +164,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .iter()
         .map(|b| {
             row![
-                text(b.keys).size(12),
-                text(state.t(b.context_key)).size(11),
-                text(state.t(b.desc_key)).size(12),
+                text(b.keys).size(snora::design::style::text::body_small_size(tokens)),
+                text(state.t(b.context_key))
+                    .size(snora::design::style::text::body_small_size(tokens)),
+                text(state.t(b.desc_key)).size(snora::design::style::text::body_small_size(tokens)),
             ]
             .spacing(16)
             .into()

@@ -11,9 +11,7 @@ use iced::{
     widget::{Space, button, column, container, row, text},
 };
 
-use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_field_focused, reasoned, style,
-};
+use knotra_ui::widget::{BUTTON_HEIGHT, guided_field_focused, reasoned, style};
 
 use crate::{
     message::{Message, WorkspaceMessage},
@@ -29,15 +27,16 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         AddProjectStep::NameProject => (state.t("plain.add_project.step2_of2"), "2"),
     };
 
-    let close_btn = button(text("✕").size(FONT_BODY))
+    let close_btn = button(text("✕").size(snora::design::style::text::body_size(tokens)))
         .height(BUTTON_HEIGHT)
         .padding([0, 12])
         .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled));
 
     let header = row![
         column![
-            text(state.t("plain.add_project.title")).size(FONT_BODY + 2.0),
-            text(step_label).size(FONT_SMALL),
+            text(state.t("plain.add_project.title"))
+                .size(snora::design::style::text::title_size(tokens)),
+            text(step_label).size(snora::design::style::text::body_small_size(tokens)),
         ]
         .spacing(2),
         Space::new().width(Length::Fill),
@@ -51,6 +50,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         // ------------------------------------------------------------------
         AddProjectStep::ChooseFolder => {
             let path_field = guided_field_focused(
+                tokens,
                 state.t("plain.add_project.folder_label"),
                 state.t("plain.add_project.folder_hint"),
                 &dialog.path,
@@ -59,10 +59,13 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
             );
 
-            let browse_btn = button(text(state.t("plain.add_project.browse")).size(FONT_BODY))
-                .height(BUTTON_HEIGHT)
-                .padding([0, 18])
-                .on_press(Message::Workspace(WorkspaceMessage::BrowsePathRequested));
+            let browse_btn = button(
+                text(state.t("plain.add_project.browse"))
+                    .size(snora::design::style::text::body_size(tokens)),
+            )
+            .height(BUTTON_HEIGHT)
+            .padding([0, 18])
+            .on_press(Message::Workspace(WorkspaceMessage::BrowsePathRequested));
 
             let next_reason: Option<&str> = if dialog.path.trim().is_empty() {
                 Some(state.t("plain.add_project.reason_no_folder"))
@@ -81,15 +84,19 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     style::primary,
                 ),
                 Space::new().width(Length::Fill),
-                button(text(state.t("action.cancel")).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
+                button(
+                    text(state.t("action.cancel"))
+                        .size(snora::design::style::text::body_size(tokens)),
+                )
+                .height(BUTTON_HEIGHT)
+                .padding([0, 18])
+                .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
             ]
             .align_y(Alignment::Center);
 
             column![
-                text(state.t("plain.add_project.step1_instruction")).size(FONT_BODY),
+                text(state.t("plain.add_project.step1_instruction"))
+                    .size(snora::design::style::text::body_size(tokens)),
                 path_field,
                 browse_btn,
                 footer,
@@ -105,14 +112,16 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             // Show the chosen folder as a read-only confirmation.
             let folder_display = container(
                 column![
-                    text(state.t("plain.add_project.folder_chosen")).size(FONT_SMALL),
-                    text(&dialog.path).size(FONT_BODY),
+                    text(state.t("plain.add_project.folder_chosen"))
+                        .size(snora::design::style::text::body_small_size(tokens)),
+                    text(&dialog.path).size(snora::design::style::text::body_size(tokens)),
                 ]
                 .spacing(4),
             )
             .padding([10, 14]);
 
             let name_field = guided_field_focused(
+                tokens,
                 state.t("plain.add_project.name_label"),
                 state.t("dialog.add_project.name_hint"),
                 &dialog.name,
@@ -138,15 +147,19 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     style::primary,
                 ),
                 Space::new().width(Length::Fill),
-                button(text(state.t("plain.add_project.back")).size(FONT_BODY))
-                    .height(BUTTON_HEIGHT)
-                    .padding([0, 18])
-                    .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
+                button(
+                    text(state.t("plain.add_project.back"))
+                        .size(snora::design::style::text::body_size(tokens)),
+                )
+                .height(BUTTON_HEIGHT)
+                .padding([0, 18])
+                .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
             ]
             .align_y(Alignment::Center);
 
             column![
-                text(state.t("plain.add_project.step2_instruction")).size(FONT_BODY),
+                text(state.t("plain.add_project.step2_instruction"))
+                    .size(snora::design::style::text::body_size(tokens)),
                 folder_display,
                 name_field,
                 footer,

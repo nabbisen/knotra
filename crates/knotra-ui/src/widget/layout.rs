@@ -36,9 +36,3 @@ pub const BUTTON_HEIGHT: f32 = 44.0;
 
 /// Reduced height permitted only for inline controls in dense, read-only rows.
 pub const SMALL_BUTTON_HEIGHT: f32 = 36.0;
-
-/// Body text size for non-technical-facing content.
-pub const FONT_BODY: f32 = 15.0;
-
-/// Small text size for metadata, timestamps, and captions.
-pub const FONT_SMALL: f32 = 13.0;

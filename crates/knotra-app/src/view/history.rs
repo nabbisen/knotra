@@ -18,7 +18,7 @@ use iced::{
     Alignment, Element, Length, Padding,
     widget::{Space, button, column, container, row, scrollable, text, text_input},
 };
-use knotra_ui::widget::{icon, record_row};
+use knotra_ui::widget::{Tokens, icon, record_row};
 use knotra_vcs::model::operation::{OperationLog, OperationResult, ProjectOperationOutcome};
 
 use crate::{
@@ -50,9 +50,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 // ---------------------------------------------------------------------------
 
 fn view_header(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     // RFC-034 R13: per-screen back navigation removed — Dashboard/History are
     // reached through the persistent shell now, not a screen-owned button.
-    row![text(state.t("history.title")).size(20)]
+    row![text(state.t("history.title")).size(snora::design::style::text::heading_size(tokens))]
         .spacing(12)
         .align_y(Alignment::Center)
         .padding(Padding::new(12.0))
@@ -85,12 +86,13 @@ fn view_toolbar(state: &AppState) -> Element<'_, Message> {
 // ---------------------------------------------------------------------------
 
 fn view_body(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     // RFC-047 D3: a directory that could not be read is its own state, not
     // "no history yet" — checked before the empty-list branch below, since
     // an unreadable directory always yields zero logs and would otherwise
     // be indistinguishable from a genuine first run.
     if state.history_directory_unreadable {
-        return empty_state(state.t("history.directory_unreadable"));
+        return empty_state(tokens, state.t("history.directory_unreadable"));
     }
 
     if state.operation_logs.is_empty() {
@@ -99,9 +101,9 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         // `history.empty` rather than sitting beside it, since there is
         // nothing else on screen for it to sit above.
         return if state.history_unreadable_count > 0 {
-            empty_state(unreadable_count_message(state))
+            empty_state(tokens, unreadable_count_message(state))
         } else {
-            empty_state(state.t("history.empty"))
+            empty_state(tokens, state.t("history.empty"))
         };
     }
 
@@ -129,13 +131,18 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         .collect();
 
     if entries.is_empty() {
-        return empty_state(state.t("history.no_match"));
+        return empty_state(tokens, state.t("history.no_match"));
     }
 
     // RFC-047 D2: above the populated list, not replacing it — the list is
     // still the useful content here.
     if state.history_unreadable_count > 0 {
-        entries.insert(0, text(unreadable_count_message(state)).size(12).into());
+        entries.insert(
+            0,
+            text(unreadable_count_message(state))
+                .size(snora::design::style::text::body_small_size(tokens))
+                .into(),
+        );
     }
 
     column(entries).spacing(6).padding(12).into()
@@ -158,8 +165,8 @@ fn unreadable_count_message(state: &AppState) -> String {
 /// that carry a count (`unreadable_count_message`) can build an owned
 /// message alongside the two that don't (`state.t(...)`), through the same
 /// helper rather than a parallel one.
-fn empty_state(message: impl Into<String>) -> Element<'static, Message> {
-    container(text(message.into()).size(14))
+fn empty_state(tokens: &Tokens, message: impl Into<String>) -> Element<'static, Message> {
+    container(text(message.into()).size(snora::design::style::text::label_size(tokens)))
         .width(Length::Fill)
         .padding(24)
         .into()
@@ -170,6 +177,7 @@ fn empty_state(message: impl Into<String>) -> Element<'static, Message> {
 // ---------------------------------------------------------------------------
 
 fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a, Message> {
+    let tokens = &state.theme.tokens;
     let result = &log.result;
     let expanded = state.history_expanded.contains(&result.operation_id);
 
@@ -209,29 +217,36 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     // smaller line beneath. Was one row interleaving all five with `"  "`
     // string-padding standing in for real spacing.
     let primary_row = row![
-        text(super::operation_kind_label(state, &result.kind)).size(13),
+        text(super::operation_kind_label(state, &result.kind))
+            .size(snora::design::style::text::body_small_size(tokens)),
         Space::new().width(Length::Fill),
-        text(status_label).size(12),
+        text(status_label).size(snora::design::style::text::body_small_size(tokens)),
         button(
-            row![text(toggle_label).size(11), icon::icon_element(&chevron)]
-                .spacing(4)
-                .align_y(Alignment::Center)
+            row![
+                text(toggle_label).size(snora::design::style::text::body_small_size(tokens)),
+                icon::icon_element(&chevron)
+            ]
+            .spacing(4)
+            .align_y(Alignment::Center)
         )
         .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle))),
-        button(text(state.t("history.copy_log")).size(11))
-            .on_press(Message::CopyToClipboard(export_text(result))),
+        button(
+            text(state.t("history.copy_log"))
+                .size(snora::design::style::text::body_small_size(tokens))
+        )
+        .on_press(Message::CopyToClipboard(export_text(result))),
     ]
     .spacing(8)
     .align_y(Alignment::Center);
 
     let secondary_row = row![
-        text(timestamp).size(11),
+        text(timestamp).size(snora::design::style::text::body_small_size(tokens)),
         text(format!(
             "{} {}",
             state.t("history.project_count_label"),
             project_count
         ))
-        .size(11),
+        .size(snora::design::style::text::body_small_size(tokens)),
     ]
     .spacing(12);
 
@@ -250,6 +265,7 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
 // ---------------------------------------------------------------------------
 
 fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a, Message> {
+    let tokens = &state.theme.tokens;
     let result = &log.result;
     let mut rows: Vec<Element<'a, Message>> = Vec::new();
 
@@ -277,7 +293,11 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
                 state.t("plain.activity.failed")
             }
         );
-        rows.push(text(rb_text).size(11).into());
+        rows.push(
+            text(rb_text)
+                .size(snora::design::style::text::body_small_size(tokens))
+                .into(),
+        );
     }
 
     // Per-project results.
@@ -287,37 +307,65 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
             ProjectOperationOutcome::Failed => "✗",
             ProjectOperationOutcome::Skipped => "-",
         };
-        rows.push(text(format!("  {icon} {}", pr.project_id)).size(12).into());
+        rows.push(
+            text(format!("  {icon} {}", pr.project_id))
+                .size(snora::design::style::text::body_small_size(tokens))
+                .into(),
+        );
         if let Some(reason) = &pr.skip_reason {
             rows.push(
                 text(format!("    {}", super::skip_reason_display(state, reason)))
-                    .size(10)
+                    .size(snora::design::style::text::body_small_size(tokens))
                     .into(),
             );
         }
 
         // Commands (transparency).
         if !pr.commands_executed.is_empty() {
-            rows.push(text(state.t("history.commands_header")).size(10).into());
+            rows.push(
+                text(state.t("history.commands_header"))
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .into(),
+            );
             for cmd in &pr.commands_executed {
-                rows.push(text(format!("    $ {cmd}")).size(10).into());
+                rows.push(
+                    text(format!("    $ {cmd}"))
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .into(),
+                );
             }
         }
 
         // Stderr excerpt on failure.
         if pr.is_failed() && !pr.stderr.is_empty() {
             let preview: String = pr.stderr.lines().take(3).collect::<Vec<_>>().join("\n");
-            rows.push(text(format!("    {preview}")).size(10).into());
+            rows.push(
+                text(format!("    {preview}"))
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .into(),
+            );
         }
     }
 
     // Recovery hints.
     if !log.recovery_hints.is_empty() {
-        rows.push(text(state.t("history.recovery_header")).size(11).into());
+        rows.push(
+            text(state.t("history.recovery_header"))
+                .size(snora::design::style::text::body_small_size(tokens))
+                .into(),
+        );
         for hint in &log.recovery_hints {
-            rows.push(text(format!("  {}", hint.situation)).size(11).into());
+            rows.push(
+                text(format!("  {}", hint.situation))
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .into(),
+            );
             for cmd in &hint.suggested_commands {
-                rows.push(text(format!("    $ {cmd}")).size(10).into());
+                rows.push(
+                    text(format!("    $ {cmd}"))
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .into(),
+                );
             }
         }
     }

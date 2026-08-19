@@ -19,7 +19,7 @@
 
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Padding};
-use knotra_ui::widget::{BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, chip, select, style};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, chip, select, style};
 
 use crate::{
     config::{DashboardGrouping, DashboardSort},
@@ -301,7 +301,8 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
         ),
     ];
     let grouping = row![
-        text(state.t("dashboard.grouping")).size(12),
+        text(state.t("dashboard.grouping"))
+            .size(snora::design::style::text::body_small_size(tokens)),
         select::pick_list(
             tokens,
             grouping_options,
@@ -324,7 +325,8 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
         ),
     ];
     let sorting = row![
-        text(state.t("dashboard.sorting")).size(12),
+        text(state.t("dashboard.sorting"))
+            .size(snora::design::style::text::body_small_size(tokens)),
         select::pick_list(
             tokens,
             sorting_options,
@@ -505,7 +507,8 @@ fn compact_selectors_row<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a
         ),
     ];
     let grouping = row![
-        text(state.t("dashboard.grouping")).size(12),
+        text(state.t("dashboard.grouping"))
+            .size(snora::design::style::text::body_small_size(tokens)),
         select::pick_list(
             tokens,
             grouping_options,
@@ -528,7 +531,8 @@ fn compact_selectors_row<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a
         ),
     ];
     let sorting = row![
-        text(state.t("dashboard.sorting")).size(12),
+        text(state.t("dashboard.sorting"))
+            .size(snora::design::style::text::body_small_size(tokens)),
         select::pick_list(
             tokens,
             sorting_options,
@@ -565,7 +569,7 @@ fn select_mode_button<'a>(
     let t = tokens.clone();
     let show_reason = on_press.is_none();
 
-    let btn = button(text(label).size(FONT_BODY))
+    let btn = button(text(label).size(snora::design::style::text::body_size(tokens)))
         .height(BUTTON_HEIGHT)
         .padding([0, 18])
         .on_press_maybe(on_press)
@@ -574,7 +578,12 @@ fn select_mode_button<'a>(
         });
 
     match reason {
-        Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
+        Some(r) if show_reason => column![
+            btn,
+            text(r).size(snora::design::style::text::body_small_size(tokens))
+        ]
+        .spacing(6)
+        .into(),
         _ => btn.into(),
     }
 }
@@ -590,7 +599,7 @@ fn clear_filters_button<'a>(
     is_focused: bool,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(text(label).size(12))
+    button(text(label).size(snora::design::style::text::body_small_size(tokens)))
         .on_press(Message::Filter(FilterMessage::AllFiltersCleared))
         .style(move |_theme, status| {
             style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
@@ -610,7 +619,7 @@ fn disclosure_button<'a>(
     is_focused: bool,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(text(glyph).size(FONT_BODY))
+    button(text(glyph).size(snora::design::style::text::body_size(tokens)))
         .height(BUTTON_HEIGHT)
         .padding([0, 12])
         .on_press(on_press)

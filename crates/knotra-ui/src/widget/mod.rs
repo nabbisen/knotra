@@ -28,8 +28,8 @@ pub use field::{guided_field, guided_field_focused, validated_field};
 pub use focus::{clear_input_focus, focus_id, focus_input};
 pub use layout::{
     Alignment, BUTTON_HEIGHT, CARD_GAP, CARD_MIN_WIDTH, CARD_PADDING, CARD_RADIUS, Color, Column,
-    Element, FONT_BODY, FONT_SMALL, Length, Padding, Row, SIDEBAR_WIDTH, SMALL_BUTTON_HEIGHT,
-    button, column, container, row, scrollable, text, text_input,
+    Element, Length, Padding, Row, SIDEBAR_WIDTH, SMALL_BUTTON_HEIGHT, button, column, container,
+    row, scrollable, text, text_input,
 };
 pub use notice::{NoticeAction, NoticeTone, notice};
 pub use record::record_row;

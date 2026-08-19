@@ -19,7 +19,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, current_or,
+    BUTTON_HEIGHT, Tokens, current_or,
     overlay::{OverlayWidth, surface},
     primary_maybe, reasoned, style,
 };
@@ -42,8 +42,10 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
         // ── Step 0: Planning (computing the plan) ────────────────────────
         SyncPhase::Idle | SyncPhase::Planning => (
             column![
-                text(state.t("plain.get_latest.preparing")).size(FONT_BODY),
-                text(state.t("plain.get_latest.preparing_hint")).size(FONT_SMALL),
+                text(state.t("plain.get_latest.preparing"))
+                    .size(snora::design::style::text::body_size(tokens)),
+                text(state.t("plain.get_latest.preparing_hint"))
+                    .size(snora::design::style::text::body_small_size(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -52,8 +54,10 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
 
         SyncPhase::RetryPreparing => (
             column![
-                text(state.t("plain.activity.retry_preparing")).size(FONT_BODY),
-                text(state.t("plain.get_latest.preparing_hint")).size(FONT_SMALL),
+                text(state.t("plain.activity.retry_preparing"))
+                    .size(snora::design::style::text::body_size(tokens)),
+                text(state.t("plain.get_latest.preparing_hint"))
+                    .size(snora::design::style::text::body_small_size(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -96,8 +100,11 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
             .align_y(Alignment::Center);
 
             (
-                column![text(state.t("plain.activity.retry_prepare_failed")).size(FONT_BODY)]
-                    .into(),
+                column![
+                    text(state.t("plain.activity.retry_prepare_failed"))
+                        .size(snora::design::style::text::body_size(tokens))
+                ]
+                .into(),
                 footer.into(),
             )
         }
@@ -110,13 +117,13 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
             rows.push(
                 row![
                     text(state.t("plain.project"))
-                        .size(FONT_SMALL)
+                        .size(snora::design::style::text::body_small_size(tokens))
                         .width(Length::FillPortion(3)),
                     text(state.t("plain.what_will_happen"))
-                        .size(FONT_SMALL)
+                        .size(snora::design::style::text::body_small_size(tokens))
                         .width(Length::FillPortion(2)),
                     text(state.t("plain.note"))
-                        .size(FONT_SMALL)
+                        .size(snora::design::style::text::body_small_size(tokens))
                         .width(Length::FillPortion(3)),
                 ]
                 .spacing(8)
@@ -156,7 +163,7 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                         .into()
                     } else {
                         text(action_label)
-                            .size(FONT_BODY)
+                            .size(snora::design::style::text::body_size(tokens))
                             .width(Length::FillPortion(2))
                             .into()
                     };
@@ -164,10 +171,12 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 rows.push(
                     row![
                         text(&entry.project_name)
-                            .size(FONT_BODY)
+                            .size(snora::design::style::text::body_size(tokens))
                             .width(Length::FillPortion(3)),
                         action_cell,
-                        text(note).size(FONT_SMALL).width(Length::FillPortion(3)),
+                        text(note)
+                            .size(snora::design::style::text::body_small_size(tokens))
+                            .width(Length::FillPortion(3)),
                     ]
                     .spacing(8)
                     .align_y(Alignment::Center)
@@ -189,12 +198,14 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                     .unwrap_or_else(|| state.t("plain.project"));
                 rows.push(
                     row![
-                        text(name).size(FONT_BODY).width(Length::FillPortion(3)),
+                        text(name)
+                            .size(snora::design::style::text::body_size(tokens))
+                            .width(Length::FillPortion(3)),
                         text(state.t("plain.activity.skipped"))
-                            .size(FONT_BODY)
+                            .size(snora::design::style::text::body_size(tokens))
                             .width(Length::FillPortion(2)),
                         text(state.t(exclusion.reason.i18n_key()))
-                            .size(FONT_SMALL)
+                            .size(snora::design::style::text::body_small_size(tokens))
                             .width(Length::FillPortion(3)),
                     ]
                     .spacing(8)
@@ -241,7 +252,8 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
             // same reasoning as Stages 2-4 (review `132` §4).
             (
                 column![
-                    text(state.t("plain.get_latest.review_heading")).size(FONT_BODY),
+                    text(state.t("plain.get_latest.review_heading"))
+                        .size(snora::design::style::text::body_size(tokens)),
                     column(rows).spacing(6),
                 ]
                 .spacing(12)
@@ -260,7 +272,7 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 total
             );
             (
-                column![text(progress_text).size(FONT_BODY),]
+                column![text(progress_text).size(snora::design::style::text::body_size(tokens)),]
                     .spacing(8)
                     .into(),
                 Space::new().into(),
@@ -287,11 +299,15 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                         }
                     };
                     row![
-                        text(icon).size(FONT_BODY).width(Length::Fixed(20.0)),
+                        text(icon)
+                            .size(snora::design::style::text::body_size(tokens))
+                            .width(Length::Fixed(20.0)),
                         text(&p.project_name)
-                            .size(FONT_BODY)
+                            .size(snora::design::style::text::body_size(tokens))
                             .width(Length::FillPortion(2)),
-                        text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
+                        text(msg)
+                            .size(snora::design::style::text::body_size(tokens))
+                            .width(Length::FillPortion(2)),
                     ]
                     .spacing(8)
                     .into()
@@ -302,12 +318,14 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
             for entry in plan.entries.iter().skip(done) {
                 result_rows.push(
                     row![
-                        text("○").size(FONT_BODY).width(Length::Fixed(20.0)),
+                        text("○")
+                            .size(snora::design::style::text::body_size(tokens))
+                            .width(Length::Fixed(20.0)),
                         text(&entry.project_name)
-                            .size(FONT_BODY)
+                            .size(snora::design::style::text::body_size(tokens))
                             .width(Length::FillPortion(2)),
                         text(state.t("plain.waiting"))
-                            .size(FONT_SMALL)
+                            .size(snora::design::style::text::body_small_size(tokens))
                             .width(Length::FillPortion(2)),
                     ]
                     .spacing(8)
@@ -325,8 +343,9 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
             // Stage 2 first identified.
             (
                 column![
-                    text(state.t("plain.get_latest.working")).size(FONT_BODY),
-                    text(progress_label).size(FONT_SMALL),
+                    text(state.t("plain.get_latest.working"))
+                        .size(snora::design::style::text::body_size(tokens)),
+                    text(progress_label).size(snora::design::style::text::body_small_size(tokens)),
                     column(result_rows).spacing(6),
                 ]
                 .spacing(12)
@@ -429,11 +448,15 @@ fn pull_result_view<'a>(
 
             let mut row_col = column![
                 row![
-                    text(icon).size(FONT_BODY).width(Length::Fixed(20.0)),
+                    text(icon)
+                        .size(snora::design::style::text::body_size(tokens))
+                        .width(Length::Fixed(20.0)),
                     text(&pp.project_name)
-                        .size(FONT_BODY)
+                        .size(snora::design::style::text::body_size(tokens))
                         .width(Length::FillPortion(2)),
-                    text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
+                    text(msg)
+                        .size(snora::design::style::text::body_size(tokens))
+                        .width(Length::FillPortion(2)),
                 ]
                 .spacing(8),
             ]
@@ -445,12 +468,15 @@ fn pull_result_view<'a>(
                 && state.show_op_details
             {
                 for cmd in &pp.commands_executed {
-                    row_col = row_col.push(text(format!("  {}", cmd)).size(FONT_SMALL));
+                    row_col = row_col.push(
+                        text(format!("  {}", cmd))
+                            .size(snora::design::style::text::body_small_size(tokens)),
+                    );
                 }
                 if !pp.stderr.is_empty() {
                     row_col = row_col.push(
                         text(format!("  {}", pp.stderr.lines().next().unwrap_or("")))
-                            .size(FONT_SMALL),
+                            .size(snora::design::style::text::body_small_size(tokens)),
                     );
                 }
             }
@@ -485,8 +511,8 @@ fn pull_result_view<'a>(
     // No inner `scrollable` around the row list — same reasoning as
     // `AwaitingConfirm` above.
     let body = column![
-        text(summary).size(FONT_BODY + 2.0),
-        text(body_text).size(FONT_BODY),
+        text(summary).size(snora::design::style::text::title_size(tokens)),
+        text(body_text).size(snora::design::style::text::body_size(tokens)),
         column(rows).spacing(8),
     ]
     .spacing(12);
@@ -514,7 +540,7 @@ fn styled_button<'a>(
     style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    iced::widget::button(text(label).size(FONT_BODY))
+    iced::widget::button(text(label).size(snora::design::style::text::body_size(tokens)))
         .height(BUTTON_HEIGHT)
         .padding([0, 18])
         .on_press_maybe(on_press)
@@ -544,7 +570,7 @@ fn pick_disposition_btn<'a>(
         project_id.clone(),
         disposition,
     )));
-    iced::widget::button(text(label).size(FONT_SMALL))
+    iced::widget::button(text(label).size(snora::design::style::text::body_small_size(tokens)))
         .height(32.0)
         .padding([0, 10])
         .on_press_maybe(msg)

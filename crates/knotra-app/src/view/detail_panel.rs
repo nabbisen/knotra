@@ -23,7 +23,7 @@ use iced::{
     widget::{Space, button, column, container, row, scrollable, text},
 };
 
-use knotra_ui::widget::record_row;
+use knotra_ui::widget::{Tokens, record_row};
 
 use crate::{
     message::{DetailPanelMessage, Message, ProjectMessage, WorkspaceMessage},
@@ -38,25 +38,31 @@ use crate::{
 /// longest label, matching the old padded columns' per-section grouping
 /// rather than one width shared across the whole panel.
 fn field_row<'a>(
+    tokens: &Tokens,
     label: &'a str,
     value: impl std::fmt::Display,
     label_width: f32,
 ) -> Element<'a, Message> {
     row![
-        text(label).size(11).width(Length::Fixed(label_width)),
-        text(value.to_string()).size(11),
+        text(label)
+            .size(snora::design::style::text::body_small_size(tokens))
+            .width(Length::Fixed(label_width)),
+        text(value.to_string()).size(snora::design::style::text::body_small_size(tokens)),
     ]
     .into()
 }
 
 /// Fits `detail.label_remote` ("Remote:"), the longest label in the
-/// Identity section, at `.size(11)`.
+/// Identity section, at the `body_small` role (RFC-056 Stage 2; was a raw
+/// `.size(11)`).
 const IDENTITY_LABEL_WIDTH: f32 = 56.0;
 /// Fits `detail.label_untracked` ("Untracked:"), the longest label in the
-/// Status section, at `.size(11)`.
+/// Status section, at the `body_small` role (RFC-056 Stage 2; was a raw
+/// `.size(11)`).
 const STATUS_LABEL_WIDTH: f32 = 72.0;
 
 pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
+    let tokens = &state.theme.tokens;
     let id = state.detail_panel.open_project_id.as_ref()?;
 
     let project = state
@@ -70,11 +76,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .and_then(|ws| ws.projects.iter().find(|ps| &ps.project_id == id));
 
     // --- Header ---
-    let close_btn =
-        button(text("✕").size(12)).on_press(Message::DetailPanel(DetailPanelMessage::Closed));
+    let close_btn = button(text("✕").size(snora::design::style::text::body_small_size(tokens)))
+        .on_press(Message::DetailPanel(DetailPanelMessage::Closed));
 
     let header = row![
-        text(project.name.clone()).size(15),
+        text(project.name.clone()).size(snora::design::style::text::body_size(tokens)),
         Space::new().width(Length::Fill),
         close_btn,
     ]
@@ -90,10 +96,26 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .unwrap_or_else(|| "—".into());
 
     let identity = column![
-        text(state.t("detail.section_identity")).size(12),
-        field_row(state.t("detail.label_vcs"), vcs, IDENTITY_LABEL_WIDTH),
-        field_row(state.t("detail.label_path"), path, IDENTITY_LABEL_WIDTH),
-        field_row(state.t("detail.label_remote"), remote, IDENTITY_LABEL_WIDTH),
+        text(state.t("detail.section_identity"))
+            .size(snora::design::style::text::body_small_size(tokens)),
+        field_row(
+            tokens,
+            state.t("detail.label_vcs"),
+            vcs,
+            IDENTITY_LABEL_WIDTH
+        ),
+        field_row(
+            tokens,
+            state.t("detail.label_path"),
+            path,
+            IDENTITY_LABEL_WIDTH
+        ),
+        field_row(
+            tokens,
+            state.t("detail.label_remote"),
+            remote,
+            IDENTITY_LABEL_WIDTH
+        ),
     ]
     .spacing(3);
 
@@ -113,17 +135,40 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         };
 
         column![
-            text(state.t("detail.section_status")).size(12),
-            field_row(state.t("detail.label_branch"), branch, STATUS_LABEL_WIDTH),
-            field_row(state.t("detail.label_ahead"), ahead, STATUS_LABEL_WIDTH),
-            field_row(state.t("detail.label_behind"), behind, STATUS_LABEL_WIDTH),
-            field_row(state.t("detail.label_dirty"), dirty, STATUS_LABEL_WIDTH),
+            text(state.t("detail.section_status"))
+                .size(snora::design::style::text::body_small_size(tokens)),
             field_row(
+                tokens,
+                state.t("detail.label_branch"),
+                branch,
+                STATUS_LABEL_WIDTH
+            ),
+            field_row(
+                tokens,
+                state.t("detail.label_ahead"),
+                ahead,
+                STATUS_LABEL_WIDTH
+            ),
+            field_row(
+                tokens,
+                state.t("detail.label_behind"),
+                behind,
+                STATUS_LABEL_WIDTH
+            ),
+            field_row(
+                tokens,
+                state.t("detail.label_dirty"),
+                dirty,
+                STATUS_LABEL_WIDTH
+            ),
+            field_row(
+                tokens,
                 state.t("detail.label_untracked"),
                 untracked,
                 STATUS_LABEL_WIDTH
             ),
             field_row(
+                tokens,
                 state.t("detail.label_conflict"),
                 conflict,
                 STATUS_LABEL_WIDTH
@@ -132,8 +177,10 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .spacing(3)
     } else {
         column![
-            text(state.t("detail.section_status")).size(12),
-            text(state.t("detail.loading")).size(11)
+            text(state.t("detail.section_status"))
+                .size(snora::design::style::text::body_small_size(tokens)),
+            text(state.t("detail.loading"))
+                .size(snora::design::style::text::body_small_size(tokens))
         ]
     };
 
@@ -162,7 +209,7 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                 super::operation_kind_label(state, &log.result.kind),
                 log.result.started_at.format("%m/%d %H:%M")
             ))
-            .size(11)
+            .size(snora::design::style::text::body_small_size(tokens))
             .into()
         })
         .collect();
@@ -170,11 +217,15 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     let recent = column(
         std::iter::once(
             text(state.t("detail.section_recent_operations"))
-                .size(12)
+                .size(snora::design::style::text::body_small_size(tokens))
                 .into(),
         )
         .chain(if recent_ops.is_empty() {
-            vec![text(state.t("detail.none")).size(11).into()]
+            vec![
+                text(state.t("detail.none"))
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .into(),
+            ]
         } else {
             recent_ops
         }),
@@ -188,7 +239,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     // unread by RFC-045).
     let commits_body: Vec<Element<'_, Message>> = match &state.detail_panel.commits_phase {
         RecentCommitsPhase::Loading(loading_id) if loading_id == id => {
-            vec![text(state.t("detail.commits_loading")).size(11).into()]
+            vec![
+                text(state.t("detail.commits_loading"))
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .into(),
+            ]
         }
         RecentCommitsPhase::Loaded {
             project_id,
@@ -197,36 +252,45 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
             if let Some(err) = &commits.error {
                 vec![
                     text(format!("{} {}", state.t("detail.commits_error"), err))
-                        .size(11)
+                        .size(snora::design::style::text::body_small_size(tokens))
                         .into(),
                 ]
             } else if commits.entries.is_empty() {
-                vec![text(state.t("detail.commits_empty")).size(11).into()]
+                vec![
+                    text(state.t("detail.commits_empty"))
+                        .size(snora::design::style::text::body_small_size(tokens))
+                        .into(),
+                ]
             } else {
                 commits
                     .entries
                     .iter()
                     .map(|entry| {
                         let short_hash = &entry.hash[..entry.hash.len().min(7)];
-                        let summary = text(format!("{short_hash}  {}", entry.subject)).size(11);
+                        let summary = text(format!("{short_hash}  {}", entry.subject))
+                            .size(snora::design::style::text::body_small_size(tokens));
                         let detail = text(format!(
                             "{} — {}",
                             entry.author,
                             entry.date.format("%Y-%m-%d %H:%M")
                         ))
-                        .size(10);
+                        .size(snora::design::style::text::body_small_size(tokens));
                         record_row(summary.into(), Some(detail.into()))
                     })
                     .collect()
             }
         }
-        _ => vec![text(state.t("detail.commits_loading")).size(11).into()],
+        _ => vec![
+            text(state.t("detail.commits_loading"))
+                .size(snora::design::style::text::body_small_size(tokens))
+                .into(),
+        ],
     };
 
     let commits = column(
         std::iter::once(
             text(state.t("detail.section_recent_commits"))
-                .size(12)
+                .size(snora::design::style::text::body_small_size(tokens))
                 .into(),
         )
         .chain(commits_body),
@@ -234,21 +298,32 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     .spacing(3);
 
     // --- Actions ---
-    let refresh_btn = button(text(state.t("detail.refresh")).size(12)).on_press(Message::Project(
-        ProjectMessage::StatusRefreshRequested(id.clone()),
-    ));
+    let refresh_btn = button(
+        text(state.t("detail.refresh")).size(snora::design::style::text::body_small_size(tokens)),
+    )
+    .on_press(Message::Project(ProjectMessage::StatusRefreshRequested(
+        id.clone(),
+    )));
 
-    let fetch_btn = button(text(state.t("detail.fetch")).size(12)).on_press_maybe(
+    let fetch_btn = button(
+        text(state.t("detail.fetch")).size(snora::design::style::text::body_small_size(tokens)),
+    )
+    .on_press_maybe(
         (!state.operation_interlock.is_busy())
             .then_some(Message::Project(ProjectMessage::FetchRequested(id.clone()))),
     );
 
-    let remove_btn = button(text(state.t("detail.remove_from_workspace")).size(12)).on_press(
-        Message::Workspace(WorkspaceMessage::RemoveProjectRequested(id.clone())),
-    );
+    let remove_btn = button(
+        text(state.t("detail.remove_from_workspace"))
+            .size(snora::design::style::text::body_small_size(tokens)),
+    )
+    .on_press(Message::Workspace(
+        WorkspaceMessage::RemoveProjectRequested(id.clone()),
+    ));
 
     let actions = column![
-        text(state.t("detail.section_actions")).size(12),
+        text(state.t("detail.section_actions"))
+            .size(snora::design::style::text::body_small_size(tokens)),
         row![refresh_btn, fetch_btn].spacing(6),
         remove_btn,
     ]

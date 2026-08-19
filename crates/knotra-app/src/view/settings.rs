@@ -18,7 +18,7 @@ use iced::{
     widget::{Space, button, column, container, row, scrollable, text},
 };
 use knotra_ui::i18n::Locale;
-use knotra_ui::widget::validated_field;
+use knotra_ui::widget::{Tokens, validated_field};
 
 use crate::{
     message::{Message, SettingsMessage},
@@ -42,9 +42,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 }
 
 fn view_header(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     // RFC-034 R13: per-screen back navigation removed — Dashboard/History are
     // reached through the persistent shell now, not a screen-owned button.
-    row![text(state.t("settings.title")).size(20)]
+    row![text(state.t("settings.title")).size(snora::design::style::text::heading_size(tokens))]
         .spacing(12)
         .align_y(Alignment::Center)
         .padding(Padding::new(12.0))
@@ -52,12 +53,13 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
 }
 
 fn view_body(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     let mode = state.width_mode;
 
     let form = column![
-        section_header(state.t("settings.section.display")),
+        section_header(tokens, state.t("settings.section.display")),
         view_display_section(state),
-        section_header(state.t("settings.section.refresh")),
+        section_header(tokens, state.t("settings.section.refresh")),
         field_grid(
             mode,
             vec![
@@ -65,17 +67,18 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
                 view_max_concurrent_field(state),
             ],
         ),
-        section_header(state.t("settings.section.tools")),
+        section_header(tokens, state.t("settings.section.tools")),
         field_grid(
             mode,
             vec![view_editor_field(state), view_merge_tool_field(state)]
         ),
-        section_header(state.t("settings.section.logs")),
+        section_header(tokens, state.t("settings.section.logs")),
         view_max_logs_field(state),
-        section_header(state.t("settings.section.fs_watch")),
+        section_header(tokens, state.t("settings.section.fs_watch")),
         view_fs_watch_section(state),
         view_save_row(state),
-        text(state.t("settings.restart_hint")).size(11),
+        text(state.t("settings.restart_hint"))
+            .size(snora::design::style::text::body_small_size(tokens)),
     ]
     .spacing(16)
     .width(Length::Fill)
@@ -105,8 +108,10 @@ fn field_grid<'a>(mode: WidthMode, cells: Vec<Element<'a, Message>>) -> Element<
 // ---------------------------------------------------------------------------
 
 fn view_display_section(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     let locale_row = row![
-        text(state.t("settings.locale_label")).size(13),
+        text(state.t("settings.locale_label"))
+            .size(snora::design::style::text::body_small_size(tokens)),
         Space::new().width(Length::Fill),
         button(text("English")).on_press_maybe(if state.config.locale != Locale::En {
             Some(Message::Settings(SettingsMessage::LocaleChanged(
@@ -127,7 +132,8 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
     .align_y(Alignment::Center);
 
     let theme_row = row![
-        text(state.t("settings.theme_label")).size(13),
+        text(state.t("settings.theme_label"))
+            .size(snora::design::style::text::body_small_size(tokens)),
         Space::new().width(Length::Fill),
         button(text(state.t("settings.theme_dark"))).on_press_maybe(if !state.config.dark_theme {
             Some(Message::Settings(SettingsMessage::ThemeChanged(true)))
@@ -168,9 +174,9 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
 
     column![
         locale_row,
-        text(active_locale_note).size(11),
+        text(active_locale_note).size(snora::design::style::text::body_small_size(tokens)),
         theme_row,
-        text(active_theme_note).size(11),
+        text(active_theme_note).size(snora::design::style::text::body_small_size(tokens)),
     ]
     .spacing(8)
     .into()
@@ -297,8 +303,10 @@ fn positive_usize_field_error(s: &str) -> Option<&'static str> {
 // ---------------------------------------------------------------------------
 
 fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     column![
         labeled_row(
+            tokens,
             state.t("settings.fs_watch_enable_label"),
             button(text(if state.config.fs_watch_enabled {
                 state.t("settings.fs_watch_enabled")
@@ -315,7 +323,8 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
         // handoff's explicit instruction. `settings.*` is not among
         // `FIRST_LEVEL_PREFIXES`, so `first_level_wording_has_no_developer_jargon`
         // does not and will not police it either way.
-        text(state.t("settings.fs_watch_hint")).size(11),
+        text(state.t("settings.fs_watch_hint"))
+            .size(snora::design::style::text::body_small_size(tokens)),
         view_fs_debounce_field(state),
     ]
     .spacing(12)
@@ -327,11 +336,14 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
 // ---------------------------------------------------------------------------
 
 fn view_save_row(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     let save_btn = button(text(state.t("settings.save")))
         .on_press(Message::Settings(SettingsMessage::SaveRequested));
 
     let save_msg: Element<'_, Message> = if let Some(ref msg) = state.settings_save_msg {
-        text(msg.as_str()).size(13).into()
+        text(msg.as_str())
+            .size(snora::design::style::text::body_small_size(tokens))
+            .into()
     } else {
         Space::new().into()
     };
@@ -343,13 +355,19 @@ fn view_save_row(state: &AppState) -> Element<'_, Message> {
         .into()
 }
 
-fn section_header(label: &str) -> Element<'_, Message> {
-    text(label).size(15).into()
+fn section_header<'a>(tokens: &Tokens, label: &'a str) -> Element<'a, Message> {
+    text(label)
+        .size(snora::design::style::text::body_size(tokens))
+        .into()
 }
 
-fn labeled_row<'a>(label: &'a str, widget: Element<'a, Message>) -> Element<'a, Message> {
+fn labeled_row<'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    widget: Element<'a, Message>,
+) -> Element<'a, Message> {
     row![
-        text(label).size(13),
+        text(label).size(snora::design::style::text::body_small_size(tokens)),
         Space::new().width(Length::Fill),
         widget,
     ]

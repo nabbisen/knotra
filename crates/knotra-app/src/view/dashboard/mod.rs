@@ -146,9 +146,13 @@ pub fn view(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
 
     if let Some(message) = &state.status_bar {
         body = body.push(
-            container(text(message).size(12))
-                .width(Length::Fill)
-                .padding([3, 12]),
+            container(
+                text(message).size(snora::design::style::text::body_small_size(
+                    &state.theme.tokens,
+                )),
+            )
+            .width(Length::Fill)
+            .padding([3, 12]),
         );
     }
 
@@ -164,15 +168,21 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
     // RFC-034 R13/R14: the workspace name lives in the shell switcher now,
     // not repeated here. This is the RFC's one migrated page header; the
     // toolbar below (grouping/sorting/filtering/selection) is RFC-035.
+    let tokens = &state.theme.tokens;
     let refresh: Element<'_, Message> = if state.is_refreshing {
-        text(state.t("plain.status.checking")).size(13).into()
-    } else {
-        button(text(state.t("plain.check_now")).size(13))
-            .on_press(Message::Workspace(WorkspaceMessage::RefreshRequested))
+        text(state.t("plain.status.checking"))
+            .size(snora::design::style::text::body_small_size(tokens))
             .into()
+    } else {
+        button(
+            text(state.t("plain.check_now"))
+                .size(snora::design::style::text::body_small_size(tokens)),
+        )
+        .on_press(Message::Workspace(WorkspaceMessage::RefreshRequested))
+        .into()
     };
 
-    crate::view::shell::page_header(state.t("nav.dashboard"), refresh)
+    crate::view::shell::page_header(state.t("nav.dashboard"), refresh, &state.theme.tokens)
 }
 
 /// R8's wide-mode centring width (~1180-1240px per the Internal Design
@@ -197,10 +207,12 @@ fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     let mut content: Vec<Element<'_, Message>> = Vec::new();
     match &state.load_phase {
         LoadPhase::Startup | LoadPhase::Refreshing => content.push(
-            container(text(state.t("plain.status.checking")).size(12))
-                .width(Length::Fill)
-                .padding([5, 12])
-                .into(),
+            container(text(state.t("plain.status.checking")).size(
+                snora::design::style::text::body_small_size(&state.theme.tokens),
+            ))
+            .width(Length::Fill)
+            .padding([5, 12])
+            .into(),
         ),
         LoadPhase::Ready => {}
     }

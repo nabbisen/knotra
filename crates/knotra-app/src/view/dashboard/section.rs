@@ -86,9 +86,12 @@ fn section_header<'a>(
             icon::chevron_down()
         };
         button(
-            row![text(label).size(13), icon::icon_element(&chevron)]
-                .spacing(6)
-                .align_y(Alignment::Center),
+            row![
+                text(label).size(snora::design::style::text::body_small_size(&tokens)),
+                icon::icon_element(&chevron)
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center),
         )
         .width(Length::Fill)
         .on_press(Message::Dashboard(DashboardMessage::TierToggled(tier)))
@@ -97,9 +100,13 @@ fn section_header<'a>(
         })
         .into()
     } else {
-        container(text(label).size(13))
-            .width(Length::Fill)
-            .padding([5, 8])
-            .into()
+        container(
+            text(label).size(snora::design::style::text::body_small_size(
+                &state.theme.tokens,
+            )),
+        )
+        .width(Length::Fill)
+        .padding([5, 8])
+        .into()
     }
 }

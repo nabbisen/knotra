@@ -3,7 +3,7 @@
 
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, danger_maybe, ghost_maybe};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, danger_maybe, ghost_maybe};
 
 use crate::{
     message::{FilterMessage, Message, WorkspaceMessage},
@@ -11,14 +11,17 @@ use crate::{
 };
 
 pub(super) fn view_without_workspace(state: &AppState) -> Element<'_, Message> {
-    placeholder(state.t("plain.status.checking"))
+    placeholder(&state.theme.tokens, state.t("plain.status.checking"))
 }
 
 pub(super) fn empty_workspace(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     container(
         column![
-            text(state.t("plain.empty.welcome_title")).size(FONT_BODY + 6.0),
-            text(state.t("plain.empty.welcome_body")).size(FONT_BODY),
+            text(state.t("plain.empty.welcome_title"))
+                .size(snora::design::style::text::heading_size(tokens)),
+            text(state.t("plain.empty.welcome_body"))
+                .size(snora::design::style::text::body_size(tokens)),
             button(text(state.t("plain.empty.add_first")))
                 .height(BUTTON_HEIGHT)
                 .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened,)),
@@ -33,9 +36,11 @@ pub(super) fn empty_workspace(state: &AppState) -> Element<'_, Message> {
 }
 
 pub(super) fn no_matches(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
     container(
         column![
-            text(state.t("plain.empty.no_match")).size(FONT_BODY + 2.0),
+            text(state.t("plain.empty.no_match"))
+                .size(snora::design::style::text::title_size(tokens)),
             button(text(state.t("dashboard.clear_filters")))
                 .on_press(Message::Filter(FilterMessage::AllFiltersCleared)),
         ]
@@ -55,9 +60,11 @@ pub(super) fn view_confirm_remove_dialog(state: &AppState) -> Element<'_, Messag
     let tokens = &state.theme.tokens;
     container(
         column![
-            text(state.t("plain.remove.title")).size(FONT_BODY + 2.0),
-            text(dialog.project_name.as_str()).size(FONT_BODY),
-            text(state.t("plain.remove.body")).size(FONT_SMALL),
+            text(state.t("plain.remove.title"))
+                .size(snora::design::style::text::title_size(tokens)),
+            text(dialog.project_name.as_str()).size(snora::design::style::text::body_size(tokens)),
+            text(state.t("plain.remove.body"))
+                .size(snora::design::style::text::body_small_size(tokens)),
             row![
                 // Neither call here ever carried a `reason` (both passed
                 // `None`), so the plain `_maybe` constructors are the
@@ -91,8 +98,8 @@ pub(super) fn view_confirm_remove_dialog(state: &AppState) -> Element<'_, Messag
     .into()
 }
 
-fn placeholder(message: &str) -> Element<'_, Message> {
-    container(text(message).size(14))
+fn placeholder<'a>(tokens: &Tokens, message: &'a str) -> Element<'a, Message> {
+    container(text(message).size(snora::design::style::text::label_size(tokens)))
         .width(Length::Fill)
         .height(Length::Fixed(250.0))
         .center(Length::Fill)

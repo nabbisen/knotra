@@ -16,7 +16,7 @@
 use snora::design::Tokens;
 
 use super::icon::icon_element;
-use super::layout::{BUTTON_HEIGHT, Element, FONT_BODY, FONT_SMALL, Length};
+use super::layout::{BUTTON_HEIGHT, Element, Length};
 
 /// A token-aware, focus-ring-capable button that shows a plain-text reason
 /// beneath it when disabled — the composition the deleted `guided_button`
@@ -48,15 +48,23 @@ pub fn reasoned<'a, Message: Clone + 'a>(
     let t = tokens.clone();
     let show_reason = reason_row_needed(on_press.is_none(), reason.is_some());
 
-    let btn: Element<'a, Message> = button(text(label.into()).size(FONT_BODY))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 18])
-        .on_press_maybe(on_press)
-        .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
-        .into();
+    let btn: Element<'a, Message> =
+        button(text(label.into()).size(snora::design::style::text::body_size(tokens)))
+            .height(BUTTON_HEIGHT)
+            .padding([0, 18])
+            .on_press_maybe(on_press)
+            .style(move |_theme, status| {
+                style::with_focus_ring(&t, is_focused, style_fn(&t, status))
+            })
+            .into();
 
     match reason {
-        Some(r) if show_reason => column![btn, text(r).size(FONT_SMALL)].spacing(6).into(),
+        Some(r) if show_reason => column![
+            btn,
+            text(r).size(snora::design::style::text::body_small_size(tokens))
+        ]
+        .spacing(6)
+        .into(),
         _ => btn,
     }
 }
@@ -282,7 +290,10 @@ pub fn icon_button_maybe<'a, Message: Clone + 'a>(
 
     tooltip(
         btn,
-        super::overlay::raised_card(tokens, text(accessible_label.into()).size(FONT_SMALL)),
+        super::overlay::raised_card(
+            tokens,
+            text(accessible_label.into()).size(snora::design::style::text::body_small_size(tokens)),
+        ),
         tooltip::Position::Bottom,
     )
     .into()

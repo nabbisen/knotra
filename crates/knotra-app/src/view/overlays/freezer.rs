@@ -16,7 +16,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, Tokens, guided_field, guided_field_focused,
+    BUTTON_HEIGHT, Tokens, guided_field, guided_field_focused,
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
@@ -45,6 +45,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
             };
 
             let name_field = guided_field_focused(
+                tokens,
                 state.t("plain.release.name_label"),
                 state.t("plain.release.name_hint"),
                 &freezer.freeze_name,
@@ -54,6 +55,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
             );
 
             let msg_field = guided_field(
+                tokens,
                 state.t("plain.release.note_label"),
                 state.t("plain.release.note_hint"),
                 &freezer.tag_message,
@@ -64,7 +66,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
             let validate_or_spinner: Element<'_, Message> =
                 if matches!(freezer.phase, FreezerPhase::Validating { .. }) {
                     text(state.t("plain.release.checking"))
-                        .size(FONT_BODY)
+                        .size(snora::design::style::text::body_size(tokens))
                         .into()
                 } else if freezer.freeze_name_is_valid() {
                     reasoned(
@@ -118,11 +120,15 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     };
 
                     row![
-                        text(icon).size(FONT_BODY).width(Length::Fixed(22.0)),
+                        text(icon)
+                            .size(snora::design::style::text::body_size(tokens))
+                            .width(Length::Fixed(22.0)),
                         text(&entry.project_name)
-                            .size(FONT_BODY)
+                            .size(snora::design::style::text::body_size(tokens))
                             .width(Length::FillPortion(2)),
-                        text(msg).size(FONT_SMALL).width(Length::FillPortion(3)),
+                        text(msg)
+                            .size(snora::design::style::text::body_small_size(tokens))
+                            .width(Length::FillPortion(3)),
                     ]
                     .spacing(8)
                     .align_y(Alignment::Center)
@@ -167,9 +173,10 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
             // same reasoning as Stage 2/3 (review `132` §4).
             (
                 column![
-                    text(state.t("plain.release.ready_check")).size(FONT_BODY),
+                    text(state.t("plain.release.ready_check"))
+                        .size(snora::design::style::text::body_size(tokens)),
                     column(val_rows).spacing(6),
-                    impact_warnings_section(state),
+                    impact_warnings_section(tokens, state),
                 ]
                 .spacing(12)
                 .into(),
@@ -180,8 +187,10 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         // ── Executing ─────────────────────────────────────────────────────
         FreezerPhase::Executing => (
             column![
-                text(state.t("plain.release.saving")).size(FONT_BODY),
-                text(state.t("plain.release.saving_hint")).size(FONT_SMALL),
+                text(state.t("plain.release.saving"))
+                    .size(snora::design::style::text::body_size(tokens)),
+                text(state.t("plain.release.saving_hint"))
+                    .size(snora::design::style::text::body_small_size(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -229,11 +238,15 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
 
                     let mut row_col = column![
                         row![
-                            text(icon).size(FONT_BODY).width(Length::Fixed(22.0)),
+                            text(icon)
+                                .size(snora::design::style::text::body_size(tokens))
+                                .width(Length::Fixed(22.0)),
                             text(&pr.project_name)
-                                .size(FONT_BODY)
+                                .size(snora::design::style::text::body_size(tokens))
                                 .width(Length::FillPortion(2)),
-                            text(msg).size(FONT_BODY).width(Length::FillPortion(2)),
+                            text(msg)
+                                .size(snora::design::style::text::body_size(tokens))
+                                .width(Length::FillPortion(2)),
                         ]
                         .spacing(8),
                     ]
@@ -244,7 +257,10 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                         && let Some(hint) = &pr.recovery_hint
                     {
                         for cmd in &hint.suggested_commands {
-                            row_col = row_col.push(text(format!("  {}", cmd)).size(FONT_SMALL));
+                            row_col = row_col.push(
+                                text(format!("  {}", cmd))
+                                    .size(snora::design::style::text::body_small_size(tokens)),
+                            );
                         }
                     }
 
@@ -264,11 +280,12 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 {
                     if push.is_pushing {
                         text(state.t("plain.release.sharing"))
-                            .size(FONT_BODY)
+                            .size(snora::design::style::text::body_size(tokens))
                             .into()
                     } else {
                         column![
-                            text(state.t("plain.release.share_offer")).size(FONT_BODY),
+                            text(state.t("plain.release.share_offer"))
+                                .size(snora::design::style::text::body_size(tokens)),
                             row![
                                 styled_button(
                                     tokens,
@@ -315,8 +332,8 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
             // the `ValidationReady` branch above.
             (
                 column![
-                    text(outcome_title).size(FONT_BODY + 2.0),
-                    text(outcome_body).size(FONT_BODY),
+                    text(outcome_title).size(snora::design::style::text::title_size(tokens)),
+                    text(outcome_body).size(snora::design::style::text::body_size(tokens)),
                     column(rows).spacing(8),
                     push_offer,
                 ]
@@ -365,7 +382,7 @@ fn styled_button<'a>(
     style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    iced::widget::button(text(label).size(FONT_BODY))
+    iced::widget::button(text(label).size(snora::design::style::text::body_size(tokens)))
         .height(BUTTON_HEIGHT)
         .padding([0, 18])
         .on_press_maybe(on_press)
@@ -377,15 +394,15 @@ fn styled_button<'a>(
 /// `state.freezer.topology_checked` distinguishes "not checked" from
 /// "checked, found nothing" — both are stated explicitly, never left as an
 /// empty section a silent absence could be misread from (D3, R3).
-fn impact_warnings_section(state: &AppState) -> Element<'_, Message> {
+fn impact_warnings_section<'a>(tokens: &Tokens, state: &'a AppState) -> Element<'a, Message> {
     if !state.freezer.topology_checked {
         return text(state.t("plain.release.impact_unchecked"))
-            .size(FONT_SMALL)
+            .size(snora::design::style::text::body_small_size(tokens))
             .into();
     }
     if state.freezer.impact_warnings.is_empty() {
         return text(state.t("plain.release.impact_clear"))
-            .size(FONT_SMALL)
+            .size(snora::design::style::text::body_small_size(tokens))
             .into();
     }
 
@@ -395,16 +412,18 @@ fn impact_warnings_section(state: &AppState) -> Element<'_, Message> {
         .iter()
         .map(|w| {
             row![
-                text("⚠").size(FONT_BODY).width(Length::Fixed(22.0)),
+                text("⚠")
+                    .size(snora::design::style::text::body_size(tokens))
+                    .width(Length::Fixed(22.0)),
                 text(&w.frozen_project_name)
-                    .size(FONT_BODY)
+                    .size(snora::design::style::text::body_size(tokens))
                     .width(Length::FillPortion(2)),
                 text(format!(
                     "{}: {}",
                     state.t("plain.release.impact_depended_on_by"),
                     w.dependent_projects.join(", ")
                 ))
-                .size(FONT_SMALL)
+                .size(snora::design::style::text::body_small_size(tokens))
                 .width(Length::FillPortion(3)),
             ]
             .spacing(8)
@@ -414,7 +433,8 @@ fn impact_warnings_section(state: &AppState) -> Element<'_, Message> {
         .collect();
 
     column![
-        text(state.t("plain.release.impact_title")).size(FONT_SMALL),
+        text(state.t("plain.release.impact_title"))
+            .size(snora::design::style::text::body_small_size(tokens)),
         column(rows).spacing(6),
     ]
     .spacing(6)

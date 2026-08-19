@@ -12,7 +12,7 @@ use iced::{
     Alignment, Element, Length,
     widget::{Space, button, column, container, row, text},
 };
-use knotra_ui::widget::{self, FONT_BODY, FONT_SMALL, Tokens, icon, icon_button_maybe};
+use knotra_ui::widget::{self, Tokens, icon, icon_button_maybe};
 
 use crate::{
     message::{Message, WorkspaceMessage},
@@ -115,7 +115,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let switcher_trigger = button(
         row![
-            text(switcher_label).size(FONT_BODY),
+            text(switcher_label).size(snora::design::style::text::body_size(tokens)),
             widget::icon::icon_element(&icon::chevron_down()),
         ]
         .spacing(6)
@@ -135,7 +135,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let nav_button = |label: &str, active: bool, target: Screen, tokens: &Tokens, focused: bool| {
         let t = tokens.clone();
-        button(text(label.to_owned()).size(FONT_BODY))
+        button(text(label.to_owned()).size(snora::design::style::text::body_size(tokens)))
             .on_press_maybe((!active).then_some(Message::Navigate(target)))
             .style(move |_theme, status| {
                 // R12: the current destination must be the *most* salient
@@ -147,7 +147,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let status_text: Element<'_, Message> = if state.is_refreshing {
         text(state.t("plain.status.checking"))
-            .size(FONT_SMALL)
+            .size(snora::design::style::text::body_small_size(tokens))
             .into()
     } else {
         Space::new().width(Length::Shrink).into()
@@ -229,7 +229,7 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
         let is_active = Some(&ws.id) == active_id.as_ref();
         let t = tokens.clone();
         items = items.push(
-            button(text(ws.name.clone()).size(FONT_BODY))
+            button(text(ws.name.clone()).size(snora::design::style::text::body_size(tokens)))
                 .width(Length::Fill)
                 .on_press_maybe((!is_active).then_some(Message::Workspace(
                     WorkspaceMessage::WorkspaceSwitched(ws.id.clone()),
@@ -241,7 +241,7 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
     let can_delete = state.all_workspaces.len() > 1;
     let menu_action = |label: &str, msg: Message, tokens: &Tokens| {
         let t = tokens.clone();
-        button(text(label.to_owned()).size(FONT_BODY))
+        button(text(label.to_owned()).size(snora::design::style::text::body_size(tokens)))
             .width(Length::Fill)
             .on_press(msg)
             .style(move |_theme, status| widget::style::ghost(&t, status))
@@ -289,7 +289,7 @@ fn danger_menu_action<'a>(
     tokens: &Tokens,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(text(label).size(FONT_BODY))
+    button(text(label).size(snora::design::style::text::body_size(tokens)))
         .width(Length::Fill)
         .on_press_maybe(on_press)
         .style(move |_theme, status| widget::style::danger(&t, status))
@@ -299,12 +299,16 @@ fn danger_menu_action<'a>(
 /// Shared page-header pattern: title on the left, contextual actions on the
 /// right. RFC-034 R14 migrates exactly one caller (the dashboard) as
 /// validation; other screens keep their own inline header for now.
+///
+/// RFC-056 Stage 2: the title is `heading` (24) — snora's own description of
+/// that role, "page or section heading," is exactly what this is.
 pub fn page_header<'a>(
     title: impl Into<String>,
     actions: impl Into<Element<'a, Message>>,
+    tokens: &Tokens,
 ) -> Element<'a, Message> {
     row![
-        text(title.into()).size(20),
+        text(title.into()).size(snora::design::style::text::heading_size(tokens)),
         Space::new().width(Length::Fill),
         actions.into(),
     ]

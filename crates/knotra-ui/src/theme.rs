@@ -63,12 +63,29 @@ pub struct KnotraTheme {
     pub tokens: snora::design::Tokens,
 }
 
+/// RFC-056 Stage 2 (D3/A1/A3): knotra supplies its own `body_small` — 13.0,
+/// not snora's default 14.0. knotra's dense metadata rows were already at 13
+/// (the retired `FONT_SMALL`, 70 sites) before this stage; adopting snora's
+/// default would have shrunk every one of them by a pixel to gain one pixel
+/// on the sub-floor outliers moving up to it — a regression on the many to
+/// spare the few (A3), and R10 forbids any site shrinking.
+///
+/// **Safe from snora's own chrome**, verified against the 0.38.0 source of
+/// all four snora crates (A1): `snora-widgets`/`snora` call only
+/// `label_size`/`body_size` — never `body_small_size` — so this override
+/// reaches knotra's own text and nothing snora renders. `label` and `body`
+/// are left untouched.
+fn with_knotra_typography(mut tokens: snora::design::Tokens) -> snora::design::Tokens {
+    tokens.typography.body_small.size = 13.0;
+    tokens
+}
+
 impl KnotraTheme {
     pub fn light() -> Self {
         KnotraTheme {
             base: iced::Theme::Light,
             dark: false,
-            tokens: snora::design::Tokens::light(),
+            tokens: with_knotra_typography(snora::design::Tokens::light()),
         }
     }
 
@@ -76,7 +93,7 @@ impl KnotraTheme {
         KnotraTheme {
             base: iced::Theme::Dark,
             dark: true,
-            tokens: snora::design::Tokens::dark(),
+            tokens: with_knotra_typography(snora::design::Tokens::dark()),
         }
     }
 

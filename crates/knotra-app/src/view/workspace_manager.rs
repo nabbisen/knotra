@@ -12,7 +12,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, FONT_BODY, FONT_SMALL, guided_field_focused,
+    BUTTON_HEIGHT, guided_field_focused,
     overlay::{OverlayWidth, surface},
     style,
 };
@@ -183,6 +183,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
 
     let field = match dialog {
         NameDialog::Create(_) => guided_field_focused(
+            &state.theme.tokens,
             state.t("workspace.name_label"),
             state.t("workspace.name_hint"),
             value,
@@ -191,6 +192,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
             knotra_ui::widget::focus_id::WORKSPACE_NAME.clone(),
         ),
         NameDialog::Rename(_) => guided_field_focused(
+            &state.theme.tokens,
             state.t("workspace.name_label"),
             state.t("workspace.name_hint"),
             value,
@@ -211,7 +213,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     let confirm_focused = is_focused(state, focus_target::CONFIRM);
     let confirm_btn = {
         let t = tokens.clone();
-        button(text(confirm_label).size(FONT_BODY))
+        button(text(confirm_label).size(snora::design::style::text::body_size(tokens)))
             .height(BUTTON_HEIGHT)
             .padding([0, 18])
             .on_press_maybe(confirm_on_press.clone())
@@ -223,7 +225,8 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     {
         column![
             confirm_btn,
-            text(reason.unwrap_or_default()).size(FONT_SMALL)
+            text(reason.unwrap_or_default())
+                .size(snora::design::style::text::body_small_size(tokens))
         ]
         .spacing(6)
         .into()
@@ -234,7 +237,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     let cancel_focused = is_focused(state, focus_target::CANCEL);
     let cancel_btn = {
         let t = tokens.clone();
-        button(text(state.t("action.cancel")).size(FONT_BODY))
+        button(text(state.t("action.cancel")).size(snora::design::style::text::body_size(tokens)))
             .height(BUTTON_HEIGHT)
             .padding([0, 18])
             .on_press(Message::Workspace(cancel.clone()))
@@ -287,19 +290,23 @@ fn delete_dialog<'a>(
     let confirm_focused = is_focused(state, focus_target::CONFIRM);
     let confirm_btn = {
         let t = tokens.clone();
-        button(text(state.t("workspace.delete.confirm")).size(FONT_BODY))
-            .height(BUTTON_HEIGHT)
-            .padding([0, 18])
-            .on_press_maybe(confirm_on_press.clone())
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, confirm_focused, style::danger(&t, status))
-            })
+        button(
+            text(state.t("workspace.delete.confirm"))
+                .size(snora::design::style::text::body_size(tokens)),
+        )
+        .height(BUTTON_HEIGHT)
+        .padding([0, 18])
+        .on_press_maybe(confirm_on_press.clone())
+        .style(move |_theme, status| {
+            style::with_focus_ring(&t, confirm_focused, style::danger(&t, status))
+        })
     };
     let confirm: Element<'_, Message> = if confirm_shows_reason(confirm_on_press.is_some(), reason)
     {
         column![
             confirm_btn,
-            text(reason.unwrap_or_default()).size(FONT_SMALL)
+            text(reason.unwrap_or_default())
+                .size(snora::design::style::text::body_small_size(tokens))
         ]
         .spacing(6)
         .into()
@@ -310,7 +317,7 @@ fn delete_dialog<'a>(
     let cancel_focused = is_focused(state, focus_target::CANCEL);
     let cancel_btn = {
         let t = tokens.clone();
-        button(text(state.t("action.cancel")).size(FONT_BODY))
+        button(text(state.t("action.cancel")).size(snora::design::style::text::body_size(tokens)))
             .height(BUTTON_HEIGHT)
             .padding([0, 18])
             .on_press(Message::Workspace(
@@ -325,8 +332,8 @@ fn delete_dialog<'a>(
         row![confirm, Space::new().width(Length::Fill), cancel_btn].align_y(Alignment::Center);
 
     let body = column![
-        text(body_text).size(FONT_BODY),
-        text(project_count).size(FONT_SMALL),
+        text(body_text).size(snora::design::style::text::body_size(tokens)),
+        text(project_count).size(snora::design::style::text::body_small_size(tokens)),
     ]
     .spacing(8);
 
