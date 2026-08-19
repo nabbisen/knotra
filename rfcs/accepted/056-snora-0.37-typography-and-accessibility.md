@@ -243,10 +243,27 @@ So **knotra supplies its own `Typography` with `body_small` at 12.0**, and the
 the floor is met, and knotra's density survives.
 
 **This is safe from snora's chrome, and only because of which role we pick.**
-`typography.md`: *"snora's prefab widgets use two of these six roles: `label`
-and `body`. `body_small`, `title`, `heading` and `display` are not applied by any
-widget."* Overriding `body_small` reaches knotra's own text and nothing snora
-renders. **Overriding `label` or `body` would**, and this RFC does not.
+Verified from the **0.37.2 source of all four snora crates**, not from the
+documentation sentence I first cited:
+
+- `snora-design` is tokens only - no widgets, and `body_small` appears in it
+  solely as a field definition and in tests.
+- `snora-style` *defines* the six `*_size` helpers.
+- `snora-widgets` *calls* exactly two: `label_size` and `body_size`
+  (`design/chip.rs`, `design/notice.rs`, `design/button.rs`, `design/progress.rs`).
+- `snora` (the engine) calls none.
+
+So `body_small_size`, `title_size`, `heading_size` and `display_size` are called
+by **nothing in any snora crate**. Overriding `body_small` reaches knotra's own
+text and nothing snora renders. **Overriding `label` or `body` would**, and this
+RFC does not.
+
+*Evidence note, recorded because the conclusion survived but its support did
+not:* this amendment first cited `typography.md`'s *"not applied by any widget in
+`snora-widgets`"*. That sentence is scoped to one crate, and knotra reaches these
+widgets through `snora::design::*`, so the citation did not cover the case it was
+being used for. The source check above does, and it was run before any of this
+was implemented.
 
 **R2 is unchanged** - nothing renders below 12. What changes is the cost and the
 mechanism.
