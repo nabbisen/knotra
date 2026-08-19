@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1, A2, A3, architect - see Amendments) |
+| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1, A2, A3, A4, architect - see Amendments) |
 | Priority | High - the version gap is free to cross, and crossing it is what makes the typography work possible |
 | Effort | Medium-to-large - one dependency line, then four stages of adoption |
 | Target | Production Readiness Reset - UI/UX foundation |
@@ -371,6 +371,43 @@ The floor still governs: 13 clears 12 with a pixel to spare, and snora's
 **A1's mechanism stands** - knotra supplies its own `Typography`, and overriding
 `body_small` reaches nothing snora renders. Only the value changes.
 
+### A4. Stage 4 also carries two items this RFC did not anticipate (2026-08-19, architect)
+
+Recorded **before** Stage 4 is issued, because RFC 000 forbids a handoff
+widening an RFC's scope on its own authority: *"Handoffs must not override RFC
+decisions. If handoff work uncovers a design conflict, update the RFC first."*
+Both items arrived after acceptance, from work this RFC caused.
+
+**1. `detail_panel.rs`'s label-column widths** (`reviewed/168` §3).
+`IDENTITY_LABEL_WIDTH` (56.0) and `STATUS_LABEL_WIDTH` (72.0) were derived when
+those labels rendered at 11px. Stage 2 moved them to `body_small` (13.0), and the
+comments were rewritten to claim the fit holds *"at the `body_small` role"* -
+which nobody measured. `"Untracked:"` needs roughly 65-72px in a 72.0px column.
+
+Either re-derive both, or state in the comment that the fit is unverified and
+name 11px as where it was last measured. Stage 4 already opens this file.
+
+**2. `border` has no boundary assertion** (`reviewed/170` §5).
+knotra asserts `border` **only as a text colour** - `< AA_NORMAL`, to justify
+`NoticeTone` excluding `Tone::Neutral`. Nothing checks that it meets **SC
+1.4.11's 3:1 as a boundary**, which is precisely what snora raised it for in
+0.34.0 (`light` 1.28 -> 3.12, `dark` 1.19 -> 3.50 against `surface`).
+
+If a future snora release regressed `border`, knotra's only assertion would keep
+passing - and pass *more* comfortably, since it asserts the ratio stays *under*
+4.5. The repair we absorbed in Stage 1 is unprotected by our own suite.
+
+snora opened RFC-071 for the same shape in their own tests. This is that defect
+one layer down, in a consumer.
+
+**Note on which pair binds**: for `dark` the tighter pair is `surface_raised`
+(3.17), not `surface` (3.50) - snora's border colour was chosen to clear the
+binding pair per preset, `surface` for `light` and `surface_raised` for `dark`.
+A boundary assertion should track the binding pair, not the looser one.
+
+**R11 and R12 added.** Both are accessibility gaps this RFC's own work exposed,
+and Stage 4 is the last stage - there is no later one to hold them.
+
 ## Stages
 
 | Stage | Content | Why here |
@@ -394,6 +431,8 @@ The floor still governs: 13 clears 12 with a pixel to spare, and snora's
 | R8 | A guard prevents a new sub-floor size or raw literal from re-entering the view tree |
 | R9 | `crates/knotra-vcs` is not modified; the suppression map stays at five |
 | R10 | **A3.** No text size decreases. Any site whose role assignment would shrink it is reported, not shrunk |
+| R11 | **A4.** `detail_panel.rs`'s label-column widths either re-derive at 13px or state the fit as unverified; no comment claims a fit nobody measured |
+| R12 | **A4.** `border` is asserted against SC 1.4.11's 3:1 as a boundary, per preset, against the binding surface |
 
 ## Test Plan
 
