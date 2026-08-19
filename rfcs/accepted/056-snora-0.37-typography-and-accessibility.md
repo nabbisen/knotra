@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-19, project owner) |
+| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1, architect - see Amendments) |
 | Priority | High - the version gap is free to cross, and crossing it is what makes the typography work possible |
 | Effort | Medium-to-large - one dependency line, then four stages of adoption |
 | Target | Production Readiness Reset - UI/UX foundation |
@@ -151,6 +151,10 @@ judgement (`body_small` at 14 is the usual answer for metadata currently at 11),
 and the visible result is that some text gets larger. **That is the point**, and
 it is the one part of this RFC a user will notice immediately.
 
+### D4a. Superseded by Amendment A1
+
+D4's cost basis was wrong. See A1.
+
 ### D5. Line-height on anything that wraps
 
 `LineHeight::Relative(tokens.typography.<role>.line_height)` for prose:
@@ -187,6 +191,65 @@ Worth recording now: snora 0.34.0 **corrected its own documentation** to say
 focus rings *can* be styled when the application owns focus as state. knotra
 already does this (`widget/ring.rs`, `with_focus_ring`), so knotra was right and
 the old snora guidance was wrong.
+
+## Amendments
+
+### A1. The floor is 12, not 14, and `Density::Compact` was never the answer (2026-08-19, architect)
+
+**Source: snora's reply to our migration review, 2026-08-19.** Recorded before
+Stage 2 begins; Stage 1 (Handoff 077) is unaffected.
+
+Two corrections, both in our favour, both to claims of mine.
+
+**1. `Density::Compact` is a spacing scale, not a type scale.** RFC-056's
+question to snora asked whether to design for its arrival. snora: *"it is a
+**spacing** scale, not a type scale ... Resolving it would change padding and
+gaps, never a text size. Do not design for its arrival on this question."*
+
+I read `Density::Compact` in `tokens.md` and inferred it addressed density in
+general. It addresses padding. The question was worth asking - snora treated the
+ambiguity as a documentation defect on their side - but the premise was mine and
+it was wrong.
+
+**2. D4 over-costed the floor by roughly double.** D4 wrote that
+*"`body_small` at 14 is the usual answer for metadata currently at 11"*, making
+the change ~27% on knotra's densest rows. snora:
+
+> The floor is **12**, not 14 ... Your 11px rows need **11 -> 12**, about 9%.
+> Your 12px rows are already compliant. The role guidance is a preference for
+> staying inside the scale, not a second floor at 14.
+
+Corrected figures, re-measured:
+
+| Size | Sites | Status under the real floor |
+|---|---|---|
+| 11px | 32 | must reach 12 - about **9%**, not 27% |
+| 10px | 6 | must reach 12 |
+| 12px | **29** | **already compliant** - no change |
+| 13px and above | 23 | already compliant |
+
+**38 sites move, not 90**, and they move by one or two pixels rather than by a
+role step.
+
+**The resolution, which snora's own documentation enables and I missed.** R3
+requires sizes come from token roles, not literals; the floor permits a custom
+12.0. Those pull in opposite directions only if knotra uses snora's default
+scale unaltered. It need not: `typography.md` states *"`Typography` is a plain,
+non-`#[non_exhaustive]` struct - an application supplying its own `Tokens` can
+set every field."*
+
+So **knotra supplies its own `Typography` with `body_small` at 12.0**, and the
+38 sub-floor sites become `body_small`. Sizes still come from a role (R3 holds),
+the floor is met, and knotra's density survives.
+
+**This is safe from snora's chrome, and only because of which role we pick.**
+`typography.md`: *"snora's prefab widgets use two of these six roles: `label`
+and `body`. `body_small`, `title`, `heading` and `display` are not applied by any
+widget."* Overriding `body_small` reaches knotra's own text and nothing snora
+renders. **Overriding `label` or `body` would**, and this RFC does not.
+
+**R2 is unchanged** - nothing renders below 12. What changes is the cost and the
+mechanism.
 
 ## Stages
 
