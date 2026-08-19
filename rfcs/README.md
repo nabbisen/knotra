@@ -31,6 +31,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [056](./proposed/056-snora-0.37-typography-and-accessibility.md) | snora 0.25 to 0.37: typography and accessibility | Production Readiness Reset - UI/UX foundation | High |
 
 ---
 
