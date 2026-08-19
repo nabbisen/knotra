@@ -15,12 +15,25 @@ rfcs/
   accepted/       ← owner signed off; implementation may start
   done/           ← shipped; historical record only
   archive/        ← withdrawn or superseded
+  handoffs/       ← companion execution docs; status inherited from the RFC
 ```
 
 knotra uses RFC 000's **5-folder variant** (without the optional `draft/`).
 RFC 000 says to adopt it "only if the design and implementation roles are
 genuinely separate" — in knotra they are, so "the owner accepted this" and
 "the implementer finished" are distinct events that need distinct states.
+
+`handoffs/` holds optional companion execution documents, one directory per RFC
+(`handoffs/NNN-slug/`). A handoff records **how to implement and verify** a
+decision; the RFC records **what was decided and why**. Handoffs have no
+lifecycle of their own — status is inherited from the matching RFC — and they
+never override an RFC decision. See
+[RFC 000 § Companion handoffs](./done/000-rfc-lifecycle-policy.md).
+
+**Handoffs numbered 001–077 are not here.** They predate this folder and are
+cited by path in 116 review artifacts that are immutable by convention; relocating
+them would break citations in documents that cannot be edited to follow. Each
+RFC's `handoffs/NNN-slug/README.md` records where its earlier handoffs live.
 
 ---
 
