@@ -13,6 +13,9 @@ Baseline: `a600a33` (Stage 3), **301** tests, all gates green — re-run by me.
 
 **This handoff is immutable.** Corrections after issue go in a new document.
 
+**Revised twice before issue.** Second revision 2026-08-20 — §1's measurement was
+wrong and its instruction contradicted knotra's own correct pattern. See §1.
+
 **Revised before issue, 2026-08-20.** snora 0.38.1 shipped RFC-072 between
 drafting and handover, and it makes an assertion knotra already ships
 non-conformant — see §4, added. This document had not been handed over, so it is
@@ -20,36 +23,54 @@ revised rather than followed by a correction; RFC-056 A5 records the reasoning.
 
 ## 1. Pointer targets (D6 / R7)
 
-snora's checklist: **24×24 logical pixels minimum**, 44×44 preferred, and
-*"spacing tokens (`tokens.spacing.sm` or larger) are used for padding rather than
-zero or near-zero values that would collapse the target."*
+**This section was wrong in the first draft. Corrected here before issue.**
 
-**The arithmetic, and where it comes from:**
+The first draft said *"only four explicit `.height()` values exist in the whole
+view tree"* and told you not to add heights. Both were wrong, from one bad grep:
+I matched `.height(<numeric literal>)` and missed every `.height(BUTTON_HEIGHT)`.
 
-- iced's `button` default padding is **5.0 top and bottom**
-  (`iced_widget-0.14/src/button.rs:462`).
-- snora's own `make_button` sets **no padding and no height** — it relies on that
-  default (`snora-widgets-0.38.0/src/design/button.rs:55-66`). So an unmodified
-  snora button is roughly `18.2 + 10 = 28px` and clears 24.
-- knotra has **28 call sites** that pass `.padding([0, …])`, overriding that
-  default to **zero vertical**. Only **four** explicit `.height()` values exist in
-  the whole view tree, so most of those 28 are the text line box alone.
+**What is actually there:**
 
-Line boxes after Stages 2–3: `label` ≈ **18.2px**, `body_small` ≈ **17.6px**,
-`body` ≈ **22.4px**. **All three are under 24.**
+| Form | Count |
+|---|---|
+| `.height(BUTTON_HEIGHT)` / `SMALL_BUTTON_HEIGHT` | **22** |
+| `.height(<literal>)` | 5 |
+| `.padding([0, N])` | 28 |
 
-**Measure before fixing.** This is arithmetic, not a rendered measurement, and
-some of the 28 may sit inside a container that supplies height. Report the actual
-smallest target you find, and how you established it.
+`BUTTON_HEIGHT` is **44.0** and `SMALL_BUTTON_HEIGHT` **36.0**
+(`knotra-ui/src/widget/layout.rs:35,38`), with a comment explaining when each
+applies. **44 is WCAG's *preferred* target size, not the 24 minimum** — knotra
+already has a deliberate, correct pointer-target system, and the first draft told
+you not to use it.
 
-**The fix, where one is needed**, is a spacing token, not a magic number:
-`tokens.spacing.xs` is 4.0 (→ ≈26px, clears) and `sm` is 8.0 (→ ≈34px,
-comfortable). Prefer `sm` where it does not disturb a dense row; say where you
-chose `xs` and why.
+**Of the 28 zero-vertical-padding sites, 24 sit on a height-constrained control**
+and are fine — `.padding([0, 18])` on a 44px-tall button is horizontal padding on
+a target that already clears everything.
 
-**Do not add explicit heights.** A height fixes the target and breaks when the
-text size changes — which is exactly what Stages 2–3 just did to the constants in
-§2.
+**Four have no height in scope:**
+
+```
+view/shortcuts_overlay.rs:154
+view/shell.rs:211
+widget/field.rs:66
+widget/field.rs:133
+```
+
+**Those four are the work.** Measure them: line box after Stages 2–3 is `label`
+≈ 18.2px, `body_small` ≈ 17.6px, `body` ≈ 22.4px, and iced's button default adds
+5.0 top and bottom — so a control that overrides padding to zero and sets no
+height is roughly 18px, under the 24 floor.
+
+**Use the existing constants where the control is a button.** `SMALL_BUTTON_HEIGHT`
+(36) for dense inline controls, `BUTTON_HEIGHT` (44) for primary actions — that
+is what `layout.rs`'s own comment says and it is already right. Reach for a
+spacing token (`tokens.spacing.xs` = 4.0, `sm` = 8.0) only where a height would be
+wrong for the widget, and say which you chose and why.
+
+**Verify my four before fixing them.** My window-based check looked ±8 lines for a
+height on the same builder chain; a control whose height is set further away, or
+by a container, would look unpaired to it and is not. **If one of the four turns
+out to be height-constrained after all, report that rather than padding it.**
 
 ## 2. The label widths (A4 / R11)
 
