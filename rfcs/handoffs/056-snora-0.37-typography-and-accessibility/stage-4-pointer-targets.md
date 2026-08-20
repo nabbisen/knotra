@@ -13,6 +13,11 @@ Baseline: `a600a33` (Stage 3), **301** tests, all gates green — re-run by me.
 
 **This handoff is immutable.** Corrections after issue go in a new document.
 
+**Revised before issue, 2026-08-20.** snora 0.38.1 shipped RFC-072 between
+drafting and handover, and it makes an assertion knotra already ships
+non-conformant — see §4, added. This document had not been handed over, so it is
+revised rather than followed by a correction; RFC-056 A5 records the reasoning.
+
 ## 1. Pointer targets (D6 / R7)
 
 snora's checklist: **24×24 logical pixels minimum**, 44×44 preferred, and
@@ -98,7 +103,48 @@ binding pair per preset, and for `dark` that is the tighter `surface_raised`
 (3.17) rather than `surface` (3.50). Asserting against `surface` there would track
 the looser constraint and miss a regression.
 
-## 4. Out of scope
+## 4. An assertion we already ship, which snora has now said not to write (A5 / R13)
+
+snora 0.38.1's `api-governance.md` states that **every contrast threshold they
+ship is a floor** — a ratio is *at least* its threshold, **no maximum is
+guaranteed**, and the only value change their covenant permits **raises a failing
+ratio**. The consumer-facing consequence is explicit:
+
+> do not assert that a snora colour stays below a threshold; if your decision
+> depends on a colour being illegible, assert it against your own colour.
+
+`theme.rs` does exactly that:
+
+```rust
+let neutral_ratio = contrast_ratio(p.border, surface);
+assert!(neutral_ratio < AA_NORMAL, "... NoticeTone's exclusion of Neutral is now stale");
+```
+
+**Not hypothetical.** `border` moved 1.28 → 3.12 in 0.34.0 because it was
+*failing*. A further repair past 4.5 fails this assertion — not because anything
+regressed, but because snora improved a colour we asserted would stay bad. knotra
+would be the reason a repair was held back. Our instance is cited in snora's
+`feature-gating-criteria.md`, attributed.
+
+**The purpose survives; the subject must change.** The assertion justifies
+`NoticeTone` excluding `Tone::Neutral`, which depends on `border` being illegible
+as *text*. Two acceptable outcomes:
+
+- assert the exclusion against **knotra's own colour** rather than snora's
+  `border`; or
+- **drop the assertion** and justify the exclusion by the decision itself,
+  recording in the comment that the ratio is snora's to move.
+
+**Propose which, with reasoning.** What is settled is that no knotra test may
+depend on a snora colour staying below a threshold.
+
+Note the interaction with §3: R12 asserts a **floor** (`>= 3.0`), which is the
+direction snora guarantees, so it is unaffected — and it is why §3 says assert
+`>= 3.0` and not something tighter. snora also states a repair is judged **only**
+on the failing pair and preserves no other, so a tighter figure would be asserting
+something they have explicitly not promised.
+
+## 5. Out of scope
 
 No size or line-height changes — Stages 2 and 3 are settled. No colour changes:
 R12 **asserts** the existing `border`, it does not alter it. No `design::render`
@@ -108,7 +154,7 @@ suppression map stays at **five**.
 If a target cannot be fixed with padding alone — a control genuinely constrained
 by its container — **stop and report** rather than reaching for a height.
 
-## 5. Verification
+## 6. Verification
 
 ```
 cargo +1.91 fmt --all --check
@@ -127,13 +173,15 @@ stays at **1** line.
 existing contrast assertion moves, stop and report** — R12 adds a check, it does
 not change a colour.
 
-## 6. What to report back
+## 7. What to report back
 
 A review request, paths relative to the project root, stating:
 
 - **the smallest interactive target you measured**, and how;
 - which sites you changed, with the spacing token used and why;
 - your choice on §2, and the resulting comment text;
+- **your choice on §4**, with reasoning, and confirmation no assertion depends on
+  a snora colour staying below a threshold (R13);
 - **R12's measured ratios for both presets**, and confirmation it asserts against
   the binding surface;
 - gate output, gate five in the range form.
