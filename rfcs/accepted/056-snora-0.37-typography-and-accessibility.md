@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1, A2, A3, A4, architect - see Amendments) |
+| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1-A4) and 2026-08-20 (A5, architect - see Amendments) |
 | Priority | High - the version gap is free to cross, and crossing it is what makes the typography work possible |
 | Effort | Medium-to-large - one dependency line, then four stages of adoption |
 | Target | Production Readiness Reset - UI/UX foundation |
@@ -408,6 +408,68 @@ A boundary assertion should track the binding pair, not the looser one.
 **R11 and R12 added.** Both are accessibility gaps this RFC's own work exposed,
 and Stage 4 is the last stage - there is no later one to hold them.
 
+### A5. We assert a snora colour stays *below* a threshold, and snora has now said not to (2026-08-20, architect)
+
+**Source: snora 0.38.1 (RFC-072), letter of 2026-08-20.** Recorded before Stage 4
+is issued; the Stage 4 handoff is revised rather than corrected after the fact,
+as it has not been handed over.
+
+snora's `api-governance.md` now states two things it never had:
+
+1. **Every contrast threshold snora ships is a floor.** A role's ratio against
+   its declared surfaces is *at least* its threshold. **No maximum is
+   guaranteed, now or later.**
+2. **The only value change the covenant permits raises a failing ratio.** Values
+   move up, and snora *"will not commit to keeping any colour insufficiently
+   contrasty."*
+
+With the consequence spelled out for consumers: **do not assert that a snora
+colour stays below a threshold.** If a decision depends on a colour being
+illegible, assert it against your own colour.
+
+**knotra does exactly that today.** `theme.rs`:
+
+```rust
+let neutral_ratio = contrast_ratio(p.border, surface);
+assert!(neutral_ratio < AA_NORMAL,
+    "... unexpectedly meets AA — NoticeTone's exclusion of Neutral is now stale");
+```
+
+Our instance is recorded in snora's own `feature-gating-criteria.md`, attributed.
+
+**This is not hypothetical.** `border` moved 1.28 -> 3.12 (`light`) in 0.34.0
+because it was failing SC 1.4.11. A further repair raising it past 4.5 would fail
+this assertion - not because anything regressed, but because snora **improved** a
+colour we asserted would stay bad. We would be the ones holding a repair back.
+
+**The assertion's purpose survives; its subject must change.** It exists to
+justify `NoticeTone` excluding `Tone::Neutral` - a decision that depends on
+`border` being illegible as *text*. Per snora's guidance the options are:
+
+- assert the exclusion against **knotra's own colour**, not snora's `border`; or
+- drop the assertion and justify the exclusion by the decision itself, recording
+  that the ratio is snora's to move.
+
+**Which of the two is the implementer's to propose.** What is settled is that no
+knotra test may depend on a snora colour staying below a threshold.
+
+**R12 is unaffected and now better founded.** It asserts a **floor** (`>= 3.0`),
+which is precisely the direction snora guarantees.
+
+**One limit worth recording**: snora also states that a repair is judged **only
+on the pair that was failing**, and preserves no other pair. Changing `border`
+moves it against `background`, `surface` and `surface_raised` at once. So R12's
+per-preset binding pair is the right subject, and `>= 3.0` the right form - a
+tighter assertion would be asserting something snora has explicitly not promised.
+
+**R13 added.**
+
+**Separately, snora RFC-070 confirms Stage 3's design.** Their typography scale is
+now stated against iced's own default line-height, and they state that `title`'s
+helper changes nothing because 1.3 *is* the default, while `label`, `heading` and
+`display` are deliberately tighter - only `body` and `body_small` add air. That is
+the conclusion Stage 3 reached independently and implemented. No change needed.
+
 ## Stages
 
 | Stage | Content | Why here |
@@ -433,6 +495,7 @@ and Stage 4 is the last stage - there is no later one to hold them.
 | R10 | **A3.** No text size decreases. Any site whose role assignment would shrink it is reported, not shrunk |
 | R11 | **A4.** `detail_panel.rs`'s label-column widths either re-derive at 13px or state the fit as unverified; no comment claims a fit nobody measured |
 | R12 | **A4.** `border` is asserted against SC 1.4.11's 3:1 as a boundary, per preset, against the binding surface |
+| R13 | **A5.** No knotra assertion depends on a snora colour staying *below* a threshold. Where a decision needs a colour to be illegible, it is asserted against knotra's own colour or justified without a ratio |
 
 ## Test Plan
 
