@@ -82,18 +82,28 @@ fn with_knotra_typography(mut tokens: snora::design::Tokens) -> snora::design::T
 
 impl KnotraTheme {
     pub fn light() -> Self {
+        let tokens = with_knotra_typography(snora::design::Tokens::light());
         KnotraTheme {
-            base: iced::Theme::Light,
+            // RFC-057 D1/R1: `base` is what `main.rs` hands to iced as the
+            // application theme — every widget with no explicit `.style()`
+            // (five confirmed `scrollable` sites, more unmeasured — R2)
+            // renders from it. Built from `tokens` above (after
+            // `with_knotra_typography`) rather than `Tokens::light()`
+            // directly: ordering is not load-bearing (the override is
+            // typographic, `theme()` reads the palette), but deriving both
+            // fields from the same value is the only way they cannot drift.
+            base: snora::design::theme(&tokens),
             dark: false,
-            tokens: with_knotra_typography(snora::design::Tokens::light()),
+            tokens,
         }
     }
 
     pub fn dark() -> Self {
+        let tokens = with_knotra_typography(snora::design::Tokens::dark());
         KnotraTheme {
-            base: iced::Theme::Dark,
+            base: snora::design::theme(&tokens),
             dark: true,
-            tokens: with_knotra_typography(snora::design::Tokens::dark()),
+            tokens,
         }
     }
 
@@ -696,9 +706,10 @@ mod tests {
     /// snora raised it in 0.34.0 (WCAG SC 1.4.11, a 3:1 floor for a
     /// non-text visual boundary) — had no assertion of its own; only its
     /// *text* use (`notice_tone_colors_meet_wcag_aa_against_surface_in_
-    /// both_themes`, above, which asserts a `< AA_NORMAL` ceiling for an
-    /// unrelated reason and would not catch a boundary regression). A
-    /// future `border` regression would pass every existing gate.
+    /// both_themes`, above, which **previously** asserted a `< AA_NORMAL`
+    /// ceiling for an unrelated reason — removed the same stage, R13 —
+    /// and would not have caught a boundary regression even while it
+    /// stood). A future `border` regression would pass every existing gate.
     ///
     /// Asserted against **the binding surface per preset** — the one
     /// `border` was actually chosen to clear, not the looser of the two.
@@ -738,5 +749,65 @@ mod tests {
             "dark border vs surface_raised (the binding pair): {dark_ratio:.4}:1 \
              is below the required {AA_LARGE}:1 non-text boundary floor (SC 1.4.11)"
         );
+    }
+
+    /// RFC-057 D3/R3: before this test, nothing in this file ever read
+    /// `.base` — it appeared only in the two constructors (confirmed by
+    /// grep before this test was written), so a widget rendering unstyled
+    /// (R2: five confirmed `scrollable` sites, every `text_input` in the
+    /// tree, both `tooltip`'s own popup chrome) could fail contrast and
+    /// pass every gate this suite has. `base.extended_palette()` is the
+    /// actual `Extended` struct iced's stock widgets and snora's `Sheet`
+    /// read (`iced_core-0.14.0/src/theme/palette.rs`) — every `Pair` it
+    /// exposes is asserted here: all eight `background` tiers (what an
+    /// unstyled `scrollable`/`text_input`/`tooltip` draws from) and the
+    /// three tiers each of `primary`/`secondary`/`success`/`warning`/
+    /// `danger` (what an unstyled stock button/status widget would, none
+    /// currently exists, but the assertion does not depend on one existing
+    /// to be worth having).
+    #[test]
+    fn base_extended_palette_pairs_meet_wcag_aa_in_both_themes() {
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let ext = theme.base.extended_palette();
+            let cases: [(&str, iced::theme::palette::Pair); 23] = [
+                ("background.base", ext.background.base),
+                ("background.weakest", ext.background.weakest),
+                ("background.weaker", ext.background.weaker),
+                ("background.weak", ext.background.weak),
+                ("background.neutral", ext.background.neutral),
+                ("background.strong", ext.background.strong),
+                ("background.stronger", ext.background.stronger),
+                ("background.strongest", ext.background.strongest),
+                ("primary.base", ext.primary.base),
+                ("primary.weak", ext.primary.weak),
+                ("primary.strong", ext.primary.strong),
+                ("secondary.base", ext.secondary.base),
+                ("secondary.weak", ext.secondary.weak),
+                ("secondary.strong", ext.secondary.strong),
+                ("success.base", ext.success.base),
+                ("success.weak", ext.success.weak),
+                ("success.strong", ext.success.strong),
+                ("warning.base", ext.warning.base),
+                ("warning.weak", ext.warning.weak),
+                ("warning.strong", ext.warning.strong),
+                ("danger.base", ext.danger.base),
+                ("danger.weak", ext.danger.weak),
+                ("danger.strong", ext.danger.strong),
+            ];
+            for (label, pair) in cases {
+                let ratio = snora::design::contrast::contrast_ratio(
+                    from_iced(pair.text),
+                    from_iced(pair.color),
+                );
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} base.extended_palette().{label}: {ratio:.2}:1 \
+                     is below the required {AA_NORMAL}:1"
+                );
+            }
+        }
     }
 }
