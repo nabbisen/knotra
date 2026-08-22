@@ -63,7 +63,13 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
 
     let mut field = text_input(placeholder, value)
         .on_input(on_change)
-        .padding([0, 12])
+        // RFC-056 Stage 4 R7: zero vertical padding + body's line box
+        // (~22.4px) left this text_input's pointer target under the 24px
+        // WCAG floor. `text_input` has no `.height()` builder, so a
+        // spacing token is the fix, not a fixed height — `sm` (8.0),
+        // matching `command_palette.rs`'s own text_input precedent
+        // (`.padding([8, 12])`), for ~38.4px total.
+        .padding([tokens.spacing.sm, 12.0])
         .width(Length::Fill)
         .size(snora::design::style::text::body_size(tokens))
         .line_height(snora::design::style::text::body_line_height(tokens));
@@ -130,7 +136,10 @@ pub fn validated_field<'a, Message: Clone + 'a>(
 
     let field = text_input(placeholder, value)
         .on_input(on_change)
-        .padding([0, 12])
+        // RFC-056 Stage 4 R7: same fix as `guided_field_with_id` above —
+        // `sm` (8.0) clears the 24px pointer-target floor; see that
+        // function's comment for the arithmetic.
+        .padding([tokens.spacing.sm, 12.0])
         .width(Length::Fill)
         .size(snora::design::style::text::body_size(tokens))
         .line_height(snora::design::style::text::body_line_height(tokens));

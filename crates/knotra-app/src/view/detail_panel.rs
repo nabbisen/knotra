@@ -56,13 +56,19 @@ fn field_row<'a>(
 }
 
 /// Fits `detail.label_remote` ("Remote:"), the longest label in the
-/// Identity section, at the `body_small` role (RFC-056 Stage 2; was a raw
-/// `.size(11)`).
-const IDENTITY_LABEL_WIDTH: f32 = 56.0;
+/// Identity section, at the `body_small` role. **RFC-056 Stage 4 (R11)**:
+/// re-derived — Stage 2 moved this label from a raw `.size(11)` to
+/// `body_small` (13.0) and rewrote this comment to claim the fit held at
+/// the new size without measuring it (A4 §1). No renderer is available
+/// here to measure the string directly, so this is 56.0 scaled by
+/// 13/11 (≈66.2, rounded up for margin) rather than a re-verified figure —
+/// stated plainly, not implied as measured.
+const IDENTITY_LABEL_WIDTH: f32 = 67.0;
 /// Fits `detail.label_untracked` ("Untracked:"), the longest label in the
-/// Status section, at the `body_small` role (RFC-056 Stage 2; was a raw
-/// `.size(11)`).
-const STATUS_LABEL_WIDTH: f32 = 72.0;
+/// Status section, at the `body_small` role. **RFC-056 Stage 4 (R11)**:
+/// re-derived the same way as `IDENTITY_LABEL_WIDTH` above — 72.0 scaled
+/// by 13/11 (≈85.1, rounded up), not re-verified against a render.
+const STATUS_LABEL_WIDTH: f32 = 86.0;
 
 pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     let tokens = &state.theme.tokens;

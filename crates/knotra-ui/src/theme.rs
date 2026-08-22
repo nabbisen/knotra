@@ -638,19 +638,34 @@ mod tests {
     /// genuinely status-dependent style function. Checked against `surface`,
     /// `notice`'s own background, in both themes.
     ///
-    /// **`Tone::Neutral` (`p.border`) is measured, not skipped** (Handoff 031
-    /// Finding 2/`109`: excluding it from the loop had documented the gap
-    /// instead of closing it). `Palette` documents `border` as "borders and
-    /// separators" — a role never intended to carry mandatory text contrast,
-    /// unlike `accent`/`success`/`warning`/`danger`/`info` — and it measures
-    /// 3.12:1 (light) / 3.50:1 (dark) against `surface` (RFC-056 Stage 1,
-    /// snora 0.34.0's border-contrast repair — up from 1.28:1/1.32:1 before
-    /// it), still under AA in both. That failure is asserted below rather
-    /// than silently dropped, and is exactly why `notice.rs`'s `NoticeTone`
-    /// (the wrapper's own public parameter type, narrower than
-    /// `snora::design::Tone`) excludes `Neutral` at the type level —
-    /// `Tone::Neutral` itself is unchanged and still reachable through
-    /// `snora` directly, just not through `notice`.
+    /// **`Tone::Neutral` (`p.border`) is excluded from the loop below,
+    /// deliberately — RFC-056 Stage 4 (A5/R13) removed the runtime check
+    /// this comment used to describe.** `Palette` documents `border` as
+    /// "borders and separators," a role never intended to carry mandatory
+    /// text contrast, unlike `accent`/`success`/`warning`/`danger`/`info` —
+    /// and at RFC-056 Stage 1 (snora 0.38) it measured 3.12:1 (light) /
+    /// 3.50:1 (dark) against `surface`, under AA in both, up from
+    /// 1.28:1/1.32:1 before snora 0.34.0's border-contrast repair. That
+    /// history is why `notice.rs`'s `NoticeTone` (the wrapper's own public
+    /// parameter type, narrower than `snora::design::Tone`) excludes
+    /// `Neutral` at the type level — `Tone::Neutral` itself is unchanged
+    /// and still reachable through `snora` directly, just not through
+    /// `notice`.
+    ///
+    /// **The exclusion is no longer re-verified by a live contrast
+    /// assertion here.** It previously asserted `neutral_ratio < AA_NORMAL`
+    /// — a check that snora 0.38.1's `api-governance.md` states plainly a
+    /// consumer must not write: every contrast threshold snora ships is a
+    /// **floor**, no maximum is guaranteed, and the only permitted value
+    /// change *raises* a failing ratio (border already moved once, 0.34.0).
+    /// A future repair past 4.5 would have failed our assertion for
+    /// improving a colour we bet on staying bad — snora's own letter cites
+    /// this exact test by name as the instance that prompted the rule. The
+    /// exclusion's justification is the type-level decision itself
+    /// (`NoticeTone` has no `Neutral` variant to construct), not a runtime
+    /// number that is snora's to move; the ratio above is a historical
+    /// record of *why* the decision was made, not a bound this suite still
+    /// enforces.
     #[test]
     fn notice_tone_colors_meet_wcag_aa_against_surface_in_both_themes() {
         for (theme_name, theme) in [
@@ -674,22 +689,54 @@ mod tests {
                      is below the required {AA_NORMAL}:1"
                 );
             }
-
-            // Tone::Neutral is excluded from NoticeTone (Handoff 031 Finding
-            // 2/notice.rs) precisely because it fails here — asserted, not
-            // omitted from the loop, per Handoff 031 §3's "no exclusions".
-            // Re-measured at 3.12:1 (light) and 3.50:1 (dark) after the
-            // RFC-056 Stage 1 snora 0.38 bump (was 1.28:1/1.32:1 before
-            // snora 0.34.0 raised border contrast) — confirmed by a
-            // temporary probe before writing this assertion, same as
-            // before. The conclusion below is unchanged: both remain under
-            // AA (4.5:1).
-            let neutral_ratio = snora::design::contrast::contrast_ratio(p.border, surface);
-            assert!(
-                neutral_ratio < AA_NORMAL,
-                "{theme_name} notice action-label Tone::Neutral vs surface: {neutral_ratio:.2}:1 \
-                 unexpectedly meets AA — NoticeTone's exclusion of Neutral is now stale"
-            );
         }
+    }
+
+    /// RFC-056 Stage 4 (A4/R12): `border`'s *boundary* use — the reason
+    /// snora raised it in 0.34.0 (WCAG SC 1.4.11, a 3:1 floor for a
+    /// non-text visual boundary) — had no assertion of its own; only its
+    /// *text* use (`notice_tone_colors_meet_wcag_aa_against_surface_in_
+    /// both_themes`, above, which asserts a `< AA_NORMAL` ceiling for an
+    /// unrelated reason and would not catch a boundary regression). A
+    /// future `border` regression would pass every existing gate.
+    ///
+    /// Asserted against **the binding surface per preset** — the one
+    /// `border` was actually chosen to clear, not the looser of the two.
+    /// snora states a repair is judged only on the pair that was failing
+    /// and preserves no other, so tracking the wrong pair could show a
+    /// comfortable margin while the pair that matters regresses. Measured
+    /// (RFC-056 A4 §2, re-confirmed here): `light` binds against `surface`
+    /// (3.1207:1); `dark` binds against `surface_raised` (3.1653:1) — the
+    /// *tighter* of `dark`'s two candidate pairs (`surface` alone measures
+    /// 3.5047:1, looser, and would track the wrong constraint).
+    ///
+    /// **Asserts `>= AA_LARGE` (3.0), not a tighter figure.** Per RFC-056
+    /// A5, every snora contrast threshold is a floor with no guaranteed
+    /// ceiling, and a repair only has to clear the criterion it was
+    /// judged against — asserting a number closer to the current 3.12/3.17
+    /// would be asserting a margin snora has not promised to hold.
+    #[test]
+    fn border_meets_the_wcag_1_4_11_boundary_floor_on_its_binding_surface_in_both_themes() {
+        let light = KnotraTheme::light();
+        let light_ratio = snora::design::contrast::contrast_ratio(
+            light.tokens.palette.border,
+            light.tokens.palette.surface,
+        );
+        assert!(
+            light_ratio >= AA_LARGE,
+            "light border vs surface (the binding pair): {light_ratio:.4}:1 \
+             is below the required {AA_LARGE}:1 non-text boundary floor (SC 1.4.11)"
+        );
+
+        let dark = KnotraTheme::dark();
+        let dark_ratio = snora::design::contrast::contrast_ratio(
+            dark.tokens.palette.border,
+            dark.tokens.palette.surface_raised,
+        );
+        assert!(
+            dark_ratio >= AA_LARGE,
+            "dark border vs surface_raised (the binding pair): {dark_ratio:.4}:1 \
+             is below the required {AA_LARGE}:1 non-text boundary floor (SC 1.4.11)"
+        );
     }
 }
