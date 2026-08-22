@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (2026-08-21, project owner) |
 | Priority | Medium-high - a contrast surface no test of ours can see |
 | Effort | Small change, unmeasured blast radius - see D2 |
 | Target | Production Readiness Reset - UI/UX foundation |

@@ -44,7 +44,6 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [057](./proposed/057-adopt-snora-design-theme-as-the-base-theme.md) | Adopt `snora::design::theme()` as knotra's base theme | Production Readiness Reset - UI/UX foundation | Medium-high |
 
 ---
 
@@ -56,6 +55,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [057](./accepted/057-adopt-snora-design-theme-as-the-base-theme.md) | Adopt `snora::design::theme()` as knotra's base theme | Production Readiness Reset - UI/UX foundation | Medium-high |
 | [056](./accepted/056-snora-0.37-typography-and-accessibility.md) | snora 0.25 to 0.37: typography and accessibility | Production Readiness Reset - UI/UX foundation | High |
 
 ---
