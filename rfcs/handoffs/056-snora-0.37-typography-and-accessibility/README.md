@@ -4,7 +4,7 @@ Companion execution documents for
 [`rfcs/accepted/056-snora-0.37-typography-and-accessibility.md`](../../accepted/056-snora-0.37-typography-and-accessibility.md),
 per [RFC 000 § Companion handoffs](../../done/000-rfc-lifecycle-policy.md).
 
-Status is **inherited from RFC-056**. These documents have no lifecycle of their
+Status is **inherited from RFC-056** — now Implemented (main: 925d9fb). These documents have no lifecycle of their
 own and do not move between state folders.
 
 ## Stages
@@ -14,7 +14,7 @@ own and do not move between state folders.
 | 1 — the snora 0.38 bump | *predates this folder* — `.git-exclude/tasks/developer/077-rfc-056-stage-1-snora-0.38-bump.md` | complete |
 | 2 — typography roles and the 12px floor | [`stage-2-typography-roles.md`](stage-2-typography-roles.md) | issued |
 | 3 — line-height | [`stage-3-line-height.md`](stage-3-line-height.md) | complete |
-| 4 — pointer targets, label widths, border boundary | [`stage-4-pointer-targets.md`](stage-4-pointer-targets.md) | issued |
+| 4 — pointer targets, label widths, border boundary | [`stage-4-pointer-targets.md`](stage-4-pointer-targets.md) | complete |
 
 ## Why Stage 1 is not here
 

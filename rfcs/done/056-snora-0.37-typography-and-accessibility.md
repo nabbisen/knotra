@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (2026-08-19, project owner); amended 2026-08-19 (A1-A4) and 2026-08-20 (A5, architect - see Amendments) |
+| Status | Implemented (main: 925d9fb) - amended A1-A5 (architect); see Amendments |
 | Priority | High - the version gap is free to cross, and crossing it is what makes the typography work possible |
 | Effort | Medium-to-large - one dependency line, then four stages of adoption |
 | Target | Production Readiness Reset - UI/UX foundation |

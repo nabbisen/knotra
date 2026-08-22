@@ -56,7 +56,6 @@ path, not the RFC's presence here.
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
 | [057](./accepted/057-adopt-snora-design-theme-as-the-base-theme.md) | Adopt `snora::design::theme()` as knotra's base theme | Production Readiness Reset - UI/UX foundation | Medium-high |
-| [056](./accepted/056-snora-0.37-typography-and-accessibility.md) | snora 0.25 to 0.37: typography and accessibility | Production Readiness Reset - UI/UX foundation | High |
 
 ---
 
@@ -69,6 +68,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [056](./done/056-snora-0.37-typography-and-accessibility.md) | snora 0.25 to 0.38: typography and accessibility | main: 925d9fb |
 | [055](./done/055-log-since-excludes-the-jj-working-copy.md) | `log_since` excludes the jj working copy | main: 8cd6396 |
 | [039](./done/039-per-project-vcs-history.md) | Per-project VCS history | main: 1e86b9e |
 | [054](./done/054-conflict-row-prose-gets-its-own-line.md) | The conflict row's prose gets its own line | main: 1cb9940 |
