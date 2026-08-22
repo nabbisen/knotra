@@ -55,6 +55,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [058](./accepted/058-the-resolve-sheet-carries-its-own-boundary.md) | The resolve `Sheet` carries its own boundary | Production Readiness Reset | Low |
 
 ---
 
