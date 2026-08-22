@@ -722,12 +722,14 @@ mod tests {
     /// `surface_raised`) and reasoned that the tightest pair is the one a
     /// regression hits first — true, but it left `border` vs `background`
     /// asserted in **neither** preset. `background` is the resolve
-    /// `Sheet`'s own fill (`view.rs:170`'s content sits on it), and is
-    /// exactly the pair a silent regression there would need to be caught
-    /// on (RFC-058 Problem: the `Sheet` itself has no style hook and no
-    /// contrast test of its own — see `view.rs:170`/`overlay.rs::surface`'s
-    /// comments for the two removable choices this assertion is the
-    /// safety net under). All six values (RFC-058 A2, re-confirmed here):
+    /// `Sheet`'s own fill (its content sits on it, `view.rs`'s
+    /// `ActiveModal::Resolve` arm — not cited by line number, which drifts
+    /// on every edit above it), and is exactly the pair a silent
+    /// regression there would need to be caught on (RFC-058 Problem: the
+    /// `Sheet` itself has no style hook and no contrast test of its own —
+    /// see that arm's comment and `overlay.rs::surface`'s for the two
+    /// removable choices this assertion is the safety net under). All six
+    /// values (RFC-058 A2, re-confirmed here):
     /// `surface` 3.1207/3.5047, `surface_raised` 3.3808/3.1653,
     /// `background` 3.3808/3.8079 (light/dark) — every one already clears
     /// 3.0 today; this locks in a property that already holds, not a fix.

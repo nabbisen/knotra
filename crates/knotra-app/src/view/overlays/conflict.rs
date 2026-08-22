@@ -5,8 +5,9 @@
 //! this file's shell — `resolve_panel` built its own — so nothing here
 //! called it and nothing here needs to stop calling it.
 //!
-//! **`view.rs:170`'s `Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half)`
-//! is untouched** (R7/D4: conflict resolution stays a sheet, not a dialog) —
+//! **`view.rs`'s `ActiveModal::Resolve` arm — its
+//! `Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half)` — is
+//! untouched** (R7/D4: conflict resolution stays a sheet, not a dialog) —
 //! this file only changes what `resolve_panel` returns *into* that mount
 //! point, not how it is mounted.
 

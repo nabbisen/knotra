@@ -107,18 +107,20 @@ const BODY_MAX_HEIGHT: f32 = 420.0;
 ///
 /// **RFC-058 D3: this function's `border` is load-bearing when the result
 /// is passed to a snora `Sheet`, not decorative.** `raised_card` below
-/// (`snora::design::card::raised`) draws fill `tokens.palette.surface_
-/// raised` and a 1px `tokens.palette.border` — `theme.rs`'s
-/// `border_meets_the_wcag_1_4_11_boundary_floor_against_every_surface_
-/// in_both_themes` keeps that border at or above the 3:1 SC 1.4.11 floor
-/// against every surface it can neighbour, `background` (the `Sheet`'s own
-/// fill) included. `Sheet` has no style hook of its own
-/// (`view.rs:170`'s comment) and draws an edge that measures 1.29–1.35:1 —
-/// under the floor. `surface()`'s content is the resolve panel's *only*
-/// compliant, perceivable edge. Restyling this function onto a borderless
-/// container, or passing a `Sheet` some other content that draws no border
-/// of its own, would remove that edge silently — every gate in this repo
-/// would still pass, because none of them can see inside a `Sheet`.
+/// (`snora::design::card::raised`) draws fill and a 1px border from
+/// `tokens.palette.surface_raised` and `tokens.palette.border` — `theme.rs`'s
+/// `border_meets_the_wcag_1_4_11_boundary_floor_against_every_surface_in_both_themes`
+/// keeps that border at or above the 3:1 SC 1.4.11 floor against every
+/// surface it can neighbour, `background` (the `Sheet`'s own fill)
+/// included. `Sheet` has no style hook of its own (see the comment on
+/// `view.rs`'s `ActiveModal::Resolve` arm, its only call site — not cited
+/// by line number here, which drifts on every edit above it) and draws an
+/// edge that measures 1.29–1.35:1 — under the floor. `surface()`'s content
+/// is the resolve panel's *only* compliant, perceivable edge. Restyling
+/// this function onto a borderless container, or passing a `Sheet` some
+/// other content that draws no border of its own, would remove that edge
+/// silently — every gate in this repo would still pass, because none of
+/// them can see inside a `Sheet`.
 #[must_use]
 pub fn surface<'a, Message: Clone + 'a>(
     tokens: &Tokens,
