@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted 2026-08-22 (project owner) |
+| Status | Implemented (main: 03960b7) |
 | Priority | Low - no defect reaches a user; this is undeclared protection |
 | Effort | Small - one assertion widened, two comments |
 | Target | Production Readiness Reset - UI/UX foundation |

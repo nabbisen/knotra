@@ -55,7 +55,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [058](./accepted/058-the-resolve-sheet-carries-its-own-boundary.md) | The resolve `Sheet` carries its own boundary | Production Readiness Reset | Low |
 
 ---
 
@@ -68,6 +67,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [058](./done/058-the-resolve-sheet-carries-its-own-boundary.md) | The resolve `Sheet` carries its own boundary | main: 03960b7 |
 | [057](./done/057-adopt-snora-design-theme-as-the-base-theme.md) | Adopt `snora::design::theme()` as the base theme | main: 94d7412 |
 | [056](./done/056-snora-0.37-typography-and-accessibility.md) | snora 0.25 to 0.38: typography and accessibility | main: 925d9fb |
 | [055](./done/055-log-since-excludes-the-jj-working-copy.md) | `log_since` excludes the jj working copy | main: 8cd6396 |
