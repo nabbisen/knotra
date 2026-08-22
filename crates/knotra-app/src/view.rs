@@ -166,6 +166,17 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
             }
             ActiveModal::Resolve(pid) => {
                 // Right-docked resolve panel → snora Sheet anchored to the End edge.
+                //
+                // RFC-058 D3: `Sheet` exposes only `new`/`at`/`with_size`
+                // (`snora-core-0.38.0/src/overlay.rs:206-227`) — no style
+                // hook. Its own drawn edge (fill `background.base`, 1px
+                // border `background.weak`) measures 1.29–1.35:1, well
+                // under the 3:1 SC 1.4.11 floor, and knotra cannot change
+                // it. The content passed here — `resolve_panel`, whose
+                // outermost element is `overlay::surface` — is what
+                // supplies the panel's only perceivable, compliant edge.
+                // See `overlay.rs::surface`'s own comment for why that
+                // border is load-bearing, not decorative.
                 let el: Element<'_, Message> = overlays::resolve_panel(state, pid);
                 layout = layout.sheet(Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half));
             }

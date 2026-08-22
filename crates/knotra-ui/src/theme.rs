@@ -711,44 +711,55 @@ mod tests {
     /// and would not have caught a boundary regression even while it
     /// stood). A future `border` regression would pass every existing gate.
     ///
-    /// Asserted against **the binding surface per preset** — the one
-    /// `border` was actually chosen to clear, not the looser of the two.
-    /// snora states a repair is judged only on the pair that was failing
-    /// and preserves no other, so tracking the wrong pair could show a
-    /// comfortable margin while the pair that matters regresses. Measured
-    /// (RFC-056 A4 §2, re-confirmed here): `light` binds against `surface`
-    /// (3.1207:1); `dark` binds against `surface_raised` (3.1653:1) — the
-    /// *tighter* of `dark`'s two candidate pairs (`surface` alone measures
-    /// 3.5047:1, looser, and would track the wrong constraint).
+    /// **RFC-058 D2/R1 widened this from one pair per preset to all
+    /// three** (`surface`, `surface_raised`, `background`) — six
+    /// assertions, in place, not split into six tests (A1: either shape
+    /// satisfies D2, this one keeps the file's established
+    /// "loop over every surface" pattern, matching
+    /// `text_roles_meet_wcag_aa_against_every_surface_role_in_both_themes`
+    /// above). The original single-pair-per-preset version tracked only
+    /// the *tightest* pairing per preset (`light` vs `surface`, `dark` vs
+    /// `surface_raised`) and reasoned that the tightest pair is the one a
+    /// regression hits first — true, but it left `border` vs `background`
+    /// asserted in **neither** preset. `background` is the resolve
+    /// `Sheet`'s own fill (`view.rs:170`'s content sits on it), and is
+    /// exactly the pair a silent regression there would need to be caught
+    /// on (RFC-058 Problem: the `Sheet` itself has no style hook and no
+    /// contrast test of its own — see `view.rs:170`/`overlay.rs::surface`'s
+    /// comments for the two removable choices this assertion is the
+    /// safety net under). All six values (RFC-058 A2, re-confirmed here):
+    /// `surface` 3.1207/3.5047, `surface_raised` 3.3808/3.1653,
+    /// `background` 3.3808/3.8079 (light/dark) — every one already clears
+    /// 3.0 today; this locks in a property that already holds, not a fix.
     ///
-    /// **Asserts `>= AA_LARGE` (3.0), not a tighter figure.** Per RFC-056
-    /// A5, every snora contrast threshold is a floor with no guaranteed
-    /// ceiling, and a repair only has to clear the criterion it was
-    /// judged against — asserting a number closer to the current 3.12/3.17
-    /// would be asserting a margin snora has not promised to hold.
+    /// **Asserts `>= AA_LARGE` (3.0), not a tighter figure**, against
+    /// **every** surface `border` can neighbour, not only the tightest
+    /// one. Per RFC-056 A5/RFC-058 D4, every snora contrast threshold is a
+    /// floor with no guaranteed ceiling, and a repair only has to clear
+    /// the criterion it was judged against — asserting a number closer to
+    /// any of the current values would be asserting a margin snora has
+    /// not promised to hold.
     #[test]
-    fn border_meets_the_wcag_1_4_11_boundary_floor_on_its_binding_surface_in_both_themes() {
-        let light = KnotraTheme::light();
-        let light_ratio = snora::design::contrast::contrast_ratio(
-            light.tokens.palette.border,
-            light.tokens.palette.surface,
-        );
-        assert!(
-            light_ratio >= AA_LARGE,
-            "light border vs surface (the binding pair): {light_ratio:.4}:1 \
-             is below the required {AA_LARGE}:1 non-text boundary floor (SC 1.4.11)"
-        );
-
-        let dark = KnotraTheme::dark();
-        let dark_ratio = snora::design::contrast::contrast_ratio(
-            dark.tokens.palette.border,
-            dark.tokens.palette.surface_raised,
-        );
-        assert!(
-            dark_ratio >= AA_LARGE,
-            "dark border vs surface_raised (the binding pair): {dark_ratio:.4}:1 \
-             is below the required {AA_LARGE}:1 non-text boundary floor (SC 1.4.11)"
-        );
+    fn border_meets_the_wcag_1_4_11_boundary_floor_against_every_surface_in_both_themes() {
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let p = &theme.tokens.palette;
+            let surfaces: [(&str, snora::design::Color); 3] = [
+                ("surface", p.surface),
+                ("surface_raised", p.surface_raised),
+                ("background", p.background),
+            ];
+            for (surface_label, surface) in surfaces {
+                let ratio = snora::design::contrast::contrast_ratio(p.border, surface);
+                assert!(
+                    ratio >= AA_LARGE,
+                    "{theme_name} border vs {surface_label}: {ratio:.4}:1 \
+                     is below the required {AA_LARGE}:1 non-text boundary floor (SC 1.4.11)"
+                );
+            }
+        }
     }
 
     /// RFC-057 D3/R3: before this test, nothing in this file ever read
