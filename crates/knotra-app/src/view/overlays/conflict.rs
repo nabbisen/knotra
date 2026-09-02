@@ -75,10 +75,13 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
             message,
             result,
         } if id == project_id => {
-            // `title` and `message` were the same text rendered twice (both
-            // derive from `*success`); the notice primitive's tone now
-            // carries that distinction, so only `message` (state-provided)
-            // is shown, once.
+            // `title` was removed because it duplicated `message` (both
+            // derived from `*success`), not because tone supplies the
+            // distinction — snora withdrew that claim in 0.41.1; `Notice`'s
+            // tone is colour-only. The non-colour channel is `message`
+            // itself: a distinct catalog string per outcome
+            // (`plain.resolve.done`/`plain.resolve.failed`, both locales),
+            // which tone only reinforces.
             let tone = if *success {
                 NoticeTone::Success
             } else {
