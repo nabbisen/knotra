@@ -55,6 +55,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [059](./accepted/059-upgrade-snora-from-0.38-to-0.49.md) | Upgrade snora from 0.38 to 0.49 | Production Readiness Reset | High |
 
 ---
 
