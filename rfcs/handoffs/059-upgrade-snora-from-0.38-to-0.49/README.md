@@ -10,3 +10,4 @@ lifecycle of their own and do not move between state folders.
 | Handoff | Status |
 |---|---|
 | [`implementation-handoff.md`](implementation-handoff.md) | issued |
+| [`amendment-a1-retarget-to-0.50.md`](amendment-a1-retarget-to-0.50.md) | issued — read with the handoff above |

@@ -205,3 +205,38 @@ since 0.47.0.
 
 None for users beyond the fix. Configuration, data, and public API are untouched. No
 release is bundled.
+
+## Amendments
+
+### A1 — retarget from 0.49.0 to 0.50.0 (2026-09-17, before implementation began)
+
+snora 0.50.0 was released after this RFC was accepted. No knotra commit toward RFC-059
+existed — verified, none after `d2727cf`. Retargeting now avoids a second upgrade cycle for
+a release measured to be inert for knotra.
+
+**Measured at `d2727cf`, in a scratch copy, the same way as the original measurement:**
+
+| Check | Result at 0.50.0 |
+|---|---|
+| lockfile movement | **identical to 0.49**: the five snora crates 0.38.0 → 0.50.0; the same six removals; nothing else |
+| `windows` / `gpu-allocator` / `wgpu-hal` | unchanged |
+| `anyhow` / `crossbeam-epoch` | unchanged — snora's own `anyhow` bump does not reach our lockfile |
+| check / clippy `-D warnings`, all targets | clean |
+| tests | 223 + 31 + 49 = **303**, all pass |
+| `cargo check --target x86_64-pc-windows-gnu` | passes |
+| minimum Rust | 1.88, unchanged |
+
+**Source diff, 0.49.0 → 0.50.0.** `snora-core`, `snora-design` and `snora-style` are
+byte-identical. Three files changed: `snora/src/lib.rs` (a version string in a doc example),
+and in `snora-widgets` `sidebar.rs` plus `design/widget.rs` (the sidebar rail's button
+padding, snora RFC-099). **knotra uses neither the sidebar nor `design::widget` chrome**; the
+one snora widget module knotra imports, `snora::widget::icon`, is unchanged. knotra does
+not use `iced_test`, the one other item 0.50's guide flags.
+
+**D3's two claims re-verified at 0.50.0:** `Sheet` still has only `new`/`at`/`with_size`
+(same lines as 0.49.0); its panel border is still `background.weak`; `body_small` is still
+read only by `snora-style`'s `text.rs` definitions and its `#[cfg(test)]` module.
+
+**Effect.** Every `0.49` / `0.49.0` in D1, D2, D3, D5, R1, R4, R5 and R6 reads `0.50` /
+`0.50.0`. No decision, requirement, stop condition, or scope changes. The file keeps its
+name, so existing citations stay valid.
