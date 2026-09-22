@@ -631,6 +631,21 @@ fn delete_workspace_file_with_no_workspaces_directory_is_ok() {
     assert_eq!(delete_workspace_file(&workspace, &paths), Ok(()));
 }
 
+// Task 082: `load_workspaces` must not read a blocked workspaces directory
+// as "nothing here yet" — the same ambiguity Task 081 removed from
+// `delete_workspace_file`, one directory up.
+
+#[test]
+fn load_workspaces_blocked_by_a_plain_file_reports_an_error() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = blocked_workspace_paths(&tmp);
+
+    let (loaded, errors) = load_workspaces(&paths);
+
+    assert!(loaded.is_empty());
+    assert!(!errors.is_empty(), "a blocked directory must be reported");
+}
+
 // ---------------------------------------------------------------------------
 // RFC-036 Stage 3 — overlay focus trap, entry, and return
 // ---------------------------------------------------------------------------

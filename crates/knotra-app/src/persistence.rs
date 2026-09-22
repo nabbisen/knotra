@@ -5,6 +5,22 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::AppPaths;
 
+/// Whether `dir`, after `read_dir` has already failed to open it with
+/// `NotFound`, should still be treated as though it genuinely does not
+/// exist. Windows's `read_dir` queries a compound path (`dir.join("*")`,
+/// `library/std/src/sys/fs/windows.rs:1185-1196`), so a directory blocked by
+/// a plain file can report the same `NotFound` kind a directory that was
+/// never created reports — the same ambiguity Task 081 removed from
+/// `delete_workspace_file`. Resolved here the same way: by asking the
+/// filesystem about `dir` itself rather than trusting the error kind
+/// `read_dir` happened to return.
+fn treat_missing_directory_as_absent(dir: &std::path::Path) -> bool {
+    match std::fs::metadata(dir) {
+        Ok(meta) => meta.is_dir(),
+        Err(e) => e.kind() == std::io::ErrorKind::NotFound,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Workspace persistence
 // ---------------------------------------------------------------------------
@@ -17,6 +33,9 @@ struct WorkspaceFile {
 
 /// Load all workspaces from the workspaces directory.
 /// Returns an empty list (not an error) when the directory does not exist.
+/// A directory that exists but is blocked by something other than a
+/// directory (see `treat_missing_directory_as_absent`) is an error, same as
+/// any other unreadable directory.
 pub fn load_workspaces(paths: &AppPaths) -> (Vec<Workspace>, Vec<String>) {
     let dir = &paths.workspaces_dir;
     let mut workspaces = Vec::new();
@@ -24,7 +43,12 @@ pub fn load_workspaces(paths: &AppPaths) -> (Vec<Workspace>, Vec<String>) {
 
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return (workspaces, errors),
+        Err(e)
+            if e.kind() == std::io::ErrorKind::NotFound
+                && treat_missing_directory_as_absent(dir) =>
+        {
+            return (workspaces, errors);
+        }
         Err(e) => {
             errors.push(format!("cannot read workspaces dir: {e}"));
             return (workspaces, errors);
@@ -130,10 +154,12 @@ pub struct LoadedLogs {
     /// further back in the directory, unrequested.
     pub unreadable: usize,
     /// The history directory itself could not be read (e.g. a permissions
-    /// failure or a missing mount) — distinct from the directory never
-    /// having been created, which is genuinely "no history yet" (RFC-047
-    /// D3): `save_operation_log` creates the directory on first write, so a
-    /// `NotFound` here is a first run, not a loss.
+    /// failure, a missing mount, or the directory blocked by something
+    /// other than a directory) — distinct from the directory never having
+    /// been created, which is genuinely "no history yet" (RFC-047 D3):
+    /// `save_operation_log` creates the directory on first write, so a
+    /// `NotFound` here is a first run, not a loss, once confirmed by
+    /// `treat_missing_directory_as_absent`.
     pub directory_unreadable: bool,
 }
 
@@ -150,7 +176,10 @@ pub fn load_recent_logs(paths: &AppPaths, limit: usize) -> LoadedLogs {
     let dir = &paths.history_dir;
     let mut entries: Vec<_> = match std::fs::read_dir(dir) {
         Ok(e) => e.flatten().collect(),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+        Err(e)
+            if e.kind() == std::io::ErrorKind::NotFound
+                && treat_missing_directory_as_absent(dir) =>
+        {
             return LoadedLogs {
                 logs: Vec::new(),
                 unreadable: 0,
@@ -391,5 +420,28 @@ mod tests {
         assert!(loaded.logs.is_empty());
         assert_eq!(loaded.unreadable, 0);
         assert!(!loaded.directory_unreadable);
+    }
+
+    /// Task 082: a history directory blocked by a plain file must not read
+    /// as "no history yet" — the same ambiguity Task 081 removed from
+    /// `delete_workspace_file`, one directory up. Not gated to any
+    /// platform: unlike the permissions-based test above, this fixture
+    /// (a plain file where the directory should be) works identically on
+    /// both.
+    #[test]
+    fn load_recent_logs_reports_a_directory_blocked_by_a_plain_file() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let mut paths = paths_in(&tmp);
+        paths.history_dir = tmp.path().join("not-a-directory");
+        std::fs::write(&paths.history_dir, "file").expect("create blocking file");
+
+        let loaded = load_recent_logs(&paths, 10);
+
+        assert!(loaded.logs.is_empty());
+        assert_eq!(loaded.unreadable, 0);
+        assert!(
+            loaded.directory_unreadable,
+            "a blocked directory must be reported, not read as no history yet"
+        );
     }
 }
