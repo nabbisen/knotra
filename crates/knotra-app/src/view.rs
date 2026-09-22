@@ -168,7 +168,7 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
                 // Right-docked resolve panel → snora Sheet anchored to the End edge.
                 //
                 // RFC-058 D3: `Sheet` exposes only `new`/`at`/`with_size`
-                // (`snora-core-0.38.0/src/overlay.rs:206-227`) — no style
+                // (`snora-core-0.50.0::overlay::Sheet`) — no style
                 // hook. Its own drawn edge (fill `background.base`, 1px
                 // border `background.weak`) measures 1.29–1.35:1, well
                 // under the 3:1 SC 1.4.11 floor, and knotra cannot change

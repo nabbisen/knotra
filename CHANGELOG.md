@@ -49,6 +49,18 @@ rather than knotra's own, because knotra only ever styled widgets explicitly and
 these were never styled. They now follow the same theme as everything else, in
 both light and dark.
 
+### Fixed — clicking inside a dialog could close it and lose what you typed
+
+Clicking anywhere inside an open dialog that wasn't a button or a field — the
+title, a label, empty space — closed the dialog and discarded anything you had
+typed into it. A dialog now only closes from its own Cancel/close control or by
+clicking outside it.
+
+Scrolling the wheel while a dialog was open, with the pointer away from the
+dialog itself, reached past it and scrolled whatever was behind instead of
+doing nothing. That's fixed too — and scrolling there now closes the dialog,
+so the wheel is another way to dismiss one, not a way to lose your place.
+
 ### Security
 
 Six advisories cleared from knotra's dependencies, including one vulnerability and
