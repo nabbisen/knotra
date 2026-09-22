@@ -5,16 +5,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::AppPaths;
 
-/// Whether `dir`, after `read_dir` has already failed to open it with
-/// `NotFound`, should still be treated as though it genuinely does not
-/// exist. Windows's `read_dir` queries a compound path (`dir.join("*")`,
-/// `library/std/src/sys/fs/windows.rs:1185-1196`), so a directory blocked by
-/// a plain file can report the same `NotFound` kind a directory that was
-/// never created reports — the same ambiguity Task 081 removed from
-/// `delete_workspace_file`. Resolved here the same way: by asking the
-/// filesystem about `dir` itself rather than trusting the error kind
-/// `read_dir` happened to return.
-fn treat_missing_directory_as_absent(dir: &std::path::Path) -> bool {
+/// Whether `dir`, after some directory operation has already failed to
+/// reach it with `NotFound`, should still be treated as though it genuinely
+/// does not exist. Windows's `read_dir` queries a compound path
+/// (`dir.join("*")`, `library/std/src/sys/fs/windows.rs:1185-1196`), so a
+/// directory blocked by a plain file can report the same `NotFound` kind a
+/// directory that was never created reports — the same ambiguity Task 081
+/// removed from `delete_workspace_file`. Resolved here the same way: by
+/// asking the filesystem about `dir` itself rather than trusting the error
+/// kind the failed operation happened to return. `pub(crate)` rather than
+/// private: Task 083 reuses this from `config.rs::load_config`, the same
+/// ambiguity one directory up again — one implementation, not two.
+pub(crate) fn treat_missing_directory_as_absent(dir: &std::path::Path) -> bool {
     match std::fs::metadata(dir) {
         Ok(meta) => meta.is_dir(),
         Err(e) => e.kind() == std::io::ErrorKind::NotFound,

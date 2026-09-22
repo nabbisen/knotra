@@ -163,6 +163,15 @@ impl AppPaths {
 }
 
 /// Load configuration from disk, falling back to defaults on any error.
+///
+/// A missing `config.toml` is "no config yet" only once the directory that
+/// should contain it is confirmed genuinely absent (or `config_file` has no
+/// parent to blame at all) — `NotFound` alone cannot carry that distinction
+/// on every platform, for the same reason `persistence::delete_workspace_file`
+/// cannot trust it either (Task 081/082): a config directory blocked by a
+/// plain file can report the same `NotFound` kind reading `config.toml`
+/// would report if the directory had simply never been created. A blocked
+/// directory instead takes the "cannot read" path below, message and all.
 pub fn load_config(paths: &AppPaths) -> (AppConfig, Option<String>) {
     match std::fs::read_to_string(&paths.config_file) {
         Ok(text) => match toml::from_str::<AppConfig>(&text) {
@@ -175,7 +184,15 @@ pub fn load_config(paths: &AppPaths) -> (AppConfig, Option<String>) {
                 (AppConfig::default(), Some(msg))
             }
         },
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (AppConfig::default(), None),
+        Err(e)
+            if e.kind() == std::io::ErrorKind::NotFound
+                && paths
+                    .config_file
+                    .parent()
+                    .is_none_or(crate::persistence::treat_missing_directory_as_absent) =>
+        {
+            (AppConfig::default(), None)
+        }
         Err(e) => {
             let msg = format!(
                 "Cannot read config file (using defaults): {e}\nPath: {}",
@@ -261,5 +278,52 @@ mod tests {
         );
         assert!(lines[0].contains("config directory"), "{warning:?}");
         assert!(lines[1].contains("data directory"), "{warning:?}");
+    }
+
+    // Task 083: no dedicated `load_config` tests existed before this task —
+    // only `resolve`/`resolve_from` above, plus indirect round-trip coverage
+    // in `tests.rs`. Both cases below are new, not duplicates of anything
+    // pre-existing.
+
+    /// The first-run case: the config directory was never created at all.
+    /// `load_config` must still read this as "no config yet" — unchanged
+    /// behaviour after Task 083's fix, not a new guarantee.
+    #[test]
+    fn load_config_with_no_config_directory_uses_defaults_and_no_warning() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths::under(tmp.path().to_path_buf()); // config dir never created
+
+        let (loaded, warning) = load_config(&paths);
+
+        assert_eq!(warning, None);
+        assert_eq!(
+            loaded.refresh_interval_secs,
+            AppConfig::default().refresh_interval_secs
+        );
+        assert_eq!(loaded.dark_theme, AppConfig::default().dark_theme);
+    }
+
+    /// Task 083: a config directory blocked by a plain file must not read
+    /// as "no config yet" — the same ambiguity Tasks 081/082 removed from
+    /// `delete_workspace_file` and the two loaders in `persistence.rs`.
+    #[test]
+    fn load_config_with_a_blocked_config_directory_reports_and_uses_defaults() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let blocked = tmp.path().join("config");
+        std::fs::write(&blocked, "not a directory").expect("blocking file");
+        let paths = AppPaths {
+            config_file: blocked.join("config.toml"),
+            workspaces_dir: blocked.join("workspaces"),
+            history_dir: tmp.path().join("data").join("history"),
+        };
+
+        let (loaded, warning) = load_config(&paths);
+
+        assert!(warning.is_some(), "a blocked directory must be reported");
+        assert_eq!(
+            loaded.refresh_interval_secs,
+            AppConfig::default().refresh_interval_secs
+        );
+        assert_eq!(loaded.dark_theme, AppConfig::default().dark_theme);
     }
 }
