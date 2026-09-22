@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted 2026-09-15 (project owner) |
+| Status | Implemented (main: 62d0800) |
 | Priority | High - knotra carries two live input defects that 0.41.0 fixes |
 | Effort | Small - one manifest line, the lockfile, two comments, one CHANGELOG entry, evidence |
 | Target | Production Readiness Reset - UI/UX foundation |
