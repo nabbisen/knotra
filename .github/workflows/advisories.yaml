@@ -33,6 +33,11 @@ env:
   TOOLCHAIN: "1.91"
 
 jobs:
+  # release.yaml's own `advisories` job duplicates this one exactly
+  # (checkout, presence check, toolchain, cargo-deny cache/install, scan) -
+  # duplicated rather than shared as a reusable workflow (RFC-060 non-goal).
+  # Review 201 F2 is what happens when only one copy is updated: change both
+  # together whenever either changes.
   advisories:
     runs-on: ubuntu-latest
     steps:

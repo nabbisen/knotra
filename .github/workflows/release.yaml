@@ -40,19 +40,34 @@ jobs:
       # The release notes are the CHANGELOG section for this exact version,
       # so the published notes and the changelog cannot drift apart. A tag
       # with no matching section fails here rather than publishing an empty
-      # release. On a workflow_dispatch run (no tag), GITHUB_REF_NAME is the
-      # branch name and will not match a CHANGELOG heading either - the same
-      # failure path, which is fine since a dispatched run never reaches
-      # `publish`.
+      # release - that strictness stays on a real push, unconditionally.
+      #
+      # On workflow_dispatch there is no tag to match, and GITHUB_REF_NAME is
+      # just the branch name - using it here would extract nothing, so build
+      # would never run and the dry run would verify nothing it exists to
+      # verify (Review 201 F1). Instead, a dispatched run uses the newest
+      # released `## [x.y.z]` section, so notes/build/upload all exercise
+      # real content without needing a tag.
       - name: Extract release notes from CHANGELOG
         run: |
-          awk -v tag="$GITHUB_REF_NAME" '
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG=$(grep -m1 -E '^## \[[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## \[([^]]+)\].*/\1/')
+            if [ -z "$TAG" ]; then
+              echo "::error::CHANGELOG.md has no released '## [x.y.z]' section for a dry run"
+              exit 1
+            fi
+            echo "workflow_dispatch: using newest released section '$TAG' for a dry run"
+          else
+            TAG="$GITHUB_REF_NAME"
+          fi
+
+          awk -v tag="$TAG" '
             index($0, "## [" tag "]") == 1 { found = 1; next }
             found && /^## \[/ { exit }
             found { print }
           ' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then
-            echo "::error::CHANGELOG.md has no '## [$GITHUB_REF_NAME]' section"
+            echo "::error::CHANGELOG.md has no '## [$TAG]' section"
             exit 1
           fi
 
@@ -69,8 +84,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      # Mirrors advisories.yaml's own gate: a release is never cut against
-      # an unexamined advisory (RFC-060 D2).
+      # Mirrors advisories.yaml's own gate exactly: checkout, presence check,
+      # toolchain, cargo-deny cache/install, scan (RFC-060 D2). Duplicated
+      # rather than shared as a reusable workflow (RFC-060 non-goal) - Review
+      # 201 F2 is what happens when only one copy is updated, so change both
+      # together whenever either changes.
       - name: Check deny.toml declares every advisory class
         run: |
           missing=0
@@ -78,6 +96,12 @@ jobs:
             grep -Eq "^[[:space:]]*${key}[[:space:]]*=" deny.toml || { echo "::error::deny.toml is missing [advisories] ${key}"; missing=1; }
           done
           [ "$missing" -eq 0 ]
+
+      # The runner's default rustup toolchain is stable, and rustup does not
+      # auto-install a toolchain named with `+`; without this, the scan step
+      # below fails before it ever reaches cargo-deny.
+      - name: Install Rust toolchain
+        run: rustup toolchain install "$TOOLCHAIN" --profile minimal
 
       - name: Cache cargo-deny
         id: cache-cargo-deny
