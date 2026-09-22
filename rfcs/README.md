@@ -55,7 +55,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [059](./accepted/059-upgrade-snora-from-0.38-to-0.49.md) | Upgrade snora from 0.38 to 0.49 | Production Readiness Reset | High |
 | [060](./accepted/060-ci-covers-what-we-ship.md) | CI covers what we ship | Production Readiness Reset | High |
 
 ---
@@ -69,6 +68,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [059](./done/059-upgrade-snora-from-0.38-to-0.49.md) | Upgrade snora from 0.38 to 0.50 (retargeted, A1) | main: 62d0800 |
 | [058](./done/058-the-resolve-sheet-carries-its-own-boundary.md) | The resolve `Sheet` carries its own boundary | main: 03960b7 |
 | [057](./done/057-adopt-snora-design-theme-as-the-base-theme.md) | Adopt `snora::design::theme()` as the base theme | main: 94d7412 |
 | [056](./done/056-snora-0.37-typography-and-accessibility.md) | snora 0.25 to 0.38: typography and accessibility | main: 925d9fb |
