@@ -9,6 +9,57 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+**The release where a second platform got tested for the first time.** knotra has
+shipped Windows and macOS builds since 0.24.0 and never once run its test suite on
+either. Running it on Windows found three real bugs, all of them quiet ones — the
+kind that look like nothing happened.
+
+### Fixed — three ways knotra could lose your work on Windows, silently
+
+All three were correct on Linux and macOS, and wrong only on Windows, because
+Windows reports "the folder isn't there" for a folder that *is* there but has been
+replaced by a file. knotra believed it.
+
+- **Your settings could reset themselves.** If knotra's config folder was blocked,
+  it read as "no settings yet": theme, language, refresh interval, editor and merge
+  tool all reverted to defaults, **with no message**, and the next save wrote the
+  defaults back over your file.
+- **Your workspaces could appear to vanish**, with no error — the same
+  misreading, one folder over. An unreadable history folder likewise reported
+  "no history yet" instead of saying it could not be read.
+- **Deleting a workspace could report success without deleting anything.** The
+  workspace disappeared from the list while its file stayed on disk, so it came
+  back on the next start.
+
+### Changed — text is larger where it was too small, and nothing is smaller
+
+knotra's text now comes from a named scale rather than per-screen numbers, and
+**nothing renders below 12 pixels** any more. The densest metadata rows — 11px
+before — are the ones that move. The rule the change was held to was that no text
+anywhere may get *smaller*, and none did.
+
+Alongside it: wrapped prose (notices, help text, error sentences) now has proper
+line spacing, **text fields are taller** so they meet the minimum pointer-target
+size, and the detail panel's label column is wider to fit the larger text.
+
+### Changed — parts of the interface knotra never styled now follow its theme
+
+Scrollbars, text fields and tooltips had been rendering from iced's stock palette
+rather than knotra's own, because knotra only ever styled widgets explicitly and
+these were never styled. They now follow the same theme as everything else, in
+both light and dark.
+
+### Security
+
+Six advisories cleared from knotra's dependencies, including one vulnerability and
+three unsound-code advisories. Four remain, all in dependencies with no fix
+published; each is now recorded by name with the path it reaches us by and the
+condition that retires it, and the build fails if one is left accepted after
+upstream fixes it.
+
+Dependency advisories are now scanned on every change and weekly, instead of only
+when someone thought to look.
+
 ## [0.28.0] — 2026-08-15
 
 **The release for everyone not using knotra in English, on Git.** Two entire
