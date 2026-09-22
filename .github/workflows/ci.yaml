@@ -168,12 +168,19 @@ jobs:
       - name: cargo test -p knotra
         run: cargo "+$TOOLCHAIN" test -p knotra
 
+      # RFC-060 Stage 1&2 follow-up (Review 192 §5): `if: always()`, not
+      # `continue-on-error` — later steps still run after an earlier one
+      # fails, but the job itself still fails. Without this, one crate's
+      # failure hid every crate after it on that platform, as it did for
+      # knotra-ui and knotra-vcs on Windows's first run.
       - name: cargo test -p knotra-ui
+        if: always()
         run: cargo "+$TOOLCHAIN" test -p knotra-ui
 
       # knotra-vcs's own test harness builds every git Command with full
       # environment isolation (Handoff 012) — no external env needed here.
       - name: cargo test -p knotra-vcs
+        if: always()
         run: cargo "+$TOOLCHAIN" test -p knotra-vcs
 
   msrv:
