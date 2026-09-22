@@ -28,6 +28,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Matches the toolchain the project's gates are pinned to.
+  TOOLCHAIN: "1.91"
+
 jobs:
   advisories:
     runs-on: ubuntu-latest
@@ -47,6 +51,12 @@ jobs:
             grep -Eq "^[[:space:]]*${key}[[:space:]]*=" deny.toml || { echo "::error::deny.toml is missing [advisories] ${key}"; missing=1; }
           done
           [ "$missing" -eq 0 ]
+
+      # The runner's default rustup toolchain is stable, and rustup does not
+      # auto-install a toolchain named with `+`; without this, the scan step
+      # below fails before it ever reaches cargo-deny.
+      - name: Install Rust toolchain
+        run: rustup toolchain install "$TOOLCHAIN" --profile minimal
 
       - name: Cache cargo-deny
         id: cache-cargo-deny
