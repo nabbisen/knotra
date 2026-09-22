@@ -1,17 +1,24 @@
 name: Release
 
-# Pushing a version tag produces the whole release: this creates the GitHub
-# Release from the matching CHANGELOG section, then attaches a built
-# executable for each supported platform.
+# Pushing a version tag produces the whole release: notes are extracted and
+# advisories checked in parallel, every platform is built and archived, and
+# only once all three have succeeded does `publish` create the GitHub
+# Release with all three archives attached at once. A platform failure
+# means no release is published at all, rather than a partial one missing
+# a binary (RFC-060 D4).
 
 on:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
       - "[0-9]+.[0-9]+.[0-9]+-*"
+  # A dispatched run exercises notes, advisories, and build - producing
+  # downloadable artifacts - and skips publish, so the whole flow can be
+  # verified without creating a public release.
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 defaults:
   run:
@@ -23,17 +30,20 @@ env:
   TOOLCHAIN: "1.91"
 
 jobs:
-  create-release:
-    name: Create release
+  notes:
+    name: Release notes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # The release notes are the CHANGELOG section for this exact version,
       # so the published notes and the changelog cannot drift apart. A tag
       # with no matching section fails here rather than publishing an empty
-      # release.
+      # release. On a workflow_dispatch run (no tag), GITHUB_REF_NAME is the
+      # branch name and will not match a CHANGELOG heading either - the same
+      # failure path, which is fine since a dispatched run never reaches
+      # `publish`.
       - name: Extract release notes from CHANGELOG
         run: |
           awk -v tag="$GITHUB_REF_NAME" '
@@ -46,17 +56,46 @@ jobs:
             exit 1
           fi
 
-      - name: Create the release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload release notes
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: notes.md
+
+  advisories:
+    name: Advisories
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Mirrors advisories.yaml's own gate: a release is never cut against
+      # an unexamined advisory (RFC-060 D2).
+      - name: Check deny.toml declares every advisory class
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
-            --notes-file notes.md
+          missing=0
+          for key in yanked unmaintained unsound unused-ignored-advisory; do
+            grep -Eq "^[[:space:]]*${key}[[:space:]]*=" deny.toml || { echo "::error::deny.toml is missing [advisories] ${key}"; missing=1; }
+          done
+          [ "$missing" -eq 0 ]
+
+      - name: Cache cargo-deny
+        id: cache-cargo-deny
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-0.20.2-${{ runner.os }}
+
+      - name: Install cargo-deny
+        if: steps.cache-cargo-deny.outputs.cache-hit != 'true'
+        run: cargo install --locked cargo-deny --version 0.20.2
+
+      - name: Check advisories
+        run: cargo +1.91 deny --manifest-path Cargo.toml check advisories
 
   build:
     name: ${{ matrix.name }}
-    needs: create-release
+    needs: [notes, advisories]
     runs-on: ${{ matrix.os }}
     strategy:
       # One platform failing should not hide whether the others work.
@@ -81,7 +120,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # knotra is an iced/wgpu GUI application; on Linux it needs Wayland,
       # xkbcommon, and GL headers present at build time.
@@ -101,7 +140,7 @@ jobs:
           rustup target add ${{ matrix.target }} --toolchain "$TOOLCHAIN"
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -141,7 +180,43 @@ jobs:
           cd dist
           7z a "../${ASSET}" .
 
-      - name: Attach archive to release
+      # No release upload here — `publish` attaches all three archives at
+      # once, only after every platform has built (RFC-060 D4).
+      - name: Upload archive artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.name }}
+          path: ${{ env.ASSET }}
+
+  # Recovery: a transient failure (a flaky runner, a network blip) is
+  # cleared by re-running only the failed jobs from the Actions UI;
+  # `publish` then proceeds against the same tag and the same build
+  # outputs. A failure that needs a code fix needs a new tag — re-running
+  # rebuilds the same commit, so it cannot pick up a fix that has not been
+  # tagged yet.
+  publish:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    # A dispatched run (no tag) produces artifacts from notes/advisories/build
+    # for inspection and stops here - it never creates a release. Only a real
+    # tag push publishes.
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Create the release with all archives attached
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$GITHUB_REF_NAME" "${ASSET}"
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file artifacts/release-notes/notes.md \
+            artifacts/release-Linux-x64-gnu/* \
+            artifacts/release-macOS-aarch64/* \
+            artifacts/release-Windows-x64/*
