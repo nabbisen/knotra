@@ -3196,7 +3196,14 @@ fn resolve_project_file_path_rejects_symlink_escape() {
     let outside_file = outside_dir.path().join("outside.txt");
     std::fs::write(&outside_file, "outside").expect("outside file");
     let link = tmp.path().join("link.txt");
+    // RFC-060 D3/Stage 2 R7: this test guards a security property (a
+    // project file path must not escape the project through a symlink),
+    // so it is ported to Windows rather than gated to Unix-only, the one
+    // platform where path handling differs most.
+    #[cfg(unix)]
     std::os::unix::fs::symlink(&outside_file, &link).expect("symlink");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(&outside_file, &link).expect("symlink");
     let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
 
     assert_eq!(
