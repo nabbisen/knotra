@@ -13,4 +13,5 @@ Stage 1 additionally requires Task 080 to have landed.
 |---|---|---|
 | [`stage-1-advisory-gate.md`](stage-1-advisory-gate.md) | `deny.toml`, the key-presence check, `advisories.yaml` (D1, D2) | issued |
 | [`stage-2-platform-matrix.md`](stage-2-platform-matrix.md) | Windows/macOS test jobs, the symlink test port (D3) | issued |
+| [`stage-1-and-2-follow-up.md`](stage-1-and-2-follow-up.md) | Stage 1 F1/F2, Stage 2's `if: always()`, and the Windows re-run | issued |
 | [`stage-3-release-order-and-actions.md`](stage-3-release-order-and-actions.md) | release publishes only after all builds; action majors (D4, D5) | issued |
