@@ -11,3 +11,4 @@ lifecycle of their own and do not move between state folders.
 |---|---|
 | [`implementation-handoff.md`](implementation-handoff.md) | issued |
 | [`amendment-a1-retarget-to-0.50.md`](amendment-a1-retarget-to-0.50.md) | issued — read with the handoff above |
+| [`amendment-a2-e2-revised.md`](amendment-a2-e2-revised.md) | issued — replaces the handoff's E2 only |

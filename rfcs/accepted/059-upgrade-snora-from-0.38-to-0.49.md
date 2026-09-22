@@ -240,3 +240,44 @@ read only by `snora-style`'s `text.rs` definitions and its `#[cfg(test)]` module
 **Effect.** Every `0.49` / `0.49.0` in D1, D2, D3, D5, R1, R4, R5 and R6 reads `0.50` /
 `0.50.0`. No decision, requirement, stop condition, or scope changes. The file keeps its
 name, so existing citations stay valid.
+
+### A2 — E2 tested the wrong region (2026-09-22, after evidence capture began)
+
+The dev team captured E1 and E3 as predicted and reported, per §1's stop condition, that
+**E2 did not reproduce** — scrolling over an open dialog at 0.38.0 moved nothing, in either
+layer, across three attempts, with synthetic scroll proven to reach knotra's `scrollable`
+one capture earlier (`.git-exclude/review-request/088-...md`).
+
+**They were right, and the error is in this RFC.**
+
+**What the Problem section says:** *"The dim handles presses but not scroll, so scroll
+events pass through."* True **of the dim**, which is the region *outside* the dialog card —
+and that is where snora's change lives. D2's E2 then asked for a scroll **over the dialog**,
+which is a different path.
+
+**Why over-the-dialog behaves differently**, read in iced 0.14.2 and snora 0.38.0 after the
+report:
+
+- `iced_widget::stack` levitates the cursor away from all lower layers as soon as a layer's
+  `mouse_interaction` is anything but `None` (`stack.rs:249-275`);
+- `text_input` claims the cursor whenever it is over its bounds, so a wheel over the Name
+  field never reaches the dim at any snora version;
+- knotra's dialog body is itself a `scrollable` (`overlay.rs:157`), which captures a wheel
+  only when it actually scrolls;
+- the dim claims nothing: `mouse_area` with no `.interaction()` reports its content's
+  interaction, and `space()` reports `Interaction::None`.
+
+**Corrected statement of the second defect.** At 0.38.0 a wheel **over the dim** is ignored
+by the dim and reaches the content behind it. At 0.50.0 the dim publishes the **close**
+message on scroll (`render.rs`, `dim_backdrop`), so the same gesture **dismisses the
+dialog** — a user-visible behaviour change this RFC previously did not state, and which
+belongs in D4's CHANGELOG entry once confirmed.
+
+**Effect.** D2's E2 is replaced by the revised step in
+`rfcs/handoffs/059-.../amendment-a2-e2-revised.md`. E1 and E3 are unchanged and already
+captured. **If the revised E2 does not reproduce either, it is recorded as "no observable
+difference for knotra" and the upgrade proceeds**: E1 is the defect users hit, it
+reproduced, and D1's justification does not depend on E2.
+
+One consequence of attempts 2 and 3 — a wheel in the dialog's title-to-label gap moving
+nothing — is **not explained** by the reading above and is deliberately not chased here.
