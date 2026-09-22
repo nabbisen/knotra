@@ -67,13 +67,31 @@ pub fn save_workspace(workspace: &Workspace, paths: &AppPaths) -> Result<(), Str
 /// Remove a persisted workspace file.
 ///
 /// Missing files are treated as already removed so in-memory cleanup can
-/// proceed for workspaces loaded before the file disappeared.
+/// proceed for workspaces loaded before the file disappeared. `NotFound`
+/// alone cannot carry that distinction on every platform: Windows maps both
+/// "file not found" and "path not found" (a parent component that is not a
+/// directory) to the same `NotFound` kind, where Unix reports the latter
+/// distinctly. So a `NotFound` from `remove_file` is only accepted as
+/// "already removed" once the workspaces directory itself is confirmed to
+/// really be a directory; a workspaces directory that does not exist at all
+/// is still treated as already removed, matching `load_workspaces`'s own
+/// contract for that case.
 pub fn delete_workspace_file(workspace: &Workspace, paths: &AppPaths) -> Result<(), String> {
     let file_name = format!("{}.toml", workspace.id);
     let path = paths.workspaces_dir.join(file_name);
     match std::fs::remove_file(&path) {
         Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            match std::fs::metadata(&paths.workspaces_dir) {
+                Ok(meta) if meta.is_dir() => Ok(()),
+                Ok(_) => Err(format!(
+                    "delete error: {} is not a directory",
+                    paths.workspaces_dir.display()
+                )),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(format!("delete error: {e}")),
+            }
+        }
         Err(e) => Err(format!("delete error: {e}")),
     }
 }

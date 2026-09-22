@@ -6,7 +6,7 @@ use crate::message::{
     DashboardMessage, DetailPanelMessage, FilterMessage, FreezerMessage, Message, PaletteMessage,
     SelectionMessage, ShortcutMessage, StatusFilter, SyncMessage, TagPushMessage, WorkspaceMessage,
 };
-use crate::persistence::{load_workspaces, save_workspace};
+use crate::persistence::{delete_workspace_file, load_workspaces, save_workspace};
 use crate::state::{
     ActiveModal, ActivityRetryAction, AddProjectDialog, AppState, LatestOpState, OperationOwner,
     RetryAvailability, RetryUnavailableReason, Screen,
@@ -603,6 +603,32 @@ fn delete_workspace_failure_keeps_state_and_dialog() {
             .and_then(|d| d.error.as_deref())
             .is_some_and(|error| error.starts_with("We could not remove this workspace."))
     );
+}
+
+// Task 081: `delete_workspace_file` on its own, without going through
+// dispatch — a blocked workspaces directory must error on every platform,
+// while a workspaces directory that never existed at all is not an error.
+
+#[test]
+fn delete_workspace_file_blocked_by_a_plain_file_is_an_error() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = blocked_workspace_paths(&tmp);
+    let workspace = Workspace::new("Main");
+
+    assert!(delete_workspace_file(&workspace, &paths).is_err());
+}
+
+#[test]
+fn delete_workspace_file_with_no_workspaces_directory_is_ok() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = AppPaths {
+        config_file: tmp.path().join("config.toml"),
+        workspaces_dir: tmp.path().join("workspaces"),
+        history_dir: tmp.path().join("history"),
+    };
+    let workspace = Workspace::new("Main");
+
+    assert_eq!(delete_workspace_file(&workspace, &paths), Ok(()));
 }
 
 // ---------------------------------------------------------------------------
