@@ -1,0 +1,15 @@
+[graph]
+all-features = true
+
+[advisories]
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+unused-ignored-advisory = "deny"
+ignore = [
+  # Each entry states the path it reaches us by and what retires it.
+  { id = "RUSTSEC-2026-0253", reason = "lru 0.16.4, use-after-free in LruCache::pop(). Runtime path via cryoglyph -> iced_wgpu -> iced_renderer -> iced. Unfixable here: cryoglyph pins lru ^0.16 and has no release lifting it to >=0.18.2. Retires when cryoglyph does." },
+  { id = "RUSTSEC-2024-0436", reason = "paste 1.0.15, unmaintained. Build-time proc-macro via iced's macOS path. No successor published. Retires when iced drops it or a successor ships." },
+  { id = "RUSTSEC-2026-0206", reason = "rustybuzz 0.20.1, unmaintained. Runtime, iced's text shaping. No successor published. Retires when iced moves off it." },
+  { id = "RUSTSEC-2026-0192", reason = "ttf-parser 0.25.1, unmaintained. Runtime, iced's font parsing. No successor published. Retires when iced moves off it." },
+]

@@ -1,0 +1,70 @@
+name: Advisories
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Cargo.lock
+      - Cargo.toml
+      - "**/Cargo.toml"
+      - deny.toml
+      - .github/workflows/advisories.yaml
+  pull_request:
+    paths:
+      - Cargo.lock
+      - Cargo.toml
+      - "**/Cargo.toml"
+      - deny.toml
+      - .github/workflows/advisories.yaml
+  # Advisories are published against crates we already depend on, with no
+  # change on our side, so a schedule catches what a push-triggered run
+  # cannot. GitHub disables scheduled workflows in a public repository after
+  # 60 days without repository activity, and runs them only on the default
+  # branch — a known limit, recorded here rather than worked around.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # cargo-deny's own settings default to permissive: `unsound`'s default
+      # scope is direct dependencies only, and 661 of knotra's 676 external
+      # packages are transitive. A missing key is a silent hole, not a
+      # visible error — checking values cannot catch it, only checking that
+      # every key in [advisories] is present can. A commented-out key must
+      # not satisfy this.
+      - name: Check deny.toml declares every advisory class
+        run: |
+          missing=0
+          for key in yanked unmaintained unsound unused-ignored-advisory; do
+            grep -Eq "^[[:space:]]*${key}[[:space:]]*=" deny.toml || { echo "::error::deny.toml is missing [advisories] ${key}"; missing=1; }
+          done
+          [ "$missing" -eq 0 ]
+
+      - name: Cache cargo-deny
+        id: cache-cargo-deny
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-0.20.2-${{ runner.os }}
+
+      # Installed, not borrowed from a third-party action: the published
+      # cargo-deny-action runs a Docker image pinned only by tag. cargo-deny
+      # 0.20.2 declares Rust 1.88 as its own minimum, below our pinned 1.91
+      # toolchain.
+      - name: Install cargo-deny
+        if: steps.cache-cargo-deny.outputs.cache-hit != 'true'
+        run: cargo install --locked cargo-deny --version 0.20.2
+
+      # `--config` is a top-level flag in 0.20.2, not a `check` flag. The
+      # default deny.toml at the repository root needs neither it nor a
+      # non-default `--manifest-path`; both are named here for clarity.
+      - name: Check advisories
+        run: cargo +1.91 deny --manifest-path Cargo.toml check advisories
