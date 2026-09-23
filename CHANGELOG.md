@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.29.1] — 2026-09-24
+
+**A security fix for 0.29.0 on Windows and Linux.** Nothing else changes.
+
 ### Security
 
 A dependency used to read Git object IDs (`faster-hex`, RUSTSEC-2026-0306) could
