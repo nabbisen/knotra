@@ -253,3 +253,169 @@ jobs:
             artifacts/release-Linux-x64-gnu/* \
             artifacts/release-macOS-aarch64/* \
             artifacts/release-Windows-x64/*
+
+  # RFC-061: repackage the Windows archive as an MSIX for the Microsoft Store.
+  #
+  # A sibling of `publish`, never a step inside `build`: both need only
+  # `build`, so a failure here cannot stop a release from being published
+  # (R6). The package is a workflow artifact and deliberately NOT attached to
+  # the GitHub release - an unsigned MSIX is not installable, and the Store
+  # signs what the owner submits, so no certificate or secret enters CI (R5,
+  # R7). It also runs on workflow_dispatch, which is how it is verified
+  # without cutting a release.
+  #
+  # PowerShell rather than the workflow's default bash: this job is all
+  # Windows paths (`C:\Program Files (x86)\...` has spaces and parentheses)
+  # and version comparison, which pwsh handles natively instead of through
+  # Git Bash's path translation. Native commands are checked via
+  # $LASTEXITCODE explicitly rather than trusting the shell to fail.
+  msix:
+    name: Windows MSIX package
+    needs: build
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Repack exactly what was built and shipped, rather than rebuilding, so
+      # the package holds byte-for-byte the binary users get; LICENSE and
+      # NOTICE are already inside the archive.
+      - name: Download the Windows archive
+        uses: actions/download-artifact@v8
+        with:
+          name: release-Windows-x64
+          path: archive
+
+      # R1: makeappx.exe ships in the Windows SDK, but the runner image's
+      # inventory does not name it, so it is located explicitly and the job
+      # fails loudly, listing every path searched, if it is absent. No SDK is
+      # installed here - if it is missing, that is a separate decision.
+      - name: Locate makeappx.exe
+        run: |
+          $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
+          $sdkPattern = Join-Path $kits 'bin\*\x64\makeappx.exe'
+          $actPath = Join-Path $kits 'App Certification Kit\makeappx.exe'
+
+          $sdkMatches = @(Get-ChildItem -Path $sdkPattern -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Parent.Name -match '^\d+(\.\d+){3}$' } |
+            Sort-Object { [version]$_.Directory.Parent.Name } -Descending)
+          $actMatch = @(Get-Item -LiteralPath $actPath -ErrorAction SilentlyContinue)
+
+          Write-Host "Searched:"
+          Write-Host "  $sdkPattern"
+          Write-Host "  $actPath"
+          foreach ($m in $sdkMatches) { Write-Host "Found: $($m.FullName)" }
+          foreach ($m in $actMatch) { Write-Host "Found: $($m.FullName)" }
+
+          if ($sdkMatches.Count -gt 0) { $makeappx = $sdkMatches[0].FullName }
+          elseif ($actMatch.Count -gt 0) { $makeappx = $actMatch[0].FullName }
+          else {
+            Write-Host "::error::makeappx.exe was not found in any searched location (listed above)"
+            exit 1
+          }
+          Write-Host "Using: $makeappx"
+          "MAKEAPPX=$makeappx" >> $env:GITHUB_ENV
+
+      # R3: the version comes from Cargo.toml's workspace version - the one
+      # place release prep bumps - never hand-maintained here, because a
+      # version living in two places with one updated is what broke the 0.28.0
+      # release. Partner Center reserves the fourth part, so it is always 0.
+      - name: Read the crate version
+        run: |
+          $inSection = $false
+          $crateVersion = $null
+          foreach ($line in Get-Content Cargo.toml) {
+            if ($line -match '^\s*\[(.+)\]\s*$') { $inSection = ($Matches[1] -eq 'workspace.package'); continue }
+            if ($inSection -and $line -match '^\s*version\s*=\s*"([^"]+)"') { $crateVersion = $Matches[1]; break }
+          }
+          if (-not $crateVersion) {
+            Write-Host "::error::no version found under [workspace.package] in Cargo.toml"
+            exit 1
+          }
+          if ($crateVersion -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Host "::error::crate version '$crateVersion' is not plain x.y.z; an MSIX version is four numeric parts, so a pre-release cannot be packaged"
+            exit 1
+          }
+          Write-Host "crate version $crateVersion -> MSIX version $crateVersion.0"
+          "CRATE_VERSION=$crateVersion" >> $env:GITHUB_ENV
+          "MSIX_VERSION=$crateVersion.0" >> $env:GITHUB_ENV
+
+      # R2: the shipped files, plus the manifest at the root and Assets/
+      # beside it. `7z` is already used by this workflow on Windows.
+      - name: Stage the package directory
+        run: |
+          $zips = @(Get-ChildItem -Path archive -Filter *.zip)
+          if ($zips.Count -ne 1) {
+            Write-Host "::error::expected exactly one .zip in archive/, found $($zips.Count)"
+            exit 1
+          }
+          New-Item -ItemType Directory -Path staging | Out-Null
+          7z x $zips[0].FullName "-ostaging" -y
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          Copy-Item packaging/windows/AppxManifest.xml staging/AppxManifest.xml
+          Copy-Item -Recurse packaging/windows/Assets staging/Assets
+
+          foreach ($required in 'knotra.exe', 'LICENSE', 'NOTICE', 'AppxManifest.xml') {
+            if (-not (Test-Path -LiteralPath (Join-Path staging $required))) {
+              Write-Host "::error::staging/$required is missing"
+              exit 1
+            }
+          }
+          Get-ChildItem staging -Recurse | ForEach-Object { Write-Host $_.FullName }
+
+      # The substitution is anchored on the placeholder VALUE ("0.0.0.0", with
+      # its quotes), not on `Version=`: the same file has MinVersion= and
+      # MaxVersionTested= attributes, and a looser pattern would rewrite the
+      # wrong one and produce a package that fails at submission, not here.
+      # Only the staging copy is edited; the committed manifest is untouched.
+      - name: Substitute the version into the staged manifest
+        run: |
+          $path = Join-Path (Resolve-Path staging).Path 'AppxManifest.xml'
+          $xml = [System.IO.File]::ReadAllText($path)
+          $placeholder = '"0.0.0.0"'
+          $count = [regex]::Matches($xml, [regex]::Escape($placeholder)).Count
+          if ($count -ne 1) {
+            Write-Host "::error::expected exactly one $placeholder placeholder in the manifest, found $count"
+            exit 1
+          }
+          $xml = $xml.Replace($placeholder, '"' + $env:MSIX_VERSION + '"')
+          [System.IO.File]::WriteAllText($path, $xml, (New-Object System.Text.UTF8Encoding($false)))
+
+          $actual = ([xml](Get-Content -Raw $path)).Package.Identity.Version
+          if ($actual -ne $env:MSIX_VERSION) {
+            Write-Host "::error::Identity Version is '$actual', expected '$env:MSIX_VERSION'"
+            exit 1
+          }
+          Write-Host "Identity Version = $actual"
+
+      # R4: no /nv. Semantic validation checks that every file the manifest
+      # references is present in the package - the one defect this job could
+      # otherwise ship silently, since a missing tile asset is invisible until
+      # Partner Center rejects the submission.
+      - name: Pack the MSIX
+        run: |
+          New-Item -ItemType Directory -Path out | Out-Null
+          $staging = (Resolve-Path staging).Path
+          $msix = Join-Path (Resolve-Path out).Path "knotra-$env:CRATE_VERSION.msix"
+          & $env:MAKEAPPX pack /d $staging /p $msix
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host "Packed: $msix ($((Get-Item $msix).Length) bytes)"
+          "MSIX_PATH=$msix" >> $env:GITHUB_ENV
+
+      # R3: nothing above may have rewritten the committed manifest.
+      - name: Confirm the committed manifest is unchanged
+        run: |
+          git diff --exit-code -- packaging/windows
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # R5: an artifact, not a release asset.
+      - name: Upload the MSIX artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-Windows-msix
+          path: ${{ env.MSIX_PATH }}
+          if-no-files-found: error
