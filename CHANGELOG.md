@@ -9,6 +9,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-09-23
+
 **The release where a second platform got tested for the first time.** knotra has
 shipped Windows and macOS builds since 0.24.0 and never once run its test suite on
 either. Running it on Windows found three real bugs, all of them quiet ones — the
