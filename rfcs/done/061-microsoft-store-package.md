@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted 2026-09-23 (project owner) |
+| Status | Implemented (main: cac4af4) |
 | Priority | Medium - a distribution channel the owner has already prepared for; nothing is broken without it |
 | Effort | Small - one job, no new dependency, no new secret |
 | Target | Production Readiness Reset - distribution |
