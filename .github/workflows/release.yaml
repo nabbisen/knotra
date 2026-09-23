@@ -217,7 +217,11 @@ jobs:
   # `publish` then proceeds against the same tag and the same build
   # outputs. A failure that needs a code fix needs a new tag — re-running
   # rebuilds the same commit, so it cannot pick up a fix that has not been
-  # tagged yet.
+  # tagged yet. If `publish` itself fails after a fix is needed, the tag
+  # already pushed points at a commit that will never produce a release —
+  # delete that tag (`git push --delete origin <tag>` and locally) and push
+  # a new one once the fix lands, rather than re-running or re-pushing the
+  # same tag.
   publish:
     name: Publish release
     needs: build
@@ -234,9 +238,14 @@ jobs:
         with:
           path: artifacts
 
+      # This job has no `actions/checkout`, so `gh` has no git remote to read
+      # the repository from — `GH_REPO` is what tells it instead (Review 202
+      # F3). A checkout would also supply one, but cloning the repository
+      # just to name it is the heavier fix.
       - name: Create the release with all archives attached
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
