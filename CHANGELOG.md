@@ -9,6 +9,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+A dependency used to read Git object IDs (`faster-hex`, RUSTSEC-2026-0306) could
+read past the end of a buffer on x86 and x86-64 processors that support AVX2 —
+which is most Windows and Linux PCs. knotra reached it whenever it parsed a Git
+object ID. It is a read, not a write, and no exploit is known, but it is
+undefined behaviour on a path knotra takes constantly. Fixed by moving to the
+patched release. macOS on Apple silicon was never affected.
+
 ## [0.29.0] — 2026-09-23
 
 **The release where a second platform got tested for the first time.** knotra has
