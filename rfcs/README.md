@@ -55,6 +55,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [061](./accepted/061-microsoft-store-package.md) | Build a Microsoft Store package in the release pipeline | Production Readiness Reset | Medium |
 
 ---
 
