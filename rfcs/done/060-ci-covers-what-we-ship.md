@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted 2026-09-22 (project owner) |
+| Status | Implemented (main: d51aac7) |
 | Priority | High - two fixable advisories sat unreported for months; two of three shipped platforms never run tests |
 | Effort | Medium - one new workflow, two rewritten workflows, one config file, one test ported |
 | Target | Production Readiness Reset - build and release integrity |
