@@ -44,7 +44,6 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [063](./proposed/063-publish-to-crates-io-from-the-release-pipeline.md) | Publish to crates.io from the release pipeline | Production Readiness Reset | High |
 
 ---
 
@@ -56,6 +55,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [063](./accepted/063-publish-to-crates-io-from-the-release-pipeline.md) | Publish to crates.io from the release pipeline | Production Readiness Reset | High |
 
 ---
 
