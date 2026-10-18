@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-18 |
+| Status | Accepted 2026-10-19 (project owner) |
 | Priority | Medium - nothing ships wrong today; the committed file misleads its readers |
 | Effort | Small - one manifest line, one test, one workflow step replaced and one removed |
 | Target | Production Readiness Reset - distribution |
@@ -24,13 +24,13 @@ RFC-061 D3 chose the placeholder for one reason: one version in one place, so re
 cannot bump `Cargo.toml` and forget the manifest. That is the failure that broke 0.28.0.
 
 The reason holds, but the placeholder is not the only way to meet it. A placeholder makes
-**forgetting impossible by making the file meaningless**. A guard makes **forgetting
+**forgetting impossible by making the file meaningless**. A test makes **forgetting
 impossible by failing loudly**, and leaves the file meaningful. The second is the better
 trade:
 
 - a reader of the repository sees the version the Store package carries;
-- the guard fails on every push and in the local gates, long before a release;
-- the cost is one more line in release prep, which the guard will not let anyone miss.
+- the test fails on every push and in the local gates, long before a release;
+- the cost is one more line in release prep, which the test will not let anyone miss.
 
 ## Non-goals
 
@@ -110,7 +110,7 @@ it with `Cargo.toml`, and that a test fails if they differ.
   crates.
 - **A dispatched run of `release.yaml`** after landing (mine): `msix` passes the new check
   and packs; its log shows the verified version.
-- **The next release's prep task** bumps four lines, and its review confirms the guard
+- **The next release's prep task** bumps four lines, and its review confirms the test
   passes.
 
 ## Security Considerations

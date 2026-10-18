@@ -44,7 +44,6 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [064](./proposed/064-the-store-manifest-carries-the-real-version.md) | The Store manifest carries the real version | Production Readiness Reset | Medium |
 
 ---
 
@@ -57,6 +56,7 @@ path, not the RFC's presence here.
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
 | [063](./accepted/063-publish-to-crates-io-from-the-release-pipeline.md) | Publish to crates.io from the release pipeline | Production Readiness Reset | High |
+| [064](./accepted/064-the-store-manifest-carries-the-real-version.md) | The Store manifest carries the real version | Production Readiness Reset | Medium |
 
 ---
 
