@@ -70,13 +70,15 @@ pub struct KnotraTheme {
 /// on the sub-floor outliers moving up to it — a regression on the many to
 /// spare the few (A3), and R10 forbids any site shrinking.
 ///
-/// **Safe from snora's own chrome**, verified against the 0.50.0 source of
-/// all five snora crates (A1): `snora`, `snora-core` and `snora-widgets`
-/// never reference `body_small` at all, and `snora-style`'s own
+/// **Safe from snora's own chrome**, verified against the 0.52.0 library
+/// source (`src/`) of all five snora crates (A1): `snora`, `snora-core` and
+/// `snora-widgets` never reference `body_small`, and `snora-style`'s own
 /// `body_small_size`/`body_small_line_height` (`snora-style::text`) are
 /// called only by that module's own `#[cfg(test)]` tests — so this override
-/// reaches knotra's own text and nothing snora renders. `label` and `body`
-/// are left untouched.
+/// reaches knotra's own text and nothing snora renders. `snora`'s
+/// integration tests under `tests/` do scale `body_small` in a fixture; they
+/// are not built into a dependent and draw nothing knotra shows. `label` and
+/// `body` are left untouched.
 fn with_knotra_typography(mut tokens: snora::design::Tokens) -> snora::design::Tokens {
     tokens.typography.body_small.size = 13.0;
     tokens
