@@ -25,7 +25,7 @@ use iced::{
     widget::{Space, button, column, container, row, text},
 };
 
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, style};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, style};
 
 use crate::{
     message::{ContextMessage, FreezerMessage, Message, SelectionMessage, SyncMessage},
@@ -288,11 +288,11 @@ fn action_button<'a>(
     is_focused: bool,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(
+    button(centered_button_label(
         text(label)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-    )
+    ))
     .height(BUTTON_HEIGHT)
     .padding([0, 18])
     .on_press_maybe(on_press)
@@ -306,11 +306,11 @@ fn action_button<'a>(
 /// a non-mutating, lower-weight action, not a fourth `secondary` button.
 fn exit_button<'a>(tokens: &Tokens, label: &'a str, is_focused: bool) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(
+    button(centered_button_label(
         text(label)
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
-    )
+    ))
     .height(BUTTON_HEIGHT)
     .on_press(Message::Selection(SelectionMessage::ModeExited))
     .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style::ghost(&t, status)))

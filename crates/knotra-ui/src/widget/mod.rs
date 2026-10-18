@@ -20,8 +20,8 @@ pub(crate) mod ring;
 pub mod select;
 
 pub use buttons::{
-    current_or, danger, danger_maybe, ghost, ghost_maybe, icon_button_maybe, primary,
-    primary_maybe, reasoned, secondary, secondary_maybe, style,
+    centered_button_label, current_or, danger, danger_maybe, ghost, ghost_maybe, icon_button_maybe,
+    primary, primary_maybe, reasoned, secondary, secondary_maybe, style,
 };
 pub use checkbox::checkbox;
 pub use field::{guided_field, guided_field_focused, validated_field};

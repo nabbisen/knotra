@@ -3,7 +3,7 @@
 
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, danger_maybe, ghost_maybe};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, danger_maybe, ghost_maybe};
 
 use crate::{
     message::{FilterMessage, Message, WorkspaceMessage},
@@ -23,9 +23,11 @@ pub(super) fn empty_workspace(state: &AppState) -> Element<'_, Message> {
             text(state.t("plain.empty.welcome_body"))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
-            button(text(state.t("plain.empty.add_first")))
-                .height(BUTTON_HEIGHT)
-                .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened,)),
+            button(centered_button_label(text(
+                state.t("plain.empty.add_first")
+            )))
+            .height(BUTTON_HEIGHT)
+            .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened,)),
         ]
         .spacing(14)
         .align_x(Alignment::Center),

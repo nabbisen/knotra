@@ -3,7 +3,7 @@
 
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, checkbox, style};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, checkbox, style};
 use knotra_vcs::model::project::Project;
 
 use crate::{
@@ -333,11 +333,11 @@ fn row_action_button<'a>(
     let t = tokens.clone();
     let show_reason = on_press.is_none();
 
-    let btn = button(
+    let btn = button(centered_button_label(
         text(label)
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
-    )
+    ))
     .height(BUTTON_HEIGHT)
     .padding([0, 12])
     .on_press_maybe(on_press)

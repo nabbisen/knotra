@@ -19,7 +19,7 @@
 
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Padding};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, chip, select, style};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, chip, select, style};
 
 use crate::{
     config::{DashboardGrouping, DashboardSort},
@@ -573,11 +573,11 @@ fn select_mode_button<'a>(
     let t = tokens.clone();
     let show_reason = on_press.is_none();
 
-    let btn = button(
+    let btn = button(centered_button_label(
         text(label)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-    )
+    ))
     .height(BUTTON_HEIGHT)
     .padding([0, 18])
     .on_press_maybe(on_press)
@@ -633,11 +633,11 @@ fn disclosure_button<'a>(
     is_focused: bool,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(
+    button(centered_button_label(
         text(glyph)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-    )
+    ))
     .height(BUTTON_HEIGHT)
     .padding([0, 12])
     .on_press(on_press)

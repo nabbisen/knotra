@@ -12,7 +12,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, guided_field_focused,
+    BUTTON_HEIGHT, centered_button_label, guided_field_focused,
     overlay::{OverlayWidth, surface},
     style,
 };
@@ -213,11 +213,11 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     let confirm_focused = is_focused(state, focus_target::CONFIRM);
     let confirm_btn = {
         let t = tokens.clone();
-        button(
+        button(centered_button_label(
             text(confirm_label)
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
-        )
+        ))
         .height(BUTTON_HEIGHT)
         .padding([0, 18])
         .on_press_maybe(confirm_on_press.clone())
@@ -242,11 +242,11 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     let cancel_focused = is_focused(state, focus_target::CANCEL);
     let cancel_btn = {
         let t = tokens.clone();
-        button(
+        button(centered_button_label(
             text(state.t("action.cancel"))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
-        )
+        ))
         .height(BUTTON_HEIGHT)
         .padding([0, 18])
         .on_press(Message::Workspace(cancel.clone()))
@@ -299,11 +299,11 @@ fn delete_dialog<'a>(
     let confirm_focused = is_focused(state, focus_target::CONFIRM);
     let confirm_btn = {
         let t = tokens.clone();
-        button(
+        button(centered_button_label(
             text(state.t("workspace.delete.confirm"))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
-        )
+        ))
         .height(BUTTON_HEIGHT)
         .padding([0, 18])
         .on_press_maybe(confirm_on_press.clone())
@@ -328,11 +328,11 @@ fn delete_dialog<'a>(
     let cancel_focused = is_focused(state, focus_target::CANCEL);
     let cancel_btn = {
         let t = tokens.clone();
-        button(
+        button(centered_button_label(
             text(state.t("action.cancel"))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
-        )
+        ))
         .height(BUTTON_HEIGHT)
         .padding([0, 18])
         .on_press(Message::Workspace(

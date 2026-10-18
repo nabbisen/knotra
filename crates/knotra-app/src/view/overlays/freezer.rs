@@ -16,7 +16,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, guided_field, guided_field_focused,
+    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field, guided_field_focused,
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
@@ -399,11 +399,11 @@ fn styled_button<'a>(
     style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    iced::widget::button(
+    iced::widget::button(centered_button_label(
         text(label)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-    )
+    ))
     .height(BUTTON_HEIGHT)
     .padding([0, 18])
     .on_press_maybe(on_press)

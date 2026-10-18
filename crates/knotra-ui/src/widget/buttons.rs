@@ -18,6 +18,31 @@ use snora::design::Tokens;
 use super::icon::icon_element;
 use super::layout::{BUTTON_HEIGHT, Element, Length};
 
+/// Centres a button's label text vertically, filling the button's fixed
+/// height.
+///
+/// **RFC-062 D1**: iced 0.14's `button` layout (`layout::padded`) places its
+/// content at the padding offset — top-left — and never centres it, which
+/// only shows once a button's fixed height ([`BUTTON_HEIGHT`]/
+/// `SMALL_BUTTON_HEIGHT`) exceeds its label's own line height. Apply this to
+/// the `text(...)` each call site already builds, after its own
+/// `.size(...)`/`.line_height(...)` (or, for the one site with neither, in
+/// place of them) — the label's content, size and line height are
+/// untouched; only where it sits inside the button changes.
+///
+/// Width is deliberately never set here: every one of knotra's fixed-height
+/// buttons is content-sized horizontally by its own `[0, 18]` padding
+/// (already centred by that symmetric padding), and a filled width would
+/// stretch it across its row.
+#[must_use]
+pub fn centered_button_label<'a>(
+    label: iced::widget::Text<'a, iced::Theme, iced::Renderer>,
+) -> iced::widget::Text<'a, iced::Theme, iced::Renderer> {
+    label
+        .height(Length::Fill)
+        .align_y(iced::alignment::Vertical::Center)
+}
+
 /// A token-aware, focus-ring-capable button that shows a plain-text reason
 /// beneath it when disabled — the composition the deleted `guided_button`
 /// used to provide, built on the semantic style vocabulary instead of the
@@ -48,11 +73,11 @@ pub fn reasoned<'a, Message: Clone + 'a>(
     let t = tokens.clone();
     let show_reason = reason_row_needed(on_press.is_none(), reason.is_some());
 
-    let btn: Element<'a, Message> = button(
+    let btn: Element<'a, Message> = button(centered_button_label(
         text(label.into())
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-    )
+    ))
     .height(BUTTON_HEIGHT)
     .padding([0, 18])
     .on_press_maybe(on_press)

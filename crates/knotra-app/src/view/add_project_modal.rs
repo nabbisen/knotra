@@ -11,7 +11,9 @@ use iced::{
     widget::{Space, button, column, container, row, text},
 };
 
-use knotra_ui::widget::{BUTTON_HEIGHT, guided_field_focused, reasoned, style};
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, centered_button_label, guided_field_focused, reasoned, style,
+};
 
 use crate::{
     message::{Message, WorkspaceMessage},
@@ -27,11 +29,11 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         AddProjectStep::NameProject => (state.t("plain.add_project.step2_of2"), "2"),
     };
 
-    let close_btn = button(
+    let close_btn = button(centered_button_label(
         text("✕")
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-    )
+    ))
     .height(BUTTON_HEIGHT)
     .padding([0, 12])
     .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled));
@@ -65,11 +67,11 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
             );
 
-            let browse_btn = button(
+            let browse_btn = button(centered_button_label(
                 text(state.t("plain.add_project.browse"))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
-            )
+            ))
             .height(BUTTON_HEIGHT)
             .padding([0, 18])
             .on_press(Message::Workspace(WorkspaceMessage::BrowsePathRequested));
@@ -91,11 +93,11 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     style::primary,
                 ),
                 Space::new().width(Length::Fill),
-                button(
+                button(centered_button_label(
                     text(state.t("action.cancel"))
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),
-                )
+                ))
                 .height(BUTTON_HEIGHT)
                 .padding([0, 18])
                 .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
@@ -159,11 +161,11 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     style::primary,
                 ),
                 Space::new().width(Length::Fill),
-                button(
+                button(centered_button_label(
                     text(state.t("plain.add_project.back"))
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),
-                )
+                ))
                 .height(BUTTON_HEIGHT)
                 .padding([0, 18])
                 .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),

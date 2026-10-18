@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — button labels sat at the top of their buttons
+
+Labels on the larger buttons — such as Select, Get latest safely and Save release
+point — were drawn against the top edge, leaving the lower half of the button
+empty. They are now centred.
+
 ## [0.29.1] — 2026-09-24
 
 **A security fix for 0.29.0 on Windows and Linux.** Nothing else changes.
