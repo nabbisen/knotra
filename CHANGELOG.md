@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-10-18
+
+**Button labels now sit in the middle of their buttons.** Nothing else you use changes.
+
 ### Fixed — button labels sat at the top of their buttons
 
 Labels on the larger buttons — such as Select, Get latest safely and Save release
