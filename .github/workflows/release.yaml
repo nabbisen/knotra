@@ -1,11 +1,15 @@
 name: Release
 
-# Pushing a version tag produces the whole release: notes are extracted and
-# advisories checked in parallel, every platform is built and archived, and
+# Pushing a version tag produces the whole release. `notes` first checks
+# that the tag matches the crates' version, so a mistagged commit publishes
+# nothing anywhere (RFC-063 A1); it then extracts the notes while
+# `advisories` runs in parallel. Every platform is built and archived, and
 # only once all three have succeeded does `publish` create the GitHub
-# Release with all three archives attached at once. A platform failure
-# means no release is published at all, rather than a partial one missing
-# a binary (RFC-060 D4).
+# Release with all three archives attached at once - a platform failure
+# means no release at all, rather than a partial one missing a binary
+# (RFC-060 D4). After it, `crates` publishes the three crates to crates.io
+# (RFC-063). Beside it, `msix` builds the Microsoft Store package as a
+# workflow artifact (RFC-061).
 
 on:
   push:
@@ -44,17 +48,19 @@ jobs:
       # it, `publish` needs `build`, `crates` needs `publish`), so a bad tag
       # fails here, before any later job — including `crates` — ever starts.
       - name: Install Rust toolchain
+        if: github.event_name == 'push'
         run: rustup toolchain install "$TOOLCHAIN" --profile minimal
 
-      # A crates.io upload can never be undone, so the tag that eventually
-      # authorises one (in `crates`, several jobs downstream) must agree,
-      # exactly, with every version the crates themselves carry: both
-      # Cargo.toml's own [workspace.package] version and what `cargo
-      # metadata` resolves for each of the three published crates. A
-      # mismatch here — a hand-typed tag, a release-prep step that bumped
-      # one but not the other — is exactly the class of error this exists to
-      # catch, loudly, before `crates` can ever authenticate.
-      - name: Version guard for crates.io (RFC-063 D3, Amendment A1)
+      # Every job that publishes - the GitHub release, crates.io - runs
+      # downstream of this step, so the tag must agree, exactly, with every
+      # version the crates themselves carry: both Cargo.toml's own
+      # [workspace.package] version and what `cargo metadata` resolves for
+      # each of the three published crates. A mismatch here — a hand-typed
+      # tag, a release-prep step that bumped one but not the other — is
+      # exactly the class of error this exists to catch, loudly, before
+      # anything is published. crates.io makes it matter most: an upload
+      # there can never be undone.
+      - name: Check the tag matches the crate version (RFC-063 A1)
         if: github.event_name == 'push'
         run: |
           TAG="$GITHUB_REF_NAME"
