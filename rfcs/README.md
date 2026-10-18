@@ -44,6 +44,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [065](./proposed/065-the-ready-check-lists-only-what-is-being-released.md) | The ready check lists only what is being released, and says why exactly | Production Readiness Reset | High |
 
 ---
 
