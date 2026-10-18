@@ -55,6 +55,7 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [062](./accepted/062-button-labels-are-centred.md) | Button labels are centred, and a disabled chip looks disabled | Production Readiness Reset | Medium-high |
 
 ---
 
