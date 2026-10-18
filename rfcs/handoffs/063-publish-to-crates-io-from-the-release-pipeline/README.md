@@ -9,3 +9,4 @@ Status is **inherited from RFC-063** — now Accepted 2026-10-18.
 | Handoff | Status |
 |---|---|
 | [`implementation-handoff.md`](implementation-handoff.md) | issued |
+| [`amendment-a1.md`](amendment-a1.md) | issued - corrects §2 step 3 |

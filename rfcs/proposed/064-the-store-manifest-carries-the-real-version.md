@@ -4,9 +4,9 @@
 |---|---|
 | Status | Proposed 2026-10-18 |
 | Priority | Medium - nothing ships wrong today; the committed file misleads its readers |
-| Effort | Small - one manifest line, one test, one workflow step changed |
+| Effort | Small - one manifest line, one test, one workflow step replaced and one removed |
 | Target | Production Readiness Reset - distribution |
-| Related files | `packaging/windows/AppxManifest.xml`, `.github/workflows/release.yaml` (`msix`), `packaging/windows/store-listing.md`, `crates/knotra-app/src/` (new guard) |
+| Related files | `packaging/windows/AppxManifest.xml`, `.github/workflows/release.yaml` (`msix`), `packaging/windows/store-listing.md`, `crates/knotra-app/tests/store_manifest_version.rs` (new), `crates/knotra-app/Cargo.toml` |
 | Related | `rfcs/done/061-...md` D3/R3 (the placeholder design this replaces), `rfcs/accepted/063-...md` (also edits `release.yaml`) |
 | Decided by | project owner, 2026-10-18 - option B: commit the real version, verify instead of substitute |
 
@@ -47,35 +47,40 @@ trade:
 bumps it with the other three version lines. Partner Center reserves the fourth part, so it
 stays `0`.
 
-### D2. A guard test keeps the two in step
+### D2. A test keeps the two in step, and is never published
 
-A `#[cfg(test)]` guard in `knotra-app`, in the shape of the existing source-scanning guards.
-It reads `CARGO_PKG_VERSION` and the manifest's `Identity` `Version` attribute, and fails
-unless the manifest equals the crate version's `MAJOR.MINOR.PATCH` plus `.0`. The failure
-message names both values and says to bump the manifest with the crate.
+An integration test, `crates/knotra-app/tests/store_manifest_version.rs`. It compares
+`env!("CARGO_PKG_VERSION")` with the manifest at
+`CARGO_MANIFEST_DIR/../../packaging/windows/AppxManifest.xml`, and fails unless the manifest
+equals the crate version's `MAJOR.MINOR.PATCH` plus `.0`. The failure message names both
+values and says to bump the manifest with the crate. A missing or unreadable manifest is a
+failure.
 
-- **Read the attribute, not a substring.** The same file has `MinVersion` and
-  `MaxVersionTested`; matching any `Version="…"` would compare the wrong one. Find the
-  `<Identity` element and take its `Version` attribute.
+- **It checks the repository, not the crate, so it is not shipped with the crate.**
+  `crates/knotra-app/Cargo.toml` gains `exclude = ["tests/store_manifest_version.rs"]`, with
+  a one-line comment saying why. A crates.io download then has no such test, rather than a
+  test that skips itself. No test anywhere decides at runtime whether to run.
+- **Read the `Identity` element's `Version` attribute, not a substring.** The same file has
+  `MinVersion` and `MaxVersionTested`; a loose `Version="…"` match would compare the wrong
+  one. Take the text of the `<Identity …/>` element, then the attribute named exactly
+  `Version` (preceded by whitespace) within it. No new dependency: knotra has no XML parser,
+  and this one element does not justify adding one.
 - **A pre-release crate version** (`0.31.0-rc.1`) compares by its numeric core (`0.31.0.0`).
-  The guard does not decide whether pre-releases are packaged; F4 does.
-- **Outside the repository it does not run.** The manifest is not part of any published
-  crate, so a test run from a crates.io download has no manifest to read. The guard locates
-  the workspace root as `CARGO_MANIFEST_DIR/../..`. If no `Cargo.toml` declaring
-  `[workspace]` is there, it returns early with an explanatory `eprintln!`. **Inside the
-  repository, a missing manifest is a failure, not a skip.**
-- **Seen to fail before trusted**: bump `Cargo.toml` alone in a scratch copy; the guard must
+  The test does not decide whether pre-releases are packaged; F4 does.
+- **Seen to fail before trusted**: bump `Cargo.toml` alone in a scratch copy; the test must
   fail naming both versions.
 
 ### D3. The `msix` job verifies instead of substituting
 
-Replace "Substitute the version into the staged manifest" with a step that reads the staged
-manifest's `Identity` `Version` as XML and fails unless it equals `$env:MSIX_VERSION`, naming
-both. Nothing is written. The placeholder count, the string replacement and the
-`"0.0.0.0"` anchor all go.
+Replace "Substitute the version into the staged manifest" with a check of the **committed**
+manifest, placed directly after "Read the crate version" and before any staging work. It
+reads `packaging/windows/AppxManifest.xml` as XML, takes `Package.Identity.Version`, and fails
+unless it equals `$env:MSIX_VERSION`, naming both. Nothing is written. The placeholder count,
+the string replacement and the `"0.0.0.0"` anchor all go.
 
-The final "Confirm the committed manifest is unchanged" step stays. It costs nothing and
-still proves the job edits no tracked file.
+**"Confirm the committed manifest is unchanged" is removed.** It guarded against the
+substitution step editing the committed file. With no step writing anything, it checks a
+condition that can no longer occur.
 
 ### D4. The listing guide says what is true
 
@@ -88,20 +93,21 @@ it with `Cargo.toml`, and that a test fails if they differ.
 | # | Requirement |
 |---|---|
 | R1 | `AppxManifest.xml` `Identity Version` is `0.30.0.0`; nothing else in the file changes |
-| R2 | The D2 guard passes at `0.30.0` and is **seen to fail** when only `Cargo.toml` is bumped, naming both values |
-| R3 | The guard reads the `Identity` element's `Version` attribute, so `MinVersion`/`MaxVersionTested` cannot satisfy or fail it |
-| R4 | Outside a workspace checkout the guard returns early with a message; inside one, a missing manifest fails |
-| R5 | `msix` writes nothing to the manifest; it fails, naming both values, if the staged version differs from `MSIX_VERSION` |
-| R6 | Every other `msix` step is unchanged, including the pre-release refusal and the final `git diff --exit-code` |
+| R2 | The D2 test passes at `0.30.0` and is **seen to fail** when only `Cargo.toml` is bumped, naming both values |
+| R3 | The test reads the `Identity` element's `Version` attribute, so `MinVersion`/`MaxVersionTested` cannot satisfy or fail it |
+| R4 | The test is excluded from the `knotra` package: `cargo package -p knotra --list` does not list it. It contains no skip path |
+| R5 | `msix` writes nothing to the manifest; before staging, it fails, naming both values, if the committed version differs from `MSIX_VERSION` |
+| R6 | The "committed manifest is unchanged" step is removed; every other `msix` step is unchanged, including the pre-release refusal |
 | R7 | D4's wording replaces the placeholder note |
-| R8 | Test count **312** (311 + the guard); suppression map unchanged |
+| R8 | Test count **312** (311 + the new test); suppression map unchanged |
 
 ## Test Plan
 
-- Gates, **312**. The guard is seen to fail on a planted `Cargo.toml`-only bump, and is
-  reverted.
-- The guard's early return, seen once: run its root-detection logic against a directory with
-  no workspace `Cargo.toml`, and confirm it skips with its message rather than failing.
+- Gates, **312**. The test is seen to fail on a planted `Cargo.toml`-only bump, which is
+  then reverted.
+- `cargo package -p knotra --list` does not list `tests/store_manifest_version.rs`, and
+  `cargo +1.91 publish --workspace --dry-run --locked` still packages and verifies all three
+  crates.
 - **A dispatched run of `release.yaml`** after landing (mine): `msix` passes the new check
   and packs; its log shows the verified version.
 - **The next release's prep task** bumps four lines, and its review confirms the guard

@@ -159,3 +159,17 @@ then, and the remedy is to configure the publisher and re-run the job. Nothing i
 
 Afterwards, once one release has published through CI, the owner may revoke the personal API
 token used on 2026-10-18.
+
+## Amendment A1 (2026-10-18) - the version guard moves to the first job
+
+**Supersedes D3's placement and R4's location.** As accepted, the tag-vs-version guard ran
+inside `crates`, which runs after `publish`. A tag pushed on the wrong commit would therefore
+already have created a public GitHub release, named for one version and carrying another,
+before anything stopped it.
+
+The guard runs instead as the **first step of `notes`**, on tag pushes only. Its logic is
+unchanged: `$GITHUB_REF_NAME` must equal the `[workspace.package]` version and the version
+`cargo metadata --no-deps` reports for `knotra`, `knotra-ui` and `knotra-vcs`. Every other job
+depends on `notes` (`build` needs it; `publish`, `msix` and `crates` need `build`), so a
+mismatch publishes **nothing anywhere**. `crates` carries no guard of its own: a second copy
+would only be a second place to keep in step.
