@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-19 |
+| Status | Accepted 2026-10-19 (project owner), with Amendment A1 |
 | Priority | High - the Freezer's ready check misleads users about what is being released |
 | Effort | Medium - one model reshaped in `knotra-vcs`, its two producers, one view, catalog keys |
 | Target | Production Readiness Reset - UI/UX foundation |
@@ -129,8 +129,8 @@ established convention (RFC-038 Stage 4 §1b), which needs no plural forms:
 | `plain.release.note_untracked` | `New files not in this release point:` | `このリリースポイントに含まれない新しいファイル:` |
 | `plain.release.blocker_unreadable` | `Couldn't read this project. Check that its folder still exists.` | `このプロジェクトを読み取れませんでした。フォルダーがあるか確認してください。` |
 
-The three existing blocker keys keep their text. **Japanese copy is a draft for the owner's
-review.**
+The three existing blocker keys keep their text. **Japanese copy accepted by the owner,
+2026-10-19.**
 
 ## Requirements
 
@@ -173,3 +173,41 @@ written anywhere new.
 `FreezeValidation`, `FreezeValidationEntry` and the new enums are public in `knotra-vcs`, a
 published crate: this is a breaking change, carried by the next minor release. No stored data
 changes, subject to R11.
+
+## Amendment A1 (2026-10-19) - a check that could not run never passes
+
+Found while writing the handoff, by reading both producers line by line. Within this RFC's
+purpose, that the ready check says exactly why, so recorded here rather than as a new RFC.
+
+**1. Every failed probe is treated as "fine".**
+
+| Producer | Probe | On failure, today |
+|---|---|---|
+| Git | `worktree_status()` | `.ok()` → 0 changes → **clean** |
+| Git | `list_tags()` | `.ok()` → **name free** |
+| Git | `read_conflict_cli` (`rev-parse --git-dir` fails) | **no conflict**, `detection_unavailable: false` |
+| Jujutsu | `JjBackend::open` / `is_dirty()` | `.unwrap_or(false)` → **clean** |
+| Jujutsu | `jj bookmark list` | `.unwrap_or(false)` → **name free** |
+| Jujutsu | conflict detection unavailable | reported as **"unresolved conflict"** — wrong reason |
+
+A release could go ahead on checks that never happened. **Decision:** in both producers,
+any probe that fails yields `FreezeBlocker::Unreadable { reason }`, naming the probe and its
+error, and never a passing result. Jujutsu's "detection unavailable" becomes `Unreadable`,
+not `UnresolvedConflict`.
+
+`read_conflict_cli` itself returns `detection_unavailable: true` when `rev-parse --git-dir`
+fails, as Jujutsu's detector already does. Its other caller, the dashboard status read,
+already renders that state ("dashboard.cause.conflict_detection_unavailable"), so the
+dashboard becomes truthful too. The comment at the freeze call site claiming Git detection is
+"always false" is corrected.
+
+**2. Jujutsu bookmark names match by prefix.** `l.trim().starts_with(name)` makes `v1`
+"already in use" when only `v10` or `v1.2` exists. **Decision:** compare the **exact**
+local bookmark name. Ask `jj` for names only, one per line, via a template, rather than
+parsing its human-readable listing. Remote-tracking entries do not count as local names.
+
+| # | Requirement |
+|---|---|
+| R13 | No probe failure in either producer yields a passing entry; each yields `Unreadable` with the probe named. A test plants a failure for at least one Git probe |
+| R14 | `read_conflict_cli` reports `detection_unavailable: true` when the git dir cannot be found; the dashboard's existing state for it is unchanged in wording |
+| R15 | Jujutsu's name check is exact: a test with bookmark `v10` existing must find `v1` free, and `v1` existing must find `v1` taken (skipped, like the suite's other jj tests, when `jj` is absent) |
