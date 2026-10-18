@@ -22,6 +22,11 @@ fails users, and may fail certification.
   submission.
 - **Each submission needs a higher version** than the last one. The pipeline
   derives it from the crate version, so a new knotra release is a new version.
+- **`AppxManifest.xml` says `Version="0.0.0.0"` on purpose.** It is a
+  placeholder: the release job writes the crate version into a copy of the
+  manifest (0.30.0 becomes 0.30.0.0), checks it, and packs that copy. Do not
+  edit it here; the job fails unless it finds exactly that placeholder. The
+  job's log line `crate version … -> MSIX version …` shows what was stamped.
 - **Privacy policy URL**:
   `https://github.com/nabbisen/knotra/blob/main/PRIVACY.md`
 
