@@ -37,6 +37,58 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # RFC-063 D3 (Amendment A1): the toolchain is needed only for the
+      # version guard's `cargo metadata` call below — `notes` otherwise never
+      # touches cargo. It lives here rather than in `crates` because `notes`
+      # is on the critical path for every push-triggered job (`build` needs
+      # it, `publish` needs `build`, `crates` needs `publish`), so a bad tag
+      # fails here, before any later job — including `crates` — ever starts.
+      - name: Install Rust toolchain
+        run: rustup toolchain install "$TOOLCHAIN" --profile minimal
+
+      # A crates.io upload can never be undone, so the tag that eventually
+      # authorises one (in `crates`, several jobs downstream) must agree,
+      # exactly, with every version the crates themselves carry: both
+      # Cargo.toml's own [workspace.package] version and what `cargo
+      # metadata` resolves for each of the three published crates. A
+      # mismatch here — a hand-typed tag, a release-prep step that bumped
+      # one but not the other — is exactly the class of error this exists to
+      # catch, loudly, before `crates` can ever authenticate.
+      - name: Version guard for crates.io (RFC-063 D3, Amendment A1)
+        if: github.event_name == 'push'
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          mismatch=0
+
+          TOML_VERSION=""
+          in_section=0
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^\[(.+)\]$ ]]; then
+              if [ "${BASH_REMATCH[1]}" = "workspace.package" ]; then in_section=1; else in_section=0; fi
+              continue
+            fi
+            if [ "$in_section" -eq 1 ] && [[ "$line" =~ ^[[:space:]]*version[[:space:]]*=[[:space:]]*\"([^\"]+)\" ]]; then
+              TOML_VERSION="${BASH_REMATCH[1]}"
+              break
+            fi
+          done < Cargo.toml
+
+          if [ "$TOML_VERSION" != "$TAG" ]; then
+            echo "::error::tag '$TAG' does not match Cargo.toml [workspace.package] version '$TOML_VERSION'"
+            mismatch=1
+          fi
+
+          for crate in knotra knotra-ui knotra-vcs; do
+            CRATE_VERSION=$(cargo "+$TOOLCHAIN" metadata --no-deps --format-version 1 \
+              | jq -r --arg name "$crate" '.packages[] | select(.name == $name) | .version')
+            if [ "$CRATE_VERSION" != "$TAG" ]; then
+              echo "::error::tag '$TAG' does not match ${crate}'s cargo metadata version '$CRATE_VERSION'"
+              mismatch=1
+            fi
+          done
+
+          [ "$mismatch" -eq 0 ]
+
       # The release notes are the CHANGELOG section for this exact version,
       # so the published notes and the changelog cannot drift apart. A tag
       # with no matching section fails here rather than publishing an empty
@@ -419,3 +471,159 @@ jobs:
           name: release-Windows-msix
           path: ${{ env.MSIX_PATH }}
           if-no-files-found: error
+
+  # RFC-063: the one real crates.io upload this workflow ever performs,
+  # gated behind everything else succeeding first.
+  #
+  # `needs: publish` rather than `needs: build`: crates.io is the one
+  # irreversible side effect anywhere in this pipeline (a version can be
+  # yanked, never deleted or reused), so it runs only once the GitHub
+  # release itself exists — never ahead of it, alongside it, or if any
+  # platform failed to build.
+  #
+  # The version guard that must pass before this job can do anything lives
+  # in `notes` (Amendment A1), not here: `notes` sits on the critical path
+  # for every push-triggered job, so a mismatched tag fails loudly there,
+  # before `crates` even starts, let alone authenticates.
+  #
+  # `environment: crates-io` is what each crate's crates.io trusted
+  # publisher is keyed to (owner `nabbisen`, repository `knotra`, this exact
+  # workflow filename, this exact environment name) — renaming either breaks
+  # publishing. A job-level `permissions:` block REPLACES the workflow's
+  # default rather than adding to it, so `contents: read` is listed
+  # explicitly alongside `id-token: write`: without it, checkout fails.
+  #
+  # Published in dependency order — knotra-ui, knotra-vcs, knotra — so a
+  # fresh `cargo publish` of knotra can always resolve its two siblings from
+  # crates.io; cargo itself waits for each upload to appear in the index
+  # before returning, so no extra synchronization is needed between the
+  # three.
+  #
+  # Each crate is checked against the sparse index first and skipped if its
+  # exact version is already there, so a re-run after a partial failure
+  # (say, knotra-ui published but knotra-vcs's step then failed) picks up
+  # where the previous run left off, rather than re-attempting a publish
+  # that would fail anyway — crates.io versions can never be overwritten.
+  crates:
+    name: Publish to crates.io
+    needs: publish
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev
+
+      # cargo publish verifies each crate by building it, so it needs the
+      # same toolchain and system libraries `build` does.
+      - name: Install Rust toolchain
+        run: rustup toolchain install "$TOOLCHAIN" --profile minimal
+
+      # Runs only after the guard in `notes` has already passed — this job
+      # `needs: publish`, which transitively needs `notes` — so a mismatched
+      # tag can never reach this step, let alone obtain a token.
+      - name: Authenticate to crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
+      # The sparse index serves one JSON object per published version, one
+      # per line, matched here on the parsed "vers" field only — never a
+      # substring, so "0.30.0" cannot be satisfied by "0.30.0-rc.1" or
+      # "10.30.0". A crate with no published versions at all answers 404 at
+      # this URL; that is not an error, it is what "nothing of this crate
+      # has ever reached crates.io" looks like over the sparse protocol, and
+      # is treated as absent accordingly. Any other failure — a network
+      # error, a 5xx, an unexpected status — fails the job outright:
+      # "could not check" is never treated as "absent".
+      - name: Publish each crate not already on crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          for crate in knotra-ui knotra-vcs knotra; do
+            prefix="${crate:0:2}/${crate:2:2}"
+            url="https://index.crates.io/${prefix}/${crate}"
+
+            # `&& curl_exit=0 || curl_exit=$?` rather than a plain `curl_exit=$?`
+            # on the next line: this step runs under bash's default `-e`, so a
+            # bare failing assignment would abort the step right here, skipping
+            # the check below entirely — it would still fail the job, but
+            # silently, without the message that says why. The `||` makes this
+            # one conditional construct, which `-e` does not abort on, so the
+            # check after it actually runs.
+            response=$(curl -sS -H "User-Agent: knotra-release-workflow (https://github.com/nabbisen/knotra)" \
+              -w $'\n%{http_code}' "$url") && curl_exit=0 || curl_exit=$?
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+
+            if [ "$curl_exit" -ne 0 ]; then
+              echo "::error::network error reaching the crates.io sparse index for $crate ($url, curl exit $curl_exit) - refusing to treat this as absent"
+              exit 1
+            fi
+
+            case "$http_code" in
+              200)
+                if echo "$body" | jq -r '.vers' | grep -Fxq "$GITHUB_REF_NAME"; then
+                  present=1
+                else
+                  present=0
+                fi
+                ;;
+              404)
+                # No version of this crate has ever been published.
+                present=0
+                ;;
+              *)
+                echo "::error::unexpected HTTP $http_code from the crates.io sparse index for $crate ($url) - refusing to treat this as absent"
+                exit 1
+                ;;
+            esac
+
+            if [ "$present" -eq 1 ]; then
+              echo "::notice::$crate $GITHUB_REF_NAME is already on crates.io, skipping"
+            else
+              echo "Publishing $crate $GITHUB_REF_NAME..."
+              cargo "+$TOOLCHAIN" publish -p "$crate" --locked
+            fi
+          done
+
+  # RFC-063 D5: exercises the real `cargo publish` machinery — packaging,
+  # manifest verification, building each crate — without ever uploading.
+  # No `id-token` permission and no `environment`: this job never
+  # authenticates and never could, which is the point — it proves the
+  # publish step itself is sound between releases, with no access to any
+  # crates.io token. Runs only on workflow_dispatch, in parallel with
+  # `build` (no `needs:`): it shares no state with the rest of the pipeline.
+  crates-dry-run:
+    name: Publish to crates.io (dry run)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install "$TOOLCHAIN" --profile minimal
+
+      - name: Dry-run publish the whole workspace
+        run: cargo "+$TOOLCHAIN" publish --workspace --dry-run --locked
