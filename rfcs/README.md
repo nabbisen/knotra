@@ -55,8 +55,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [063](./accepted/063-publish-to-crates-io-from-the-release-pipeline.md) | Publish to crates.io from the release pipeline | Production Readiness Reset | High |
-| [064](./accepted/064-the-store-manifest-carries-the-real-version.md) | The Store manifest carries the real version | Production Readiness Reset | Medium |
 
 ---
 
@@ -69,6 +67,8 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [064](./done/064-the-store-manifest-carries-the-real-version.md) | The Store manifest carries the real version | main: 2eafe6f |
+| [063](./done/063-publish-to-crates-io-from-the-release-pipeline.md) | Publish to crates.io from the release pipeline | main: ea041d5 |
 | [062](./done/062-button-labels-are-centred.md) | Button labels are centred, and a disabled chip looks disabled | main: f09287a |
 | [061](./done/061-microsoft-store-package.md) | Build a Microsoft Store package in the release pipeline | main: cac4af4 |
 | [060](./done/060-ci-covers-what-we-ship.md) | CI covers what we ship | main: d51aac7 |

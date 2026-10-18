@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted 2026-10-19 (project owner) |
+| Status | Implemented (main: 2eafe6f) |
 | Priority | Medium - nothing ships wrong today; the committed file misleads its readers |
 | Effort | Small - one manifest line, one test, one workflow step replaced and one removed |
 | Target | Production Readiness Reset - distribution |
 | Related files | `packaging/windows/AppxManifest.xml`, `.github/workflows/release.yaml` (`msix`), `packaging/windows/store-listing.md`, `crates/knotra-app/tests/store_manifest_version.rs` (new), `crates/knotra-app/Cargo.toml` |
-| Related | `rfcs/done/061-...md` D3/R3 (the placeholder design this replaces), `rfcs/accepted/063-...md` (also edits `release.yaml`) |
+| Related | `rfcs/done/061-...md` D3/R3 (the placeholder design this replaces), `rfcs/done/063-...md` (also edits `release.yaml`) |
 | Decided by | project owner, 2026-10-18 - option B: commit the real version, verify instead of substitute |
 
 ## Summary

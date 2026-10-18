@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted 2026-10-18 (project owner) |
+| Status | Implemented (main: ea041d5) |
 | Priority | High - three releases reached GitHub but not crates.io before anyone noticed |
 | Effort | Small - one job, three manifest lines per crate, no new secret |
 | Target | Production Readiness Reset - distribution |
