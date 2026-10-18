@@ -11,6 +11,9 @@ repository.workspace    = true
 keywords.workspace      = true
 categories.workspace    = true
 
+# Checks the repository's Store manifest, which is not part of this crate.
+exclude = ["tests/store_manifest_version.rs"]
+
 [[bin]]
 name    = "knotra"
 path    = "src/main.rs"
