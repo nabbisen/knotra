@@ -3,7 +3,7 @@
 ## 1. Build
 
 ```sh
-cargo build --release -p knotra-app
+cargo build --release -p knotra
 ```
 
 ## 2. Run

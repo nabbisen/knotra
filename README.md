@@ -31,8 +31,8 @@ operations — fetches, context switches, release tagging — safely and atomica
 ## Quick Start
 
 ```sh
-# Build from source (requires Rust 2024 edition / rustc ≥ 1.85)
-cargo build --release -p knotra-app
+# Build from source (requires Rust 2024 edition / rustc ≥ 1.88)
+cargo build --release -p knotra
 
 # Run
 ./target/release/knotra

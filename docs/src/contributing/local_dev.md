@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Rust 2024 edition (rustc ≥ 1.85; tested with 1.91)
+- Rust 2024 edition (rustc ≥ 1.88; tested with 1.91)
 - Linux: `libwayland-dev`, `libxkbcommon-dev`, `libgl-dev`, `pkg-config`
 - `git` in PATH; `jj` in PATH (optional, for jj tests)
 
@@ -11,7 +11,7 @@
 ```sh
 cargo build
 cargo test
-cargo build --release -p knotra-app && ./target/release/knotra
+cargo build --release -p knotra && ./target/release/knotra
 ```
 
 ## Adding i18n strings
