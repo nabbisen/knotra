@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted 2026-10-18 (project owner) |
+| Status | Implemented (main: f09287a) |
 | Priority | Medium-high - visible on every main screen, reported by the owner |
 | Effort | Small change at 22 sites, plus one helper, one guard, one chip fix |
 | Target | Production Readiness Reset - UI/UX foundation |

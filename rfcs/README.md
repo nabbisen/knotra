@@ -55,7 +55,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [062](./accepted/062-button-labels-are-centred.md) | Button labels are centred, and a disabled chip looks disabled | Production Readiness Reset | Medium-high |
 
 ---
 
@@ -68,6 +67,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [062](./done/062-button-labels-are-centred.md) | Button labels are centred, and a disabled chip looks disabled | main: f09287a |
 | [061](./done/061-microsoft-store-package.md) | Build a Microsoft Store package in the release pipeline | main: cac4af4 |
 | [060](./done/060-ci-covers-what-we-ship.md) | CI covers what we ship | main: d51aac7 |
 | [059](./done/059-upgrade-snora-from-0.38-to-0.49.md) | Upgrade snora from 0.38 to 0.50 (retargeted, A1) | main: 62d0800 |
