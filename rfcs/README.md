@@ -44,6 +44,7 @@ until the RFC moves to `accepted/`.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
+| [064](./proposed/064-the-store-manifest-carries-the-real-version.md) | The Store manifest carries the real version | Production Readiness Reset | Medium |
 
 ---
 
