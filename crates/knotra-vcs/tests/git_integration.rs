@@ -13,7 +13,7 @@ use std::{
 };
 
 use knotra_vcs::{
-    VcsAdapter,
+    FreezeBlocker, FreezeNote, VcsAdapter,
     model::{
         project::Project,
         status::{ContextTarget, VcsKind},
@@ -513,10 +513,10 @@ async fn tag_created_blocks_freeze_validation() {
     let validation = VcsAdapter::validate_freeze(&projects, &selection, "v1.0.0", 4).await;
     let entry = &validation.entries[0];
 
-    assert!(entry.tag_exists, "tag should be detected as existing");
     assert!(
-        !entry.blockers.is_empty(),
-        "existing tag should block freeze"
+        entry.blockers.contains(&FreezeBlocker::NameInUse),
+        "existing tag should block freeze with NameInUse, got: {:?}",
+        entry.blockers
     );
 }
 
@@ -542,8 +542,9 @@ async fn tag_create_and_delete_roundtrip() {
     let selection: HashSet<_> = [project.id.clone()].into_iter().collect();
     let v = VcsAdapter::validate_freeze(&projects, &selection, "v2.0.0", 4).await;
     assert!(
-        v.entries[0].tag_exists,
-        "tag should be detected after creation"
+        v.entries[0].blockers.contains(&FreezeBlocker::NameInUse),
+        "tag should be detected after creation, got: {:?}",
+        v.entries[0].blockers
     );
 
     // Delete tag (rollback).
@@ -557,8 +558,9 @@ async fn tag_create_and_delete_roundtrip() {
     // Verify gone.
     let v2 = VcsAdapter::validate_freeze(&projects, &selection, "v2.0.0", 4).await;
     assert!(
-        !v2.entries[0].tag_exists,
-        "tag should be gone after deletion"
+        !v2.entries[0].blockers.contains(&FreezeBlocker::NameInUse),
+        "tag should be gone after deletion, got: {:?}",
+        v2.entries[0].blockers
     );
 }
 
@@ -759,10 +761,134 @@ async fn dirty_repo_blocks_freeze_validation() {
     let v = VcsAdapter::validate_freeze(&projects, &selection, "v4.0.0", 4).await;
 
     assert!(
-        !v.entries[0].blockers.is_empty(),
-        "dirty repo should have blockers"
+        v.entries[0]
+            .blockers
+            .contains(&FreezeBlocker::UncommittedChanges),
+        "dirty repo should block with UncommittedChanges, got: {:?}",
+        v.entries[0].blockers
     );
     assert!(!v.all_ready());
+}
+
+/// RFC-065 R1: `validate_freeze` opens and reports on exactly the selected
+/// projects — a two-project workspace with one selected yields exactly one
+/// entry, for that project. The unselected project is never part of the
+/// returned validation at all, not merely marked as excluded within it (the
+/// pre-RFC-065 `included: false` row this replaces).
+#[tokio::test]
+async fn only_the_selected_project_is_validated() {
+    use std::collections::HashSet;
+
+    let selected_dir = tempfile::tempdir().unwrap();
+    init_repo(selected_dir.path());
+    let selected_project = make_project(selected_dir.path());
+
+    let unselected_dir = tempfile::tempdir().unwrap();
+    init_repo(unselected_dir.path());
+    let unselected_project =
+        Project::new("unselected-repo", unselected_dir.path().to_str().unwrap());
+
+    let projects = vec![selected_project.clone(), unselected_project];
+    let selection: HashSet<_> = [selected_project.id.clone()].into_iter().collect();
+
+    let v = VcsAdapter::validate_freeze(&projects, &selection, "v5.0.0", 4).await;
+
+    assert_eq!(
+        v.entries.len(),
+        1,
+        "only the selected project should be validated, got: {:?}",
+        v.entries
+            .iter()
+            .map(|e| &e.project_name)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(v.entries[0].project_id, selected_project.id);
+}
+
+/// RFC-065 R5: a project with several blockers reports all of them, not
+/// only the first — a dirty repository with an existing tag reports both.
+#[tokio::test]
+async fn dirty_repo_with_existing_tag_reports_both_blockers() {
+    use std::collections::HashSet;
+
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    git(&["tag", "v6.0.0"], dir.path());
+    fs::write(dir.path().join("README.md"), "dirty\n").unwrap();
+
+    let project = make_project(dir.path());
+    let projects = vec![project.clone()];
+    let selection: HashSet<_> = [project.id.clone()].into_iter().collect();
+
+    let v = VcsAdapter::validate_freeze(&projects, &selection, "v6.0.0", 4).await;
+    let blockers = &v.entries[0].blockers;
+
+    assert!(
+        blockers.contains(&FreezeBlocker::UncommittedChanges),
+        "should report UncommittedChanges, got: {blockers:?}"
+    );
+    assert!(
+        blockers.contains(&FreezeBlocker::NameInUse),
+        "should report NameInUse, got: {blockers:?}"
+    );
+}
+
+/// RFC-065 R7: Git's untracked-file count appears as a `FreezeNote` on a
+/// ready row.
+#[tokio::test]
+async fn untracked_file_is_ready_with_a_note() {
+    use std::collections::HashSet;
+
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    fs::write(dir.path().join("new-file.txt"), "new\n").unwrap();
+
+    let project = make_project(dir.path());
+    let projects = vec![project.clone()];
+    let selection: HashSet<_> = [project.id.clone()].into_iter().collect();
+
+    let v = VcsAdapter::validate_freeze(&projects, &selection, "v7.0.0", 4).await;
+    let entry = &v.entries[0];
+
+    assert!(
+        entry.ready(),
+        "an untracked file must not block the freeze, blockers: {:?}",
+        entry.blockers
+    );
+    assert_eq!(entry.notes, vec![FreezeNote::UntrackedFiles(1)]);
+}
+
+/// RFC-065 Amendment A1.1/R13: a planted Git probe failure must yield
+/// `Unreadable`, never a ready entry. The plant: a directory whose `.git`
+/// is a plain empty file rather than a real repository — `detect_vcs_kind`
+/// classifies it as Git from `.git`'s mere presence (it only checks
+/// `.exists()`), so `git::validate_for_freeze` runs and `GitBackend::open`
+/// is the probe that genuinely fails against it; any honest plant works,
+/// and this is the first one in the pipeline.
+#[tokio::test]
+async fn a_broken_git_repository_is_unreadable_not_ready() {
+    use std::collections::HashSet;
+
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(".git"), "not a real git repository\n").unwrap();
+    let project = make_project(dir.path());
+    let projects = vec![project.clone()];
+    let selection: HashSet<_> = [project.id.clone()].into_iter().collect();
+
+    let v = VcsAdapter::validate_freeze(&projects, &selection, "v8.0.0", 4).await;
+    let entry = &v.entries[0];
+
+    assert!(!entry.ready(), "a broken repository must not be ready");
+    assert_eq!(entry.blockers.len(), 1);
+    match &entry.blockers[0] {
+        FreezeBlocker::Unreadable { reason } => {
+            assert!(
+                !reason.is_empty(),
+                "Unreadable's reason should name the probe that failed"
+            );
+        }
+        other => panic!("expected Unreadable, got {other:?}"),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1154,5 +1280,57 @@ async fn jj_log_since_excludes_a_described_but_uncommitted_change() {
         "the description on `@` must not leak into the changelog before \
          it is committed: {:?}",
         commits.entries
+    );
+}
+
+// ---------------------------------------------------------------------------
+// jj freeze validation: exact bookmark name match (RFC-065 Amendment A1.2)
+// ---------------------------------------------------------------------------
+
+/// RFC-065 R4/R15: a Jujutsu bookmark name must be matched **exactly**, not
+/// by prefix — the predecessor's `l.trim().starts_with(name)` made `v1`
+/// read as "already in use" whenever `v10` existed too. One repository with
+/// only a `v10` bookmark must find `v1` free; a second with `v1` itself
+/// must find it taken.
+#[tokio::test]
+async fn jj_bookmark_name_match_is_exact_not_prefix() {
+    if !jj_available() {
+        eprintln!("jj not found — skipping jj integration test");
+        return;
+    }
+    use std::collections::HashSet;
+
+    // `v10` exists, `v1` does not: `v1` must be free.
+    let dir_v10 = tempfile::tempdir().unwrap();
+    init_jj_repo(dir_v10.path());
+    jj_commit(dir_v10.path(), "a.txt", "a", "commit 1");
+    jj(&["bookmark", "create", "v10", "-r", "@"], dir_v10.path());
+
+    let project_v10 = Project::new("jj-repo-v10", dir_v10.path().to_str().unwrap());
+    let projects_v10 = vec![project_v10.clone()];
+    let selection_v10: HashSet<_> = [project_v10.id.clone()].into_iter().collect();
+    let v = VcsAdapter::validate_freeze(&projects_v10, &selection_v10, "v1", 4).await;
+
+    assert!(
+        !v.entries[0].blockers.contains(&FreezeBlocker::NameInUse),
+        "v1 must be free when only v10 exists, got: {:?}",
+        v.entries[0].blockers
+    );
+
+    // `v1` itself exists: `v1` must be taken.
+    let dir_v1 = tempfile::tempdir().unwrap();
+    init_jj_repo(dir_v1.path());
+    jj_commit(dir_v1.path(), "a.txt", "a", "commit 1");
+    jj(&["bookmark", "create", "v1", "-r", "@"], dir_v1.path());
+
+    let project_v1 = Project::new("jj-repo-v1", dir_v1.path().to_str().unwrap());
+    let projects_v1 = vec![project_v1.clone()];
+    let selection_v1: HashSet<_> = [project_v1.id.clone()].into_iter().collect();
+    let v2 = VcsAdapter::validate_freeze(&projects_v1, &selection_v1, "v1", 4).await;
+
+    assert!(
+        v2.entries[0].blockers.contains(&FreezeBlocker::NameInUse),
+        "v1 must be taken when v1 itself exists, got: {:?}",
+        v2.entries[0].blockers
     );
 }

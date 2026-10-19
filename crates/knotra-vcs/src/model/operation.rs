@@ -357,21 +357,48 @@ pub struct ContextSwitchResult {
 // Freezer (static-point creation) types
 // ---------------------------------------------------------------------------
 
+/// A reason a project cannot be included in a freeze (RFC-065 D2).
+///
+/// Owned by `knotra-vcs`, not parsed back from a producer's own diagnostic
+/// string the way the pre-RFC-065 view did — that let a Jujutsu "bookmark
+/// … already exists" fall through to a generic "Needs help" message, since
+/// the view's substring match only knew the word `tag`. `Unreadable`'s
+/// `reason` carries the diagnostic that explains *it*, and only it, so a
+/// reason can never be read as describing a different blocker.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum FreezeBlocker {
+    /// The working copy has an unresolved merge/rebase conflict.
+    UnresolvedConflict,
+    /// The working copy has uncommitted changes.
+    UncommittedChanges,
+    /// A Git tag or Jujutsu bookmark with this release name already exists.
+    NameInUse,
+    /// The repository is missing, could not be opened, or a probe needed to
+    /// answer one of the other variants failed — the diagnostic names which.
+    Unreadable { reason: String },
+}
+
+/// A non-blocking fact about a project worth telling the user (RFC-065 D2).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FreezeNote {
+    /// `n` files are untracked and so will not be part of the release point
+    /// (Git only — Jujutsu snapshots new files automatically).
+    UntrackedFiles(usize),
+}
+
 /// Per-project pre-execution validation result.
+///
+/// Every entry is a project **selected** for this freeze — `validate_freeze`
+/// (RFC-065 D1) never opens or reports on an unselected project, so there is
+/// no `included` field left to carry: it could only ever be `true`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreezeValidationEntry {
     pub project_id: ProjectId,
     pub project_name: String,
-    /// True when the project will be included in the freeze.
-    pub included: bool,
-    /// True when the working tree is clean and there are no conflicts.
-    pub is_clean: bool,
-    /// True when a tag/bookmark with the freeze name already exists.
-    pub tag_exists: bool,
-    /// Non-fatal diagnostic notes for the user (e.g. "Ahead by 2").
-    pub notes: Vec<String>,
+    /// Non-fatal diagnostic notes for the user (e.g. untracked file count).
+    pub notes: Vec<FreezeNote>,
     /// Reasons the project cannot be frozen (blocks execution).
-    pub blockers: Vec<String>,
+    pub blockers: Vec<FreezeBlocker>,
 }
 
 impl FreezeValidationEntry {
@@ -382,7 +409,7 @@ impl FreezeValidationEntry {
 
     /// True when this project can be frozen.
     pub fn ready(&self) -> bool {
-        self.included && !self.is_blocked()
+        !self.is_blocked()
     }
 }
 
@@ -394,19 +421,15 @@ pub struct FreezeValidation {
 }
 
 impl FreezeValidation {
-    /// True when every included project is ready.
+    /// True when every entry is ready — every entry is already part of the
+    /// selection (RFC-065 D1), so there is no `included` filter left to
+    /// apply here either.
     pub fn all_ready(&self) -> bool {
-        self.entries
-            .iter()
-            .filter(|e| e.included)
-            .all(|e| !e.is_blocked())
+        self.entries.iter().all(|e| !e.is_blocked())
     }
 
     pub fn blocked_count(&self) -> usize {
-        self.entries
-            .iter()
-            .filter(|e| e.included && e.is_blocked())
-            .count()
+        self.entries.iter().filter(|e| e.is_blocked()).count()
     }
 
     pub fn ready_count(&self) -> usize {

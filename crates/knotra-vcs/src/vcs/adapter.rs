@@ -211,9 +211,14 @@ impl VcsAdapter {
 impl VcsAdapter {
     // --- Freezer: validate ---
 
-    /// Validate all selected projects before a freeze.
+    /// Validate the selected projects before a freeze.
     ///
-    /// Runs all validations concurrently with the standard semaphore cap.
+    /// Only projects in `selection` are opened or checked (RFC-065 D1): an
+    /// unselected project is never part of this freeze, so there is nothing
+    /// to validate it against and nothing to tell the user about it.
+    /// Iterates `projects` in workspace order, so `entries` preserves that
+    /// order too. Runs all validations concurrently with the standard
+    /// semaphore cap.
     pub async fn validate_freeze(
         projects: &[crate::model::project::Project],
         selection: &std::collections::HashSet<crate::model::project::ProjectId>,
@@ -225,41 +230,38 @@ impl VcsAdapter {
 
         let sem = Arc::new(Semaphore::new(max_concurrent));
         let name = freeze_name.to_owned();
-        let mut handles = Vec::new();
 
-        for project in projects {
+        let selected: Vec<_> = projects
+            .iter()
+            .filter(|p| selection.contains(&p.id))
+            .cloned()
+            .collect();
+
+        let mut handles = Vec::with_capacity(selected.len());
+        for project in &selected {
             let project = project.clone();
             let sem = Arc::clone(&sem);
             let name = name.clone();
-            let included = selection.contains(&project.id);
 
             handles.push(tokio::spawn(async move {
                 let _permit = sem.acquire().await.expect("open");
                 let kind = detect_vcs_kind(std::path::Path::new(&project.path)).await;
                 match kind {
-                    Some(VcsKind::Git) => git::validate_for_freeze(&project, &name, included).await,
-                    Some(VcsKind::Jujutsu) => {
-                        jj::validate_for_freeze(&project, &name, included).await
-                    }
+                    Some(VcsKind::Git) => git::validate_for_freeze(&project, &name).await,
+                    Some(VcsKind::Jujutsu) => jj::validate_for_freeze(&project, &name).await,
                     None => crate::model::operation::FreezeValidationEntry {
                         project_id: project.id.clone(),
                         project_name: project.name.clone(),
-                        included,
-                        is_clean: false,
-                        tag_exists: false,
                         notes: Vec::new(),
-                        blockers: vec![format!("no repository at {}", project.path)],
+                        blockers: vec![crate::model::operation::FreezeBlocker::Unreadable {
+                            reason: format!("no repository at {}", project.path),
+                        }],
                     },
                 }
             }));
         }
 
-        let mut entries = Vec::with_capacity(handles.len());
-        for h in handles {
-            if let Ok(e) = h.await {
-                entries.push(e);
-            }
-        }
+        let entries = collect_freeze_entries(&selected, handles).await;
 
         crate::model::operation::FreezeValidation {
             freeze_name: freeze_name.to_owned(),
@@ -454,6 +456,37 @@ impl VcsAdapter {
             },
         }
     }
+}
+
+/// Awaits each handle in `handles` and turns it into one
+/// [`crate::model::operation::FreezeValidationEntry`] each — **one entry
+/// per project handed to it, in the order handed** (`projects` and
+/// `handles` must be the same length, in the same order). A task that
+/// fails to join (panics) becomes an `Unreadable` entry for that project,
+/// carrying the join error, rather than silently dropping the project from
+/// the check (RFC-065 D4) — `validate_freeze`'s predecessor used `if let
+/// Ok(e) = h.await`, which is exactly what let a selected project vanish
+/// from the ready check with no trace.
+async fn collect_freeze_entries(
+    projects: &[crate::model::project::Project],
+    handles: Vec<tokio::task::JoinHandle<crate::model::operation::FreezeValidationEntry>>,
+) -> Vec<crate::model::operation::FreezeValidationEntry> {
+    let mut entries = Vec::with_capacity(handles.len());
+    for (project, handle) in projects.iter().zip(handles) {
+        let entry = match handle.await {
+            Ok(entry) => entry,
+            Err(e) => crate::model::operation::FreezeValidationEntry {
+                project_id: project.id.clone(),
+                project_name: project.name.clone(),
+                notes: Vec::new(),
+                blockers: vec![crate::model::operation::FreezeBlocker::Unreadable {
+                    reason: format!("task join error: {e}"),
+                }],
+            },
+        };
+        entries.push(entry);
+    }
+    entries
 }
 
 impl VcsAdapter {
@@ -809,6 +842,66 @@ impl VcsAdapter {
                 .await
                 .ok(),
             None => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{
+        operation::{FreezeBlocker, FreezeValidationEntry},
+        project::{Project, ProjectId},
+    };
+
+    fn ready_entry(project_id: ProjectId, project_name: &str) -> FreezeValidationEntry {
+        FreezeValidationEntry {
+            project_id,
+            project_name: project_name.to_owned(),
+            notes: Vec::new(),
+            blockers: Vec::new(),
+        }
+    }
+
+    /// RFC-065 D4/R6: a task that fails to join must still yield an entry
+    /// for its project, carrying the join error — never silently dropped,
+    /// which is what `validate_freeze`'s predecessor did with `if let
+    /// Ok(e) = h.await { entries.push(e) }`. Seen to fail first against a
+    /// faithful copy of that old logic (see the review request for the
+    /// captured failure) before trusting `collect_freeze_entries` against
+    /// it.
+    #[tokio::test]
+    async fn a_panicking_task_still_yields_one_entry_per_project() {
+        let ok_project = Project::new("ok-project", "/does/not/matter");
+        let panics_project = Project::new("panics-project", "/does/not/matter");
+        let projects = vec![ok_project.clone(), panics_project.clone()];
+
+        let ok_id = ok_project.id.clone();
+        let handles: Vec<tokio::task::JoinHandle<FreezeValidationEntry>> = vec![
+            tokio::spawn(async move { ready_entry(ok_id, "ok-project") }),
+            tokio::spawn(async move { panic!("synthetic join failure for the D4/R6 test") }),
+        ];
+
+        let entries = collect_freeze_entries(&projects, handles).await;
+
+        assert_eq!(
+            entries.len(),
+            2,
+            "one entry per project handed in, even when a task panics"
+        );
+        assert_eq!(entries[0].project_name, "ok-project");
+        assert!(!entries[0].is_blocked());
+
+        assert_eq!(entries[1].project_name, "panics-project");
+        assert_eq!(entries[1].blockers.len(), 1);
+        match &entries[1].blockers[0] {
+            FreezeBlocker::Unreadable { reason } => {
+                assert!(
+                    reason.contains("task join error"),
+                    "reason should name the join error, got: {reason}"
+                );
+            }
+            other => panic!("expected Unreadable, got {other:?}"),
         }
     }
 }

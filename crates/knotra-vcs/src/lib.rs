@@ -12,9 +12,10 @@ pub use model::{
     changelog::{ChangelogDraft, CommitEntry, ProjectCommits, RecentCommits},
     conflict::{ConflictMarker, ConflictedFile, ProjectConflictDetail},
     operation::{
-        ContextSwitchResult, FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
-        FreezeValidationEntry, OperationId, OperationLog, OperationPlan, OperationResult,
-        RecoveryHint, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
+        ContextSwitchResult, FreezeBlocker, FreezeNote, FreezeOutcome, FreezeProjectResult,
+        FreezeResult, FreezeValidation, FreezeValidationEntry, OperationId, OperationLog,
+        OperationPlan, OperationResult, RecoveryHint, SmartPullDisposition, SmartPullPlan,
+        SmartPullPlanEntry, SmartPullProgress,
     },
     project::{Project, ProjectId},
     status::{

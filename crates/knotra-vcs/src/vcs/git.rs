@@ -236,10 +236,15 @@ fn read_conflict_cli(path: &str) -> ConflictStatus {
             }
         }
         None => {
+            // RFC-065 Amendment A1.1/R14: `git rev-parse --git-dir` failing
+            // means conflict state could not be determined — not "no
+            // conflict". A caller that folded this into "clean" (the freeze
+            // validator did, before this RFC) could ready a release this
+            // repository was never actually checked for.
             return ConflictStatus {
                 has_conflict: false,
                 conflict_count: None,
-                detection_unavailable: false,
+                detection_unavailable: true,
             };
         }
     };
@@ -973,12 +978,28 @@ pub async fn push_tags(project: &Project, tag_name: &str) -> ProjectOperationRes
 // Freeze validation — via gix (is_dirty) + tag check
 // ---------------------------------------------------------------------------
 
+/// Builds an `Unreadable`-only entry — the shape every failed probe below
+/// returns (RFC-065 Amendment A1.1): never combined with a blocker computed
+/// from a probe whose result is unknown, because once one probe has failed
+/// there is nothing trustworthy left to compute blockers from.
+fn unreadable_entry(
+    project_id: crate::model::project::ProjectId,
+    project_name: String,
+    reason: String,
+) -> crate::model::operation::FreezeValidationEntry {
+    crate::model::operation::FreezeValidationEntry {
+        project_id,
+        project_name,
+        notes: vec![],
+        blockers: vec![crate::model::operation::FreezeBlocker::Unreadable { reason }],
+    }
+}
+
 pub async fn validate_for_freeze(
     project: &crate::model::project::Project,
     freeze_name: &str,
-    included: bool,
 ) -> crate::model::operation::FreezeValidationEntry {
-    use crate::model::operation::FreezeValidationEntry;
+    use crate::model::operation::{FreezeBlocker, FreezeNote, FreezeValidationEntry};
 
     let path = std::path::Path::new(&project.path).to_path_buf();
     let name = freeze_name.to_owned();
@@ -992,67 +1013,100 @@ pub async fn validate_for_freeze(
         let backend = match endringer_git::GitBackend::open(&path) {
             Ok(b) => b,
             Err(e) => {
-                return FreezeValidationEntry {
-                    project_id: project.id.clone(),
-                    project_name: project.name.clone(),
-                    included,
-                    is_clean: false,
-                    tag_exists: false,
-                    notes: vec![],
-                    blockers: vec![format!("cannot open repository: {e}")],
-                };
+                return unreadable_entry(
+                    project.id.clone(),
+                    project.name.clone(),
+                    format!("cannot open repository: {e}"),
+                );
             }
         };
 
-        let wt_status = backend.worktree_status().ok();
-        let uncommitted = wt_status
-            .as_ref()
-            .map(|s| s.staged.len() + s.unstaged.len())
-            .unwrap_or(0);
-        let untracked = wt_status.as_ref().map(|s| s.untracked.len()).unwrap_or(0);
-        let conflict = read_conflict_cli(path.to_str().unwrap_or(""));
-        // detection_unavailable is always false for Git (sentinel-file-based).
-        let tag_exists = backend
-            .list_tags()
-            .ok()
-            .map(|tags| tags.iter().any(|t| t.name == name))
-            .unwrap_or(false);
+        let wt_status = match backend.worktree_status() {
+            Ok(s) => s,
+            Err(e) => {
+                return unreadable_entry(
+                    project.id.clone(),
+                    project.name.clone(),
+                    format!("could not read working tree: {e}"),
+                );
+            }
+        };
 
-        let is_clean = uncommitted == 0 && !conflict.has_conflict;
+        let conflict = read_conflict_cli(path.to_str().unwrap_or(""));
+        if conflict.detection_unavailable {
+            return unreadable_entry(
+                project.id.clone(),
+                project.name.clone(),
+                "could not determine conflict state: git rev-parse --git-dir failed".to_owned(),
+            );
+        }
+
+        let tags = match backend.list_tags() {
+            Ok(t) => t,
+            Err(e) => {
+                return unreadable_entry(
+                    project.id.clone(),
+                    project.name.clone(),
+                    format!("could not list tags: {e}"),
+                );
+            }
+        };
+
+        let uncommitted = wt_status.staged.len() + wt_status.unstaged.len();
+        let untracked = wt_status.untracked.len();
+        let tag_exists = tags.iter().any(|t| t.name == name);
+
         let mut blockers = vec![];
         let mut notes = vec![];
 
         if conflict.has_conflict {
-            blockers.push("unresolved conflict".to_owned());
+            blockers.push(FreezeBlocker::UnresolvedConflict);
         }
         if uncommitted > 0 {
-            blockers.push(format!("{uncommitted} uncommitted change(s)"));
-        }
-        if untracked > 0 {
-            notes.push(format!("{untracked} untracked file(s)"));
+            blockers.push(FreezeBlocker::UncommittedChanges);
         }
         if tag_exists {
-            blockers.push(format!("tag '{}' already exists", name));
+            blockers.push(FreezeBlocker::NameInUse);
+        }
+        if untracked > 0 {
+            notes.push(FreezeNote::UntrackedFiles(untracked));
         }
 
         FreezeValidationEntry {
             project_id: project.id.clone(),
             project_name: project.name.clone(),
-            included,
-            is_clean,
-            tag_exists,
             notes,
             blockers,
         }
     })
     .await
-    .unwrap_or_else(|e| crate::model::operation::FreezeValidationEntry {
-        project_id: err_id,
-        project_name: err_name,
-        included,
-        is_clean: false,
-        tag_exists: false,
-        notes: vec![],
-        blockers: vec![format!("task join error: {e}")],
-    })
+    .unwrap_or_else(|e| unreadable_entry(err_id, err_name, format!("task join error: {e}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// RFC-065 Amendment A1.1/R14: `read_conflict_cli` reports
+    /// `detection_unavailable: true` when `git rev-parse --git-dir` fails
+    /// — a path that is not a Git repository at all is the honest way to
+    /// make that happen, same shape as `knotra-vcs/tests/git_integration.rs`'s
+    /// `a_broken_git_repository_is_unreadable_not_ready` one layer up.
+    /// Before this fix, this case reported `has_conflict: false,
+    /// detection_unavailable: false` — a silent "clean" on a check that
+    /// never ran.
+    #[test]
+    fn read_conflict_cli_reports_unavailable_when_git_dir_cannot_be_found() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let status = read_conflict_cli(dir.path().to_str().expect("utf8 path"));
+
+        assert!(
+            status.detection_unavailable,
+            "a non-repository path must report detection_unavailable, got: {status:?}"
+        );
+        assert!(
+            !status.has_conflict,
+            "an unavailable detection must not also claim a conflict"
+        );
+    }
 }

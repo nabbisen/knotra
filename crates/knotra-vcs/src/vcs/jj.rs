@@ -583,12 +583,53 @@ pub async fn list_conflicted_files(
     })
 }
 
+/// Local jj bookmark names, one per line, via `jj bookmark list -T 'name ++
+/// "\n"'` — exact names, never jj's human-readable listing (RFC-065
+/// Amendment A1.2: `l.trim().starts_with(name)` made `v1` "already in use"
+/// whenever `v10` or `v1.2` existed too). Deliberately **not** `-a`
+/// (`--all-remotes`): the default listing already excludes an untracked
+/// remote-tracking bookmark (one with no local counterpart), which must not
+/// count as a local name; a *tracked* remote bookmark is, by jj's own
+/// model, a real local name a new local bookmark of the same name would
+/// collide with, and the default listing correctly includes those. Verified
+/// against a real `jj 0.44.0` binary and real repositories — both the
+/// untracked and the tracked case — not inferred from documentation alone.
+fn local_bookmark_names(path: &str) -> std::io::Result<Vec<String>> {
+    let output = run_jj(&["bookmark", "list", "-T", "name ++ \"\\n\""], path)?;
+    if !output.status.success() {
+        return Err(std::io::Error::other(
+            String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|l| l.trim().to_owned())
+        .filter(|l| !l.is_empty())
+        .collect())
+}
+
+/// Builds an `Unreadable`-only entry — the shape every failed probe below
+/// returns (RFC-065 Amendment A1.1): never combined with a blocker computed
+/// from a probe whose result is unknown, because once one probe has failed
+/// there is nothing trustworthy left to compute blockers from.
+fn unreadable_entry(
+    project_id: crate::model::project::ProjectId,
+    project_name: String,
+    reason: String,
+) -> crate::model::operation::FreezeValidationEntry {
+    crate::model::operation::FreezeValidationEntry {
+        project_id,
+        project_name,
+        notes: vec![],
+        blockers: vec![crate::model::operation::FreezeBlocker::Unreadable { reason }],
+    }
+}
+
 pub async fn validate_for_freeze(
     project: &crate::model::project::Project,
     freeze_name: &str,
-    included: bool,
 ) -> crate::model::operation::FreezeValidationEntry {
-    use crate::model::operation::FreezeValidationEntry;
+    use crate::model::operation::{FreezeBlocker, FreezeValidationEntry};
 
     let path = std::path::Path::new(&project.path).to_path_buf();
     let name = freeze_name.to_owned();
@@ -599,53 +640,79 @@ pub async fn validate_for_freeze(
     tokio::task::spawn_blocking(move || {
         use endringer_core::backend::VcsBackend;
 
-        // Open jj backend to check dirty state
-        let is_dirty = endringer_jj::JjBackend::open(&path)
-            .ok()
-            .and_then(|b| b.is_dirty().ok())
-            .unwrap_or(false);
+        let backend = match endringer_jj::JjBackend::open(&path) {
+            Ok(b) => b,
+            Err(e) => {
+                return unreadable_entry(
+                    project.id.clone(),
+                    project.name.clone(),
+                    format!("cannot open repository: {e}"),
+                );
+            }
+        };
 
+        let is_dirty = match backend.is_dirty() {
+            Ok(d) => d,
+            Err(e) => {
+                return unreadable_entry(
+                    project.id.clone(),
+                    project.name.clone(),
+                    format!("could not read working-copy state: {e}"),
+                );
+            }
+        };
+
+        // RFC-065 Amendment A1.1: "detection unavailable" becomes
+        // `Unreadable`, not folded into `UnresolvedConflict` as it was
+        // before this RFC — a release could otherwise be readied on a
+        // conflict check that never actually ran.
         let conflict_status = detect_jj_conflict(path.to_str().unwrap_or(""));
-        let conflict = conflict_status.has_conflict || conflict_status.detection_unavailable;
+        if conflict_status.detection_unavailable {
+            return unreadable_entry(
+                project.id.clone(),
+                project.name.clone(),
+                "could not determine conflict state: jj log failed".to_owned(),
+            );
+        }
 
-        let bm_exists = run_jj(&["bookmark", "list"], path.to_str().unwrap_or(""))
-            .map(|o| {
-                String::from_utf8_lossy(&o.stdout)
-                    .lines()
-                    .any(|l| l.trim().starts_with(name.as_str()))
-            })
-            .unwrap_or(false);
+        let bookmark_names = match local_bookmark_names(path.to_str().unwrap_or("")) {
+            Ok(names) => names,
+            Err(e) => {
+                return unreadable_entry(
+                    project.id.clone(),
+                    project.name.clone(),
+                    format!("could not list bookmarks: {e}"),
+                );
+            }
+        };
+        let name_in_use = bookmark_names.iter().any(|n| n == &name);
 
-        let is_clean = !is_dirty && !conflict;
         let mut blockers = vec![];
-        if conflict {
-            blockers.push("unresolved conflict".to_owned());
+        if conflict_status.has_conflict {
+            blockers.push(FreezeBlocker::UnresolvedConflict);
         }
         if is_dirty {
-            blockers.push("uncommitted diff".to_owned());
+            blockers.push(FreezeBlocker::UncommittedChanges);
         }
-        if bm_exists {
-            blockers.push(format!("bookmark '{}' already exists", name));
+        if name_in_use {
+            blockers.push(FreezeBlocker::NameInUse);
         }
 
         FreezeValidationEntry {
             project_id: project.id.clone(),
             project_name: project.name.clone(),
-            included,
-            is_clean,
-            tag_exists: bm_exists,
+            // Jujutsu snapshots new files automatically — no untracked-file
+            // note to give (RFC-065 non-goal).
             notes: vec![],
             blockers,
         }
     })
     .await
-    .unwrap_or_else(|e| crate::model::operation::FreezeValidationEntry {
-        project_id: project_id_err,
-        project_name: project_name_err,
-        included,
-        is_clean: false,
-        tag_exists: false,
-        notes: vec![],
-        blockers: vec![format!("task join error: {e}")],
+    .unwrap_or_else(|e| {
+        unreadable_entry(
+            project_id_err,
+            project_name_err,
+            format!("task join error: {e}"),
+        )
     })
 }
