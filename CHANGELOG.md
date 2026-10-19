@@ -9,6 +9,17 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — the release check listed projects you had not chosen
+
+"Save release point" checks each project before saving the release point. The check
+listed every project in the workspace, and showed problems in projects you had not
+chosen as if they stopped the release. It now lists only the projects being saved,
+shows every problem with each one rather than only the first, and tells you when new
+files will not be part of the release point. A project that could not be checked is
+now reported as such, instead of passing. For Jujutsu projects, a release name already
+in use was reported as "Needs help", and a name such as v1 counted as taken when only
+v10 existed; both are fixed.
+
 ## [0.30.0] — 2026-10-18
 
 **Button labels now sit in the middle of their buttons.** Nothing else you use changes.

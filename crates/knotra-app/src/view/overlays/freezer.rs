@@ -20,7 +20,7 @@ use knotra_ui::widget::{
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
-use knotra_vcs::model::operation::FreezeOutcome;
+use knotra_vcs::model::operation::{FreezeBlocker, FreezeNote, FreezeOutcome};
 
 use crate::{
     message::{FreezerMessage, Message, TagPushMessage},
@@ -101,42 +101,99 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
             let can_save =
                 validation.all_ready() && ready_count > 0 && !state.operation_interlock.is_busy();
 
+            // R9: an entry's `Unreadable` reason is a filesystem-derived
+            // diagnostic, shown only under "Show details" — the same
+            // threshold the result screen (`Done`, below) already applies
+            // to its own recovery-hint commands.
+            let has_unreadable = validation.entries.iter().any(|entry| {
+                entry
+                    .blockers
+                    .iter()
+                    .any(|b| matches!(b, FreezeBlocker::Unreadable { .. }))
+            });
+
             let val_rows: Vec<Element<'_, Message>> = validation
                 .entries
                 .iter()
                 .map(|entry| {
-                    let (icon, msg) = if entry.is_blocked() {
+                    let (icon, first_line) = if entry.is_blocked() {
                         (
                             "!",
                             entry
                                 .blockers
                                 .first()
-                                .map(|s| plain_blocker(state, s.as_str()))
-                                .unwrap_or(""),
+                                .map(|b| blocker_message(state, b))
+                                .unwrap_or_default(),
                         )
-                    } else if !entry.included {
-                        ("—", state.t("plain.release.row_excluded"))
                     } else {
                         ("✓", state.t("plain.release.row_ready"))
                     };
 
-                    row![
-                        text(icon)
-                            .size(snora::design::style::text::body_size(tokens))
-                            .line_height(snora::design::style::text::body_line_height(tokens))
-                            .width(Length::Fixed(22.0)),
-                        text(&entry.project_name)
-                            .size(snora::design::style::text::body_size(tokens))
-                            .line_height(snora::design::style::text::body_line_height(tokens))
-                            .width(Length::FillPortion(2)),
-                        text(msg)
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(tokens))
-                            .width(Length::FillPortion(3)),
+                    let mut row_col = column![
+                        row![
+                            text(icon)
+                                .size(snora::design::style::text::body_size(tokens))
+                                .line_height(snora::design::style::text::body_line_height(tokens))
+                                .width(Length::Fixed(22.0)),
+                            text(&entry.project_name)
+                                .size(snora::design::style::text::body_size(tokens))
+                                .line_height(snora::design::style::text::body_line_height(tokens))
+                                .width(Length::FillPortion(2)),
+                            text(first_line)
+                                .size(snora::design::style::text::body_small_size(tokens))
+                                .line_height(snora::design::style::text::body_small_line_height(
+                                    tokens
+                                ))
+                                .width(Length::FillPortion(3)),
+                        ]
+                        .spacing(8)
+                        .align_y(Alignment::Center),
                     ]
-                    .spacing(8)
-                    .align_y(Alignment::Center)
-                    .into()
+                    .spacing(4);
+
+                    // D3: every blocker, not only the first, once each, in
+                    // declaration order.
+                    for blocker in entry.blockers.iter().skip(1) {
+                        row_col = row_col.push(
+                            text(blocker_message(state, blocker))
+                                .size(snora::design::style::text::body_small_size(tokens))
+                                .line_height(snora::design::style::text::body_small_line_height(
+                                    tokens,
+                                )),
+                        );
+                    }
+
+                    // R9: `Unreadable`'s own diagnostic, only under "Show
+                    // details".
+                    if state.show_op_details {
+                        for blocker in &entry.blockers {
+                            if let FreezeBlocker::Unreadable { reason } = blocker {
+                                row_col = row_col.push(
+                                    text(reason.as_str())
+                                        .size(snora::design::style::text::body_small_size(tokens))
+                                        .line_height(
+                                            snora::design::style::text::body_small_line_height(
+                                                tokens,
+                                            ),
+                                        ),
+                                );
+                            }
+                        }
+                    }
+
+                    // D3/D5: notes are just as true on a blocked row as on a
+                    // ready one, so they are not gated on `is_blocked()`.
+                    for note in &entry.notes {
+                        row_col = row_col.push(
+                            text(note_message(state, note))
+                                .size(snora::design::style::text::body_small_size(tokens))
+                                .line_height(snora::design::style::text::body_small_line_height(
+                                    tokens,
+                                )),
+                        );
+                    }
+
+                    row_col.into()
                 })
                 .collect();
 
@@ -152,7 +209,11 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 Some(state.t("plain.release.fix_some"))
             };
 
-            let footer = row![
+            // R9: the details button sits between the Fill space and
+            // Cancel, only when at least one entry has something to show —
+            // Save and Cancel neither move nor change size or style when it
+            // appears.
+            let mut footer_row = row![
                 reasoned(
                     tokens,
                     state.t("plain.save_release_point"),
@@ -162,14 +223,30 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     style::primary,
                 ),
                 Space::new().width(Length::Fill),
-                styled_button(
-                    tokens,
-                    state.t("action.cancel"),
-                    Some(Message::Freezer(FreezerMessage::BulkModalClosed)),
-                    style::ghost,
-                ),
             ]
+            .spacing(8)
             .align_y(Alignment::Center);
+
+            if has_unreadable {
+                let details_label = if state.show_op_details {
+                    state.t("plain.hide_details")
+                } else {
+                    state.t("plain.show_details")
+                };
+                footer_row = footer_row.push(styled_button(
+                    tokens,
+                    details_label,
+                    Some(Message::ToggleOpDetails),
+                    style::ghost,
+                ));
+            }
+
+            let footer = footer_row.push(styled_button(
+                tokens,
+                state.t("action.cancel"),
+                Some(Message::Freezer(FreezerMessage::BulkModalClosed)),
+                style::ghost,
+            ));
 
             // No inner `scrollable` around the row list (unlike the
             // pre-migration `.height(Length::Fixed(200.0))` box) —
@@ -468,16 +545,26 @@ fn impact_warnings_section<'a>(tokens: &Tokens, state: &'a AppState) -> Element<
     .into()
 }
 
-/// Map a technical blocker string to a plain-language message.
-fn plain_blocker<'a>(state: &'a AppState, blocker: &str) -> &'a str {
-    let lower = blocker.to_lowercase();
-    if lower.contains("tag") && lower.contains("exist") {
-        state.t("plain.release.blocker_name_used")
-    } else if lower.contains("conflict") || lower.contains("merge") {
-        state.t("plain.release.blocker_needs_choice")
-    } else if lower.contains("dirty") || lower.contains("uncommitted") {
-        state.t("plain.release.blocker_unsaved")
-    } else {
-        state.t("plain.needs_help") // safe fallback
+/// Maps a `FreezeBlocker` to its catalog message. Exhaustive — no `_`
+/// arm — so a new variant without a mapping fails to compile (RFC-065
+/// D2/R3). Replaces this file's old helper, which substring-matched a
+/// producer's own diagnostic string and let a Jujutsu "bookmark … already
+/// exists" fall through to a generic "Needs help" message since it only
+/// knew the word `tag`.
+fn blocker_message(state: &AppState, blocker: &FreezeBlocker) -> &'static str {
+    match blocker {
+        FreezeBlocker::UnresolvedConflict => state.t("plain.release.blocker_needs_choice"),
+        FreezeBlocker::UncommittedChanges => state.t("plain.release.blocker_unsaved"),
+        FreezeBlocker::NameInUse => state.t("plain.release.blocker_name_used"),
+        FreezeBlocker::Unreadable { .. } => state.t("plain.release.blocker_unreadable"),
+    }
+}
+
+/// Maps a `FreezeNote` to its rendered "label: count" line (RFC-038 Stage 4
+/// §1b's established convention — no plural forms needed). Exhaustive for
+/// the same reason as `blocker_message`.
+fn note_message(state: &AppState, note: &FreezeNote) -> String {
+    match note {
+        FreezeNote::UntrackedFiles(n) => format!("{} {n}", state.t("plain.release.note_untracked")),
     }
 }

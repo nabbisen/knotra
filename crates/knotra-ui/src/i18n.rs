@@ -421,7 +421,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.release.checking", "Checking…");
     m.insert("plain.release.ready_check", "Ready check");
     m.insert("plain.release.row_ready", "Ready");
-    m.insert("plain.release.row_excluded", "Not included");
     m.insert("plain.release.fix_one", "Fix 1 item before saving.");
     m.insert(
         "plain.release.fix_some",
@@ -486,6 +485,14 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "Needs your choice — resolve it first.",
     );
     m.insert("plain.release.blocker_unsaved", "Has unsaved work.");
+    m.insert(
+        "plain.release.blocker_unreadable",
+        "Couldn't read this project. Check that its folder still exists.",
+    );
+    m.insert(
+        "plain.release.note_untracked",
+        "New files not in this release point:",
+    );
 
     // Change work area (Context Switch)
     m.insert("plain.switch.search_label", "Find work area");
@@ -1322,7 +1329,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.release.checking", "確認中…");
     m.insert("plain.release.ready_check", "準備確認");
     m.insert("plain.release.row_ready", "準備完了");
-    m.insert("plain.release.row_excluded", "対象外");
     m.insert("plain.release.fix_one", "保存前に1件修正してください。");
     m.insert(
         "plain.release.fix_some",
@@ -1396,6 +1402,14 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "選択が必要 — 先に解決してください。",
     );
     m.insert("plain.release.blocker_unsaved", "未保存の作業があります。");
+    m.insert(
+        "plain.release.blocker_unreadable",
+        "このプロジェクトを読み取れませんでした。フォルダーがあるか確認してください。",
+    );
+    m.insert(
+        "plain.release.note_untracked",
+        "このリリースポイントに含まれない新しいファイル:",
+    );
 
     // Change work area
     m.insert("plain.switch.search_label", "作業エリアを検索");

@@ -40,18 +40,19 @@ impl TopologyState {
             .collect()
     }
 
-    /// Impact warnings for the projects a `FreezeValidation` actually
-    /// includes, plus whether topology data exists to check against at all
-    /// (RFC-044 D1/D3). `false` means "not checked" — distinct from `true`
-    /// with an empty `Vec`, which means "checked, found nothing" — the
-    /// distinction R3 requires the Freezer to state.
+    /// Impact warnings for the projects a `FreezeValidation` covers, plus
+    /// whether topology data exists to check against at all (RFC-044
+    /// D1/D3). `false` means "not checked" — distinct from `true` with an
+    /// empty `Vec`, which means "checked, found nothing" — the distinction
+    /// R3 requires the Freezer to state. Every entry in `validation` is
+    /// already part of the freeze selection (RFC-065 D1), so there is no
+    /// `included` filter left to apply here.
     pub fn warnings_for(&self, validation: &FreezeValidation) -> (Vec<ImpactWarning>, bool) {
         match &self.phase {
             TopologyPhase::Ready(graph) => {
                 let freezing: Vec<String> = validation
                     .entries
                     .iter()
-                    .filter(|e| e.included)
                     .map(|e| e.project_name.clone())
                     .collect();
                 (self.compute_warnings(graph, &freezing), true)
@@ -112,13 +113,10 @@ mod tests {
         assert!(w.description().contains("frontend"));
     }
 
-    fn validation_entry(name: &str, included: bool) -> knotra_vcs::FreezeValidationEntry {
+    fn validation_entry(name: &str) -> knotra_vcs::FreezeValidationEntry {
         knotra_vcs::FreezeValidationEntry {
             project_id: ProjectId::new(),
             project_name: name.to_owned(),
-            included,
-            is_clean: true,
-            tag_exists: false,
             notes: Vec::new(),
             blockers: Vec::new(),
         }
@@ -134,7 +132,7 @@ mod tests {
     #[test]
     fn warnings_for_reports_not_checked_when_topology_idle() {
         let state = TopologyState::default();
-        let v = validation(vec![validation_entry("shared-lib", true)]);
+        let v = validation(vec![validation_entry("shared-lib")]);
         let (warnings, checked) = state.warnings_for(&v);
         assert!(!checked);
         assert!(warnings.is_empty());
@@ -148,44 +146,27 @@ mod tests {
         let state = TopologyState {
             phase: TopologyPhase::Ready(graph),
         };
-        let v = validation(vec![validation_entry("api", true)]);
+        let v = validation(vec![validation_entry("api")]);
         let (warnings, checked) = state.warnings_for(&v);
         assert!(checked);
         assert!(warnings.is_empty());
     }
 
     #[test]
-    fn warnings_for_finds_dependents_of_included_projects() {
+    fn warnings_for_finds_dependents_of_selected_projects() {
+        // RFC-065 D1: `validation.entries` only ever holds the freeze
+        // selection now — there is no "included" flag left to filter on,
+        // so every entry handed in is checked.
         let graph = DependencyGraph {
             edges: vec![edge("api", "shared-lib"), edge("worker", "shared-lib")],
         };
         let state = TopologyState {
             phase: TopologyPhase::Ready(graph),
         };
-        let v = validation(vec![validation_entry("shared-lib", true)]);
+        let v = validation(vec![validation_entry("shared-lib")]);
         let (warnings, checked) = state.warnings_for(&v);
         assert!(checked);
         assert_eq!(warnings.len(), 1);
         assert_eq!(warnings[0].dependent_projects.len(), 2);
-    }
-
-    #[test]
-    fn warnings_for_ignores_excluded_projects() {
-        // "shared-lib" has a real dependent, but it is not included in this
-        // freeze — D1's whole point: only the freeze selection is checked,
-        // not every workspace project.
-        let graph = DependencyGraph {
-            edges: vec![edge("api", "shared-lib")],
-        };
-        let state = TopologyState {
-            phase: TopologyPhase::Ready(graph),
-        };
-        let v = validation(vec![
-            validation_entry("shared-lib", false),
-            validation_entry("api", true),
-        ]);
-        let (warnings, checked) = state.warnings_for(&v);
-        assert!(checked);
-        assert!(warnings.is_empty());
     }
 }

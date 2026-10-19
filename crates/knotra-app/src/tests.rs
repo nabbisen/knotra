@@ -166,9 +166,6 @@ fn ready_freeze_validation(project: &Project, freeze_name: &str) -> FreezeValida
         entries: vec![FreezeValidationEntry {
             project_id: project.id.clone(),
             project_name: project.name.clone(),
-            included: true,
-            is_clean: true,
-            tag_exists: false,
             notes: Vec::new(),
             blockers: Vec::new(),
         }],
