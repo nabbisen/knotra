@@ -617,5 +617,54 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install "$TOOLCHAIN" --profile minimal
 
+      # Task 090: `cargo publish --workspace --dry-run` verifies each crate
+      # against crates.io plus the workspace's own packages, and a published
+      # version that satisfies a sibling's version requirement is preferred
+      # over the workspace's own package. Between releases the workspace
+      # version *is* the published one, so a crate that uses a sibling's new
+      # API fails to verify even though nothing is wrong — a version above
+      # every published one, and never itself published, is the only one
+      # that verifies the workspace as it actually stands. Rewrites the
+      # version in this job's own checkout only; nothing here is committed
+      # or pushed, and the `crates` job (the real publish, on a tag) needs
+      # none of this — release prep has already bumped the version there,
+      # and `notes`'s guard checks the tag against it.
+      - name: Set the workspace version above anything published
+        run: |
+          OLD_VERSION=""
+          in_section=0
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^\[(.+)\]$ ]]; then
+              if [ "${BASH_REMATCH[1]}" = "workspace.package" ]; then in_section=1; else in_section=0; fi
+              continue
+            fi
+            if [ "$in_section" -eq 1 ] && [[ "$line" =~ ^[[:space:]]*version[[:space:]]*=[[:space:]]*\"([^\"]+)\" ]]; then
+              OLD_VERSION="${BASH_REMATCH[1]}"
+              break
+            fi
+          done < Cargo.toml
+
+          if [ -z "$OLD_VERSION" ]; then
+            echo "::error::no version found under [workspace.package] in Cargo.toml"
+            exit 1
+          fi
+
+          CORE="${OLD_VERSION%%[-+]*}"
+          MAJOR="${CORE%%.*}"
+          REST="${CORE#*.}"
+          MINOR="${REST%%.*}"
+          PATCH="${REST#*.}"
+          NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-dryrun"
+
+          sed -i -E "s/^version = \"${OLD_VERSION}\"\$/version = \"${NEW_VERSION}\"/" Cargo.toml
+          sed -i -E "s/^(knotra-ui +)= \{ version = \"${OLD_VERSION}\"/\1= { version = \"${NEW_VERSION}\"/" Cargo.toml
+          sed -i -E "s/^(knotra-vcs +)= \{ version = \"${OLD_VERSION}\"/\1= { version = \"${NEW_VERSION}\"/" Cargo.toml
+
+          cargo "+$TOOLCHAIN" update --workspace --offline
+
+          echo "crate version $OLD_VERSION -> dry-run version $NEW_VERSION"
+
+      # `--allow-dirty`: the checkout is now modified, on purpose, by the
+      # step above.
       - name: Dry-run publish the whole workspace
-        run: cargo "+$TOOLCHAIN" publish --workspace --dry-run --locked
+        run: cargo "+$TOOLCHAIN" publish --workspace --dry-run --locked --allow-dirty
