@@ -249,14 +249,11 @@ impl VcsAdapter {
                 match kind {
                     Some(VcsKind::Git) => git::validate_for_freeze(&project, &name).await,
                     Some(VcsKind::Jujutsu) => jj::validate_for_freeze(&project, &name).await,
-                    None => crate::model::operation::FreezeValidationEntry {
-                        project_id: project.id.clone(),
-                        project_name: project.name.clone(),
-                        notes: Vec::new(),
-                        blockers: vec![crate::model::operation::FreezeBlocker::Unreadable {
-                            reason: format!("no repository at {}", project.path),
-                        }],
-                    },
+                    None => crate::model::operation::FreezeValidationEntry::unreadable(
+                        project.id.clone(),
+                        project.name.clone(),
+                        format!("no repository at {}", project.path),
+                    ),
                 }
             }));
         }
@@ -475,14 +472,11 @@ async fn collect_freeze_entries(
     for (project, handle) in projects.iter().zip(handles) {
         let entry = match handle.await {
             Ok(entry) => entry,
-            Err(e) => crate::model::operation::FreezeValidationEntry {
-                project_id: project.id.clone(),
-                project_name: project.name.clone(),
-                notes: Vec::new(),
-                blockers: vec![crate::model::operation::FreezeBlocker::Unreadable {
-                    reason: format!("task join error: {e}"),
-                }],
-            },
+            Err(e) => crate::model::operation::FreezeValidationEntry::unreadable(
+                project.id.clone(),
+                project.name.clone(),
+                format!("task join error: {e}"),
+            ),
         };
         entries.push(entry);
     }

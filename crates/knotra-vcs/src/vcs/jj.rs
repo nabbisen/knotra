@@ -608,23 +608,6 @@ fn local_bookmark_names(path: &str) -> std::io::Result<Vec<String>> {
         .collect())
 }
 
-/// Builds an `Unreadable`-only entry — the shape every failed probe below
-/// returns (RFC-065 Amendment A1.1): never combined with a blocker computed
-/// from a probe whose result is unknown, because once one probe has failed
-/// there is nothing trustworthy left to compute blockers from.
-fn unreadable_entry(
-    project_id: crate::model::project::ProjectId,
-    project_name: String,
-    reason: String,
-) -> crate::model::operation::FreezeValidationEntry {
-    crate::model::operation::FreezeValidationEntry {
-        project_id,
-        project_name,
-        notes: vec![],
-        blockers: vec![crate::model::operation::FreezeBlocker::Unreadable { reason }],
-    }
-}
-
 pub async fn validate_for_freeze(
     project: &crate::model::project::Project,
     freeze_name: &str,
@@ -643,7 +626,7 @@ pub async fn validate_for_freeze(
         let backend = match endringer_jj::JjBackend::open(&path) {
             Ok(b) => b,
             Err(e) => {
-                return unreadable_entry(
+                return FreezeValidationEntry::unreadable(
                     project.id.clone(),
                     project.name.clone(),
                     format!("cannot open repository: {e}"),
@@ -654,7 +637,7 @@ pub async fn validate_for_freeze(
         let is_dirty = match backend.is_dirty() {
             Ok(d) => d,
             Err(e) => {
-                return unreadable_entry(
+                return FreezeValidationEntry::unreadable(
                     project.id.clone(),
                     project.name.clone(),
                     format!("could not read working-copy state: {e}"),
@@ -668,7 +651,7 @@ pub async fn validate_for_freeze(
         // conflict check that never actually ran.
         let conflict_status = detect_jj_conflict(path.to_str().unwrap_or(""));
         if conflict_status.detection_unavailable {
-            return unreadable_entry(
+            return FreezeValidationEntry::unreadable(
                 project.id.clone(),
                 project.name.clone(),
                 "could not determine conflict state: jj log failed".to_owned(),
@@ -678,7 +661,7 @@ pub async fn validate_for_freeze(
         let bookmark_names = match local_bookmark_names(path.to_str().unwrap_or("")) {
             Ok(names) => names,
             Err(e) => {
-                return unreadable_entry(
+                return FreezeValidationEntry::unreadable(
                     project.id.clone(),
                     project.name.clone(),
                     format!("could not list bookmarks: {e}"),
@@ -709,7 +692,7 @@ pub async fn validate_for_freeze(
     })
     .await
     .unwrap_or_else(|e| {
-        unreadable_entry(
+        FreezeValidationEntry::unreadable(
             project_id_err,
             project_name_err,
             format!("task join error: {e}"),

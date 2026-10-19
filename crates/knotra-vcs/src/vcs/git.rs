@@ -978,23 +978,6 @@ pub async fn push_tags(project: &Project, tag_name: &str) -> ProjectOperationRes
 // Freeze validation — via gix (is_dirty) + tag check
 // ---------------------------------------------------------------------------
 
-/// Builds an `Unreadable`-only entry — the shape every failed probe below
-/// returns (RFC-065 Amendment A1.1): never combined with a blocker computed
-/// from a probe whose result is unknown, because once one probe has failed
-/// there is nothing trustworthy left to compute blockers from.
-fn unreadable_entry(
-    project_id: crate::model::project::ProjectId,
-    project_name: String,
-    reason: String,
-) -> crate::model::operation::FreezeValidationEntry {
-    crate::model::operation::FreezeValidationEntry {
-        project_id,
-        project_name,
-        notes: vec![],
-        blockers: vec![crate::model::operation::FreezeBlocker::Unreadable { reason }],
-    }
-}
-
 pub async fn validate_for_freeze(
     project: &crate::model::project::Project,
     freeze_name: &str,
@@ -1013,7 +996,7 @@ pub async fn validate_for_freeze(
         let backend = match endringer_git::GitBackend::open(&path) {
             Ok(b) => b,
             Err(e) => {
-                return unreadable_entry(
+                return FreezeValidationEntry::unreadable(
                     project.id.clone(),
                     project.name.clone(),
                     format!("cannot open repository: {e}"),
@@ -1024,7 +1007,7 @@ pub async fn validate_for_freeze(
         let wt_status = match backend.worktree_status() {
             Ok(s) => s,
             Err(e) => {
-                return unreadable_entry(
+                return FreezeValidationEntry::unreadable(
                     project.id.clone(),
                     project.name.clone(),
                     format!("could not read working tree: {e}"),
@@ -1034,7 +1017,7 @@ pub async fn validate_for_freeze(
 
         let conflict = read_conflict_cli(path.to_str().unwrap_or(""));
         if conflict.detection_unavailable {
-            return unreadable_entry(
+            return FreezeValidationEntry::unreadable(
                 project.id.clone(),
                 project.name.clone(),
                 "could not determine conflict state: git rev-parse --git-dir failed".to_owned(),
@@ -1044,7 +1027,7 @@ pub async fn validate_for_freeze(
         let tags = match backend.list_tags() {
             Ok(t) => t,
             Err(e) => {
-                return unreadable_entry(
+                return FreezeValidationEntry::unreadable(
                     project.id.clone(),
                     project.name.clone(),
                     format!("could not list tags: {e}"),
@@ -1080,7 +1063,9 @@ pub async fn validate_for_freeze(
         }
     })
     .await
-    .unwrap_or_else(|e| unreadable_entry(err_id, err_name, format!("task join error: {e}")))
+    .unwrap_or_else(|e| {
+        FreezeValidationEntry::unreadable(err_id, err_name, format!("task join error: {e}"))
+    })
 }
 
 #[cfg(test)]
