@@ -660,7 +660,22 @@ jobs:
           sed -i -E "s/^(knotra-ui +)= \{ version = \"${OLD_VERSION}\"/\1= { version = \"${NEW_VERSION}\"/" Cargo.toml
           sed -i -E "s/^(knotra-vcs +)= \{ version = \"${OLD_VERSION}\"/\1= { version = \"${NEW_VERSION}\"/" Cargo.toml
 
-          cargo "+$TOOLCHAIN" update --workspace --offline
+          # Not `--offline`: a fresh runner has no registry cache, and
+          # offline resolution then fails. `--workspace` still changes only
+          # the three members' lockfile entries.
+          cargo "+$TOOLCHAIN" update --workspace
+
+          # A rewrite that matched nothing would leave the published version
+          # in place and bring back the very failure this step exists to
+          # avoid, so confirm every crate now carries the dry-run version.
+          for crate in knotra knotra-ui knotra-vcs; do
+            CRATE_VERSION=$(cargo "+$TOOLCHAIN" metadata --no-deps --format-version 1 \
+              | jq -r --arg name "$crate" '.packages[] | select(.name == $name) | .version')
+            if [ "$CRATE_VERSION" != "$NEW_VERSION" ]; then
+              echo "::error::${crate} is at '$CRATE_VERSION', not the dry-run version '$NEW_VERSION'"
+              exit 1
+            fi
+          done
 
           echo "crate version $OLD_VERSION -> dry-run version $NEW_VERSION"
 

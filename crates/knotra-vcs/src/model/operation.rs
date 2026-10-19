@@ -404,9 +404,7 @@ pub struct FreezeValidationEntry {
 impl FreezeValidationEntry {
     /// An entry whose project could not be checked (RFC-065 A1.1): the only
     /// blocker is `Unreadable`, carrying `reason`, and nothing else is
-    /// reported, since no other probe's result can be trusted. Replaces
-    /// four separate constructions of the same shape (two identical helpers
-    /// in `git.rs`/`jj.rs`, two inline in `adapter.rs`) — Task 090.
+    /// reported, since no other probe's result can be trusted.
     pub fn unreadable(project_id: ProjectId, project_name: String, reason: String) -> Self {
         Self {
             project_id,
