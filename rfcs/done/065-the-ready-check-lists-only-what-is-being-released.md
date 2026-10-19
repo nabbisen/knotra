@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted 2026-10-19 (project owner), with Amendment A1 |
+| Status | Implemented (main: b02ba87), with Amendment A1 |
 | Priority | High - the Freezer's ready check misleads users about what is being released |
 | Effort | Medium - one model reshaped in `knotra-vcs`, its two producers, one view, catalog keys |
 | Target | Production Readiness Reset - UI/UX foundation |

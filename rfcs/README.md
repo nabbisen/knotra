@@ -55,7 +55,6 @@ path, not the RFC's presence here.
 
 | ID   | Title                                           | Target | Priority |
 |------|-------------------------------------------------|--------|----------|
-| [065](./accepted/065-the-ready-check-lists-only-what-is-being-released.md) | The ready check lists only what is being released, and says why exactly | Production Readiness Reset | High |
 
 ---
 
@@ -68,6 +67,7 @@ they contain remain authoritative.
 
 | ID   | Title                                           | Shipped    |
 |------|-------------------------------------------------|------------|
+| [065](./done/065-the-ready-check-lists-only-what-is-being-released.md) | The ready check lists only what is being released, and says why exactly | main: b02ba87 |
 | [064](./done/064-the-store-manifest-carries-the-real-version.md) | The Store manifest carries the real version | main: 2eafe6f |
 | [063](./done/063-publish-to-crates-io-from-the-release-pipeline.md) | Publish to crates.io from the release pipeline | main: ea041d5 |
 | [062](./done/062-button-labels-are-centred.md) | Button labels are centred, and a disabled chip looks disabled | main: f09287a |
