@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-10-20
+
+**"Save release point" now checks only the projects you chose, and shows every problem it finds.**
+
 ### Fixed — the release check listed projects you had not chosen
 
 "Save release point" checks each project before saving the release point. The check
