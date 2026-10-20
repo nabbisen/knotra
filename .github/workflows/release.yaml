@@ -536,9 +536,12 @@ jobs:
       # "10.30.0". A crate with no published versions at all answers 404 at
       # this URL; that is not an error, it is what "nothing of this crate
       # has ever reached crates.io" looks like over the sparse protocol, and
-      # is treated as absent accordingly. Any other failure — a network
-      # error, a 5xx, an unexpected status — fails the job outright:
-      # "could not check" is never treated as "absent".
+      # is treated as absent accordingly. A transient failure (a timeout, a
+      # refused connection, 408/429/5xx) is retried by curl itself, since
+      # the index does answer 503 for a moment now and then (0.31.0's first
+      # run). What still fails after the retries — a network error, a 5xx,
+      # an unexpected status — fails the job outright: "could not check" is
+      # never treated as "absent".
       - name: Publish each crate not already on crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -555,6 +558,7 @@ jobs:
             # one conditional construct, which `-e` does not abort on, so the
             # check after it actually runs.
             response=$(curl -sS -H "User-Agent: knotra-release-workflow (https://github.com/nabbisen/knotra)" \
+              --retry 4 --retry-delay 15 --retry-connrefused \
               -w $'\n%{http_code}' "$url") && curl_exit=0 || curl_exit=$?
             http_code=$(echo "$response" | tail -n1)
             body=$(echo "$response" | sed '$d')
