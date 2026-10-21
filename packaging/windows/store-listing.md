@@ -46,14 +46,14 @@ No HTML, code or URLs; links go in their own fields.
 > commits not yet shared, and decisions waiting for you.
 >
 > From there you can act on many repositories together, with the care that bulk
-> changes need. Smart Pull only fast-forwards, so it never creates a merge commit,
-> and it never merges over uncommitted work: those repositories are fetched but
-> not merged, unless you choose to set the work aside and restore it afterwards.
-> Freezer tags a release across several repositories
-> at once, checks them first, and rolls back if any step fails. History keeps a
-> per-project record of every operation, so you can see what happened and why. A
-> conflict panel guides you through resolving merge conflicts, and knotra can
-> draft release notes from your recent commits.
+> changes need. "Get latest safely" only fast-forwards, so it never creates a merge
+> commit, and it never merges over unsaved work: those repositories are only checked
+> for updates, unless you choose to save the work, get the latest and restore it
+> afterwards. "Save release point" tags a release across the projects you choose,
+> checks each of them first, and rolls back if any step fails. History keeps a
+> per-project record of every operation, so you can see what happened and why. When
+> changes conflict, "Choose resolution" guides you through the choice, and
+> "Generate notes" drafts release notes from your recent commits.
 >
 > knotra is local-first. It has no accounts, no telemetry and no advertising, and
 > it never sends your data anywhere. It works through the Git and Jujutsu already
@@ -86,7 +86,7 @@ Suggested captions, using the names the app shows:
 
 1. Every repository in your workspace, grouped by what needs your attention.
 2. The same dashboard in the dark theme.
-3. "Get latest safely" fast-forwards only, and never merges over uncommitted work.
+3. "Get latest safely" fast-forwards only, and never merges over unsaved work.
 4. "Save release point" checks each project you chose before tagging, and rolls back on failure.
 5. A per-project history of every operation.
 
@@ -108,8 +108,8 @@ Displayed as a bulleted list; do not add your own bullets.
 - One dashboard for every repository in your workspace
 - Repositories grouped by what needs your attention
 - Organize repositories into named workspaces
-- Smart Pull: fast-forward only, and never merges over uncommitted work
-- Tag a release across many repositories, with checks first and rollback on failure
+- Get latest safely: fast-forward only, and never merges over unsaved work
+- Save release point: tag a release across the projects you choose, with checks first and rollback on failure
 - A per-project history of every operation
 - Guided merge conflict resolution
 - Release note drafts from recent commits
@@ -156,19 +156,19 @@ including that its terms match the ones the app itself uses.
 >
 > プロジェクトごとにターミナルを開いて状態を確かめる代わりに、ワークスペース内の
 > すべてのリポジトリを一つの画面に表示し、対応が必要なものごとにまとめます。
-> 手助けが必要なもの、未保存の作業、取り込める更新、まだ共有していないローカル
+> 対応が必要なもの、未保存の作業、取り込める更新、まだ共有していないローカル
 > コミット、判断を待っているもの、などです。
 >
 > そこから、複数のリポジトリをまとめて操作できます。一括操作に必要な慎重さを
-> 保ったままです。スマートプルは早送り（fast-forward）でのみ更新するため、
-> マージコミットを作りません。未コミットの作業がある上にマージすることも
-> なく、そうしたリポジトリは取得だけを行います。作業を一時退避して更新後に
-> 戻すこともでき、それはあなたが選んだ場合に限られます。フリーザーは複数の
-> リポジトリにまとめてリリース
-> タグを付けます。事前に確認を行い、途中で失敗すれば元に戻します。履歴は
+> 保ったままです。「安全に最新を取得」は早送り（fast-forward）でのみ更新するため、
+> マージコミットを作りません。未保存の作業があるリポジトリにマージすることも
+> なく、そうしたリポジトリは更新の確認だけを行います。作業を保存し、最新を
+> 取得してから復元することもでき、それはあなたが選んだ場合に限られます。
+> 「リリースポイントを保存」は、選んだプロジェクトにまとめてリリースタグを
+> 付けます。事前にそれぞれを確認し、途中で失敗すれば元に戻します。履歴は
 > プロジェクトごとにすべての操作を記録するので、何が起きたのか、なぜなのかを
-> 確かめられます。競合パネルはマージ競合の解決を手順に沿って案内し、最近の
-> コミットからリリースノートの下書きも作れます。
+> 確かめられます。変更が競合したときは「解決方法を選ぶ」が手順に沿って案内し、
+> 「ノートを生成」で最近のコミットからリリースノートの下書きも作れます。
 >
 > knotra はローカルファーストです。アカウントもテレメトリーも広告もなく、
 > あなたのデータをどこにも送信しません。コンピューターにすでにある Git と
