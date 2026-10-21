@@ -2,11 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted |
 | Priority | High - most windows cannot be used from the keyboard, and the shortcuts sheet describes keys that do not exist |
 | Effort | Medium-large - one layer model, ten focus orders, one subscription, the shortcuts sheet |
 | Target | 0.32.0 (`.git-exclude/reviewed/226-release-plan-0.31.1-and-0.32.0.md` §3) |
 | Related files | `crates/knotra-app/src/app.rs`, `crates/knotra-app/src/app/focus_ops.rs`, `crates/knotra-app/src/state/focus.rs`, `crates/knotra-app/src/view/{overlays/*,command_palette,add_project_modal,shortcuts_overlay,workspace_manager,shell,dashboard/empty}.rs`, `crates/knotra-ui/src/{i18n,widget/focus}.rs` |
+| Decided by | project owner, 2026-10-21 - accepted, with the Japanese of D7 |
 | Related | RFC-033 D3 item 4 (the contract: focus entry, trap, return); RFC-036 (knotra's own focus model; did the three workspace dialogs); RFC-037 (migrated the workflow windows visually, not for focus); Task 095 (defects fixed first, below) |
 
 ## Summary

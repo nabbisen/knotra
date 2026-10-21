@@ -2,11 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted |
 | Priority | High - one click discards the user's conflict work, with no warning |
 | Effort | Small - one confirmation step, one button's style and state, four catalog keys |
 | Target | 0.32.0 (`.git-exclude/reviewed/226-release-plan-0.31.1-and-0.32.0.md`) |
 | Related files | `crates/knotra-app/src/view/overlays/conflict.rs`, `crates/knotra-app/src/app/conflict_ops.rs`, `crates/knotra-app/src/state/conflict_ops.rs`, `crates/knotra-ui/src/i18n.rs` |
+| Decided by | project owner, 2026-10-21 - accepted, with the Japanese of D3 |
 | Related | RFC-066 (D6 gives Remove project the same kind of confirmation; D2's rule that the entry never starts a change) |
 
 ## Summary
