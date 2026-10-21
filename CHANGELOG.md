@@ -16,6 +16,11 @@ still acted on the screen behind it. Pressed while a release point was being sav
 "Get latest safely" was running, Ctrl+T or Ctrl+K replaced or hid the window, and its result
 could be missed. These shortcuts now wait until the window is closed.
 
+### Fixed — "Back" in "Add project" closed the dialog
+
+On the second step of "Add project", "Back" closed the whole dialog. It now returns to the
+first step and keeps the folder you chose.
+
 ## [0.31.1] — 2026-10-21
 
 **One line in "Save release point" now uses everyday words, and knotra's icon is redrawn.**

@@ -62,6 +62,8 @@ pub enum WorkspaceMessage {
     AddProjectNextStep,
     AddProjectConfirmed,
     AddProjectCancelled,
+    /// "Back" on Step 2 (name): return to Step 1 (folder), keeping it.
+    AddProjectBack,
     /// User clicked the folder browse button.
     BrowsePathRequested,
     /// Native folder dialog returned (None = cancelled).

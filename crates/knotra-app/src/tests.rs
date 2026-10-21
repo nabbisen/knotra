@@ -8,8 +8,8 @@ use crate::message::{
 };
 use crate::persistence::{delete_workspace_file, load_workspaces, save_workspace};
 use crate::state::{
-    ActiveModal, ActivityRetryAction, AddProjectDialog, AppState, LatestOpState, OperationOwner,
-    RetryAvailability, RetryExclusion, RetryUnavailableReason, Screen,
+    ActiveModal, ActivityRetryAction, AddProjectDialog, AddProjectStep, AppState, LatestOpState,
+    OperationOwner, RetryAvailability, RetryExclusion, RetryUnavailableReason, Screen,
     changelog::ChangelogPhase,
     conflict_ops::ConflictPhase,
     context::ContextPhase,
@@ -1359,6 +1359,26 @@ fn close_shortcut_closes_only_topmost_layer() {
 
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
     assert!(matches!(state.active_modal, ActiveModal::None));
+}
+
+#[test]
+fn add_project_back_returns_to_folder_step_with_the_path_kept() {
+    let mut state = make_state();
+    state.add_project_dialog = Some(AddProjectDialog {
+        step: AddProjectStep::NameProject,
+        path: "/home/user/projects/svc".to_owned(),
+        name: "svc".to_owned(),
+        error: None,
+    });
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::AddProjectBack),
+    );
+
+    let dialog = state.add_project_dialog.expect("dialog stays open");
+    assert_eq!(dialog.step, AddProjectStep::ChooseFolder);
+    assert_eq!(dialog.path, "/home/user/projects/svc");
 }
 
 #[test]

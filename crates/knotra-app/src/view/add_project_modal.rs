@@ -168,7 +168,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 ))
                 .height(BUTTON_HEIGHT)
                 .padding([0, 18])
-                .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
+                .on_press(Message::Workspace(WorkspaceMessage::AddProjectBack)),
             ]
             .align_y(Alignment::Center);
 

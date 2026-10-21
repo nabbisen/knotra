@@ -118,6 +118,18 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             state.add_project_dialog = None;
             Task::none()
         }
+        WorkspaceMessage::AddProjectBack => {
+            if let Some(d) = &mut state.add_project_dialog {
+                d.step = crate::state::AddProjectStep::ChooseFolder;
+                d.error = None;
+            }
+            focus_ops::open_overlay_focus(
+                state,
+                focus::FocusTarget::text_input(
+                    knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
+                ),
+            )
+        }
         WorkspaceMessage::BrowsePathRequested => Task::future(async {
             let folder = rfd::AsyncFileDialog::new()
                 .set_title("Select project folder")
