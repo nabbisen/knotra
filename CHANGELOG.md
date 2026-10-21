@@ -11,7 +11,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.31.1] — 2026-10-21
 
-**One line in "Save release point" now uses everyday words.** Nothing else you use changes.
+**One line in "Save release point" now uses everyday words, and knotra's icon is redrawn.**
 
 ### Fixed — "Save release point" used an internal word
 
@@ -19,6 +19,12 @@ When no other project depends on the projects being saved, the ready check said 
 word "freezing", a name used only inside knotra's code. It now reads: "No other registered
 project depends on the projects in this release point." The Japanese text was already
 plain.
+
+### Changed — knotra's icon is redrawn
+
+On Windows, knotra's tiles are now drawn from a single vector image. The figure, its knot
+and its colours are the same; the ribbon is drawn flat, and the icon stays sharp at every
+size.
 
 ## [0.31.0] — 2026-10-20
 
