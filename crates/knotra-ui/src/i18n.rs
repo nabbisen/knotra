@@ -77,7 +77,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("nav.dashboard", "Dashboard");
     m.insert("nav.sync", "Sync");
     m.insert("nav.context", "Context");
-    m.insert("nav.freezer", "Freezer");
     m.insert("nav.history", "History");
     m.insert("nav.settings", "Settings");
     // Dashboard header
@@ -179,7 +178,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("action.fetch", "Fetch");
     m.insert("action.pull", "Pull");
     m.insert("action.switch_context", "Switch Context");
-    m.insert("action.open_freezer", "Open Freezer");
     m.insert("action.confirm", "Confirm");
     m.insert("action.cancel", "Cancel");
     m.insert("action.retry", "Retry");
@@ -435,7 +433,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     );
     m.insert(
         "plain.release.impact_clear",
-        "No other registered projects depend on what you're freezing.",
+        "No other registered project depends on the projects in this release point.",
     );
     m.insert("plain.release.impact_title", "Dependency impact");
     m.insert("plain.release.impact_depended_on_by", "Depended on by");
@@ -971,7 +969,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("nav.dashboard", "ダッシュボード");
     m.insert("nav.sync", "同期");
     m.insert("nav.context", "コンテキスト");
-    m.insert("nav.freezer", "フリーザー");
     m.insert("nav.history", "履歴");
     m.insert("nav.settings", "設定");
     // Dashboard header
@@ -1076,7 +1073,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("action.fetch", "フェッチ");
     m.insert("action.pull", "プル");
     m.insert("action.switch_context", "コンテキスト切替");
-    m.insert("action.open_freezer", "フリーザーを開く");
     m.insert("action.confirm", "確認");
     m.insert("action.cancel", "キャンセル");
     m.insert("action.retry", "再試行");
