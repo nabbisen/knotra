@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 150" width="150" height="150">
+  <title>knotra</title>
+  <defs>
+    <linearGradient id="ribbon" x1="20" y1="0" x2="132" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1A7FE6"/>
+      <stop offset="0.35" stop-color="#38AEF2"/>
+      <stop offset="0.6" stop-color="#6ADDE8"/>
+      <stop offset="1" stop-color="#7FE3A6"/>
+    </linearGradient>
+    <linearGradient id="base" x1="40" y1="0" x2="118" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2290E8"/>
+      <stop offset="0.55" stop-color="#4FC9E6"/>
+      <stop offset="1" stop-color="#6FDDB0"/>
+    </linearGradient>
+    <linearGradient id="head" x1="58" y1="54" x2="92" y2="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1572D8"/>
+      <stop offset="1" stop-color="#86CDF8"/>
+    </linearGradient>
+    <mask id="gaps" maskUnits="userSpaceOnUse" x="0" y="0" width="150" height="150">
+      <rect width="150" height="150" fill="#fff"/>
+      <path d="M83.30 78.32 C79.84 73.38 74.88 68.35 69.67 64.26" fill="none" stroke="#000" stroke-width="12.6"/>
+      <path d="M72.80 95.17 C81.18 98.32 91.90 99.35 101.70 98.69" fill="none" stroke="#000" stroke-width="12.6"/>
+    </mask>
+  </defs>
+  <g fill="none" stroke-linejoin="round">
+    <g mask="url(#gaps)">
+      <path d="M88.44 98.54 C70 103 48 104 42 111 C38 117 45 121 58 121 C78.24 121.00 93.40 119.31 101.93 121.76" stroke="url(#base)" stroke-width="8.0"/>
+      <path d="M97.69 124.96 L98.41 125.07 L99.10 125.20 L99.75 125.33 L100.36 125.48 L100.93 125.64 L101.46 125.81 L101.95 125.98 L102.40 126.16 L103.24 126.40 L103.81 126.53 L104.36 126.67 L104.89 126.82 L105.41 126.98 L105.92 127.15 L106.41 127.32 L106.88 127.50 L107.33 127.68 L107.76 127.87 L108.18 128.07 L108.57 128.26 L108.94 128.47 L109.29 128.67 L109.62 128.88 L109.93 129.09 L110.22 129.30 L110.49 129.51 L110.73 129.73 L110.96 129.95 L111.16 130.16 L111.35 130.39 L111.52 130.62 L111.67 130.86 L111.80 131.11 L111.92 131.37 L112.01 131.66 L112.07 131.96 L112.11 132.29 L112.12 132.64 L112.09 133.02 L112.03 133.42 L111.92 133.84 L111.77 134.29 L111.58 134.75 L111.33 135.23 L111.04 135.74 L110.70 136.25 L110.31 136.79 L109.89 137.36 L110.11 137.64 L110.77 137.31 L111.36 136.95 L111.92 136.57 L112.43 136.17 L112.91 135.76 L113.35 135.33 L113.75 134.89 L114.11 134.43 L114.44 133.95 L114.72 133.45 L114.96 132.93 L115.16 132.40 L115.31 131.85 L115.42 131.28 L115.47 130.71 L115.48 130.13 L115.44 129.54 L115.35 128.96 L115.22 128.38 L115.04 127.80 L114.83 127.24 L114.57 126.68 L114.28 126.14 L113.96 125.61 L113.60 125.08 L113.21 124.58 L112.80 124.08 L112.35 123.59 L111.89 123.12 L111.39 122.66 L110.88 122.21 L110.34 121.78 L109.78 121.35 L109.20 120.94 L108.60 120.54 L107.98 120.15 L107.34 119.78 L106.69 119.41 L106.02 119.07 L105.60 118.84 L104.82 118.51 L104.02 118.23 L103.20 117.97 L102.36 117.73 L101.51 117.53 L100.63 117.34 L99.74 117.18 L98.83 117.04 Z" fill="url(#base)" stroke="none"/>
+      <path d="M88 89 C87 79 72 64 60 58 C52 54 40 54 32 60 C22 68 20 84 30 92 C40 99 58 97 70 94 C85 101 110 100 122 94 C132 88 132 70 122 62 C112 53 96 54 86 60 C76 66 64 72 62 80 C61 87 66 92 76 96" stroke="url(#ribbon)" stroke-width="8.6"/>
+    </g>
+    <path d="M85.10 81.13 C81.05 74.17 73.44 66.63 65.92 61.51" stroke="url(#ribbon)" stroke-width="8.6"/>
+    <path d="M70.91 94.41 C80.76 98.69 94.52 99.71 106.16 98.27" stroke="url(#ribbon)" stroke-width="8.6"/>
+    <circle cx="75" cy="36.5" r="17.2" stroke="url(#head)" stroke-width="7.6"/>
+  </g>
+</svg>
