@@ -2,11 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted |
 | Priority | Medium - prerequisite for publishing on Flathub |
 | Effort | Medium - one process helper and 14 call sites, one startup step, Linux metadata files, CI validation |
 | Target | the release after the Flathub question (§Owner inputs) is answered |
 | Related files | `crates/knotra-vcs/src/vcs/{git,jj}.rs`, `crates/knotra-vcs/src/lib.rs`, `crates/knotra-app/src/{main,app/misc}.rs`, new `packaging/linux/`, `packaging/windows/store-listing.md`, `.github/workflows/ci.yaml` |
+| Decided by | project owner, 2026-10-21 - "Yes. Approved." Icon: the owner asked the architect to make it (Owner input 1) |
+| Decided by | project owner, 2026-10-21 - "Yes. Approved." Owner input 1: the owner asked the architect to make the icon |
 | Related | `.git-exclude/reviewed/227-flatpak-assessment.md` (the research and its corrections); RFC-064 (version kept in step with the crate, the model for D6's test) |
 
 ## Summary
