@@ -75,13 +75,19 @@ No HTML, code or URLs; links go in their own fields.
 - Optional caption per screenshot, **200 characters** or fewer.
 - Each listing language needs its own upload, even if the images are the same.
 
-Captured per `.git-exclude/tasks/developer/087-screenshots.md`. Suggested
-captions:
+The images are in `screenshots/en/` and `screenshots/ja/`, one set per listing
+language, numbered in upload order. They show a demo workspace of fictional
+projects. **An image is committed only after a privacy check**: no username,
+real path, hostname, notification or other window on screen, and no metadata in
+the PNG beyond the image itself. Git history keeps every image ever committed,
+so the check comes first.
+
+Suggested captions, using the names the app shows:
 
 1. Every repository in your workspace, grouped by what needs your attention.
 2. The same dashboard in the dark theme.
-3. Smart Pull fast-forwards only, and never merges over uncommitted work.
-4. Freezer checks every repository before tagging, and rolls back on failure.
+3. "Get latest safely" fast-forwards only, and never merges over uncommitted work.
+4. "Save release point" checks each project you chose before tagging, and rolls back on failure.
 5. A per-project history of every operation.
 
 ## Recommended
