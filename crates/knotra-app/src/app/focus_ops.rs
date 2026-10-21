@@ -5,15 +5,12 @@
 use iced::Task;
 
 use crate::{
-    message::Message,
-    state::{
-        AppState, Screen, conflict_ops::ConflictPhase, context::ContextPhase, focus,
-        freezer::FreezerPhase, sync::SyncPhase,
+    message::{
+        ChangelogMessage, ConflictOpsMessage, ContextMessage, FreezerMessage, Message, SyncMessage,
     },
+    state::{AppState, Screen, focus, freezer::FreezerPhase, sync::SyncPhase},
     view::{dashboard, selection_bar, shell, workspace_manager},
 };
-
-use super::shared;
 
 /// Whether Tab/Shift-Tab/Enter operate on an overlay's order right now, and
 /// if so, which one (R5's confinement). `None` falls through to the
@@ -267,28 +264,42 @@ pub(super) fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
         state.workspace_mgr.rename_dialog = None;
     } else if state.workspace_mgr.confirm_delete.is_some() {
         state.workspace_mgr.confirm_delete = None;
-    } else if matches!(state.active_modal, crate::state::ActiveModal::Pull)
-        && matches!(state.sync.phase, SyncPhase::RetryPreparing)
-    {
-        shared::clear_sync_retry_context(state);
-        state.active_modal = crate::state::ActiveModal::None;
-    } else if matches!(state.active_modal, crate::state::ActiveModal::Tag)
-        && matches!(state.freezer.phase, FreezerPhase::Validating { .. })
-    {
-        shared::cancel_freezer_validation(state);
-        state.active_modal = crate::state::ActiveModal::None;
-    } else if smart_pull_is_running(state)
-        || freezer_is_running(state)
-        || context_switch_is_running(state)
-        || conflict_is_running(state)
-    {
-        return Task::none();
-    } else if !matches!(state.active_modal, crate::state::ActiveModal::None) {
-        state.active_modal = crate::state::ActiveModal::None;
-    } else if state.confirm_remove_dialog.is_some() {
-        state.confirm_remove_dialog = None;
-    } else if state.selection_mode {
-        state.clear_selection_mode();
+    } else {
+        // Task 095 commit 2: each window's own Close control is the single
+        // place that knows what else its phase needs besides
+        // `active_modal = None` (clearing a retry context, invalidating a
+        // collected changelog, releasing a validation lease). Escape and
+        // the scrim send that window's own Close message instead of
+        // duplicating that knowledge here, so all three routes — the
+        // control, Escape, the scrim — give one result. Each handler
+        // already no-ops while its own operation is running.
+        match state.active_modal {
+            crate::state::ActiveModal::Pull => {
+                return super::sync::handle_sync(state, SyncMessage::ModalClosed);
+            }
+            crate::state::ActiveModal::Tag => {
+                return super::freezer::handle_freezer(state, FreezerMessage::BulkModalClosed);
+            }
+            crate::state::ActiveModal::Switch => {
+                return super::context::handle_context(state, ContextMessage::BulkModalClosed);
+            }
+            crate::state::ActiveModal::Resolve(_) => {
+                return super::conflict_ops::handle_conflict_ops(
+                    state,
+                    ConflictOpsMessage::PanelClosed,
+                );
+            }
+            crate::state::ActiveModal::Changelog => {
+                return super::changelog::handle_changelog(state, ChangelogMessage::ModalClosed);
+            }
+            crate::state::ActiveModal::None => {
+                if state.confirm_remove_dialog.is_some() {
+                    state.confirm_remove_dialog = None;
+                } else if state.selection_mode {
+                    state.clear_selection_mode();
+                }
+            }
+        }
     }
     Task::none()
 }
@@ -304,16 +315,6 @@ pub(super) fn freezer_is_running(state: &AppState) -> bool {
             .pending_tag_push
             .as_ref()
             .is_some_and(|push| push.is_pushing)
-}
-
-fn context_switch_is_running(state: &AppState) -> bool {
-    matches!(state.active_modal, crate::state::ActiveModal::Switch)
-        && matches!(state.context_ops.phase, ContextPhase::Switching { .. })
-}
-
-fn conflict_is_running(state: &AppState) -> bool {
-    matches!(state.active_modal, crate::state::ActiveModal::Resolve(_))
-        && matches!(state.conflict_ops.phase, ConflictPhase::Operating { .. })
 }
 
 #[cfg(test)]

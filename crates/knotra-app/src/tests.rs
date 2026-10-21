@@ -9,7 +9,7 @@ use crate::message::{
 use crate::persistence::{delete_workspace_file, load_workspaces, save_workspace};
 use crate::state::{
     ActiveModal, ActivityRetryAction, AddProjectDialog, AppState, LatestOpState, OperationOwner,
-    RetryAvailability, RetryUnavailableReason, Screen,
+    RetryAvailability, RetryExclusion, RetryUnavailableReason, Screen,
     changelog::ChangelogPhase,
     conflict_ops::ConflictPhase,
     context::ContextPhase,
@@ -2511,6 +2511,38 @@ fn shortcut_refresh_does_nothing_while_a_window_is_open() {
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::Refresh));
 
     assert!(!state.is_refreshing);
+}
+
+#[test]
+fn changelog_escape_clears_stale_collection_like_close_does() {
+    let mut state = make_state();
+    state.active_modal = ActiveModal::Changelog;
+    state.changelog.phase = ChangelogPhase::Collecting;
+    state.changelog.active_request_id = Some(7);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+
+    assert!(matches!(state.active_modal, ActiveModal::None));
+    assert_eq!(state.changelog.active_request_id, None);
+}
+
+#[test]
+fn smart_pull_escape_clears_retry_exclusions_like_close_does() {
+    let mut state = make_state();
+    state.active_modal = ActiveModal::Pull;
+    state.sync.phase = SyncPhase::AwaitingConfirm(SmartPullPlan {
+        id: OperationId::new(),
+        entries: Vec::new(),
+    });
+    state.sync.retry_exclusions = vec![RetryExclusion {
+        project_id: ProjectId::new(),
+        reason: RetryExclusionReason::StatusUnavailable,
+    }];
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+
+    assert!(matches!(state.active_modal, ActiveModal::None));
+    assert!(state.sync.retry_exclusions.is_empty());
 }
 
 #[test]
