@@ -262,6 +262,28 @@ fn handle_tick(state: &mut AppState) -> Task<Message> {
 // ---------------------------------------------------------------------------
 
 fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> {
+    // Task 095 commit 1: while any window is open, these shortcuts act on
+    // the screen behind it — `Ctrl+T` and `Ctrl+K` can replace or hide a
+    // *running* window (its result never shown), and the search/card-focus
+    // keys move focus underneath what the user is looking at. Gated on the
+    // same predicate that already means "a window is open" for Tab/Enter
+    // (R5's confinement); Escape, Tab, Shift+Tab, Enter and Space are
+    // deliberately not in this list — they are how the open window itself
+    // is used.
+    if focus_ops::overlay_focus_order(state).is_some()
+        && matches!(
+            msg,
+            ShortcutMessage::Refresh
+                | ShortcutMessage::OpenContextOps
+                | ShortcutMessage::OpenFreezer
+                | ShortcutMessage::FocusSearch
+                | ShortcutMessage::FocusSearchBare
+                | ShortcutMessage::CardFocusNext
+                | ShortcutMessage::CardFocusPrevious
+        )
+    {
+        return Task::none();
+    }
     match msg {
         ShortcutMessage::Refresh => handle_tick(state),
         ShortcutMessage::OpenContextOps => {

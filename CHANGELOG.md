@@ -9,6 +9,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — keyboard shortcuts acted on the screen behind an open window
+
+While a window such as "Save release point" was open, Ctrl+T, Ctrl+K and the search keys
+still acted on the screen behind it. Pressed while a release point was being saved or while
+"Get latest safely" was running, Ctrl+T or Ctrl+K replaced or hid the window, and its result
+could be missed. These shortcuts now wait until the window is closed.
+
 ## [0.31.1] — 2026-10-21
 
 **One line in "Save release point" now uses everyday words, and knotra's icon is redrawn.**

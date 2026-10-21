@@ -35,7 +35,7 @@ use super::shared;
 /// a later RFC-036 stage, for the palette/add-project/cheat-sheet layers
 /// `view.rs` already notes this RFC is expected to migrate) can add without
 /// touching this function's shape.
-fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<Message>> {
+pub(super) fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<Message>> {
     if let Some(order) = workspace_manager::focus_order(state) {
         return Some(order);
     }

@@ -2139,6 +2139,20 @@ fn smart_pull_running_escape_keeps_progress_visible() {
 }
 
 #[test]
+fn shortcut_open_context_ops_does_nothing_while_a_window_is_open() {
+    let mut state = make_state();
+    install_running_smart_pull(&mut state);
+
+    dispatch(
+        &mut state,
+        Message::Shortcut(ShortcutMessage::OpenContextOps),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::Pull));
+    assert!(matches!(state.sync.phase, SyncPhase::PullRunning { .. }));
+}
+
+#[test]
 fn freezer_bulk_open_initializes_dashboard_selection() {
     let mut state = make_state();
     let selected = make_project("selected");
@@ -2455,6 +2469,48 @@ fn freezer_running_escape_keeps_progress_visible() {
 
     assert!(matches!(state.active_modal, ActiveModal::Tag));
     assert!(matches!(state.freezer.phase, FreezerPhase::Executing));
+}
+
+#[test]
+fn shortcut_open_freezer_does_nothing_while_a_window_is_open() {
+    let mut state = make_state();
+    install_running_freezer(&mut state);
+    let started_at = state.freezer.execution_started_at;
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::OpenFreezer));
+
+    assert!(matches!(state.freezer.phase, FreezerPhase::Executing));
+    assert!(matches!(state.active_modal, ActiveModal::Tag));
+    assert_eq!(state.freezer.execution_started_at, started_at);
+}
+
+#[test]
+fn shortcut_focus_search_does_nothing_while_a_window_is_open() {
+    let mut state = make_state();
+    install_running_freezer(&mut state);
+    state.screen = Screen::History;
+
+    dispatch(
+        &mut state,
+        Message::Shortcut(ShortcutMessage::FocusSearchBare),
+    );
+    assert_eq!(state.screen, Screen::History);
+    assert_eq!(state.dashboard_focus, None);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusSearch));
+    assert_eq!(state.screen, Screen::History);
+    assert_eq!(state.dashboard_focus, None);
+}
+
+#[test]
+fn shortcut_refresh_does_nothing_while_a_window_is_open() {
+    let mut state = make_state();
+    install_running_freezer(&mut state);
+    state.is_refreshing = false;
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Refresh));
+
+    assert!(!state.is_refreshing);
 }
 
 #[test]
