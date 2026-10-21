@@ -9,6 +9,17 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.31.1] — 2026-10-21
+
+**One line in "Save release point" now uses everyday words.** Nothing else you use changes.
+
+### Fixed — "Save release point" used an internal word
+
+When no other project depends on the projects being saved, the ready check said so with the
+word "freezing", a name used only inside knotra's code. It now reads: "No other registered
+project depends on the projects in this release point." The Japanese text was already
+plain.
+
 ## [0.31.0] — 2026-10-20
 
 **"Save release point" now checks only the projects you chose, and shows every problem it finds.**
