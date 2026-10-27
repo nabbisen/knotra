@@ -797,6 +797,51 @@ fn delete_dialog_entry_is_cancel_not_the_destructive_action_r6() {
     );
 }
 
+/// RFC-066 D2/Stage 1: reading order — header close first, then the
+/// footer left to right (Confirm, then Cancel, matching
+/// `delete_dialog`'s own `row![confirm, Space, cancel_btn]`). No existing
+/// test asserted the pre-RFC-066 sequence (Cancel, Confirm, Close) by
+/// exact Tab steps, so there was nothing to change here — this is new
+/// coverage for the order `delete_dialog_layer_focus` now declares. Unlike
+/// the create/rename dialogs' own reordering (a pure rotation of the same
+/// cycle, invisible to Tab/Shift-Tab stepping from the entry), delete's
+/// change is a genuine reshuffle: Close moving from last to first is not a
+/// rotation of a 3-element order with no field to anchor it, so Next from
+/// the entry (Cancel) now reaches Close before Confirm, where it used to
+/// reach Confirm first.
+#[test]
+fn delete_dialog_tab_order_is_close_confirm_cancel_reading_order() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = AppPaths::under(tmp.path().to_path_buf());
+    let mut state = make_state_with_paths(paths);
+    install_workspaces(
+        &mut state,
+        vec![Workspace::new("Main"), Workspace::new("Lab")],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::DeleteWorkspaceRequested),
+    );
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::control("workspace_mgr.dialog.cancel")),
+        "entry is still Cancel, unchanged by the reorder"
+    );
+
+    let close = FocusTarget::control("workspace_mgr.dialog.close");
+    let confirm = FocusTarget::control("workspace_mgr.dialog.confirm");
+    let cancel = FocusTarget::control("workspace_mgr.dialog.cancel");
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert_eq!(state.overlay_focus, Some(close));
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert_eq!(state.overlay_focus, Some(confirm));
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert_eq!(state.overlay_focus, Some(cancel));
+}
+
 // ---------------------------------------------------------------------------
 // RFC-036 Stage 5 — focus rings on the workspace-dialog controls
 // ---------------------------------------------------------------------------
@@ -959,6 +1004,127 @@ fn seven_site_fix_dialog_open_paths_set_knotra_focus_alongside_iced_focus_r12() 
         Some(FocusTarget::text_input(
             knotra_ui::widget::focus_id::RELEASE_NAME.clone()
         ))
+    );
+}
+
+/// RFC-066 Stage 1: open, close, and through `Ctrl+T` (the path that never
+/// focused anything before this RFC — `FreezerMessage::OpenRequested` had
+/// no `open_overlay_focus` call, unlike `BulkOpenRequested` above). All
+/// three now reach the release-name field through the same
+/// `settle_layer_focus` step.
+#[test]
+fn save_release_point_ctrl_t_also_focuses_the_release_name_field() {
+    let mut state = make_state();
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::OpenFreezer));
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::RELEASE_NAME.clone()
+        ))
+    );
+}
+
+/// RFC-066 Stage 1 test list: "open, phase change and close for ... the
+/// palette (whose entry is its field, through `settle_layer_focus` now,
+/// not `open_overlay_focus`)." Open is `seven_site_fix_...` above; this
+/// covers close.
+#[test]
+fn palette_close_clears_overlay_focus_through_settle_layer_focus() {
+    let mut state = make_state();
+    dispatch(&mut state, Message::Palette(PaletteMessage::Opened));
+    assert!(state.overlay_focus.is_some());
+
+    dispatch(&mut state, Message::Palette(PaletteMessage::Closed));
+    assert_eq!(state.overlay_focus, None);
+}
+
+/// RFC-066 Stage 1: the Add-project defect. A failed "Next" (empty path)
+/// must leave focus on the folder field — the field actually drawn — not
+/// move it to the name field, which `AddProjectStep::NameProject` alone
+/// draws and which this failed validation never reaches.
+///
+/// **Seen to fail on the baseline**: before this stage, `AddProjectNextStep`
+/// unconditionally called `focus_ops::open_overlay_focus(state,
+/// ADD_PROJECT_NAME)` regardless of whether validation passed — confirmed by
+/// reading the pre-RFC-066 handler body (`git show
+/// b0bebdf:crates/knotra-app/src/app/workspace.rs` at that line): the
+/// `open_overlay_focus` call sat *after* the `if/else` that only advances
+/// `d.step` in the success branch, with no corresponding branch for
+/// failure. That call is gone (removed with every other open/close-site
+/// focus call this stage); this test is the replacement proof that the
+/// *result* — focus staying on the folder field — now holds by
+/// construction (`layer_focus`'s `AddProject` arm reads `d.step` fresh,
+/// and `step` never advanced here), not by one more special-cased call.
+#[test]
+fn add_project_failed_next_leaves_focus_on_the_folder_field() {
+    let mut state = make_state();
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
+    );
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone()
+        )),
+        "precondition: opening focuses the folder field"
+    );
+
+    // Path left empty — validation fails, `step` does not advance.
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::AddProjectNextStep),
+    );
+
+    assert_eq!(
+        state.add_project_dialog.as_ref().map(|d| d.step.clone()),
+        Some(crate::state::AddProjectStep::ChooseFolder),
+        "validation must not have advanced the step"
+    );
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone()
+        )),
+        "focus must stay on the folder field, not jump to the undrawn name field"
+    );
+}
+
+/// The success path, for contrast — not itself part of Stage 1's tested
+/// scope (the entries table giving Add project a step-dependent *order*,
+/// not just entry, is Stage 2 work), but worth pinning down: with an empty
+/// order, focus does not yet follow a successful step change either. Will
+/// start moving to the name field once Stage 2 gives this layer a real,
+/// per-step order for the staleness check to act on.
+#[test]
+fn add_project_successful_next_does_not_yet_move_focus_stage_2_work() {
+    let mut state = make_state();
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
+    );
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::AddProjectPathChanged(
+            "/tmp/demo".to_owned(),
+        )),
+    );
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::AddProjectNextStep),
+    );
+
+    assert_eq!(
+        state.add_project_dialog.as_ref().map(|d| d.step.clone()),
+        Some(crate::state::AddProjectStep::NameProject)
+    );
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone()
+        )),
+        "documents today's gap, not a requirement: Stage 2 moves this to the name field"
     );
 }
 

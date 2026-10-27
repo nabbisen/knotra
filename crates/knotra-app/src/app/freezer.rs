@@ -8,7 +8,7 @@ use super::focus_ops;
 use super::shared;
 use crate::{
     message::{BackgroundMessage, FreezerMessage, Message},
-    state::{AppState, OperationOwner, focus, freezer::FreezerPhase},
+    state::{AppState, OperationOwner, freezer::FreezerPhase},
 };
 
 pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<Message> {
@@ -61,10 +61,7 @@ pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<
                 .iter()
                 .map(|id| (id.clone(), true))
                 .collect();
-            focus_ops::open_overlay_focus(
-                state,
-                focus::FocusTarget::text_input(knotra_ui::widget::focus_id::RELEASE_NAME.clone()),
-            )
+            Task::none()
         }
         FreezerMessage::BulkModalClosed => {
             if focus_ops::freezer_is_running(state) {

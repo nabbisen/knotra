@@ -1,21 +1,22 @@
 //! The workspace domain: `handle_workspace` and `persist_workspace`, its only
 //! caller's helper (RFC-040 Stage 4).
 //!
-//! Depends on `focus_ops` and `shared`, the intended layering (D7).
+//! Depends on `shared`, the intended layering (D7). RFC-066 D3 moved focus
+//! entry/return into one post-update step (`focus_ops::settle_layer_focus`,
+//! called from `app.rs`), so this module no longer calls `focus_ops` itself.
 //! Depended on by `misc.rs` (`handle_dashboard`'s error-retry path) - a
 //! one-directional edge; this module must not depend on `misc.rs`.
 
 use iced::Task;
 use knotra_vcs::model::{project::Project, workspace::Workspace};
 
-use super::focus_ops;
 use super::shared;
 use crate::{
     config::AppPaths,
     message::{Message, WorkspaceMessage},
     persistence::{delete_workspace_file, save_workspace},
     state::{
-        AddProjectDialog, AppState, ConfirmRemoveDialog, LoadPhase, focus,
+        AddProjectDialog, AppState, ConfirmRemoveDialog, LoadPhase,
         workspace_mgr::{
             CreateWorkspaceDialog, DeleteWorkspaceDialog, RenameWorkspaceDialog,
             next_active_index_after_delete, validate_workspace_name,
@@ -44,12 +45,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
 
         WorkspaceMessage::AddProjectDialogOpened => {
             state.add_project_dialog = Some(AddProjectDialog::default());
-            focus_ops::open_overlay_focus(
-                state,
-                focus::FocusTarget::text_input(
-                    knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
-                ),
-            )
+            Task::none()
         }
         WorkspaceMessage::AddProjectNameChanged(s) => {
             if let Some(d) = &mut state.add_project_dialog {
@@ -75,12 +71,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                     d.step = crate::state::AddProjectStep::NameProject;
                 }
             }
-            focus_ops::open_overlay_focus(
-                state,
-                focus::FocusTarget::text_input(
-                    knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
-                ),
-            )
+            Task::none()
         }
         WorkspaceMessage::AddProjectConfirmed => {
             let dialog = match state.add_project_dialog.take() {
@@ -123,12 +114,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 d.step = crate::state::AddProjectStep::ChooseFolder;
                 d.error = None;
             }
-            focus_ops::open_overlay_focus(
-                state,
-                focus::FocusTarget::text_input(
-                    knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
-                ),
-            )
+            Task::none()
         }
         WorkspaceMessage::BrowsePathRequested => Task::future(async {
             let folder = rfd::AsyncFileDialog::new()
@@ -155,12 +141,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 // Auto-advance to step 2 once a folder is chosen.
                 d.step = crate::state::AddProjectStep::NameProject;
             }
-            focus_ops::open_overlay_focus(
-                state,
-                focus::FocusTarget::text_input(
-                    knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
-                ),
-            )
+            Task::none()
         }
         WorkspaceMessage::RemoveProjectRequested(id) => {
             let name = state
@@ -240,7 +221,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
         WorkspaceMessage::CreateWorkspaceDialogOpened => {
             state.workspace_mgr.switcher_open = false;
             state.workspace_mgr.create_dialog = Some(CreateWorkspaceDialog::default());
-            focus_ops::enter_overlay_focus(state)
+            Task::none()
         }
         WorkspaceMessage::CreateWorkspaceNameChanged(s) => {
             if let Some(d) = &mut state.workspace_mgr.create_dialog {
@@ -288,12 +269,11 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             Task::batch([
                 shared::refresh_workspace_task(state),
                 shared::scan_topology_task(state),
-                focus_ops::close_overlay_focus(state),
             ])
         }
         WorkspaceMessage::CreateWorkspaceCancelled => {
             state.workspace_mgr.create_dialog = None;
-            focus_ops::close_overlay_focus(state)
+            Task::none()
         }
 
         WorkspaceMessage::RenameWorkspaceDialogOpened => {
@@ -307,7 +287,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 new_name: current,
                 error: None,
             });
-            focus_ops::enter_overlay_focus(state)
+            Task::none()
         }
         WorkspaceMessage::RenameWorkspaceNameChanged(s) => {
             if let Some(d) = &mut state.workspace_mgr.rename_dialog {
@@ -358,11 +338,11 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 *entry = renamed;
             }
             state.workspace_mgr.rename_dialog = None;
-            focus_ops::close_overlay_focus(state)
+            Task::none()
         }
         WorkspaceMessage::RenameWorkspaceCancelled => {
             state.workspace_mgr.rename_dialog = None;
-            focus_ops::close_overlay_focus(state)
+            Task::none()
         }
 
         WorkspaceMessage::DeleteWorkspaceRequested => {
@@ -376,7 +356,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                         error: Some(state.t("workspace.delete.disabled_last").to_owned()),
                     });
                 }
-                return focus_ops::enter_overlay_focus(state);
+                return Task::none();
             }
 
             if let Some(ws) = state.workspace.as_ref() {
@@ -387,7 +367,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                     error: None,
                 });
             }
-            focus_ops::enter_overlay_focus(state)
+            Task::none()
         }
         WorkspaceMessage::DeleteWorkspaceConfirmed => {
             if state.all_workspaces.len() <= 1 {
@@ -440,12 +420,11 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             Task::batch([
                 shared::refresh_workspace_task(state),
                 shared::scan_topology_task(state),
-                focus_ops::close_overlay_focus(state),
             ])
         }
         WorkspaceMessage::DeleteWorkspaceCancelled => {
             state.workspace_mgr.confirm_delete = None;
-            focus_ops::close_overlay_focus(state)
+            Task::none()
         }
 
         WorkspaceMessage::SwitcherToggled => {

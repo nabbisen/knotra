@@ -7,6 +7,7 @@ pub mod dashboard;
 pub mod detail_panel;
 pub mod focus;
 pub mod freezer;
+pub mod layer;
 pub mod palette;
 pub mod sync;
 pub mod topology;

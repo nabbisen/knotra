@@ -45,6 +45,20 @@ impl FocusTarget {
 /// unavailable, even though activating it does nothing (R3).
 pub type FocusOrder<Message> = Vec<(FocusTarget, Option<Message>)>;
 
+/// RFC-066 D2/D3: one window's declared focus order and where focus should
+/// land when the window becomes the top layer — two separate questions.
+/// `order` is Tab's reach, in reading order (header close first, then body,
+/// then footer, left to right); a disabled control stays in it (R3), a
+/// control that is not drawn is not. `entry` is where focus goes on open, on
+/// a phase change, or whenever the held target falls out of `order` — never
+/// a control that starts a change (D2's rule); `None` when the window shows
+/// no controls right now (an operation running), in which case Tab and
+/// Enter do nothing, as before this RFC.
+pub struct LayerFocus<Message> {
+    pub order: FocusOrder<Message>,
+    pub entry: Option<FocusTarget>,
+}
+
 /// Which direction Tab/Shift-Tab moves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {

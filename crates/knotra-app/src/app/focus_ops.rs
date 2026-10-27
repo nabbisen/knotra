@@ -6,56 +6,104 @@ use iced::Task;
 
 use crate::{
     message::{ChangelogMessage, ContextMessage, FreezerMessage, Message, SyncMessage},
-    state::{AppState, Screen, focus, freezer::FreezerPhase, sync::SyncPhase},
+    state::{
+        AppState, Screen, focus,
+        freezer::FreezerPhase,
+        layer::{self, Layer},
+        sync::SyncPhase,
+    },
     view::{dashboard, overlays::conflict_close_message, selection_bar, shell, workspace_manager},
 };
 
-/// Whether Tab/Shift-Tab/Enter operate on an overlay's order right now, and
-/// if so, which one (R5's confinement). `None` falls through to the
-/// shell/dashboard context.
+/// Whether Tab/Shift-Tab/Enter operate on a window's order right now, and if
+/// so, what that order is (R5's confinement). `None` falls through to the
+/// shell/dashboard context; `Some` — even an empty order — means a window is
+/// on top and Tab/Enter stay confined to it.
 ///
-/// Only the three workspace-manager dialogs get a real, multi-target order
-/// this stage (Stage 3's explicit change scope). Every other overlay this
-/// app can show — the mutating-workflow overlays RFC-037 owns, the
-/// add-project dialog, the command palette, the shortcuts cheat sheet, the
-/// confirm-remove dialog, and the switcher menu — gets an *empty* order
-/// here instead of `None`. That is a deliberate safety net, not an
-/// oversight: without it, Tab pressed while one of those covers the screen
-/// would fall through to the shell/dashboard underneath, and Enter could
-/// activate a hidden background control the user cannot see. An empty order
-/// makes Tab/Enter safe no-ops there instead. Each of those overlays still
-/// gets the seven-site R12 fix at its own focus_input call site — see
-/// `open_overlay_focus` — so knotra-focus and iced-focus never diverge for
-/// them either; what they don't get is a navigable order, which RFC-037 (or
-/// a later RFC-036 stage, for the palette/add-project/cheat-sheet layers
-/// `view.rs` already notes this RFC is expected to migrate) can add without
-/// touching this function's shape.
+/// RFC-066 D1/R1: thin wrapper over [`layer::top_layer`] and
+/// [`layer_focus`], replacing the old per-field `any_other_overlay_is_open`
+/// safety net — every window not yet given a real order (every layer but
+/// the three workspace dialogs, this stage) still gets an *empty* order
+/// here, the same no-op-Tab/Enter guarantee the old safety net gave, now by
+/// construction: `layer_focus`'s default is `order: Vec::new()`, not a
+/// per-window opt-out someone could forget to add.
 pub(super) fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<Message>> {
-    if let Some(order) = workspace_manager::focus_order(state) {
-        return Some(order);
-    }
-    if any_other_overlay_is_open(state) {
-        return Some(Vec::new());
-    }
-    None
+    layer::top_layer(state).map(|l| layer_focus(state, &l).order)
 }
 
-fn any_other_overlay_is_open(state: &AppState) -> bool {
-    !matches!(state.active_modal, crate::state::ActiveModal::None)
-        || state.add_project_dialog.is_some()
-        || state.palette.open
-        || state.keyboard.cheat_sheet_open
-        || state.confirm_remove_dialog.is_some()
-        || state.workspace_mgr.switcher_open
-}
-
-/// Whether one of the three workspace-manager dialogs specifically is open —
-/// the subset of overlays this stage gives a real order, trap, and focus
-/// return to.
-pub(super) fn workspace_dialog_open(state: &AppState) -> bool {
-    state.workspace_mgr.create_dialog.is_some()
-        || state.workspace_mgr.rename_dialog.is_some()
-        || state.workspace_mgr.confirm_delete.is_some()
+/// RFC-066 D2: the declared order and entry for `layer` — the one place
+/// every layer's `layer_focus` is looked up, so [`overlay_focus_order`] and
+/// [`settle_layer_focus`] always see the same answer.
+///
+/// This stage gives a real, full order only to the three workspace
+/// dialogs. Every other layer's `order` stays empty (Stage 2 gives each
+/// its own), but `entry` is computed, per layer, to match what its own
+/// now-removed open-site call used to set directly — "as today" read
+/// literally, per layer, not a blanket `None`:
+///
+/// - Palette: its query field (`PaletteMessage::Opened` used to set this).
+/// - Add project: step-dependent — the folder field while choosing one,
+///   the name field once a folder is chosen — matching the *union* of
+///   what `AddProjectDialogOpened`/`BrowsePathSelected` used to set, but
+///   computed fresh on every settle rather than fixed at one open-site
+///   call. This is also the Add-project defect's fix: a failed "Next"
+///   changes neither the step nor the layer, so with an empty order (no
+///   staleness to detect) focus is simply never moved off the folder
+///   field, where `AddProjectNextStep`'s own now-removed call used to
+///   move it to the name field unconditionally, defeated or not.
+/// - Save release point: the release-name field
+///   (`FreezerMessage::BulkOpenRequested` used to set this — but only from
+///   the selection bar; `OpenRequested`, the `Ctrl+T` path, never did, so
+///   this is also a fix, not only a preservation).
+/// - Everything else — the shortcuts sheet, the workspace switcher, remove
+///   project, get latest safely, change work area, generate notes, resolve
+///   — had no open-site focus call before this RFC either, so `None`
+///   really is "as today" for these.
+pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<Message> {
+    match layer {
+        Layer::WorkspaceCreate | Layer::WorkspaceRename | Layer::WorkspaceDelete => {
+            workspace_manager::layer_focus(state)
+        }
+        Layer::Palette => focus::LayerFocus {
+            order: Vec::new(),
+            entry: Some(focus::FocusTarget::text_input(
+                knotra_ui::widget::focus_id::PALETTE_QUERY.clone(),
+            )),
+        },
+        Layer::AddProject => {
+            let entry = state.add_project_dialog.as_ref().map(|dialog| {
+                let id = match dialog.step {
+                    crate::state::AddProjectStep::ChooseFolder => {
+                        knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone()
+                    }
+                    crate::state::AddProjectStep::NameProject => {
+                        knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone()
+                    }
+                };
+                focus::FocusTarget::text_input(id)
+            });
+            focus::LayerFocus {
+                order: Vec::new(),
+                entry,
+            }
+        }
+        Layer::SaveReleasePoint => focus::LayerFocus {
+            order: Vec::new(),
+            entry: Some(focus::FocusTarget::text_input(
+                knotra_ui::widget::focus_id::RELEASE_NAME.clone(),
+            )),
+        },
+        Layer::ShortcutsSheet
+        | Layer::RemoveProject
+        | Layer::WorkspaceMenu
+        | Layer::GetLatest
+        | Layer::GenerateNotes
+        | Layer::ChangeWorkArea
+        | Layer::Resolve(_) => focus::LayerFocus {
+            order: Vec::new(),
+            entry: None,
+        },
+    }
 }
 
 pub(super) fn advance_focus(state: &mut AppState, direction: focus::Direction) -> Task<Message> {
@@ -194,21 +242,6 @@ pub(super) fn open_overlay_focus(
     reconciliation_task(focus::reconcile(previous.as_ref(), Some(&target)))
 }
 
-/// R6: sets knotra-focus to the first target in the *current* overlay's
-/// declared order — used by the three workspace-manager dialogs, whose
-/// order-builders deliberately place the desired entry control first (the
-/// name field for create/rename, Cancel — the safe action — for delete).
-/// A no-op if no overlay order applies right now.
-pub(super) fn enter_overlay_focus(state: &mut AppState) -> Task<Message> {
-    let Some(order) = overlay_focus_order(state) else {
-        return Task::none();
-    };
-    let Some((entry, _)) = order.first().cloned() else {
-        return Task::none();
-    };
-    open_overlay_focus(state, entry)
-}
-
 /// R7: focus return. Clears `overlay_focus`; `dashboard_focus` was never
 /// touched while the overlay held focus (Tab/Enter routed to
 /// `overlay_focus` the whole time via `overlay_focus_order`), so it is
@@ -225,7 +258,7 @@ pub(super) fn close_overlay_focus(state: &mut AppState) -> Task<Message> {
 /// text-input focus, in the same `Task`) onto the search field. The search
 /// field is not part of any declared `FocusOrder` (the toolbar stays
 /// RFC-035's, per Stage 2/4's scope), so this sets `dashboard_focus`
-/// directly rather than going through `advance`/`enter_overlay_focus`.
+/// directly rather than going through `advance`/`settle_layer_focus`.
 pub(super) fn focus_search(state: &mut AppState) -> Task<Message> {
     state.screen = Screen::Dashboard;
     let target = focus::FocusTarget::text_input(knotra_ui::widget::focus_id::SEARCH.clone());
@@ -249,64 +282,109 @@ pub(super) fn current_target_is_text_input(state: &AppState) -> bool {
     matches!(current, Some(focus::FocusTarget::TextInput(_)))
 }
 
+/// RFC-066 D1/R1: one exhaustive match over [`layer::top_layer`], sending
+/// that window's own Close message in its current phase — Task 095's and
+/// RFC-067's per-window Close principle, now keyed by `Layer` instead of a
+/// hand-ordered chain of `if`/`else` over individual state fields (which
+/// could, and did, drift from `view.rs`'s real stacking order). Each
+/// handler still no-ops while its own operation is running; the
+/// selection-clearing fallback stays for `None`. This also absorbs the
+/// pre-RFC-066 workspace-switcher special case in `app.rs` — `WorkspaceMenu`
+/// is a layer like any other now, so `app.rs` no longer checks it before
+/// calling this function.
 pub(super) fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
-    if state.keyboard.cheat_sheet_open {
-        state.keyboard.cheat_sheet_open = false;
-    } else if state.palette.open {
-        state.palette.open = false;
-    } else if state.add_project_dialog.is_some() {
-        state.add_project_dialog = None;
-    } else if state.workspace_mgr.create_dialog.is_some() {
-        state.workspace_mgr.create_dialog = None;
-    } else if state.workspace_mgr.rename_dialog.is_some() {
-        state.workspace_mgr.rename_dialog = None;
-    } else if state.workspace_mgr.confirm_delete.is_some() {
-        state.workspace_mgr.confirm_delete = None;
-    } else {
-        // Task 095 commit 2: each window's own Close control is the single
-        // place that knows what else its phase needs besides
-        // `active_modal = None` (clearing a retry context, invalidating a
-        // collected changelog, releasing a validation lease). Escape and
-        // the scrim send that window's own Close message instead of
-        // duplicating that knowledge here, so all three routes — the
-        // control, Escape, the scrim — give one result. Each handler
-        // already no-ops while its own operation is running.
-        match &state.active_modal {
-            crate::state::ActiveModal::Pull => {
-                return super::sync::handle_sync(state, SyncMessage::ModalClosed);
+    use crate::message::{PaletteMessage, WorkspaceMessage};
+
+    match layer::top_layer(state) {
+        None => {
+            if state.selection_mode {
+                state.clear_selection_mode();
             }
-            crate::state::ActiveModal::Tag => {
-                return super::freezer::handle_freezer(state, FreezerMessage::BulkModalClosed);
-            }
-            crate::state::ActiveModal::Switch => {
-                return super::context::handle_context(state, ContextMessage::BulkModalClosed);
-            }
-            crate::state::ActiveModal::Resolve(id) => {
-                // RFC-067: this panel's Close message now depends on its
-                // own phase (`ConfirmStop` cancels back to `Browsing`
-                // rather than closing), the same reason `Pull` and `Tag`
-                // already route through their handler rather than a single
-                // hardcoded message — `conflict_close_message` is that
-                // choice, shared with the panel's own Close button.
-                let id = id.clone();
-                return match conflict_close_message(state, &id) {
-                    Some(msg) => super::conflict_ops::handle_conflict_ops(state, msg),
-                    None => Task::none(),
-                };
-            }
-            crate::state::ActiveModal::Changelog => {
-                return super::changelog::handle_changelog(state, ChangelogMessage::ModalClosed);
-            }
-            crate::state::ActiveModal::None => {
-                if state.confirm_remove_dialog.is_some() {
-                    state.confirm_remove_dialog = None;
-                } else if state.selection_mode {
-                    state.clear_selection_mode();
-                }
-            }
+            Task::none()
+        }
+        Some(Layer::ShortcutsSheet) => {
+            state.keyboard.cheat_sheet_open = false;
+            Task::none()
+        }
+        Some(Layer::Palette) => super::misc::handle_palette(state, PaletteMessage::Closed),
+        Some(Layer::AddProject) => {
+            super::workspace::handle_workspace(state, WorkspaceMessage::AddProjectCancelled)
+        }
+        Some(Layer::WorkspaceCreate) => {
+            super::workspace::handle_workspace(state, WorkspaceMessage::CreateWorkspaceCancelled)
+        }
+        Some(Layer::WorkspaceRename) => {
+            super::workspace::handle_workspace(state, WorkspaceMessage::RenameWorkspaceCancelled)
+        }
+        Some(Layer::WorkspaceDelete) => {
+            super::workspace::handle_workspace(state, WorkspaceMessage::DeleteWorkspaceCancelled)
+        }
+        Some(Layer::GetLatest) => super::sync::handle_sync(state, SyncMessage::ModalClosed),
+        Some(Layer::SaveReleasePoint) => {
+            super::freezer::handle_freezer(state, FreezerMessage::BulkModalClosed)
+        }
+        Some(Layer::ChangeWorkArea) => {
+            super::context::handle_context(state, ContextMessage::BulkModalClosed)
+        }
+        Some(Layer::GenerateNotes) => {
+            super::changelog::handle_changelog(state, ChangelogMessage::ModalClosed)
+        }
+        Some(Layer::Resolve(id)) => match conflict_close_message(state, &id) {
+            Some(msg) => super::conflict_ops::handle_conflict_ops(state, msg),
+            None => Task::none(),
+        },
+        // `WorkspaceToggled` toggles, not closes-only — safe here because
+        // `top_layer` only returns `WorkspaceMenu` when `switcher_open` is
+        // already `true` (`state/layer.rs`), so this always closes it.
+        Some(Layer::WorkspaceMenu) => {
+            super::workspace::handle_workspace(state, WorkspaceMessage::SwitcherToggled)
+        }
+        Some(Layer::RemoveProject) => {
+            super::workspace::handle_workspace(state, WorkspaceMessage::RemoveProjectCancelled)
         }
     }
-    Task::none()
+}
+
+/// RFC-066 D3: the one place focus moves, run after every `update()` call
+/// with the layer that was on top *before* the message was handled.
+/// Compares it against the layer on top *now*:
+///
+/// - a different layer is on top (including "a window just opened" —
+///   `before` was `None`): focus moves to its `entry`;
+/// - the same layer, but the held target has fallen out of its (non-empty)
+///   `order` — its phase changed under it: focus moves to `entry` too;
+/// - no layer is open any more: focus is cleared.
+///
+/// An *empty* order (every layer but the three workspace dialogs, this
+/// stage) is deliberately exempted from the second case: with nothing
+/// declared to check membership against, "has the held target fallen out
+/// of the order" is undecidable, and the pre-RFC-066 answer — leave
+/// whatever is held alone — is also the only one that does not clear focus
+/// on every keystroke a text field inside such a window receives (its own
+/// `*Changed` message does not move the layer, so without this exemption
+/// the very next settle call would find that field "stale" against its
+/// empty order and clear it under the user's cursor).
+pub(super) fn settle_layer_focus(state: &mut AppState, before: Option<Layer>) -> Task<Message> {
+    let Some(current) = layer::top_layer(state) else {
+        return close_overlay_focus(state);
+    };
+    let lf = layer_focus(state, &current);
+
+    let moves_to_entry = before.as_ref() != Some(&current)
+        || (!lf.order.is_empty()
+            && state
+                .overlay_focus
+                .as_ref()
+                .is_some_and(|f| !lf.order.iter().any(|(t, _)| t == f)));
+
+    if moves_to_entry {
+        match lf.entry {
+            Some(target) => open_overlay_focus(state, target),
+            None => close_overlay_focus(state),
+        }
+    } else {
+        Task::none()
+    }
 }
 
 pub(super) fn smart_pull_is_running(state: &AppState) -> bool {

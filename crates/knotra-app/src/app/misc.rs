@@ -24,7 +24,6 @@ use knotra_vcs::{
     model::operation::{OperationId, OperationKind, OperationLog, OperationResult},
 };
 
-use super::focus_ops;
 use super::shared;
 use crate::{
     config::{DashboardGrouping, save_config},
@@ -32,7 +31,7 @@ use crate::{
         BackgroundMessage, DashboardMessage, HistoryMessage, LaunchMessage, Message,
         PaletteMessage, ProjectMessage, SelectionMessage, SettingsMessage, TagPushMessage,
     },
-    state::{AppState, OperationOwner, focus},
+    state::{AppState, OperationOwner},
 };
 
 pub(super) fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<Message> {
@@ -327,10 +326,6 @@ pub(super) fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<
         PaletteMessage::Opened => {
             state.palette.open_palette();
             crate::state::palette::update_results(state);
-            return focus_ops::open_overlay_focus(
-                state,
-                focus::FocusTarget::text_input(knotra_ui::widget::focus_id::PALETTE_QUERY.clone()),
-            );
         }
         PaletteMessage::Closed => state.palette.close(),
         PaletteMessage::QueryChanged(q) => {

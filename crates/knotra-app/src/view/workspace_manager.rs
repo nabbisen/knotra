@@ -21,7 +21,7 @@ use crate::{
     message::{Message, WorkspaceMessage},
     state::{
         AppState,
-        focus::{FocusOrder, FocusTarget},
+        focus::{FocusTarget, LayerFocus},
         workspace_mgr,
     },
 };
@@ -56,87 +56,96 @@ pub(crate) fn confirm_shows_reason(has_on_press: bool, reason: Option<&str>) -> 
     !has_on_press && reason.is_some()
 }
 
-/// The focus order for whichever workspace-manager dialog is open, or
-/// `None` if none is (RFC-036 R5/R6/R7). Each target's activation `Message`
-/// mirrors the same view's own `on_press`/`on_press_maybe` gating exactly
-/// (R3), and the order's first entry is that dialog's entry point (R6): the
-/// name field for create/rename, matching `focus_input`'s existing
-/// auto-focus; `Cancel` — the safe action — for delete, which has no field.
-pub fn focus_order(state: &AppState) -> Option<FocusOrder<Message>> {
+/// The focus order and entry for whichever workspace-manager dialog is
+/// open, or an empty order with no entry if none is (RFC-066 D2/R2).
+/// `order` is reading order: header close first, then the body/footer left
+/// to right — matching `workspace_name_dialog`'s/`delete_dialog`'s own
+/// `row![confirm, Space, cancel_btn]` footer layout, Confirm before Cancel.
+/// `entry` is unchanged from RFC-036: the name field for create/rename;
+/// `Cancel` — the safe action — for delete, which has no field.
+pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
     if let Some(dialog) = &state.workspace_mgr.create_dialog {
-        return Some(name_dialog_focus_order(
+        return name_dialog_layer_focus(
             dialog.name.trim().is_empty(),
             WorkspaceMessage::CreateWorkspaceConfirmed,
             WorkspaceMessage::CreateWorkspaceCancelled,
-        ));
+        );
     }
     if let Some(dialog) = &state.workspace_mgr.rename_dialog {
-        return Some(name_dialog_focus_order(
+        return name_dialog_layer_focus(
             dialog.new_name.trim().is_empty(),
             WorkspaceMessage::RenameWorkspaceConfirmed,
             WorkspaceMessage::RenameWorkspaceCancelled,
-        ));
+        );
     }
     if let Some(dialog) = &state.workspace_mgr.confirm_delete {
         let can_delete = state.all_workspaces.len() > 1 && dialog.error.is_none();
-        return Some(delete_dialog_focus_order(can_delete));
+        return delete_dialog_layer_focus(can_delete);
     }
-    None
+    LayerFocus {
+        order: Vec::new(),
+        entry: None,
+    }
 }
 
-/// Shared shape for the create and rename dialogs: field (entry), Confirm
-/// (gated on a non-empty name, exactly like the view's own
-/// `guided_button` call), Cancel, header close — the last two dispatch the
-/// same `cancel` message the view wires to both controls.
-fn name_dialog_focus_order(
+/// Shared shape for the create and rename dialogs: header close, field,
+/// Confirm (gated on a non-empty name, exactly like the view's own
+/// `guided_button` call), Cancel. Close and Cancel dispatch the same
+/// `cancel` message the view wires to both controls.
+fn name_dialog_layer_focus(
     name_is_empty: bool,
     confirm: WorkspaceMessage,
     cancel: WorkspaceMessage,
-) -> FocusOrder<Message> {
-    vec![
-        (
-            FocusTarget::text_input(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone()),
-            None,
-        ),
-        (
-            FocusTarget::control(focus_target::CONFIRM),
-            (!name_is_empty).then_some(Message::Workspace(confirm)),
-        ),
-        (
-            FocusTarget::control(focus_target::CANCEL),
-            Some(Message::Workspace(cancel.clone())),
-        ),
-        (
-            FocusTarget::control(focus_target::CLOSE),
-            Some(Message::Workspace(cancel)),
-        ),
-    ]
+) -> LayerFocus<Message> {
+    let field = FocusTarget::text_input(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone());
+    LayerFocus {
+        order: vec![
+            (
+                FocusTarget::control(focus_target::CLOSE),
+                Some(Message::Workspace(cancel.clone())),
+            ),
+            (field.clone(), None),
+            (
+                FocusTarget::control(focus_target::CONFIRM),
+                (!name_is_empty).then_some(Message::Workspace(confirm)),
+            ),
+            (
+                FocusTarget::control(focus_target::CANCEL),
+                Some(Message::Workspace(cancel)),
+            ),
+        ],
+        entry: Some(field),
+    }
 }
 
 /// Delete has no text field, so Cancel — not Confirm — is the entry point
 /// (R6): a destructive dialog should not default focus onto its destructive
 /// action.
-fn delete_dialog_focus_order(can_delete: bool) -> FocusOrder<Message> {
-    vec![
-        (
-            FocusTarget::control(focus_target::CANCEL),
-            Some(Message::Workspace(
-                WorkspaceMessage::DeleteWorkspaceCancelled,
-            )),
-        ),
-        (
-            FocusTarget::control(focus_target::CONFIRM),
-            can_delete.then_some(Message::Workspace(
-                WorkspaceMessage::DeleteWorkspaceConfirmed,
-            )),
-        ),
-        (
-            FocusTarget::control(focus_target::CLOSE),
-            Some(Message::Workspace(
-                WorkspaceMessage::DeleteWorkspaceCancelled,
-            )),
-        ),
-    ]
+fn delete_dialog_layer_focus(can_delete: bool) -> LayerFocus<Message> {
+    let cancel_target = FocusTarget::control(focus_target::CANCEL);
+    LayerFocus {
+        order: vec![
+            (
+                FocusTarget::control(focus_target::CLOSE),
+                Some(Message::Workspace(
+                    WorkspaceMessage::DeleteWorkspaceCancelled,
+                )),
+            ),
+            (
+                FocusTarget::control(focus_target::CONFIRM),
+                can_delete.then_some(Message::Workspace(
+                    WorkspaceMessage::DeleteWorkspaceConfirmed,
+                )),
+            ),
+            (
+                cancel_target.clone(),
+                Some(Message::Workspace(
+                    WorkspaceMessage::DeleteWorkspaceCancelled,
+                )),
+            ),
+        ],
+        entry: Some(cancel_target),
+    }
 }
 
 pub fn view(state: &AppState) -> Option<Element<'_, Message>> {

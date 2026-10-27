@@ -170,6 +170,18 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
 // ---------------------------------------------------------------------------
 
 pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
+    // RFC-066 D3: one focus step, run after every message. `before` is the
+    // layer on top when this call started; `settle_layer_focus` compares it
+    // against the layer on top once `message` has been fully handled and
+    // moves focus accordingly — the one place entry, re-entry on a phase
+    // change, and return on close happen, replacing the focus calls each
+    // open/close site used to make individually.
+    let before_layer = crate::state::layer::top_layer(state);
+    let task = update_inner(state, message);
+    Task::batch([task, focus_ops::settle_layer_focus(state, before_layer)])
+}
+
+fn update_inner(state: &mut AppState, message: Message) -> Task<Message> {
     match message {
         Message::Navigate(screen) => {
             state.screen = screen;
@@ -270,7 +282,7 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
     // (R5's confinement); Escape, Tab, Shift+Tab, Enter and Space are
     // deliberately not in this list — they are how the open window itself
     // is used.
-    if focus_ops::overlay_focus_order(state).is_some()
+    if crate::state::layer::top_layer(state).is_some()
         && matches!(
             msg,
             ShortcutMessage::Refresh
@@ -304,30 +316,12 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             }
             focus_ops::focus_search(state)
         }
-        ShortcutMessage::Close => {
-            // The workspace switcher (RFC-034 R12) is an `AppLayout::header_menu`,
-            // not a `dialog`/`sheet`, so it is deliberately outside
-            // `close_topmost_layer`'s branch ordering (that function's contract
-            // is unchanged). It is still the topmost visible layer when open,
-            // so Escape must close it — checked here, one level above, rather
-            // than by adding a branch to that function.
-            if state.workspace_mgr.switcher_open {
-                state.workspace_mgr.switcher_open = false;
-                return Task::none();
-            }
-            // R7: capture whether an in-scope overlay (the three
-            // workspace-manager dialogs) was open before Escape/scrim closes
-            // it, so focus return only fires on an actual open->closed
-            // transition — not when a non-cancellable overlay (out of this
-            // stage's order-building scope) absorbs the close and stays up.
-            let was_open = focus_ops::workspace_dialog_open(state);
-            let task = focus_ops::close_topmost_layer(state);
-            if was_open && !focus_ops::workspace_dialog_open(state) {
-                Task::batch([task, focus_ops::close_overlay_focus(state)])
-            } else {
-                task
-            }
-        }
+        // RFC-066 D1: the workspace switcher is `WorkspaceMenu`, a layer
+        // like any other now — `close_topmost_layer`'s own exhaustive match
+        // closes it, so this no longer needs a special case above that
+        // function. Focus return on close is `update()`'s own
+        // `settle_layer_focus` step now, not spliced in here (R7).
+        ShortcutMessage::Close => focus_ops::close_topmost_layer(state),
         ShortcutMessage::FocusNext => focus_ops::advance_focus(state, focus::Direction::Next),
         ShortcutMessage::FocusPrevious => {
             focus_ops::advance_focus(state, focus::Direction::Previous)
