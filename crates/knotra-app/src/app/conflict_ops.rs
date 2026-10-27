@@ -49,6 +49,7 @@ fn active_conflict_project_id(state: &AppState) -> Option<knotra_vcs::ProjectId>
     match &state.conflict_ops.phase {
         ConflictPhase::Loading(id)
         | ConflictPhase::Browsing { project_id: id, .. }
+        | ConflictPhase::ConfirmStop { project_id: id, .. }
         | ConflictPhase::Operating { project_id: id, .. }
         | ConflictPhase::Done { project_id: id, .. } => Some(id.clone()),
         ConflictPhase::Idle => match &state.active_modal {
@@ -162,6 +163,28 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
                     })
                 },
             )
+        }
+
+        ConflictOpsMessage::StopRequested(id) => {
+            if let ConflictPhase::Browsing { project_id, detail } = &state.conflict_ops.phase
+                && *project_id == id
+            {
+                state.conflict_ops.phase = ConflictPhase::ConfirmStop {
+                    project_id: project_id.clone(),
+                    detail: detail.clone(),
+                };
+            }
+            Task::none()
+        }
+
+        ConflictOpsMessage::StopCancelled => {
+            if let ConflictPhase::ConfirmStop { project_id, detail } = &state.conflict_ops.phase {
+                state.conflict_ops.phase = ConflictPhase::Browsing {
+                    project_id: project_id.clone(),
+                    detail: detail.clone(),
+                };
+            }
+            Task::none()
         }
 
         ConflictOpsMessage::AbortMergeRequested(id) => {

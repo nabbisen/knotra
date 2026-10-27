@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — "Stop this fix attempt" discarded your edits without asking
+
+In the Resolve panel, "Stop this fix attempt" abandoned the merge at once, and every edit
+you had made to the conflicted files was lost, with no warning. It now asks first, says
+that your edits will be lost, and cannot be pressed while another operation is running.
+
 ### Fixed — in the dark theme, the screen behind an open window was barely dimmed
 
 When a window such as "Save release point" was open in the dark theme, the screen behind it

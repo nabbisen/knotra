@@ -471,6 +471,13 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.resolve.mark_done", "Mark done");
     m.insert("plain.resolve.jj_finish_hint", "Finish with:");
     m.insert("plain.resolve.stop_attempt", "Stop this fix attempt");
+    m.insert("plain.resolve.stop_confirm_title", "Stop this fix attempt?");
+    m.insert(
+        "plain.resolve.stop_confirm_body",
+        "Your edits to the files in this fix will be lost, and the project will go back to how it was before.",
+    );
+    m.insert("plain.resolve.stop_confirm_keep", "Keep fixing");
+    m.insert("plain.resolve.stop_confirm_stop", "Stop and discard edits");
     m.insert("plain.resolve.loading", "Checking files…");
     m.insert("plain.resolve.marking", "Marking file done…");
     m.insert("plain.resolve.stopping", "Stopping this fix attempt…");
@@ -1295,6 +1302,16 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.resolve.mark_done", "完了としてマーク");
     m.insert("plain.resolve.jj_finish_hint", "次のコマンドで完了:");
     m.insert("plain.resolve.stop_attempt", "この修正を中断");
+    m.insert(
+        "plain.resolve.stop_confirm_title",
+        "この修正を中断しますか？",
+    );
+    m.insert(
+        "plain.resolve.stop_confirm_body",
+        "この修正でファイルに加えた編集は失われ、プロジェクトは修正前の状態に戻ります。",
+    );
+    m.insert("plain.resolve.stop_confirm_keep", "修正を続ける");
+    m.insert("plain.resolve.stop_confirm_stop", "中断して編集を破棄");
     m.insert("plain.resolve.loading", "ファイルを確認中…");
     m.insert("plain.resolve.marking", "ファイルを完了としてマーク中…");
     m.insert("plain.resolve.stopping", "この修正を中断中…");

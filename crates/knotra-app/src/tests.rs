@@ -2857,6 +2857,150 @@ fn conflict_abort_request_requires_git_merge_state() {
 }
 
 #[test]
+fn conflict_stop_requested_enters_confirm_stop_without_running_a_command() {
+    let project = make_project("svc");
+    let mut state = make_state();
+    let detail = ProjectConflictDetail {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        conflicted_files: Vec::new(),
+        read_error: None,
+    };
+    state.active_modal = ActiveModal::Resolve(project.id.clone());
+    state.conflict_ops.phase = ConflictPhase::Browsing {
+        project_id: project.id.clone(),
+        detail: detail.clone(),
+    };
+
+    dispatch(
+        &mut state,
+        Message::ConflictOps(ConflictOpsMessage::StopRequested(project.id.clone())),
+    );
+
+    match &state.conflict_ops.phase {
+        ConflictPhase::ConfirmStop {
+            project_id,
+            detail: carried,
+        } => {
+            assert_eq!(*project_id, project.id);
+            assert_eq!(carried.project_id, detail.project_id);
+            assert_eq!(
+                carried.conflicted_files.len(),
+                detail.conflicted_files.len()
+            );
+        }
+        other => panic!("expected ConfirmStop, got {other:?}"),
+    }
+    // No operation lease was acquired — the lock is free for a real
+    // operation to take, unlike `AbortMergeRequested`'s own baseline
+    // behaviour from the same starting state (seen to fail: dispatching
+    // `AbortMergeRequested` directly from `Browsing` — the pre-RFC-067
+    // button's message — enters `Operating` at once, with no confirmation;
+    // confirmed via a temporary scratch test before this one was written,
+    // output recorded in the review request).
+    assert!(!state.operation_interlock.is_busy());
+}
+
+fn confirm_stop_state(project: &Project, detail: ProjectConflictDetail) -> AppState {
+    let mut state = make_state();
+    state.active_modal = ActiveModal::Resolve(project.id.clone());
+    state.conflict_ops.phase = ConflictPhase::ConfirmStop {
+        project_id: project.id.clone(),
+        detail,
+    };
+    state
+}
+
+#[test]
+fn conflict_stop_cancelled_returns_to_browsing_with_the_same_detail() {
+    let project = make_project("svc");
+    let detail = ProjectConflictDetail {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        conflicted_files: Vec::new(),
+        read_error: None,
+    };
+    let mut state = confirm_stop_state(&project, detail.clone());
+
+    dispatch(
+        &mut state,
+        Message::ConflictOps(ConflictOpsMessage::StopCancelled),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::Resolve(_)));
+    match &state.conflict_ops.phase {
+        ConflictPhase::Browsing {
+            project_id,
+            detail: carried,
+        } => {
+            assert_eq!(*project_id, project.id);
+            assert_eq!(carried.project_id, detail.project_id);
+        }
+        other => panic!("expected Browsing, got {other:?}"),
+    }
+}
+
+#[test]
+fn conflict_confirm_stop_escape_cancels_like_keep_fixing_does() {
+    let project = make_project("svc");
+    let detail = ProjectConflictDetail {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        conflicted_files: Vec::new(),
+        read_error: None,
+    };
+    let mut state = confirm_stop_state(&project, detail);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+
+    // The panel stays open — Escape from `ConfirmStop` must not close it,
+    // only cancel the confirmation, the same as "Keep fixing".
+    assert!(matches!(state.active_modal, ActiveModal::Resolve(_)));
+    assert!(matches!(
+        state.conflict_ops.phase,
+        ConflictPhase::Browsing { .. }
+    ));
+}
+
+#[test]
+fn conflict_stray_stop_messages_change_nothing() {
+    let project = make_project("svc");
+
+    // StopRequested while Loading: not Browsing, so nothing happens.
+    let mut state = make_state();
+    state.conflict_ops.phase = ConflictPhase::Loading(project.id.clone());
+    dispatch(
+        &mut state,
+        Message::ConflictOps(ConflictOpsMessage::StopRequested(project.id.clone())),
+    );
+    assert!(matches!(
+        state.conflict_ops.phase,
+        ConflictPhase::Loading(_)
+    ));
+
+    // StopCancelled while Browsing: not ConfirmStop, so nothing happens.
+    let detail = ProjectConflictDetail {
+        project_id: project.id.clone(),
+        project_name: project.name.clone(),
+        conflicted_files: Vec::new(),
+        read_error: None,
+    };
+    let mut state = make_state();
+    state.conflict_ops.phase = ConflictPhase::Browsing {
+        project_id: project.id.clone(),
+        detail: detail.clone(),
+    };
+    dispatch(
+        &mut state,
+        Message::ConflictOps(ConflictOpsMessage::StopCancelled),
+    );
+    match &state.conflict_ops.phase {
+        ConflictPhase::Browsing { project_id, .. } => assert_eq!(*project_id, project.id),
+        other => panic!("expected Browsing, got {other:?}"),
+    }
+}
+
+#[test]
 fn conflict_running_escape_keeps_panel_visible() {
     let mut state = make_state();
     let project = make_project("svc");

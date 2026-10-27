@@ -28,6 +28,29 @@ use crate::{
     state::AppState,
 };
 
+/// RFC-067: the message the panel's own Close controls, Escape and the
+/// scrim all send for the given project's Resolve panel right now — `None`
+/// while `Operating` (R5, unchanged), `StopCancelled` in `ConfirmStop`
+/// (cancelling the confirmation means "keep fixing", not "close the
+/// panel"), `PanelClosed` otherwise. `pub(crate)`: `app/focus_ops.rs`'s
+/// `close_topmost_layer` calls this directly, so Escape and the scrim stay
+/// exactly in step with this panel's own Close button and header close
+/// without a second, independently-maintained copy of this match.
+pub(crate) fn close_message(
+    state: &AppState,
+    project_id: &ProjectId,
+) -> Option<ConflictOpsMessage> {
+    match &state.conflict_ops.phase {
+        crate::state::conflict_ops::ConflictPhase::Operating { .. } => None,
+        crate::state::conflict_ops::ConflictPhase::ConfirmStop { project_id: id, .. }
+            if id == project_id =>
+        {
+            Some(ConflictOpsMessage::StopCancelled)
+        }
+        _ => Some(ConflictOpsMessage::PanelClosed),
+    }
+}
+
 pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Element<'a, Message> {
     let tokens = &state.theme.tokens;
     let name = project_name_for(state, project_id);
@@ -43,11 +66,66 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     // `on_close`) and the footer Close button below key off this same
     // value, so neither can ever be pressable during a non-cancellable
     // phase. See the review request for how this was checked.
-    let close_msg = (!matches!(
-        ops.phase,
-        crate::state::conflict_ops::ConflictPhase::Operating { .. }
-    ))
-    .then_some(Message::ConflictOps(ConflictOpsMessage::PanelClosed));
+    //
+    // RFC-067: `ConfirmStop` is cancellable, but cancelling it must mean
+    // "keep fixing", not "close the panel" — so the header close and
+    // (through Task 095) Escape and the scrim all send `StopCancelled`
+    // here, the same message "Keep fixing" sends. `close_message` is a
+    // standalone function, not inlined here, because `focus_ops.rs`'s
+    // `close_topmost_layer` needs the identical phase-dependent choice for
+    // Escape/the scrim — one function computing it, not two copies that
+    // could drift apart.
+    let close_msg = close_message(state, project_id).map(Message::ConflictOps);
+
+    // RFC-067: the confirmation replaces the whole panel body, including
+    // the file-list instruction line above it — that instruction ("Open
+    // each file...") describes the step this phase is not in. Both the
+    // footer (Keep fixing / Stop and discard edits) and the content differ
+    // from every other phase, so this is handled before the shared
+    // content/footer construction below rather than folded into it.
+    if let crate::state::conflict_ops::ConflictPhase::ConfirmStop { project_id: id, .. } =
+        &ops.phase
+        && id == project_id
+    {
+        let body = column![
+            text(state.t("plain.resolve.stop_confirm_title"))
+                .size(snora::design::style::text::title_size(tokens)),
+            text(state.t("plain.resolve.stop_confirm_body"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ]
+        .spacing(14);
+
+        let footer = row![
+            Space::new().width(Length::Fill),
+            styled_button(
+                tokens,
+                state.t("plain.resolve.stop_confirm_keep"),
+                Some(Message::ConflictOps(ConflictOpsMessage::StopCancelled)),
+                style::ghost,
+            ),
+            styled_button(
+                tokens,
+                state.t("plain.resolve.stop_confirm_stop"),
+                Some(Message::ConflictOps(
+                    ConflictOpsMessage::AbortMergeRequested(project_id.clone(),)
+                )),
+                style::danger,
+            ),
+        ]
+        .align_y(Alignment::Center)
+        .spacing(8);
+
+        return surface(
+            tokens,
+            OverlayWidth::Large.resolve(state.window_width),
+            format!("{} — {}", state.t("plain.resolve.title"), name),
+            close_msg,
+            false,
+            body,
+            footer,
+        );
+    }
 
     let content: Element<'_, Message> = match &ops.phase {
         crate::state::conflict_ops::ConflictPhase::Loading(id) if id == project_id => {
@@ -289,18 +367,28 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
         }
     };
 
-    let stop_control: Element<'_, Message> = if abort_supported {
-        styled_button(
-            tokens,
-            state.t("plain.resolve.stop_attempt"),
-            Some(Message::ConflictOps(
-                ConflictOpsMessage::AbortMergeRequested(project_id.clone()),
-            )),
-            style::secondary,
-        )
-    } else {
-        Space::new().width(Length::Fixed(0.0)).into()
-    };
+    // RFC-067 D2: danger-styled (this discards the user's edits) and
+    // disabled with the standard busy reason while any operation holds the
+    // lock — `smart_pull.rs`'s `start_reason` is the pattern this mirrors.
+    // Sends `StopRequested`, not `AbortMergeRequested`: the first click
+    // only opens the confirmation (D1); only "Stop and discard edits",
+    // below, runs the abort.
+    let stop_control: Element<'_, Message> =
+        if abort_supported {
+            let reason = stop_control_reason(state);
+            reasoned(
+                tokens,
+                state.t("plain.resolve.stop_attempt"),
+                reason.is_none().then_some(Message::ConflictOps(
+                    ConflictOpsMessage::StopRequested(project_id.clone()),
+                )),
+                reason,
+                false,
+                style::danger,
+            )
+        } else {
+            Space::new().width(Length::Fixed(0.0)).into()
+        };
 
     let footer = row![
         stop_control,
@@ -497,6 +585,20 @@ fn jj_finish_hint(state: &AppState, file_path: &str) -> String {
     )
 }
 
+/// RFC-067 R3: the disabled reason for "Stop this fix attempt" while the
+/// operation lock is held elsewhere, `None` when it can be pressed —
+/// extracted so this is assertable without rendering, the way
+/// `third_slot_for` below already is. Mirrors `smart_pull.rs`'s
+/// `start_reason`/`select_mode_reason` in `toolbar.rs`: a pure function
+/// returning the same localized text the button would show, not a bool, so
+/// a test reads the reason it actually gets rather than re-deriving it.
+fn stop_control_reason(state: &AppState) -> Option<&str> {
+    state
+        .operation_interlock
+        .is_busy()
+        .then_some(state.t("plain.activity.busy"))
+}
+
 fn project_has_git_merge_state(state: &AppState, project_id: &ProjectId) -> bool {
     state
         .workspace
@@ -528,6 +630,7 @@ fn project_name_for(state: &AppState, id: &ProjectId) -> String {
 mod tests {
     use super::*;
     use crate::config::AppConfig;
+    use crate::state::OperationOwner;
     use knotra_vcs::{
         ConflictStatus, RemoteStatus, RepositoryIdentity, WorkingTreeStatus, WorkspaceStatus,
     };
@@ -662,5 +765,30 @@ mod tests {
             third_slot_for(&state, tokens, None, &project_id, "src/lib.rs"),
             ThirdSlot::Prose(_)
         ));
+    }
+
+    /// RFC-067 R3: idle, nothing holds the interlock — "Stop this fix
+    /// attempt" can be pressed.
+    #[test]
+    fn stop_control_reason_is_none_when_idle() {
+        let state = AppState::new(AppConfig::default());
+        assert_eq!(stop_control_reason(&state), None);
+    }
+
+    /// RFC-067 R3: any operation holding the lock — not necessarily this
+    /// panel's own — disables it with the standard busy reason, the same
+    /// text `smart_pull.rs`'s own busy gate shows.
+    #[test]
+    fn stop_control_reason_is_busy_while_interlock_is_held() {
+        let mut state = AppState::new(AppConfig::default());
+        state
+            .operation_interlock
+            .try_acquire(OperationOwner::SmartPullExecution)
+            .expect("acquire lease");
+
+        assert_eq!(
+            stop_control_reason(&state),
+            Some(state.t("plain.activity.busy"))
+        );
     }
 }

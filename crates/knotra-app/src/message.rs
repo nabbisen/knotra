@@ -281,6 +281,11 @@ pub enum ConflictOpsMessage {
         file_path: String,
     },
     AbortMergeRequested(ProjectId),
+    /// RFC-067: "Stop this fix attempt" — enters `ConfirmStop`, runs nothing.
+    StopRequested(ProjectId),
+    /// RFC-067: "Keep fixing", Escape, or the scrim from `ConfirmStop` — returns to
+    /// `Browsing`, runs nothing.
+    StopCancelled,
     /// RFC-0021 Phase 3: open a conflicted file in the configured external editor.
     OpenInEditorRequested(String),
     /// Handoff 058: open a conflicted file in the configured merge tool.

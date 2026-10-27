@@ -28,6 +28,7 @@ mod freezer;
 mod smart_pull;
 
 pub use changelog::changelog_modal;
+pub(crate) use conflict::close_message as conflict_close_message;
 pub use conflict::resolve_panel;
 pub use context_switch::switch_modal;
 pub use freezer::tag_modal;

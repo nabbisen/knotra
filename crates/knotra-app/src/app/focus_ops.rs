@@ -5,11 +5,9 @@
 use iced::Task;
 
 use crate::{
-    message::{
-        ChangelogMessage, ConflictOpsMessage, ContextMessage, FreezerMessage, Message, SyncMessage,
-    },
+    message::{ChangelogMessage, ContextMessage, FreezerMessage, Message, SyncMessage},
     state::{AppState, Screen, focus, freezer::FreezerPhase, sync::SyncPhase},
-    view::{dashboard, selection_bar, shell, workspace_manager},
+    view::{dashboard, overlays::conflict_close_message, selection_bar, shell, workspace_manager},
 };
 
 /// Whether Tab/Shift-Tab/Enter operate on an overlay's order right now, and
@@ -273,7 +271,7 @@ pub(super) fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
         // duplicating that knowledge here, so all three routes — the
         // control, Escape, the scrim — give one result. Each handler
         // already no-ops while its own operation is running.
-        match state.active_modal {
+        match &state.active_modal {
             crate::state::ActiveModal::Pull => {
                 return super::sync::handle_sync(state, SyncMessage::ModalClosed);
             }
@@ -283,11 +281,18 @@ pub(super) fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
             crate::state::ActiveModal::Switch => {
                 return super::context::handle_context(state, ContextMessage::BulkModalClosed);
             }
-            crate::state::ActiveModal::Resolve(_) => {
-                return super::conflict_ops::handle_conflict_ops(
-                    state,
-                    ConflictOpsMessage::PanelClosed,
-                );
+            crate::state::ActiveModal::Resolve(id) => {
+                // RFC-067: this panel's Close message now depends on its
+                // own phase (`ConfirmStop` cancels back to `Browsing`
+                // rather than closing), the same reason `Pull` and `Tag`
+                // already route through their handler rather than a single
+                // hardcoded message — `conflict_close_message` is that
+                // choice, shared with the panel's own Close button.
+                let id = id.clone();
+                return match conflict_close_message(state, &id) {
+                    Some(msg) => super::conflict_ops::handle_conflict_ops(state, msg),
+                    None => Task::none(),
+                };
             }
             crate::state::ActiveModal::Changelog => {
                 return super::changelog::handle_changelog(state, ChangelogMessage::ModalClosed);

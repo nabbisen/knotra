@@ -14,6 +14,13 @@ pub enum ConflictPhase {
         project_id: ProjectId,
         detail: ProjectConflictDetail,
     },
+    /// RFC-067: confirming "Stop this fix attempt" before it discards the
+    /// user's edits. Carries the `Browsing` detail unchanged, so "Keep
+    /// fixing" restores the file list exactly as it was, with no reload.
+    ConfirmStop {
+        project_id: ProjectId,
+        detail: ProjectConflictDetail,
+    },
     /// A mark-resolved or abort operation is in progress.
     Operating {
         project_id: ProjectId,
