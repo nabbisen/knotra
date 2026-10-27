@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — in the dark theme, the screen behind an open window was barely dimmed
+
+When a window such as "Save release point" was open in the dark theme, the screen behind it
+hardly changed, so it was hard to tell that it could not be used. It is now covered by a
+light veil. In the light theme, the dim is slightly darker.
+
 ### Fixed — keyboard shortcuts acted on the screen behind an open window
 
 While a window such as "Save release point" was open, Ctrl+T, Ctrl+K and the search keys
