@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | Implemented (main: 70e2447) |
 | Priority | High - one click discards the user's conflict work, with no warning |
 | Effort | Small - one confirmation step, one button's style and state, four catalog keys |
 | Target | 0.32.0 (`.git-exclude/reviewed/226-release-plan-0.31.1-and-0.32.0.md`) |
