@@ -13,7 +13,7 @@ use crate::{
         sync::SyncPhase,
     },
     view::{
-        command_palette, dashboard,
+        add_project_modal, command_palette, dashboard,
         overlays::{
             changelog_layer_focus, conflict_close_message, conflict_layer_focus,
             context_switch_layer_focus, freezer_layer_focus, smart_pull_layer_focus,
@@ -42,52 +42,27 @@ pub(super) fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<
 /// every layer's `layer_focus` is looked up, so [`overlay_focus_order`] and
 /// [`settle_layer_focus`] always see the same answer.
 ///
-/// This stage gives a real, full order only to the three workspace
-/// dialogs. Every other layer's `order` stays empty (Stage 2 gives each
-/// its own), but `entry` is computed, per layer, to match what its own
-/// now-removed open-site call used to set directly — "as today" read
-/// literally, per layer, not a blanket `None`:
+/// The three workspace dialogs, Save release point, Resolve, Generate
+/// notes, Change work area, Get latest safely, the command palette and Add
+/// project all have their own real, full `layer_focus` now (each window's
+/// own module), per phase or step. Add project's order staying step-scoped
+/// (the folder field's controls while choosing one, the name field's once
+/// chosen — see `add_project_modal::layer_focus`) is also the Add-project
+/// defect's fix: a failed "Next" changes neither the step nor the layer, so
+/// the held target never falls out of its own step's order, and focus
+/// simply stays on the folder field.
 ///
-/// - Palette: its query field (`PaletteMessage::Opened` used to set this).
-/// - Add project: step-dependent — the folder field while choosing one,
-///   the name field once a folder is chosen — matching the *union* of
-///   what `AddProjectDialogOpened`/`BrowsePathSelected` used to set, but
-///   computed fresh on every settle rather than fixed at one open-site
-///   call. This is also the Add-project defect's fix: a failed "Next"
-///   changes neither the step nor the layer, so with an empty order (no
-///   staleness to detect) focus is simply never moved off the folder
-///   field, where `AddProjectNextStep`'s own now-removed call used to
-///   move it to the name field unconditionally, defeated or not.
-///
-/// Save release point, Resolve, Generate notes, Change work area, Get
-/// latest safely and the command palette have their own real, full
-/// `layer_focus` now (each window's own module), per phase. Everything else
-/// still here — the shortcuts sheet, the workspace switcher, remove
-/// project — had no open-site focus call before this RFC either, so `None`
-/// really is "as today" for these, pending their own commits.
+/// Everything else still here — the shortcuts sheet, the workspace
+/// switcher, remove project — had no open-site focus call before this RFC
+/// either, so `None` really is "as today" for these, pending their own
+/// commits.
 pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<Message> {
     match layer {
         Layer::WorkspaceCreate | Layer::WorkspaceRename | Layer::WorkspaceDelete => {
             workspace_manager::layer_focus(state)
         }
         Layer::Palette => command_palette::layer_focus(state),
-        Layer::AddProject => {
-            let entry = state.add_project_dialog.as_ref().map(|dialog| {
-                let id = match dialog.step {
-                    crate::state::AddProjectStep::ChooseFolder => {
-                        knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone()
-                    }
-                    crate::state::AddProjectStep::NameProject => {
-                        knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone()
-                    }
-                };
-                focus::FocusTarget::text_input(id)
-            });
-            focus::LayerFocus {
-                order: Vec::new(),
-                entry,
-            }
-        }
+        Layer::AddProject => add_project_modal::layer_focus(state),
         Layer::SaveReleasePoint => freezer_layer_focus(state),
         Layer::Resolve(id) => conflict_layer_focus(state, id),
         Layer::GenerateNotes => changelog_layer_focus(state),

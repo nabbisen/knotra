@@ -1249,7 +1249,12 @@ fn add_project_failed_next_leaves_focus_on_the_folder_field() {
 /// start moving to the name field once Stage 2 gives this layer a real,
 /// per-step order for the staleness check to act on.
 #[test]
-fn add_project_successful_next_does_not_yet_move_focus_stage_2_work() {
+fn add_project_successful_next_moves_focus_to_the_name_field() {
+    // RFC-066 D2 (Stage 2): Add project now has a real, per-step order
+    // (`add_project_modal::layer_focus`), so a successful "Next" makes the
+    // held folder-field target fall out of the new (NameProject) order —
+    // `settle_layer_focus` treats that exactly like a phase change under
+    // one layer, and moves focus to the new step's entry, the name field.
     let mut state = make_state();
     dispatch(
         &mut state,
@@ -1274,9 +1279,8 @@ fn add_project_successful_next_does_not_yet_move_focus_stage_2_work() {
     assert_eq!(
         state.overlay_focus,
         Some(FocusTarget::text_input(
-            knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone()
-        )),
-        "documents today's gap, not a requirement: Stage 2 moves this to the name field"
+            knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone()
+        ))
     );
 }
 
