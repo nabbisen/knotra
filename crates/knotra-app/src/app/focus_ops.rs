@@ -18,7 +18,7 @@ use crate::{
             changelog_layer_focus, conflict_close_message, conflict_layer_focus,
             context_switch_layer_focus, freezer_layer_focus, smart_pull_layer_focus,
         },
-        selection_bar, shell, workspace_manager,
+        selection_bar, shell, shortcuts_overlay, workspace_manager,
     },
 };
 
@@ -44,18 +44,18 @@ pub(super) fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<
 ///
 /// The three workspace dialogs, Save release point, Resolve, Generate
 /// notes, Change work area, Get latest safely, the command palette, Add
-/// project and the workspace switcher menu all have their own real, full
-/// `layer_focus` now (each window's own module), per phase or step. Add
-/// project's order staying step-scoped (the folder field's controls while
-/// choosing one, the name field's once chosen — see
-/// `add_project_modal::layer_focus`) is also the Add-project defect's fix:
-/// a failed "Next" changes neither the step nor the layer, so the held
-/// target never falls out of its own step's order, and focus simply stays
-/// on the folder field.
+/// project, the workspace switcher menu and the shortcuts sheet all have
+/// their own real, full `layer_focus` now (each window's own module), per
+/// phase or step. Add project's order staying step-scoped (the folder
+/// field's controls while choosing one, the name field's once chosen —
+/// see `add_project_modal::layer_focus`) is also the Add-project defect's
+/// fix: a failed "Next" changes neither the step nor the layer, so the
+/// held target never falls out of its own step's order, and focus simply
+/// stays on the folder field.
 ///
-/// Everything else still here — the shortcuts sheet, remove project — had
-/// no open-site focus call before this RFC either, so `None` really is "as
-/// today" for these, pending their own commits.
+/// Remove project is still here — it had no open-site focus call before
+/// this RFC either, so `None` really is "as today," pending Stage 3's own
+/// real dialog (D6).
 pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<Message> {
     match layer {
         Layer::WorkspaceCreate | Layer::WorkspaceRename | Layer::WorkspaceDelete => {
@@ -69,7 +69,8 @@ pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<
         Layer::ChangeWorkArea => context_switch_layer_focus(state),
         Layer::GetLatest => smart_pull_layer_focus(state),
         Layer::WorkspaceMenu => shell::switcher_menu_layer_focus(state),
-        Layer::ShortcutsSheet | Layer::RemoveProject => focus::LayerFocus {
+        Layer::ShortcutsSheet => shortcuts_overlay::layer_focus(),
+        Layer::RemoveProject => focus::LayerFocus {
             order: Vec::new(),
             entry: None,
         },

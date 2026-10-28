@@ -23,10 +23,31 @@ use iced::{
     widget::{Space, button, column, container, row, text},
 };
 
+use knotra_ui::widget::style;
+
 use crate::{
     message::{KeyboardMessage, Message},
-    state::AppState,
+    state::{
+        AppState,
+        focus::{FocusTarget, LayerFocus},
+    },
 };
+
+mod focus_target {
+    pub const CLOSE: &str = "shortcuts.close";
+}
+
+/// RFC-066 D2: order and entry for the shortcuts sheet — just "Close".
+pub fn layer_focus() -> LayerFocus<Message> {
+    let close_target = FocusTarget::control(focus_target::CLOSE);
+    LayerFocus {
+        order: vec![(
+            close_target.clone(),
+            Some(Message::KeyEvent(KeyboardMessage::CheatSheetToggled)),
+        )],
+        entry: Some(close_target),
+    }
+}
 
 struct Binding {
     keys: &'static str,
@@ -136,12 +157,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     // RFC-049 §2: `action.close` already exists in both catalogs — reused,
     // not duplicated. The glyph stays a literal; only the word is resolved.
+    let close_is_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE));
+    let close_t = tokens.clone();
     let close_btn = button(
         text(format!("✕  {}", state.t("action.close")))
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
     )
-    .on_press(Message::KeyEvent(KeyboardMessage::CheatSheetToggled));
+    .on_press(Message::KeyEvent(KeyboardMessage::CheatSheetToggled))
+    .style(move |_theme, status| {
+        style::with_focus_ring(&close_t, close_is_focused, style::ghost(&close_t, status))
+    });
 
     let header = row![
         text(state.t("shortcut.overlay_title"))

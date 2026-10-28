@@ -3,8 +3,9 @@
 use crate::config::{AppConfig, AppPaths, DashboardGrouping, DashboardSort, load_config};
 use crate::message::{
     ActivityMessage, BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage,
-    DashboardMessage, DetailPanelMessage, FilterMessage, FreezerMessage, Message, PaletteMessage,
-    SelectionMessage, ShortcutMessage, StatusFilter, SyncMessage, TagPushMessage, WorkspaceMessage,
+    DashboardMessage, DetailPanelMessage, FilterMessage, FreezerMessage, KeyboardMessage, Message,
+    PaletteMessage, SelectionMessage, ShortcutMessage, StatusFilter, SyncMessage, TagPushMessage,
+    WorkspaceMessage,
 };
 use crate::persistence::{delete_workspace_file, load_workspaces, save_workspace};
 use crate::state::{
@@ -760,6 +761,20 @@ fn activate_focused_with_visible_ring_would_press_the_target() {
         focus::activation_message(&order, Some(&shell_switcher_target())),
         Some(Message::Workspace(WorkspaceMessage::SwitcherToggled))
     ));
+}
+
+/// RFC-066 D2: the shortcuts sheet's entry is "Close" — its only control.
+#[test]
+fn shortcuts_sheet_entry_is_close() {
+    let mut state = make_state();
+    dispatch(
+        &mut state,
+        Message::KeyEvent(KeyboardMessage::CheatSheetToggled),
+    );
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::control("shortcuts.close"))
+    );
 }
 
 /// RFC-066 D2: the workspace switcher menu's entry is "the first
