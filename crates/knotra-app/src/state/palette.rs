@@ -244,15 +244,16 @@ pub fn update_results(state: &mut AppState) {
     }
 
     entries.truncate(12);
-    let len = entries.len();
     state.palette.results = entries;
-    if state.palette.highlighted >= len {
-        state.palette.highlighted = len.saturating_sub(1);
-    }
 }
 
-pub fn dispatch_entry(state: &AppState) -> PaletteDispatch {
-    let Some(entry) = state.palette.results.get(state.palette.highlighted) else {
+/// RFC-066 D4/D5: `index` is the activated `FocusTarget`'s own index into
+/// `state.palette.results` (its `layer_focus` order), carried in the
+/// `PaletteMessage::EntryClicked` message itself — a click and a keyboard
+/// activation of the same row dispatch identically. There is no longer a
+/// separate `highlighted` cursor to read.
+pub fn dispatch_entry(state: &AppState, index: usize) -> PaletteDispatch {
+    let Some(entry) = state.palette.results.get(index) else {
         return PaletteDispatch::Noop;
     };
     if let Some(reason) = entry.disabled_reason_key {

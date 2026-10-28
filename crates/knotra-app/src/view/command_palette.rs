@@ -14,10 +14,43 @@ use iced::{
     widget::{Space, button, column, container, row, text, text_input},
 };
 
+use knotra_ui::widget::style;
+
 use crate::{
     message::{Message, PaletteMessage},
-    state::{AppState, PaletteEntryKind},
+    state::{
+        AppState, PaletteEntryKind,
+        focus::{FocusTarget, LayerFocus},
+    },
 };
+
+mod focus_target {
+    pub const CLOSE: &str = "palette.close";
+}
+
+/// RFC-066 D2: order and entry for the command palette. Entry is always the
+/// search field (RFC D2's table has one row for this window, no
+/// phase-dependent entries, unlike the other overlays).
+pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
+    let close_target = FocusTarget::control(focus_target::CLOSE);
+    let search_target = FocusTarget::text_input(knotra_ui::widget::focus_id::PALETTE_QUERY.clone());
+    let mut order = vec![
+        (close_target, Some(Message::Palette(PaletteMessage::Closed))),
+        (search_target.clone(), None),
+    ];
+    for (i, entry) in state.palette.results.iter().enumerate() {
+        let target = FocusTarget::control_dynamic(format!("palette.result.{i}"));
+        let msg = entry
+            .disabled_reason_key
+            .is_none()
+            .then_some(Message::Palette(PaletteMessage::EntryClicked(i)));
+        order.push((target, msg));
+    }
+    LayerFocus {
+        order,
+        entry: Some(search_target),
+    }
+}
 
 /// Render the palette overlay (call only when `state.palette.open`).
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -40,7 +73,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 PaletteEntryKind::Workspace => "⊞  ",
             };
             let label = format!("{}{}", prefix, entry.label);
-            let highlighted = i == state.palette.highlighted;
+            let t = tokens.clone();
+            let is_focused = crate::app::ring(
+                state,
+                &FocusTarget::control_dynamic(format!("palette.result.{i}")),
+            );
             let btn = button(
                 text(label)
                     .size(snora::design::style::text::body_small_size(tokens))
@@ -52,7 +89,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .is_none()
                     .then_some(Message::Palette(PaletteMessage::EntryClicked(i))),
             )
-            .width(Length::Fill);
+            .width(Length::Fill)
+            .style(move |_theme, status| {
+                style::with_focus_ring(&t, is_focused, style::ghost(&t, status))
+            });
             let mut row = column![btn].spacing(2);
             if let Some(reason_key) = entry.disabled_reason_key {
                 row = row.push(
@@ -61,17 +101,21 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 );
             }
-            let _ = highlighted; // styling hook for later theming
             row.into()
         })
         .collect();
 
+    let close_is_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE));
+    let close_t = tokens.clone();
     let close_btn = button(
         text("✕ Esc")
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
     )
-    .on_press(Message::Palette(PaletteMessage::Closed));
+    .on_press(Message::Palette(PaletteMessage::Closed))
+    .style(move |_theme, status| {
+        style::with_focus_ring(&close_t, close_is_focused, style::ghost(&close_t, status))
+    });
 
     let header = row![
         text(state.t("palette.title"))

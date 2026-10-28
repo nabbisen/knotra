@@ -818,6 +818,42 @@ fn arrow_down_matches_j_on_the_dashboard_with_no_window_open() {
     assert_eq!(j_state.dashboard_focus, arrow_state.dashboard_focus);
 }
 
+/// RFC-066 Stage 2's own explicit test: ↓ from the palette's search field
+/// reaches the first result, and Enter there runs it — the palette's
+/// `layer_focus` order is `[Close, search field, result 0, result 1, ...]`,
+/// so one `ArrowDown` from the entry (the search field) lands on
+/// `palette.result.0`. The "Enter there runs it" half checks the pure
+/// decision function directly (`focus::activation_message`), not a
+/// dispatched `ActivateFocused`: activation wraps the real message in
+/// `Task::done(msg)`, which this test file's one-`update()`-call `dispatch`
+/// helper cannot execute to observe as a state change — the same
+/// limitation `activate_focused_with_visible_ring_would_press_the_target`
+/// above already works around the same way.
+#[test]
+fn palette_arrow_down_from_the_field_reaches_the_first_result_and_enter_runs_it() {
+    let mut state = make_state();
+    dispatch(&mut state, Message::Palette(PaletteMessage::Opened));
+    dispatch(
+        &mut state,
+        Message::Palette(PaletteMessage::QueryChanged("settings_open".to_owned())),
+    );
+    assert_eq!(
+        state.palette.results.len(),
+        1,
+        "query matches one action only"
+    );
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::ArrowDown));
+    let first_result = FocusTarget::control_dynamic("palette.result.0".to_owned());
+    assert_eq!(state.overlay_focus, Some(first_result.clone()));
+
+    let order = crate::view::command_palette::layer_focus(&state).order;
+    assert!(matches!(
+        focus::activation_message(&order, Some(&first_result)),
+        Some(Message::Palette(PaletteMessage::EntryClicked(0)))
+    ));
+}
+
 #[test]
 fn create_dialog_escape_closes_and_returns_focus_to_the_opener_r7() {
     let mut state = make_state();
@@ -1674,9 +1710,8 @@ fn palette_create_workspace_opens_dialog() {
         .iter()
         .position(|entry| entry.payload == "action.workspace_create")
         .expect("workspace create action visible");
-    state.palette.highlighted = index;
 
-    let message = crate::state::palette::dispatch_entry(&state);
+    let message = crate::state::palette::dispatch_entry(&state, index);
     assert!(matches!(
         message,
         crate::state::palette::PaletteDispatch::Dispatched(Message::Workspace(
@@ -1685,15 +1720,18 @@ fn palette_create_workspace_opens_dialog() {
     ));
 }
 
-fn highlight_palette_payload(state: &mut AppState, query: &str, payload: &str) {
+/// RFC-066 D4/D5: there is no `highlighted` cursor any more — the index a
+/// click or a keyboard activation dispatches is carried in the message
+/// itself. Tests find that index by payload instead of setting a field.
+fn palette_payload_index(state: &mut AppState, query: &str, payload: &str) -> usize {
     state.palette.query = query.to_owned();
     crate::state::palette::update_results(state);
-    state.palette.highlighted = state
+    state
         .palette
         .results
         .iter()
         .position(|entry| entry.payload == payload)
-        .unwrap_or_else(|| panic!("palette payload {payload} visible for query {query:?}"));
+        .unwrap_or_else(|| panic!("palette payload {payload} visible for query {query:?}"))
 }
 
 #[test]
@@ -1710,10 +1748,10 @@ fn palette_visible_action_rows_do_not_noop() {
     );
 
     for action_id in crate::state::palette::visible_action_ids(&state) {
-        highlight_palette_payload(&mut state, action_id, action_id);
+        let index = palette_payload_index(&mut state, action_id, action_id);
         assert!(
             !matches!(
-                crate::state::palette::dispatch_entry(&state),
+                crate::state::palette::dispatch_entry(&state, index),
                 crate::state::palette::PaletteDispatch::Noop
             ),
             "visible palette action {action_id} must dispatch or be disabled"
@@ -1764,10 +1802,10 @@ fn palette_changelog_action_dispatches_selected_project_modal() {
     );
     state.selection_mode = true;
     state.selection.selected_ids.insert(project.id.clone());
-    highlight_palette_payload(&mut state, "changelog", "action.changelog_selected");
+    let index = palette_payload_index(&mut state, "changelog", "action.changelog_selected");
 
     assert!(matches!(
-        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::dispatch_entry(&state, index),
         crate::state::palette::PaletteDispatch::Dispatched(Message::Changelog(
             ChangelogMessage::BulkOpenRequested
         ))
@@ -1786,9 +1824,9 @@ fn palette_project_row_opens_detail_panel() {
         }],
         0,
     );
-    highlight_palette_payload(&mut state, "svc", &project.id.to_string());
+    let index = palette_payload_index(&mut state, "svc", &project.id.to_string());
 
-    let message = crate::state::palette::dispatch_entry(&state);
+    let message = crate::state::palette::dispatch_entry(&state, index);
 
     assert!(matches!(
         message,
@@ -1804,10 +1842,10 @@ fn palette_active_workspace_row_is_disabled() {
     let workspace = Workspace::new("Main");
     let workspace_id = workspace.id.clone();
     install_workspaces(&mut state, vec![workspace], 0);
-    highlight_palette_payload(&mut state, "Main", &workspace_id.to_string());
+    let index = palette_payload_index(&mut state, "Main", &workspace_id.to_string());
 
     assert!(matches!(
-        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::dispatch_entry(&state, index),
         crate::state::palette::PaletteDispatch::Disabled("palette.disabled.already_open")
     ));
 }
@@ -1868,16 +1906,16 @@ fn palette_remove_project_requires_exactly_one_selected_project() {
         0,
     );
 
-    highlight_palette_payload(&mut state, "remove selected", "action.remove_project");
+    let index = palette_payload_index(&mut state, "remove selected", "action.remove_project");
     assert!(matches!(
-        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::dispatch_entry(&state, index),
         crate::state::palette::PaletteDispatch::Disabled("plain.disabled.choose_one")
     ));
 
     state.selection.selected_ids.insert(project.id.clone());
-    highlight_palette_payload(&mut state, "remove selected", "action.remove_project");
+    let index = palette_payload_index(&mut state, "remove selected", "action.remove_project");
     assert!(matches!(
-        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::dispatch_entry(&state, index),
         crate::state::palette::PaletteDispatch::Dispatched(Message::Workspace(
             WorkspaceMessage::RemoveProjectRequested(id)
         )) if id == project.id
@@ -1891,10 +1929,10 @@ fn palette_next_workspace_switches_in_tab_order() {
     let second = Workspace::new("Lab");
     let second_id = second.id.clone();
     install_workspaces(&mut state, vec![first, second], 0);
-    highlight_palette_payload(&mut state, "next workspace", "action.workspace_next");
+    let index = palette_payload_index(&mut state, "next workspace", "action.workspace_next");
 
     assert!(matches!(
-        crate::state::palette::dispatch_entry(&state),
+        crate::state::palette::dispatch_entry(&state, index),
         crate::state::palette::PaletteDispatch::Dispatched(Message::Workspace(
             WorkspaceMessage::WorkspaceSwitched(id)
         )) if id == second_id

@@ -397,8 +397,6 @@ pub struct PaletteState {
     pub open: bool,
     pub query: String,
     pub results: Vec<PaletteEntry>,
-    /// Index of the highlighted result.
-    pub highlighted: usize,
     /// Last disabled/no-op reason shown in the palette.
     pub notice_key: Option<&'static str>,
 }
@@ -407,7 +405,6 @@ impl PaletteState {
     pub fn open_palette(&mut self) {
         self.open = true;
         self.query.clear();
-        self.highlighted = 0;
         self.notice_key = None;
     }
     pub fn close(&mut self) {

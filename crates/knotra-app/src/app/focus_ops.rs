@@ -13,7 +13,7 @@ use crate::{
         sync::SyncPhase,
     },
     view::{
-        dashboard,
+        command_palette, dashboard,
         overlays::{
             changelog_layer_focus, conflict_close_message, conflict_layer_focus,
             context_switch_layer_focus, freezer_layer_focus, smart_pull_layer_focus,
@@ -59,23 +59,18 @@ pub(super) fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<
 ///   field, where `AddProjectNextStep`'s own now-removed call used to
 ///   move it to the name field unconditionally, defeated or not.
 ///
-/// Save release point, Resolve, Generate notes, Change work area and Get
-/// latest safely have their own real, full `layer_focus` now (each
-/// window's own module), per phase. Everything else still here — the
-/// shortcuts sheet, the workspace switcher, remove project — had no
-/// open-site focus call before this RFC either, so `None` really is "as
-/// today" for these, pending their own commits.
+/// Save release point, Resolve, Generate notes, Change work area, Get
+/// latest safely and the command palette have their own real, full
+/// `layer_focus` now (each window's own module), per phase. Everything else
+/// still here — the shortcuts sheet, the workspace switcher, remove
+/// project — had no open-site focus call before this RFC either, so `None`
+/// really is "as today" for these, pending their own commits.
 pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<Message> {
     match layer {
         Layer::WorkspaceCreate | Layer::WorkspaceRename | Layer::WorkspaceDelete => {
             workspace_manager::layer_focus(state)
         }
-        Layer::Palette => focus::LayerFocus {
-            order: Vec::new(),
-            entry: Some(focus::FocusTarget::text_input(
-                knotra_ui::widget::focus_id::PALETTE_QUERY.clone(),
-            )),
-        },
+        Layer::Palette => command_palette::layer_focus(state),
         Layer::AddProject => {
             let entry = state.add_project_dialog.as_ref().map(|dialog| {
                 let id = match dialog.step {

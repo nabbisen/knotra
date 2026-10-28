@@ -333,21 +333,18 @@ pub(super) fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<
             state.palette.notice_key = None;
             crate::state::palette::update_results(state);
         }
-        PaletteMessage::EntryClicked(i) => {
-            state.palette.highlighted = i;
-            match crate::state::palette::dispatch_entry(state) {
-                crate::state::palette::PaletteDispatch::Dispatched(msg) => {
-                    state.palette.close();
-                    return Task::done(msg);
-                }
-                crate::state::palette::PaletteDispatch::Disabled(reason) => {
-                    state.palette.notice_key = Some(reason);
-                }
-                crate::state::palette::PaletteDispatch::Noop => {
-                    state.palette.notice_key = Some("palette.disabled.unavailable");
-                }
+        PaletteMessage::EntryClicked(i) => match crate::state::palette::dispatch_entry(state, i) {
+            crate::state::palette::PaletteDispatch::Dispatched(msg) => {
+                state.palette.close();
+                return Task::done(msg);
             }
-        }
+            crate::state::palette::PaletteDispatch::Disabled(reason) => {
+                state.palette.notice_key = Some(reason);
+            }
+            crate::state::palette::PaletteDispatch::Noop => {
+                state.palette.notice_key = Some("palette.disabled.unavailable");
+            }
+        },
     }
     Task::none()
 }
