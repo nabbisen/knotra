@@ -7,6 +7,7 @@ pub mod add_project_modal;
 pub mod command_palette;
 pub mod detail_panel;
 pub mod overlays;
+pub mod remove_project_dialog;
 pub mod selection_bar;
 pub mod shell;
 pub mod shortcuts_overlay;
@@ -180,6 +181,21 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
                 let el: Element<'_, Message> = overlays::resolve_panel(state, pid);
                 layout = layout.sheet(Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half));
             }
+        }
+
+        // RFC-066 D6: Remove project, as a dialog over any screen — the
+        // same `dialog` slot "Delete workspace" uses, one priority step
+        // below it (`layer::top_layer`'s own order: a workspace dialog or
+        // an `ActiveModal` always outranks it). Gated on `top_layer`
+        // itself, not a bare `confirm_remove_dialog.is_some()`, so this
+        // can never double up with whichever of the two arms above just
+        // claimed the slot.
+        if matches!(
+            crate::state::layer::top_layer(state),
+            Some(crate::state::layer::Layer::RemoveProject)
+        ) && let Some(el) = remove_project_dialog::view(state)
+        {
+            layout = layout.dialog(Dialog::new(el));
         }
     }
 

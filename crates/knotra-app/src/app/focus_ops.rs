@@ -18,7 +18,7 @@ use crate::{
             changelog_layer_focus, conflict_close_message, conflict_layer_focus,
             context_switch_layer_focus, freezer_layer_focus, smart_pull_layer_focus,
         },
-        selection_bar, shell, shortcuts_overlay, workspace_manager,
+        remove_project_dialog, selection_bar, shell, shortcuts_overlay, workspace_manager,
     },
 };
 
@@ -49,9 +49,11 @@ pub(super) fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<
 /// field's once chosen — see `add_project_modal::layer_focus`) is also the
 /// Add-project defect's fix: a failed "Next" changes neither the step nor
 /// the layer, so the held target never falls out of its own step's order,
-/// and focus simply stays on the folder field. Remove project's order
-/// stays small (`["Keep", "Remove from list"]`) because it is still
-/// rendered inline, not as a window — Stage 3's D6 makes it a real dialog.
+/// and focus simply stays on the folder field. Remove project is a real
+/// dialog now too (RFC-066 D6), the same `AppLayout::dialog` slot "Delete
+/// workspace" uses — its own module lives at `view::remove_project_dialog`
+/// rather than under `view::dashboard`, since it is no longer dashboard-
+/// specific.
 pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<Message> {
     match layer {
         Layer::WorkspaceCreate | Layer::WorkspaceRename | Layer::WorkspaceDelete => {
@@ -66,7 +68,7 @@ pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<
         Layer::GetLatest => smart_pull_layer_focus(state),
         Layer::WorkspaceMenu => shell::switcher_menu_layer_focus(state),
         Layer::ShortcutsSheet => shortcuts_overlay::layer_focus(),
-        Layer::RemoveProject => dashboard::remove_project_layer_focus(state),
+        Layer::RemoveProject => remove_project_dialog::layer_focus(state),
     }
 }
 

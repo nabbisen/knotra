@@ -1577,7 +1577,7 @@ fn every_layer_and_phase_entry_never_starts_a_change_r2() {
             &mut state,
             Message::Workspace(WorkspaceMessage::RemoveProjectRequested(project.id)),
         );
-        let lf = crate::view::dashboard::remove_project_layer_focus(&state);
+        let lf = crate::view::remove_project_dialog::layer_focus(&state);
         rows.push(Row {
             layer: Layer::RemoveProject,
             phase: "open",
@@ -1826,6 +1826,37 @@ fn remove_project_entry_is_keep() {
         state.overlay_focus,
         Some(FocusTarget::control("remove_project.keep"))
     );
+}
+
+/// RFC-066 D6: Remove project is a dialog over any screen now, not a
+/// Dashboard-only inline block — `top_layer` never reads `state.screen`
+/// at all, so this is also a regression guard against a future change
+/// that makes it read-gated on the Dashboard again.
+#[test]
+fn remove_project_is_the_top_layer_on_the_history_screen() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.screen = Screen::History;
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::RemoveProjectRequested(project.id)),
+    );
+
+    assert_eq!(state.screen, Screen::History);
+    assert_eq!(
+        crate::state::layer::top_layer(&state),
+        Some(crate::state::layer::Layer::RemoveProject)
+    );
+    assert!(crate::view::remove_project_dialog::view(&state).is_some());
 }
 
 /// RFC-066 D2: the shortcuts sheet's entry is "Close" — its only control.
