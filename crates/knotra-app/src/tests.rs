@@ -24,7 +24,7 @@ use knotra_vcs::{
     Project, ProjectCommits, ProjectConflictDetail, ProjectId, Workspace, WorkspaceStatus,
     model::{
         operation::{
-            FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
+            FreezeBlocker, FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
             FreezeValidationEntry, OperationKind, OperationLog, OperationResult,
             ProjectOperationOutcome, ProjectOperationResult, RetryExclusionReason,
             SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, SmartPullProgress,
@@ -761,6 +761,332 @@ fn activate_focused_with_visible_ring_would_press_the_target() {
         focus::activation_message(&order, Some(&shell_switcher_target())),
         Some(Message::Workspace(WorkspaceMessage::SwitcherToggled))
     ));
+}
+
+/// RFC-066 Stage 2 R2: the entry's activation message must never be one
+/// of these change-starting messages. Add a new arm here whenever a new
+/// change-starting message is introduced, so this guard keeps covering it.
+fn assert_entry_never_starts_a_change(
+    label: &str,
+    order: &focus::FocusOrder<Message>,
+    entry: Option<&FocusTarget>,
+) {
+    let message = focus::activation_message(order, entry);
+    let starts_a_change = matches!(
+        message,
+        Some(
+            Message::Sync(SyncMessage::ExecuteRequested)
+                | Message::Freezer(FreezerMessage::ExecuteConfirmed)
+                | Message::TagPush(TagPushMessage::PushConfirmed)
+                | Message::Context(ContextMessage::SwitchConfirmed)
+                | Message::ConflictOps(ConflictOpsMessage::MarkResolvedRequested { .. })
+                | Message::ConflictOps(ConflictOpsMessage::AbortMergeRequested(_))
+                | Message::Workspace(WorkspaceMessage::AddProjectConfirmed)
+                | Message::Workspace(WorkspaceMessage::RemoveProjectConfirmed(_))
+                | Message::Workspace(WorkspaceMessage::CreateWorkspaceConfirmed)
+                | Message::Workspace(WorkspaceMessage::RenameWorkspaceConfirmed)
+                | Message::Workspace(WorkspaceMessage::DeleteWorkspaceConfirmed)
+        )
+    );
+    assert!(
+        !starts_a_change,
+        "{label}: entry's activation message {message:?} starts a change"
+    );
+}
+
+/// RFC-066 Stage 2 R2 — every layer/phase whose entry is not trivially
+/// safe by construction (a text field, paired with `None`; a bare "Close"/
+/// "Cancel"/"Keep" control, whose own message is self-evidently not a
+/// confirm). Each case below is one where the entry rule (D2's table) or
+/// its own phase-dependent condition (an unreadable blocker, a dirty
+/// project, a share offer) could plausibly be miscomputed into landing on
+/// a change-starting control instead — the exact kind of mistake
+/// `freezer_layer_focus`'s share-offer condition almost made during
+/// implementation (see commit 4's history).
+#[test]
+fn every_risky_entry_never_starts_a_change_r2() {
+    // Get latest safely — AwaitingConfirm with a real dirty choice.
+    {
+        let mut state = make_state();
+        let with_upstream = make_project("with-upstream");
+        let no_upstream = make_project("no-upstream");
+        install_workspaces(
+            &mut state,
+            vec![Workspace {
+                projects: vec![with_upstream.clone(), no_upstream.clone()],
+                ..Workspace::new("Main")
+            }],
+            0,
+        );
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![
+                make_project_status(with_upstream.id.clone(), Some("origin/main")),
+                make_project_status(no_upstream.id.clone(), None),
+            ],
+            last_refresh: Some(Utc::now()),
+        });
+        state
+            .selection
+            .selected_ids
+            .insert(with_upstream.id.clone());
+        state.selection.selected_ids.insert(no_upstream.id.clone());
+        dispatch(&mut state, Message::Sync(SyncMessage::BulkPullRequested));
+        dispatch(
+            &mut state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        assert_entry_never_starts_a_change(
+            "get_latest.AwaitingConfirm(dirty choice)",
+            &lf.order,
+            lf.entry.as_ref(),
+        );
+    }
+
+    // Get latest safely — AwaitingConfirm with no dirty choices (falls
+    // back to Cancel, never Start/`ExecuteRequested`).
+    {
+        let mut state = make_state();
+        state.sync.phase = SyncPhase::AwaitingConfirm(SmartPullPlan {
+            id: OperationId::new(),
+            entries: vec![SmartPullPlanEntry {
+                project_id: ProjectId::new(),
+                project_name: "clean".to_owned(),
+                is_dirty: false,
+                has_conflict: false,
+                skip_reason: None,
+                disposition: SmartPullDisposition::FetchOnly,
+            }],
+        });
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        assert_entry_never_starts_a_change(
+            "get_latest.AwaitingConfirm(no dirty choice)",
+            &lf.order,
+            lf.entry.as_ref(),
+        );
+    }
+
+    // Get latest safely — RetryPreparationFailed, retry available.
+    {
+        let mut state = make_state();
+        let (preparation, first, _second) = install_correlated_smart_pull_preparation(&mut state);
+        complete_smart_pull_preparation(
+            &mut state,
+            &preparation,
+            vec![make_project_status(first.id.clone(), Some("origin/main"))], // missing one id
+        );
+        assert!(matches!(
+            state.sync.phase,
+            SyncPhase::RetryPreparationFailed
+        ));
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        assert_entry_never_starts_a_change(
+            "get_latest.RetryPreparationFailed",
+            &lf.order,
+            lf.entry.as_ref(),
+        );
+    }
+
+    // Save release point — ValidationReady, readable (entry: Cancel, not
+    // "Save"/`ExecuteConfirmed`).
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.freezer.phase =
+            FreezerPhase::ValidationReady(ready_freeze_validation(&project, "v1.0.0"));
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        assert_entry_never_starts_a_change(
+            "release.ValidationReady(readable)",
+            &lf.order,
+            lf.entry.as_ref(),
+        );
+    }
+
+    // Save release point — ValidationReady, an unreadable project (entry:
+    // Details, still never "Save").
+    {
+        let mut state = make_state();
+        state.freezer.phase = FreezerPhase::ValidationReady(FreezeValidation {
+            freeze_name: "v1.0.0".to_owned(),
+            entries: vec![FreezeValidationEntry {
+                project_id: ProjectId::new(),
+                project_name: "unreadable".to_owned(),
+                notes: Vec::new(),
+                blockers: vec![FreezeBlocker::Unreadable {
+                    reason: "disk error".to_owned(),
+                }],
+            }],
+        });
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        assert_entry_never_starts_a_change(
+            "release.ValidationReady(unreadable)",
+            &lf.order,
+            lf.entry.as_ref(),
+        );
+    }
+
+    // Save release point — Done, share offer shown (entry: "Not now",
+    // never "Push").
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        let result = FreezeResult {
+            freeze_name: "v1.0.0".to_owned(),
+            project_results: vec![FreezeProjectResult {
+                project_id: project.id.clone(),
+                project_name: project.name.clone(),
+                success: true,
+                commands_executed: Vec::new(),
+                stdout: String::new(),
+                stderr: String::new(),
+                rollback_attempted: false,
+                rollback_succeeded: None,
+                recovery_hint: None,
+            }],
+            outcome: FreezeOutcome::Success,
+        };
+        install_pending_push(&mut state, &result.freeze_name, project.id.clone());
+        state.freezer.phase = FreezerPhase::Done(result);
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        assert_entry_never_starts_a_change(
+            "release.Done(share offer shown)",
+            &lf.order,
+            lf.entry.as_ref(),
+        );
+    }
+
+    // Change work area — ConfirmSwitch (entry: Cancel, never
+    // `SwitchConfirmed`).
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        install_workspaces(
+            &mut state,
+            vec![Workspace {
+                projects: vec![project.clone()],
+                ..Workspace::new("Main")
+            }],
+            0,
+        );
+        dispatch(
+            &mut state,
+            Message::Context(ContextMessage::SwitchTargetChosen(
+                project.id.clone(),
+                ContextTarget::GitLocalBranch {
+                    name: "feature/foo".to_owned(),
+                },
+                "feature/foo".to_owned(),
+            )),
+        );
+        assert!(matches!(
+            state.context_ops.phase,
+            ContextPhase::ConfirmSwitch { .. }
+        ));
+        let lf = crate::view::overlays::context_switch_layer_focus(&state);
+        assert_entry_never_starts_a_change("switch.ConfirmSwitch", &lf.order, lf.entry.as_ref());
+    }
+
+    // Resolve — Browsing with files (entry: first file's editor target,
+    // never `MarkResolvedRequested`/`AbortMergeRequested`).
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        let detail = ProjectConflictDetail {
+            project_id: project.id.clone(),
+            project_name: project.name.clone(),
+            conflicted_files: vec![ConflictedFile {
+                path: "src/lib.rs".to_owned(),
+                marker: ConflictMarker::BothModified,
+            }],
+            read_error: None,
+        };
+        state.conflict_ops.phase = ConflictPhase::Browsing {
+            project_id: project.id.clone(),
+            detail,
+        };
+        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        assert_entry_never_starts_a_change(
+            "resolve.Browsing(with files)",
+            &lf.order,
+            lf.entry.as_ref(),
+        );
+    }
+
+    // Resolve — ConfirmStop (entry: "Keep fixing" = `StopCancelled`, never
+    // `AbortMergeRequested`).
+    {
+        let project = make_project("svc");
+        let detail = ProjectConflictDetail {
+            project_id: project.id.clone(),
+            project_name: project.name.clone(),
+            conflicted_files: Vec::new(),
+            read_error: None,
+        };
+        let state = confirm_stop_state(&project, detail);
+        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        assert_entry_never_starts_a_change("resolve.ConfirmStop", &lf.order, lf.entry.as_ref());
+    }
+
+    // Workspace delete dialog — entry: Cancel, never
+    // `DeleteWorkspaceConfirmed` — the reading-order reorder Stage 1 gave
+    // this dialog (`delete_dialog_tab_order_is_close_confirm_cancel_...`)
+    // makes this the one workspace dialog worth re-checking here.
+    {
+        let mut state = make_state();
+        install_workspaces(
+            &mut state,
+            vec![Workspace::new("Main"), Workspace::new("Lab")],
+            0,
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::DeleteWorkspaceRequested),
+        );
+        let lf = crate::view::workspace_manager::layer_focus(&state);
+        assert_entry_never_starts_a_change("workspace_mgr.delete", &lf.order, lf.entry.as_ref());
+    }
+
+    // Add project — NameProject step (entry: name field, never
+    // `AddProjectConfirmed`).
+    {
+        let mut state = make_state();
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectPathChanged(
+                "/tmp/demo".to_owned(),
+            )),
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectNextStep),
+        );
+        let lf = crate::view::add_project_modal::layer_focus(&state);
+        assert_entry_never_starts_a_change("add_project.NameProject", &lf.order, lf.entry.as_ref());
+    }
+
+    // Remove project — entry: "Keep", never `RemoveProjectConfirmed`.
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        install_workspaces(
+            &mut state,
+            vec![Workspace {
+                projects: vec![project.clone()],
+                ..Workspace::new("Main")
+            }],
+            0,
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::RemoveProjectRequested(project.id)),
+        );
+        let lf = crate::view::dashboard::remove_project_layer_focus(&state);
+        assert_entry_never_starts_a_change("remove_project", &lf.order, lf.entry.as_ref());
+    }
 }
 
 /// RFC-066 D2: Remove project's entry is "Keep" —
