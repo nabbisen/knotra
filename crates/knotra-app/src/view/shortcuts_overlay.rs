@@ -7,16 +7,22 @@
 #![cfg_attr(test, allow(dead_code))]
 //! RFC-0016 — Keyboard shortcuts cheat-sheet overlay.
 //!
-//! RFC-049: `BINDINGS`' `context`/`desc` fields were `&'static str` English
-//! text, invisible to RFC-048's text-outside-the-catalog guard because they
-//! are field accesses, not literal call arguments (that guard's own doc
-//! comment names this as a blind spot). `Binding` now stores `context_key`/
-//! `desc_key` — catalog keys, resolved at render time — the same
-//! `label_key` shape `StatusSummary` and `RetryExclusionReason::i18n_key()`
-//! already use. `keys` stays a literal (D1): `Esc`, `Ctrl`, `⌘` are
-//! hardware legends, identical on a Japanese keyboard, and translating them
-//! would break the correspondence between the overlay and the key being
-//! hunted for.
+//! RFC-066 D7: the table became the RFC's own nine rows — exactly what
+//! `app::shortcut_for` recognizes, not a hand-maintained list that could
+//! drift from it. `app.rs`'s own test module asserts each row's example
+//! key press maps through `shortcut_for` to the row's message, and that
+//! every `ShortcutMessage` `shortcut_for` can produce is exercised by some
+//! row (the one exception, `MousePressed`, is never produced by
+//! `shortcut_for` — it comes from the separate mouse subscription, not a
+//! keyboard row).
+//!
+//! RFC-049: `Binding`'s `where`/`action` fields are catalog keys, resolved
+//! at render time — the same `label_key` shape `StatusSummary` and
+//! `RetryExclusionReason::i18n_key()` already use, so RFC-048's
+//! text-outside-the-catalog guard can see them. `keys` stays a literal
+//! (D1): `Esc`, `Ctrl` are hardware legends, identical on a Japanese
+//! keyboard, and translating them would break the correspondence between
+//! the overlay and the key being hunted for.
 
 use iced::{
     Alignment, Element, Length,
@@ -49,107 +55,58 @@ pub fn layer_focus() -> LayerFocus<Message> {
     }
 }
 
-struct Binding {
-    keys: &'static str,
-    context_key: &'static str,
-    desc_key: &'static str,
+pub(crate) struct Binding {
+    pub(crate) keys: &'static str,
+    where_key: &'static str,
+    action_key: &'static str,
 }
 
-const BINDINGS: &[Binding] = &[
+/// RFC D7's own nine rows, in the RFC's own order.
+pub(crate) const BINDINGS: &[Binding] = &[
     Binding {
-        keys: "Ctrl+K / ⌘K",
-        context_key: "shortcut.ctx_global",
-        desc_key: "shortcut.desc_open_palette",
+        keys: "Tab / Shift+Tab",
+        where_key: "shortcut.where_everywhere",
+        action_key: "shortcut.action_focus_move",
     },
     Binding {
-        keys: "?",
-        context_key: "shortcut.ctx_global",
-        desc_key: "shortcut.desc_toggle_cheatsheet",
-    },
-    Binding {
-        keys: "Ctrl+R",
-        context_key: "shortcut.ctx_global",
-        desc_key: "shortcut.desc_refresh_workspace",
-    },
-    Binding {
-        keys: "⌘1 … ⌘9",
-        context_key: "shortcut.ctx_global",
-        desc_key: "shortcut.desc_switch_workspace_by_index",
-    },
-    Binding {
-        keys: "/",
-        context_key: "shortcut.ctx_dashboard",
-        desc_key: "shortcut.desc_focus_search",
-    },
-    Binding {
-        keys: "↑ / ↓ / j / k",
-        context_key: "shortcut.ctx_dashboard",
-        desc_key: "shortcut.desc_move_focus",
-    },
-    Binding {
-        keys: "Space",
-        context_key: "shortcut.ctx_dashboard",
-        desc_key: "shortcut.desc_toggle_card_selection",
-    },
-    Binding {
-        keys: "Shift+Space",
-        context_key: "shortcut.ctx_dashboard",
-        desc_key: "shortcut.desc_range_select",
-    },
-    Binding {
-        keys: "Ctrl+A / ⌘A",
-        context_key: "shortcut.ctx_dashboard",
-        desc_key: "shortcut.desc_select_all",
+        keys: "Enter / Space",
+        where_key: "shortcut.where_everywhere",
+        action_key: "shortcut.action_press",
     },
     Binding {
         keys: "Esc",
-        context_key: "shortcut.ctx_dashboard",
-        desc_key: "shortcut.desc_clear_selection",
-    },
-    Binding {
-        keys: "f",
-        context_key: "shortcut.ctx_selection",
-        desc_key: "shortcut.desc_fetch",
-    },
-    Binding {
-        keys: "p",
-        context_key: "shortcut.ctx_selection",
-        desc_key: "shortcut.desc_pull",
-    },
-    Binding {
-        keys: "t",
-        context_key: "shortcut.ctx_selection",
-        desc_key: "shortcut.desc_tag",
-    },
-    Binding {
-        keys: "b",
-        context_key: "shortcut.ctx_selection",
-        desc_key: "shortcut.desc_switch_branch",
-    },
-    Binding {
-        keys: "g h",
-        context_key: "shortcut.ctx_global",
-        desc_key: "shortcut.desc_goto_history",
-    },
-    Binding {
-        keys: "g s",
-        context_key: "shortcut.ctx_global",
-        desc_key: "shortcut.desc_goto_settings",
-    },
-    Binding {
-        keys: "Esc",
-        context_key: "shortcut.ctx_modal",
-        desc_key: "shortcut.desc_close_modal",
+        where_key: "shortcut.where_everywhere",
+        action_key: "shortcut.action_close_or_clear",
     },
     Binding {
         keys: "↑ / ↓",
-        context_key: "shortcut.ctx_palette",
-        desc_key: "shortcut.desc_navigate_results",
+        where_key: "shortcut.where_window",
+        action_key: "shortcut.action_focus_move",
     },
     Binding {
-        keys: "Enter",
-        context_key: "shortcut.ctx_palette",
-        desc_key: "shortcut.desc_confirm_entry",
+        keys: "↑ / ↓ / j / k",
+        where_key: "shortcut.ctx_dashboard",
+        action_key: "shortcut.action_move_between_projects",
+    },
+    Binding {
+        keys: "/ or Ctrl+/",
+        where_key: "shortcut.ctx_dashboard",
+        action_key: "shortcut.action_go_to_search",
+    },
+    Binding {
+        keys: "Ctrl+R",
+        where_key: "shortcut.where_main_screens",
+        action_key: "shortcut.action_check_now",
+    },
+    Binding {
+        keys: "Ctrl+K",
+        where_key: "shortcut.where_main_screens",
+        action_key: "shortcut.action_change_work_area",
+    },
+    Binding {
+        keys: "Ctrl+T",
+        where_key: "shortcut.where_main_screens",
+        action_key: "shortcut.action_save_release_point",
     },
 ];
 
@@ -183,7 +140,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         text(state.t("shortcut.column_keys"))
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
-        text(state.t("shortcut.column_context"))
+        text(state.t("shortcut.column_where"))
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
         text(state.t("shortcut.column_action"))
@@ -199,10 +156,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 text(b.keys)
                     .size(snora::design::style::text::body_small_size(tokens))
                     .line_height(snora::design::style::text::body_small_line_height(tokens)),
-                text(state.t(b.context_key))
+                text(state.t(b.where_key))
                     .size(snora::design::style::text::body_small_size(tokens))
                     .line_height(snora::design::style::text::body_small_line_height(tokens)),
-                text(state.t(b.desc_key))
+                text(state.t(b.action_key))
                     .size(snora::design::style::text::body_small_size(tokens))
                     .line_height(snora::design::style::text::body_small_line_height(tokens)),
             ]
@@ -227,11 +184,11 @@ mod tests {
 
     /// RFC-049 D4/R6: `every_literal_t_call_names_an_existing_key` only sees
     /// literal `t(...)` calls written with the key inline — resolving
-    /// `b.context_key`/`b.desc_key` through a variable is invisible to it,
+    /// `b.where_key`/`b.action_key` through a variable is invisible to it,
     /// the same gap RFC-038 needed a dedicated guard for (`label_en`,
     /// `061`/`062`). Driven from `BINDINGS` itself, not a hand-copied list
-    /// of the 24 keys, so a new row added without adding its keys fails
-    /// here rather than shipping a key rendered as its own name.
+    /// of keys, so a new row added without adding its keys fails here
+    /// rather than shipping a key rendered as its own name.
     #[test]
     fn every_binding_key_resolves_in_both_catalogs() {
         let en = Catalog::for_locale(Locale::En);
@@ -239,7 +196,7 @@ mod tests {
 
         let mut missing = Vec::new();
         for b in BINDINGS {
-            for key in [b.context_key, b.desc_key] {
+            for key in [b.where_key, b.action_key] {
                 if !en.contains_key(key) {
                     missing.push(format!("{key} (missing from English)"));
                 }

@@ -830,61 +830,40 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("detail.commits_loading", "Loading commits…");
     m.insert("detail.commits_empty", "No commits yet.");
     m.insert("detail.commits_error", "Could not read commits:");
-    // RFC-048 D2 / RFC-049: the keyboard-shortcuts cheat sheet's own
-    // `shortcut.*` keys. RFC-048 added these four (title, three column
-    // headers) beside four *other* `shortcut.*` keys that looked like live
-    // shell hints but were not — nothing rendered them, and one described a
-    // `Ctrl+T` binding that does not exist anywhere in the code. RFC-049
-    // removed those four (both locales), corrected this comment (it used to
-    // vouch for them as "already localised... shell's own shortcut hints",
-    // which is what made them look load-bearing), and moved the table's
-    // `context`/`desc` fields to catalog keys too (D2) — `keys` (`Esc`,
-    // `Ctrl`, `⌘` …) stays a literal, since those are hardware legends, the
-    // same on a Japanese keyboard, and translating them would break the
-    // correspondence between the overlay and the key being hunted for.
+    // RFC-066 D7: the keyboard-shortcuts cheat sheet's table became the
+    // RFC's own nine rows, each with a "Where" and an "Action" catalog
+    // key — `keys` (`Esc`, `Ctrl` …) stays a literal, since those are
+    // hardware legends, the same on a Japanese keyboard, and translating
+    // them would break the correspondence between the overlay and the key
+    // being hunted for. The column header "Context" became "Where" (the
+    // RFC's own wording), so the key is renamed with it, not just its
+    // value, to avoid a header-key name that no longer matches what it
+    // holds.
     m.insert("shortcut.overlay_title", "Keyboard Shortcuts");
     m.insert("shortcut.column_keys", "Keys");
-    m.insert("shortcut.column_context", "Context");
+    m.insert("shortcut.column_where", "Where");
     m.insert("shortcut.column_action", "Action");
-    m.insert("shortcut.ctx_global", "Global");
+    m.insert("shortcut.where_everywhere", "Everywhere");
+    m.insert("shortcut.where_window", "In a window");
     m.insert("shortcut.ctx_dashboard", "Dashboard");
-    m.insert("shortcut.ctx_selection", "Selection");
-    m.insert("shortcut.ctx_modal", "Modal");
-    m.insert("shortcut.ctx_palette", "Palette");
-    m.insert("shortcut.desc_open_palette", "Open command palette");
+    m.insert("shortcut.where_main_screens", "Main screens");
     m.insert(
-        "shortcut.desc_toggle_cheatsheet",
-        "Show / hide this cheat sheet",
+        "shortcut.action_focus_move",
+        "Move to the next or previous control",
     );
-    m.insert("shortcut.desc_refresh_workspace", "Refresh workspace");
+    m.insert("shortcut.action_press", "Press the highlighted control");
     m.insert(
-        "shortcut.desc_switch_workspace_by_index",
-        "Switch workspace by index",
+        "shortcut.action_close_or_clear",
+        "Close the open window, or clear the selection",
     );
-    m.insert("shortcut.desc_focus_search", "Focus search field");
-    m.insert("shortcut.desc_move_focus", "Move focus between cards");
     m.insert(
-        "shortcut.desc_toggle_card_selection",
-        "Toggle selection on focused card",
+        "shortcut.action_move_between_projects",
+        "Move between projects",
     );
-    m.insert("shortcut.desc_range_select", "Range-select to focused card");
-    m.insert("shortcut.desc_select_all", "Select all visible projects");
-    m.insert(
-        "shortcut.desc_clear_selection",
-        "Clear selection / close dialog",
-    );
-    m.insert("shortcut.desc_fetch", "Check for updates (fetch)");
-    m.insert("shortcut.desc_pull", "Get latest safely (pull)");
-    m.insert("shortcut.desc_tag", "Save release point (tag)");
-    m.insert(
-        "shortcut.desc_switch_branch",
-        "Change work area (switch branch)",
-    );
-    m.insert("shortcut.desc_goto_history", "Go to History");
-    m.insert("shortcut.desc_goto_settings", "Go to Settings");
-    m.insert("shortcut.desc_close_modal", "Close modal / palette");
-    m.insert("shortcut.desc_navigate_results", "Navigate results");
-    m.insert("shortcut.desc_confirm_entry", "Confirm highlighted entry");
+    m.insert("shortcut.action_go_to_search", "Go to the search field");
+    m.insert("shortcut.action_check_now", "Check now");
+    m.insert("shortcut.action_change_work_area", "Change work area");
+    m.insert("shortcut.action_save_release_point", "Save release point");
     m
 }
 
@@ -1629,50 +1608,29 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("detail.commits_error", "コミットを読み込めませんでした:");
     m.insert("shortcut.overlay_title", "キーボードショートカット");
     m.insert("shortcut.column_keys", "キー");
-    m.insert("shortcut.column_context", "コンテキスト");
+    m.insert("shortcut.column_where", "場所");
     m.insert("shortcut.column_action", "アクション");
-    m.insert("shortcut.ctx_global", "グローバル");
+    m.insert("shortcut.where_everywhere", "どこでも");
+    m.insert("shortcut.where_window", "画面内");
     m.insert("shortcut.ctx_dashboard", "ダッシュボード");
-    m.insert("shortcut.ctx_selection", "選択");
-    m.insert("shortcut.ctx_modal", "モーダル");
-    m.insert("shortcut.ctx_palette", "パレット");
-    m.insert("shortcut.desc_open_palette", "コマンドパレットを開く");
+    m.insert("shortcut.where_main_screens", "メイン画面");
+    m.insert("shortcut.action_focus_move", "次または前の項目へ移動");
+    m.insert("shortcut.action_press", "強調表示中の項目を押す");
     m.insert(
-        "shortcut.desc_toggle_cheatsheet",
-        "このチートシートの表示切り替え",
-    );
-    m.insert("shortcut.desc_refresh_workspace", "ワークスペースを更新");
-    m.insert(
-        "shortcut.desc_switch_workspace_by_index",
-        "番号でワークスペースを切り替え",
-    );
-    m.insert("shortcut.desc_focus_search", "検索欄にフォーカス");
-    m.insert("shortcut.desc_move_focus", "カード間でフォーカス移動");
-    m.insert(
-        "shortcut.desc_toggle_card_selection",
-        "フォーカス中のカードの選択切り替え",
+        "shortcut.action_close_or_clear",
+        "開いている画面を閉じる、または選択を解除",
     );
     m.insert(
-        "shortcut.desc_range_select",
-        "フォーカス中のカードまで範囲選択",
+        "shortcut.action_move_between_projects",
+        "プロジェクト間を移動",
     );
-    m.insert("shortcut.desc_select_all", "表示中の全プロジェクトを選択");
+    m.insert("shortcut.action_go_to_search", "検索欄へ移動");
+    m.insert("shortcut.action_check_now", "今すぐ確認");
+    m.insert("shortcut.action_change_work_area", "作業エリアを変更");
     m.insert(
-        "shortcut.desc_clear_selection",
-        "選択解除 / ダイアログを閉じる",
+        "shortcut.action_save_release_point",
+        "リリースポイントを保存",
     );
-    m.insert("shortcut.desc_fetch", "更新を確認 (fetch)");
-    m.insert("shortcut.desc_pull", "安全に最新化 (pull)");
-    m.insert("shortcut.desc_tag", "リリース地点を保存 (tag)");
-    m.insert(
-        "shortcut.desc_switch_branch",
-        "作業エリアを変更 (ブランチ切替)",
-    );
-    m.insert("shortcut.desc_goto_history", "履歴へ移動");
-    m.insert("shortcut.desc_goto_settings", "設定へ移動");
-    m.insert("shortcut.desc_close_modal", "モーダル / パレットを閉じる");
-    m.insert("shortcut.desc_navigate_results", "結果を移動");
-    m.insert("shortcut.desc_confirm_entry", "選択中の項目を確定");
     m
 }
 

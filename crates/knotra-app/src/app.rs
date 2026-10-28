@@ -630,6 +630,153 @@ mod tests {
         assert_eq!(shortcut_for_event(event), Some(ShortcutMessage::Close));
     }
 
+    /// RFC-066 D7/R7: the sheet's nine rows, each with an example `(Key,
+    /// Modifiers)` and the `ShortcutMessage` it must produce through
+    /// `shortcut_for`. A row whose "Keys" column lists more than one key
+    /// (e.g. "Tab / Shift+Tab") is exercised at every key it lists, not
+    /// just one — the point of "an example per row" is that the sheet
+    /// cannot lie, and a sheet that shows a key this test never checks
+    /// could still lie about it. `shortcut_for` never produces
+    /// `ShortcutMessage::MousePressed` (the mouse subscription constructs
+    /// it directly, not through a keyboard row), so it is the one variant
+    /// this test does not require a row for.
+    #[test]
+    fn every_sheet_row_maps_through_shortcut_for_and_every_shortcut_message_has_a_row() {
+        use keyboard::key::Named;
+        let ctrl = keyboard::Modifiers::CTRL;
+        let none = keyboard::Modifiers::empty();
+        let shift = keyboard::Modifiers::SHIFT;
+
+        // (row index into `shortcuts_overlay::BINDINGS`, the key pressed,
+        // its modifiers, the message `shortcut_for` must produce for it).
+        let cases: &[(usize, keyboard::Key, keyboard::Modifiers, ShortcutMessage)] = &[
+            (
+                0,
+                keyboard::Key::Named(Named::Tab),
+                none,
+                ShortcutMessage::FocusNext,
+            ),
+            (
+                0,
+                keyboard::Key::Named(Named::Tab),
+                shift,
+                ShortcutMessage::FocusPrevious,
+            ),
+            (
+                1,
+                keyboard::Key::Named(Named::Enter),
+                none,
+                ShortcutMessage::ActivateFocused,
+            ),
+            (
+                1,
+                keyboard::Key::Named(Named::Space),
+                none,
+                ShortcutMessage::ActivateFocused,
+            ),
+            (
+                2,
+                keyboard::Key::Named(Named::Escape),
+                none,
+                ShortcutMessage::Close,
+            ),
+            (
+                3,
+                keyboard::Key::Named(Named::ArrowUp),
+                none,
+                ShortcutMessage::ArrowUp,
+            ),
+            (
+                3,
+                keyboard::Key::Named(Named::ArrowDown),
+                none,
+                ShortcutMessage::ArrowDown,
+            ),
+            (
+                4,
+                keyboard::Key::Character("j".into()),
+                none,
+                ShortcutMessage::CardFocusNext,
+            ),
+            (
+                4,
+                keyboard::Key::Character("k".into()),
+                none,
+                ShortcutMessage::CardFocusPrevious,
+            ),
+            (
+                5,
+                keyboard::Key::Character("/".into()),
+                none,
+                ShortcutMessage::FocusSearchBare,
+            ),
+            (
+                5,
+                keyboard::Key::Character("/".into()),
+                ctrl,
+                ShortcutMessage::FocusSearch,
+            ),
+            (
+                6,
+                keyboard::Key::Character("r".into()),
+                ctrl,
+                ShortcutMessage::Refresh,
+            ),
+            (
+                7,
+                keyboard::Key::Character("k".into()),
+                ctrl,
+                ShortcutMessage::OpenContextOps,
+            ),
+            (
+                8,
+                keyboard::Key::Character("t".into()),
+                ctrl,
+                ShortcutMessage::OpenFreezer,
+            ),
+        ];
+
+        assert_eq!(
+            crate::view::shortcuts_overlay::BINDINGS.len(),
+            9,
+            "RFC D7 has nine rows — update `cases` above if this changes"
+        );
+
+        let mut covered: Vec<ShortcutMessage> = Vec::new();
+        for (row, key, modifiers, expected) in cases {
+            let row_label = crate::view::shortcuts_overlay::BINDINGS[*row].keys;
+            assert_eq!(
+                shortcut_for(key, *modifiers),
+                Some(expected.clone()),
+                "row {row} ({row_label}): {key:?} with {modifiers:?} must map to {expected:?}"
+            );
+            covered.push(expected.clone());
+        }
+
+        let all_producible = [
+            ShortcutMessage::Refresh,
+            ShortcutMessage::OpenContextOps,
+            ShortcutMessage::OpenFreezer,
+            ShortcutMessage::FocusSearch,
+            ShortcutMessage::Close,
+            ShortcutMessage::FocusNext,
+            ShortcutMessage::FocusPrevious,
+            ShortcutMessage::ActivateFocused,
+            ShortcutMessage::FocusSearchBare,
+            ShortcutMessage::CardFocusNext,
+            ShortcutMessage::CardFocusPrevious,
+            ShortcutMessage::ArrowDown,
+            ShortcutMessage::ArrowUp,
+        ];
+        for message in &all_producible {
+            assert!(
+                covered.contains(message),
+                "{message:?} is producible by shortcut_for but has no row \
+                 (MousePressed is the one exception — see this test's doc comment)"
+            );
+        }
+    }
+
     /// RFC-051 R2: `window_width` and `width_mode` are both set on the same
     /// line in `Message::WindowResized`'s handler, so they cannot drift in
     /// that handler today — but the only way they *could* drift is someone
