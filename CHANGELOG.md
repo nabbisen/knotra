@@ -9,6 +9,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — every window can be used from the keyboard
+
+Opening a window now moves keyboard focus into it, onto a control that changes nothing.
+Tab and the arrow keys move only inside the window, Enter presses the highlighted control,
+and Escape closes it. The focus outline appears only while you use the keyboard.
+"Remove project" now asks in a window on every screen, and the keyboard shortcuts list
+shows exactly the keys that work.
+
 ### Fixed — every key press re-checked all projects
 
 Pressing or releasing a key that is not a shortcut made knotra re-check the status of
