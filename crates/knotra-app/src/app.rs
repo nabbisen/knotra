@@ -37,7 +37,7 @@ use crate::{
     fs_watcher::fs_watch_subscription,
     message::{
         BackgroundMessage, ContextMessage, FreezerMessage, KeyboardMessage, Message,
-        ShortcutMessage,
+        ShortcutMessage, WorkspaceMessage,
     },
     persistence::{load_recent_logs, load_workspaces},
     state::{AppState, LoadPhase, focus},
@@ -363,7 +363,13 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
         return Task::none();
     }
     match msg {
-        ShortcutMessage::Refresh => handle_tick(state),
+        // RFC-066 D7: the same message the "Check now" button sends
+        // (`workspace.rs`'s own `RefreshRequested` arm), not `handle_tick`
+        // — the two were not quite identical (the button also sets
+        // `status_bar`), so Ctrl+R used to skip that status line.
+        ShortcutMessage::Refresh => {
+            workspace::handle_workspace(state, WorkspaceMessage::RefreshRequested)
+        }
         ShortcutMessage::OpenContextOps => {
             context::handle_context(state, ContextMessage::OpenRequested(None))
         }

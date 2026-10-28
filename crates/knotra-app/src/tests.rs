@@ -3439,6 +3439,23 @@ fn shortcut_refresh_does_nothing_while_a_window_is_open() {
     assert!(!state.is_refreshing);
 }
 
+/// RFC-066 D7: `Ctrl+R` now sends the exact message the "Check now" button
+/// sends (`WorkspaceMessage::RefreshRequested`), not `handle_tick` directly
+/// — the two were not quite identical: only `RefreshRequested` sets
+/// `status_bar`, so Ctrl+R used to refresh silently where the button did
+/// not.
+#[test]
+fn shortcut_refresh_sets_the_status_bar_like_the_check_now_button() {
+    let mut state = make_state();
+    state.is_refreshing = false;
+    state.status_bar = None;
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Refresh));
+
+    assert!(state.is_refreshing);
+    assert!(state.status_bar.is_some());
+}
+
 #[test]
 fn changelog_escape_clears_stale_collection_like_close_does() {
     let mut state = make_state();
