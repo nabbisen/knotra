@@ -3,12 +3,73 @@
 
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, danger_maybe, ghost_maybe};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, style};
 
 use crate::{
     message::{FilterMessage, Message, WorkspaceMessage},
-    state::AppState,
+    state::{
+        AppState,
+        focus::{FocusTarget, LayerFocus},
+    },
 };
+
+mod focus_target {
+    pub const KEEP: &str = "remove_project.keep";
+    pub const REMOVE: &str = "remove_project.remove";
+}
+
+/// RFC-066 D2: order and entry for Remove project — `["Keep", "Remove from
+/// list"]`, entry "Keep" (`RemoveProjectConfirmed` starts a change). Still
+/// rendered inline (Stage 3's D6 makes it a real dialog over any screen);
+/// `None` while no confirmation is pending, the general "no controls" rule.
+pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
+    let Some(dialog) = &state.confirm_remove_dialog else {
+        return LayerFocus {
+            order: Vec::new(),
+            entry: None,
+        };
+    };
+    let keep_target = FocusTarget::control(focus_target::KEEP);
+    LayerFocus {
+        order: vec![
+            (
+                keep_target.clone(),
+                Some(Message::Workspace(WorkspaceMessage::RemoveProjectCancelled)),
+            ),
+            (
+                FocusTarget::control(focus_target::REMOVE),
+                Some(Message::Workspace(
+                    WorkspaceMessage::RemoveProjectConfirmed(dialog.project_id.clone()),
+                )),
+            ),
+        ],
+        entry: Some(keep_target),
+    }
+}
+
+/// A button styled with one of `knotra_ui::widget::style`'s semantic
+/// functions plus a focus ring (RFC-066 D4) — the same shape every other
+/// overlay's local `styled_button` uses. Replaces `ghost_maybe`/
+/// `danger_maybe`, neither of which can draw the outline.
+fn styled_button<'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    on_press: Option<Message>,
+    is_focused: bool,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+) -> Element<'a, Message> {
+    let t = tokens.clone();
+    button(centered_button_label(
+        text(label)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    ))
+    .height(BUTTON_HEIGHT)
+    .padding([0, 18])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
+    .into()
+}
 
 pub(super) fn view_without_workspace(state: &AppState) -> Element<'_, Message> {
     placeholder(&state.theme.tokens, state.t("plain.status.checking"))
@@ -72,27 +133,27 @@ pub(super) fn view_confirm_remove_dialog(state: &AppState) -> Element<'_, Messag
                 .size(snora::design::style::text::body_small_size(tokens))
                 .line_height(snora::design::style::text::body_small_line_height(tokens)),
             row![
-                // Neither call here ever carried a `reason` (both passed
-                // `None`), so the plain `_maybe` constructors are the
-                // better target than `reasoned` — RFC-037 Stage 6 §1b.
-                // `danger_maybe` for the confirm button is a primitive-fit
-                // improvement, not just a restyle: this is an irreversible
-                // action (removes a project), which is exactly what
-                // `buttons.rs`'s `danger`/`danger_maybe` doc comment names
-                // as their reason for existing, and `guided_button` had no
-                // equivalent semantic distinction from the Cancel button
-                // beside it.
-                ghost_maybe(
+                // RFC-066 D4: moved off `ghost_maybe`/`danger_maybe` onto
+                // `styled_button` — neither `*_maybe` helper can draw the
+                // focus outline. `danger` for the confirm button is still
+                // the semantically-correct choice for this irreversible
+                // action (removes a project) — see `buttons.rs`'s
+                // `danger`/`danger_maybe` doc comment.
+                styled_button(
                     tokens,
                     state.t("confirm.remove_no"),
                     Some(Message::Workspace(WorkspaceMessage::RemoveProjectCancelled)),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::KEEP)),
+                    style::ghost,
                 ),
-                danger_maybe(
+                styled_button(
                     tokens,
                     state.t("plain.remove.confirm"),
                     Some(Message::Workspace(
                         WorkspaceMessage::RemoveProjectConfirmed(dialog.project_id.clone(),)
                     )),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::REMOVE)),
+                    style::danger,
                 ),
             ]
             .spacing(12),

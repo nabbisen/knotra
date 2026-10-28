@@ -763,6 +763,33 @@ fn activate_focused_with_visible_ring_would_press_the_target() {
     ));
 }
 
+/// RFC-066 D2: Remove project's entry is "Keep" —
+/// `RemoveProjectConfirmed` starts a change, so it is never the entry.
+#[test]
+fn remove_project_entry_is_keep() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    let project_id = project.id.clone();
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::RemoveProjectRequested(project_id)),
+    );
+
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::control("remove_project.keep"))
+    );
+}
+
 /// RFC-066 D2: the shortcuts sheet's entry is "Close" — its only control.
 #[test]
 fn shortcuts_sheet_entry_is_close() {

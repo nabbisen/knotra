@@ -27,6 +27,7 @@ mod section;
 mod toolbar;
 mod width_mode;
 
+pub(crate) use empty::layer_focus as remove_project_layer_focus;
 use empty::{empty_workspace, no_matches, view_confirm_remove_dialog, view_without_workspace};
 use row::{action_key, checkbox_key, name_key};
 use section::{focus_key, view_section};

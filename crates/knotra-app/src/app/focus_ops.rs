@@ -42,20 +42,16 @@ pub(super) fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<
 /// every layer's `layer_focus` is looked up, so [`overlay_focus_order`] and
 /// [`settle_layer_focus`] always see the same answer.
 ///
-/// The three workspace dialogs, Save release point, Resolve, Generate
-/// notes, Change work area, Get latest safely, the command palette, Add
-/// project, the workspace switcher menu and the shortcuts sheet all have
-/// their own real, full `layer_focus` now (each window's own module), per
-/// phase or step. Add project's order staying step-scoped (the folder
-/// field's controls while choosing one, the name field's once chosen —
-/// see `add_project_modal::layer_focus`) is also the Add-project defect's
-/// fix: a failed "Next" changes neither the step nor the layer, so the
-/// held target never falls out of its own step's order, and focus simply
-/// stays on the folder field.
-///
-/// Remove project is still here — it had no open-site focus call before
-/// this RFC either, so `None` really is "as today," pending Stage 3's own
-/// real dialog (D6).
+/// Every layer now has its own real `layer_focus` (each window's own
+/// module), per phase or step — Stage 2 completes the sweep Stage 1
+/// started with the three workspace dialogs. Add project's order staying
+/// step-scoped (the folder field's controls while choosing one, the name
+/// field's once chosen — see `add_project_modal::layer_focus`) is also the
+/// Add-project defect's fix: a failed "Next" changes neither the step nor
+/// the layer, so the held target never falls out of its own step's order,
+/// and focus simply stays on the folder field. Remove project's order
+/// stays small (`["Keep", "Remove from list"]`) because it is still
+/// rendered inline, not as a window — Stage 3's D6 makes it a real dialog.
 pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<Message> {
     match layer {
         Layer::WorkspaceCreate | Layer::WorkspaceRename | Layer::WorkspaceDelete => {
@@ -70,10 +66,7 @@ pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<
         Layer::GetLatest => smart_pull_layer_focus(state),
         Layer::WorkspaceMenu => shell::switcher_menu_layer_focus(state),
         Layer::ShortcutsSheet => shortcuts_overlay::layer_focus(),
-        Layer::RemoveProject => focus::LayerFocus {
-            order: Vec::new(),
-            entry: None,
-        },
+        Layer::RemoveProject => dashboard::remove_project_layer_focus(state),
     }
 }
 
