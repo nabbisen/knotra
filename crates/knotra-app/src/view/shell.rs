@@ -72,15 +72,6 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
     ]
 }
 
-/// Whether the shell control keyed `key` currently draws the RFC-036 focus
-/// ring — plain equality against `state.dashboard_focus`, not
-/// `focus::resolve`'s stale-target fallback: rendering shows a ring only
-/// where knotra-focus genuinely and currently sits, never a guessed
-/// substitute (`resolve`'s fallback is for Tab/activation, not display).
-fn is_focused(state: &AppState, key: &'static str) -> bool {
-    state.dashboard_focus.as_ref() == Some(&FocusTarget::control(key))
-}
-
 /// Height of the persistent shell bar (RFC-033 D7: 48-52px). Also used to
 /// position the switcher dropdown (`header_menu`) directly beneath it, since
 /// `AppLayout` renders `header_menu` as its own full-window stack layer with
@@ -126,7 +117,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .on_press(Message::Workspace(WorkspaceMessage::SwitcherToggled))
     .style({
         let t = tokens.clone();
-        let focused = is_focused(state, focus_target::WORKSPACE_SWITCHER);
+        let focused = crate::app::ring(
+            state,
+            &FocusTarget::control(focus_target::WORKSPACE_SWITCHER),
+        );
         move |_theme, status| {
             widget::style::with_focus_ring(&t, focused, widget::style::ghost(&t, status))
         }
@@ -165,7 +159,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         &icon::refresh(),
         state.t("plain.check_now"),
         (!state.is_refreshing).then_some(Message::Workspace(WorkspaceMessage::RefreshRequested)),
-        is_focused(state, focus_target::REFRESH),
+        crate::app::ring(state, &FocusTarget::control(focus_target::REFRESH)),
     );
 
     let palette_button = icon_button_maybe(
@@ -173,7 +167,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         &icon::command_palette(),
         state.t("palette.title"),
         Some(Message::Palette(crate::message::PaletteMessage::Opened)),
-        is_focused(state, focus_target::PALETTE),
+        crate::app::ring(state, &FocusTarget::control(focus_target::PALETTE)),
     );
 
     let settings_button = icon_button_maybe(
@@ -181,7 +175,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         &icon::settings(),
         state.t("nav.settings"),
         Some(Message::Navigate(Screen::Settings)),
-        is_focused(state, focus_target::SETTINGS),
+        crate::app::ring(state, &FocusTarget::control(focus_target::SETTINGS)),
     );
 
     let bar = row![
@@ -191,14 +185,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             dashboard_active,
             Screen::Dashboard,
             tokens,
-            is_focused(state, focus_target::NAV_DASHBOARD)
+            crate::app::ring(state, &FocusTarget::control(focus_target::NAV_DASHBOARD))
         ),
         nav_button(
             state.t("nav.history"),
             history_active,
             Screen::History,
             tokens,
-            is_focused(state, focus_target::NAV_HISTORY)
+            crate::app::ring(state, &FocusTarget::control(focus_target::NAV_HISTORY))
         ),
         Space::new().width(Length::Fill),
         status_text,

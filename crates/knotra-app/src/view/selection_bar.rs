@@ -47,10 +47,6 @@ mod focus_target {
     pub const EXIT: &str = "dashboard.selection_bar.exit";
 }
 
-fn is_focused(state: &AppState, key: &'static str) -> bool {
-    state.dashboard_focus.as_ref() == Some(&FocusTarget::control(key))
-}
-
 /// Handoff 031 Finding 1: the selection bar's five controls (four bulk
 /// actions plus Exit selection) had no `focus_order` entry at all — RFC-035
 /// R22 requires every control the dashboard renders be keyboard-reachable,
@@ -176,31 +172,31 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
         tokens,
         state.t("plain.check_for_updates"),
         fetch_msg,
-        is_focused(state, focus_target::FETCH),
+        crate::app::ring(state, &FocusTarget::control(focus_target::FETCH)),
     );
     let pull_btn = action_button(
         tokens,
         state.t("plain.get_latest"),
         pull_msg,
-        is_focused(state, focus_target::PULL),
+        crate::app::ring(state, &FocusTarget::control(focus_target::PULL)),
     );
     let tag_btn = action_button(
         tokens,
         state.t("plain.save_release_point"),
         tag_msg,
-        is_focused(state, focus_target::TAG),
+        crate::app::ring(state, &FocusTarget::control(focus_target::TAG)),
     );
     let switch_btn = action_button(
         tokens,
         state.t("plain.change_work_area"),
         switch_msg,
-        is_focused(state, focus_target::SWITCH),
+        crate::app::ring(state, &FocusTarget::control(focus_target::SWITCH)),
     );
 
     let clear_btn = exit_button(
         tokens,
         state.t("plain.exit_selection"),
-        is_focused(state, focus_target::EXIT),
+        crate::app::ring(state, &FocusTarget::control(focus_target::EXIT)),
     );
 
     let command_row = row![

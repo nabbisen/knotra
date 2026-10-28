@@ -21,6 +21,12 @@ mod workspace;
 #[cfg(test)]
 pub(crate) use conflict_ops::resolve_project_file_path;
 
+// RFC-066 D4: `ring` is how every view module draws the focus outline —
+// `focus_ops` itself stays a private submodule (nothing else in it is
+// meant for `view` to reach), so this one function is re-exported at the
+// `app` boundary instead of widening the whole module's visibility.
+pub(crate) use focus_ops::ring;
+
 use iced::{Element, Subscription, Task, clipboard, keyboard, time};
 use std::time::Duration;
 
@@ -119,7 +125,23 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
     // `width_mode.rs`'s module doc for why).
     let resize_sub = iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size));
 
-    Subscription::batch([tick_sub, keyboard_sub, fs_sub, resize_sub])
+    // RFC-066 D4: clears the focus outline on a mouse button press, from
+    // *anywhere* — `event::listen_with`, not `event::listen()`: verified by
+    // reading `iced_futures-0.14.0/src/event.rs` directly, `listen()`
+    // hardcodes a filter to `Status::Ignored` only (an event no widget
+    // consumed), while `listen_with`'s callback receives every
+    // `Interaction` event's real `Status` — `Captured` or `Ignored` — and
+    // decides for itself. This callback ignores `status` entirely, so a
+    // press a button widget captures still clears the outline, which a
+    // plain `listen()` could not have delivered at all.
+    let mouse_sub = iced::event::listen_with(|event, _status, _window| match event {
+        iced::Event::Mouse(iced::mouse::Event::ButtonPressed(_)) => {
+            Some(Message::Shortcut(ShortcutMessage::MousePressed))
+        }
+        _ => None,
+    });
+
+    Subscription::batch([tick_sub, keyboard_sub, fs_sub, resize_sub, mouse_sub])
 }
 
 /// The `Event`-level half of the keyboard subscription's mapping: only a
@@ -158,14 +180,16 @@ fn shortcut_for(key: &keyboard::Key, modifiers: keyboard::Modifiers) -> Option<S
         // receives the keystroke instead of activating a control.
         keyboard::Key::Named(Named::Enter) => Some(ShortcutMessage::ActivateFocused),
         keyboard::Key::Named(Named::Space) => Some(ShortcutMessage::ActivateFocused),
-        // RFC-035 R22: card arrow-navigation. Confirmed against
+        // RFC-035 R22/RFC-066 D5: arrow-key navigation. Confirmed against
         // `iced_widget::text_input`'s own key handling (0.14.2) that
         // it has no `ArrowUp`/`ArrowDown` branch at all — these are
         // gated in `handle_shortcut` anyway, for the user's typing
         // context rather than a widget-level conflict (see
-        // `ShortcutMessage::CardFocusNext`'s own doc comment).
-        keyboard::Key::Named(Named::ArrowDown) => Some(ShortcutMessage::CardFocusNext),
-        keyboard::Key::Named(Named::ArrowUp) => Some(ShortcutMessage::CardFocusPrevious),
+        // `ShortcutMessage::ArrowDown`'s own doc comment). Separate
+        // messages from `CardFocusNext`/`Previous` (`j`/`k`) since D5
+        // gives arrows a different meaning inside an open window.
+        keyboard::Key::Named(Named::ArrowDown) => Some(ShortcutMessage::ArrowDown),
+        keyboard::Key::Named(Named::ArrowUp) => Some(ShortcutMessage::ArrowUp),
         keyboard::Key::Character(c) => match c.as_str() {
             "r" | "R" if ctrl => Some(ShortcutMessage::Refresh),
             "k" | "K" if ctrl => Some(ShortcutMessage::OpenContextOps),
@@ -296,14 +320,34 @@ fn handle_tick(state: &mut AppState) -> Task<Message> {
 // ---------------------------------------------------------------------------
 
 fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> {
+    // RFC-066 D4: these are the keys that mean "the keyboard is in use" —
+    // set unconditionally, before anything below decides whether the key
+    // does something right now. A mouse press is the only thing that turns
+    // it back off, handled next.
+    if matches!(
+        msg,
+        ShortcutMessage::FocusNext
+            | ShortcutMessage::FocusPrevious
+            | ShortcutMessage::ArrowDown
+            | ShortcutMessage::ArrowUp
+            | ShortcutMessage::CardFocusNext
+            | ShortcutMessage::CardFocusPrevious
+    ) {
+        state.focus_visible = true;
+    }
+    if matches!(msg, ShortcutMessage::MousePressed) {
+        state.focus_visible = false;
+        return Task::none();
+    }
+
     // Task 095 commit 1: while any window is open, these shortcuts act on
     // the screen behind it — `Ctrl+T` and `Ctrl+K` can replace or hide a
     // *running* window (its result never shown), and the search/card-focus
     // keys move focus underneath what the user is looking at. Gated on the
     // same predicate that already means "a window is open" for Tab/Enter
-    // (R5's confinement); Escape, Tab, Shift+Tab, Enter and Space are
-    // deliberately not in this list — they are how the open window itself
-    // is used.
+    // (R5's confinement); Escape, Tab, Shift+Tab, Enter, Space, and
+    // (RFC-066 D5) the arrows are deliberately not in this list — they are
+    // how the open window itself is used.
     if crate::state::layer::top_layer(state).is_some()
         && matches!(
             msg,
@@ -348,10 +392,23 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
         ShortcutMessage::FocusPrevious => {
             focus_ops::advance_focus(state, focus::Direction::Previous)
         }
-        ShortcutMessage::ActivateFocused => focus_ops::activate_focused(state),
+        // RFC-066 D4: with the ring hidden, Enter/Space on a *control*
+        // reveals where focus is instead of pressing it — a text input is
+        // unaffected (R3a's own short-circuit inside `activate_focused`
+        // already gives it the keystroke, so it is not re-checked here).
+        ShortcutMessage::ActivateFocused => {
+            if !state.focus_visible && !focus_ops::current_target_is_text_input(state) {
+                state.focus_visible = true;
+                return Task::none();
+            }
+            focus_ops::activate_focused(state)
+        }
         // RFC-035 R22: gated the same shape as `FocusSearchBare` — a text
         // input holding focus absorbs the keystroke instead of it moving
-        // card focus out from under the user's typing.
+        // card focus out from under the user's typing. RFC-066 D5: while a
+        // window is open, these already do nothing — caught by the gate
+        // above, since `advance_card_focus` itself also no-ops whenever
+        // `top_layer` is `Some`.
         ShortcutMessage::CardFocusNext => {
             if focus_ops::current_target_is_text_input(state) {
                 return Task::none();
@@ -364,6 +421,30 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             }
             focus_ops::advance_card_focus(state, focus::Direction::Previous)
         }
+        // RFC-066 D5: inside a window, the same as Tab/Shift-Tab — advances
+        // that window's own order (so the palette, the workspace menu and
+        // "Find work area" work as lists). Outside one, today's card
+        // navigation, unchanged, with the same typing gate `CardFocusNext`
+        // already has.
+        ShortcutMessage::ArrowDown => {
+            if crate::state::layer::top_layer(state).is_some() {
+                return focus_ops::advance_focus(state, focus::Direction::Next);
+            }
+            if focus_ops::current_target_is_text_input(state) {
+                return Task::none();
+            }
+            focus_ops::advance_card_focus(state, focus::Direction::Next)
+        }
+        ShortcutMessage::ArrowUp => {
+            if crate::state::layer::top_layer(state).is_some() {
+                return focus_ops::advance_focus(state, focus::Direction::Previous);
+            }
+            if focus_ops::current_target_is_text_input(state) {
+                return Task::none();
+            }
+            focus_ops::advance_card_focus(state, focus::Direction::Previous)
+        }
+        ShortcutMessage::MousePressed => unreachable!("handled above"),
     }
 }
 

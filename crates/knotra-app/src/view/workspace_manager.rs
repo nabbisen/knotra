@@ -35,16 +35,6 @@ mod focus_target {
     pub const CLOSE: &str = "workspace_mgr.dialog.close";
 }
 
-/// Whether the control keyed `key` currently draws the RFC-036 focus ring —
-/// plain equality against `state.overlay_focus`, not `focus::resolve`'s
-/// stale-target fallback (RFC-036 Stage 5): rendering shows a ring only
-/// where knotra-focus genuinely and currently sits, matching `shell.rs`'s
-/// `is_focused` precedent from Stage 2. `pub(crate)` so tests can assert
-/// against the exact function the view uses, not a re-implementation of it.
-pub(crate) fn is_focused(state: &AppState, key: &'static str) -> bool {
-    state.overlay_focus.as_ref() == Some(&FocusTarget::control(key))
-}
-
 /// Whether the Confirm button's disabled-reason text should render.
 /// Reproduces `guided_button`'s own rule verbatim: the reason shows only
 /// while the button is genuinely disabled. Neither dialog builder calls
@@ -219,7 +209,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
 
     let tokens = &state.theme.tokens;
     let confirm_on_press = (!value.trim().is_empty()).then_some(Message::Workspace(confirm));
-    let confirm_focused = is_focused(state, focus_target::CONFIRM);
+    let confirm_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CONFIRM));
     let confirm_btn = {
         let t = tokens.clone();
         button(centered_button_label(
@@ -248,7 +238,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
         confirm_btn.into()
     };
 
-    let cancel_focused = is_focused(state, focus_target::CANCEL);
+    let cancel_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CANCEL));
     let cancel_btn = {
         let t = tokens.clone();
         button(centered_button_label(
@@ -272,7 +262,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
         OverlayWidth::Standard.resolve(state.window_width),
         title,
         Some(Message::Workspace(cancel)),
-        is_focused(state, focus_target::CLOSE),
+        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
         field,
         footer,
     )
@@ -305,7 +295,7 @@ fn delete_dialog<'a>(
     let confirm_on_press = can_delete.then_some(Message::Workspace(
         WorkspaceMessage::DeleteWorkspaceConfirmed,
     ));
-    let confirm_focused = is_focused(state, focus_target::CONFIRM);
+    let confirm_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CONFIRM));
     let confirm_btn = {
         let t = tokens.clone();
         button(centered_button_label(
@@ -334,7 +324,7 @@ fn delete_dialog<'a>(
         confirm_btn.into()
     };
 
-    let cancel_focused = is_focused(state, focus_target::CANCEL);
+    let cancel_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CANCEL));
     let cancel_btn = {
         let t = tokens.clone();
         button(centered_button_label(
@@ -372,7 +362,7 @@ fn delete_dialog<'a>(
         Some(Message::Workspace(
             WorkspaceMessage::DeleteWorkspaceCancelled,
         )),
-        is_focused(state, focus_target::CLOSE),
+        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
         body,
         footer,
     )

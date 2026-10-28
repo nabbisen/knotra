@@ -342,16 +342,30 @@ pub enum ShortcutMessage {
     /// RFC-036 R4: bare `/`, gated on text-input focus so a literal `/`
     /// typed into a field is never intercepted.
     FocusSearchBare,
-    /// RFC-035 R22: `↓`/`j` — card arrow-navigation, coarser than Tab
-    /// (moves between dashboard rows only, skipping their internal
-    /// controls). Gated on text-input focus in `handle_shortcut`,
+    /// RFC-035 R22, `j` only as of RFC-066 D5 (`↓` is now
+    /// [`ShortcutMessage::ArrowDown`]) — card arrow-navigation, coarser
+    /// than Tab (moves between dashboard rows only, skipping their
+    /// internal controls). Gated on text-input focus in `handle_shortcut`,
     /// consistent with `FocusSearchBare`/`ActivateFocused` even though
-    /// iced 0.14's `text_input` does not itself consume arrow keys or
-    /// `j`/`k` — the gate is for the user's typing, not to resolve a
-    /// widget-level key conflict (Handoff 032 §3/§4).
+    /// iced 0.14's `text_input` does not itself consume `j`/`k` — the gate
+    /// is for the user's typing, not to resolve a widget-level key
+    /// conflict (Handoff 032 §3/§4). D5: does nothing while a window is
+    /// open — already true today, since `advance_card_focus` already
+    /// no-ops whenever `top_layer` is `Some`.
     CardFocusNext,
-    /// RFC-035 R22: `↑`/`k`. See [`ShortcutMessage::CardFocusNext`].
+    /// `k` only. See [`ShortcutMessage::CardFocusNext`].
     CardFocusPrevious,
+    /// RFC-066 D5: `↓`. Card arrow-navigation on the dashboard (same as
+    /// `CardFocusNext` there, unchanged); inside a window, the same as
+    /// Tab — advances that window's own order. Split from `CardFocusNext`
+    /// because the two must now differ while a window is open, where they
+    /// used to be identical.
+    ArrowDown,
+    /// RFC-066 D5: `↑`. See [`ShortcutMessage::ArrowDown`].
+    ArrowUp,
+    /// RFC-066 D4: a mouse button pressed anywhere — clears the focus
+    /// outline (`AppState::focus_visible`). Never moves focus itself.
+    MousePressed,
 }
 
 // ---------------------------------------------------------------------------

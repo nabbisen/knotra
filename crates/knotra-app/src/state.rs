@@ -557,6 +557,12 @@ pub struct AppState {
     /// overlay while it is open, and R7 needs `dashboard_focus` untouched
     /// underneath so focus can return to it when the overlay closes.
     pub overlay_focus: Option<focus::FocusTarget>,
+    /// RFC-066 D4: whether the focus outline should be drawn right now.
+    /// `true` from Tab/Shift-Tab/an arrow key/`j`/`k`; `false` from a mouse
+    /// button press — the browser's `:focus-visible` behaviour. Focus
+    /// itself (`dashboard_focus`/`overlay_focus`) is never cleared by
+    /// either; only whether its ring is drawn changes.
+    pub focus_visible: bool,
     // ------------------------------------------------------------------
     // RFC-035 R8 responsive mode
     // ------------------------------------------------------------------
@@ -638,6 +644,7 @@ impl AppState {
             recent_removal: None,
             dashboard_focus: None,
             overlay_focus: None,
+            focus_visible: false,
             width_mode: WidthMode::from_width(INITIAL_WINDOW_SIZE.width),
             window_width: INITIAL_WINDOW_SIZE.width,
             paths,

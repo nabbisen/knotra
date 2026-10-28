@@ -195,6 +195,33 @@ fn shell_and_dashboard_focus_order(state: &AppState) -> focus::FocusOrder<Messag
     order
 }
 
+/// RFC-066 D4: whether `target`'s focus outline should be drawn right now —
+/// `focus_visible`, and `target` is the *resolved* current target of
+/// whichever context is active (a window's own order if one is open, the
+/// shell/dashboard order otherwise), through the same `focus::resolve` every
+/// other focus decision in this app already goes through (the stale-target
+/// fallback included, so a ring never silently vanishes just because the
+/// view rebuilt). `pub(crate)`, not `pub(super)`: every window's own view
+/// module calls this directly for its own controls' outlines, the one
+/// shared implementation D4 asks for in place of the three per-module
+/// `is_focused` copies this replaces (`shell.rs`, `selection_bar.rs`,
+/// `workspace_manager.rs`).
+pub(crate) fn ring(state: &AppState, target: &focus::FocusTarget) -> bool {
+    if !state.focus_visible {
+        return false;
+    }
+    match layer::top_layer(state) {
+        Some(layer) => {
+            let lf = layer_focus(state, &layer);
+            focus::resolve(&lf.order, state.overlay_focus.as_ref()) == Some(target)
+        }
+        None => {
+            let order = shell_and_dashboard_focus_order(state);
+            focus::resolve(&order, state.dashboard_focus.as_ref()) == Some(target)
+        }
+    }
+}
+
 fn advance_in(
     order: &focus::FocusOrder<Message>,
     current: &mut Option<focus::FocusTarget>,

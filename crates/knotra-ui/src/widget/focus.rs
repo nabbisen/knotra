@@ -12,6 +12,11 @@ pub mod focus_id {
     pub static WORKSPACE_NAME: LazyLock<Id> = LazyLock::new(|| Id::new("workspace-name"));
     pub static RELEASE_NAME: LazyLock<Id> = LazyLock::new(|| Id::new("release-name"));
     pub static SWITCH_TARGET: LazyLock<Id> = LazyLock::new(|| Id::new("switch-target"));
+    /// RFC-066 Stage 2: the freezer's optional note field had no stable
+    /// `Id` before this — nothing could programmatically focus it.
+    pub static RELEASE_NOTE: LazyLock<Id> = LazyLock::new(|| Id::new("release-note"));
+    /// RFC-066 Stage 2: the changelog's "Since" field, same reason.
+    pub static CHANGELOG_SINCE: LazyLock<Id> = LazyLock::new(|| Id::new("changelog-since"));
 }
 
 /// Produce a `Task` that moves keyboard focus to the text input with the given ID.

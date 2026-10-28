@@ -710,6 +710,114 @@ fn create_dialog_tab_wraps_within_the_dialog_and_never_touches_shell_focus_r5() 
     assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
 }
 
+/// RFC-066 D4/R5: Tab sets the outline visible; a mouse press clears it.
+#[test]
+fn focus_visible_is_set_by_tab_and_cleared_by_a_mouse_press() {
+    let mut state = make_state();
+    assert!(!state.focus_visible, "hidden by default");
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert!(state.focus_visible);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::MousePressed));
+    assert!(!state.focus_visible);
+}
+
+/// RFC-066 D4/R5: with the outline hidden, Enter/Space on a non-text-input
+/// target reveals it and presses nothing — the control's own message is
+/// not sent.
+#[test]
+fn activate_focused_with_hidden_ring_reveals_it_without_pressing() {
+    let mut state = make_state();
+    state.dashboard_focus = Some(shell_switcher_target());
+    assert!(!state.focus_visible);
+
+    dispatch(
+        &mut state,
+        Message::Shortcut(ShortcutMessage::ActivateFocused),
+    );
+
+    assert!(state.focus_visible);
+    // Nothing else changed — the switcher did not open.
+    assert!(!state.workspace_mgr.switcher_open);
+}
+
+/// RFC-066 D4: the same reveal-only rule does not apply once the outline
+/// is already visible — `handle_shortcut`'s new gate is
+/// `!focus_visible && !text_input`, so with `focus_visible` already
+/// `true` it falls straight through to the existing, unchanged
+/// `activate_focused` path. Checked via the pure decision it would use
+/// (`focus::activation_message`), the same way
+/// `enter_on_a_row_action_dispatches_the_same_message_a_click_would_r3`
+/// does — `activate_in` wraps a real activation in `Task::done(msg)`,
+/// which `dispatch` (one `update()` call) cannot run through to observe
+/// as a side effect.
+#[test]
+fn activate_focused_with_visible_ring_would_press_the_target() {
+    let state = make_state();
+    let order = crate::view::shell::focus_order(&state);
+    assert!(matches!(
+        focus::activation_message(&order, Some(&shell_switcher_target())),
+        Some(Message::Workspace(WorkspaceMessage::SwitcherToggled))
+    ));
+}
+
+/// RFC-066 D5: `↓`/`↑` inside an open window advance that window's own
+/// order, the same as Tab/Shift-Tab — exercised against the create-
+/// workspace dialog, whose real order Stage 1 already gives it.
+#[test]
+fn arrow_keys_advance_a_windows_order_like_tab_when_one_is_open() {
+    let mut state = make_state();
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
+    );
+    let name_field = FocusTarget::text_input(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone());
+    let confirm = FocusTarget::control("workspace_mgr.dialog.confirm");
+    assert_eq!(state.overlay_focus, Some(name_field));
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::ArrowDown));
+    assert_eq!(state.overlay_focus, Some(confirm.clone()));
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::ArrowUp));
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::WORKSPACE_NAME.clone()
+        ))
+    );
+}
+
+/// RFC-066 D5: outside any window, the arrows keep today's card
+/// navigation (RFC-035 R22), unchanged — `j`/`k`'s own existing coverage
+/// (`advance_card_focus_moves_through_row_name_targets_only_and_wraps`)
+/// proves the mechanism; this proves `↓`/`↑` reach the identical result.
+#[test]
+fn arrow_down_matches_j_on_the_dashboard_with_no_window_open() {
+    fn two_project_state(workspace: Workspace) -> AppState {
+        let mut state = make_state();
+        state.workspace = Some(workspace);
+        state
+    }
+    let workspace = Workspace {
+        projects: vec![make_project("alpha"), make_project("beta")],
+        ..Workspace::new("Test")
+    };
+    let mut j_state = two_project_state(workspace.clone());
+    let mut arrow_state = two_project_state(workspace);
+
+    dispatch(
+        &mut j_state,
+        Message::Shortcut(ShortcutMessage::CardFocusNext),
+    );
+    dispatch(
+        &mut arrow_state,
+        Message::Shortcut(ShortcutMessage::ArrowDown),
+    );
+
+    assert_eq!(j_state.dashboard_focus, arrow_state.dashboard_focus);
+}
+
 #[test]
 fn create_dialog_escape_closes_and_returns_focus_to_the_opener_r7() {
     let mut state = make_state();
@@ -850,7 +958,10 @@ fn delete_dialog_tab_order_is_close_confirm_cancel_reading_order() {
 fn delete_dialog_ring_is_on_cancel_not_remove_on_open() {
     // The safety property Stage 5 exists for (Handoff 007 §7.5): a keyboard
     // user must see the ring on Cancel, not on the destructive action, the
-    // moment the dialog opens.
+    // moment the dialog opens. `focus_visible = true` simulates a keyboard
+    // user (RFC-066 D4: the ring is hidden after a mouse click until the
+    // keyboard is used again — this test is specifically about the
+    // keyboard-user case the Stage 5 safety property names).
     let tmp = tempfile::tempdir().expect("tempdir");
     let paths = AppPaths::under(tmp.path().to_path_buf());
     let mut state = make_state_with_paths(paths);
@@ -859,23 +970,24 @@ fn delete_dialog_ring_is_on_cancel_not_remove_on_open() {
         vec![Workspace::new("Main"), Workspace::new("Lab")],
         0,
     );
+    state.focus_visible = true;
 
     dispatch(
         &mut state,
         Message::Workspace(WorkspaceMessage::DeleteWorkspaceRequested),
     );
 
-    assert!(crate::view::workspace_manager::is_focused(
+    assert!(crate::app::ring(
         &state,
-        "workspace_mgr.dialog.cancel"
+        &FocusTarget::control("workspace_mgr.dialog.cancel")
     ));
-    assert!(!crate::view::workspace_manager::is_focused(
+    assert!(!crate::app::ring(
         &state,
-        "workspace_mgr.dialog.confirm"
+        &FocusTarget::control("workspace_mgr.dialog.confirm")
     ));
-    assert!(!crate::view::workspace_manager::is_focused(
+    assert!(!crate::app::ring(
         &state,
-        "workspace_mgr.dialog.close"
+        &FocusTarget::control("workspace_mgr.dialog.close")
     ));
 }
 
@@ -892,51 +1004,55 @@ fn ring_follows_tab_through_a_name_dialog_field_confirm_cancel_close() {
             "Lab".to_owned(),
         )),
     );
+    // RFC-066 D4: `ring()` also requires `focus_visible` — set here so the
+    // assertions below test `resolve`'s target-matching, not just the
+    // (also-true) fact that the ring is hidden after a mouse-opened dialog.
+    state.focus_visible = true;
 
     // Entry: the field. Neither button target is ringed while the field is
     // knotra-focused, since `overlay_focus` holds a `TextInput`, not either
     // `Control`.
-    assert!(!crate::view::workspace_manager::is_focused(
+    assert!(!crate::app::ring(
         &state,
-        "workspace_mgr.dialog.confirm"
+        &FocusTarget::control("workspace_mgr.dialog.confirm")
     ));
-    assert!(!crate::view::workspace_manager::is_focused(
+    assert!(!crate::app::ring(
         &state,
-        "workspace_mgr.dialog.cancel"
-    ));
-
-    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
-    assert!(crate::view::workspace_manager::is_focused(
-        &state,
-        "workspace_mgr.dialog.confirm"
-    ));
-    assert!(!crate::view::workspace_manager::is_focused(
-        &state,
-        "workspace_mgr.dialog.cancel"
+        &FocusTarget::control("workspace_mgr.dialog.cancel")
     ));
 
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
-    assert!(!crate::view::workspace_manager::is_focused(
+    assert!(crate::app::ring(
         &state,
-        "workspace_mgr.dialog.confirm"
+        &FocusTarget::control("workspace_mgr.dialog.confirm")
     ));
-    assert!(crate::view::workspace_manager::is_focused(
+    assert!(!crate::app::ring(
         &state,
-        "workspace_mgr.dialog.cancel"
-    ));
-    assert!(!crate::view::workspace_manager::is_focused(
-        &state,
-        "workspace_mgr.dialog.close"
+        &FocusTarget::control("workspace_mgr.dialog.cancel")
     ));
 
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
-    assert!(!crate::view::workspace_manager::is_focused(
+    assert!(!crate::app::ring(
         &state,
-        "workspace_mgr.dialog.cancel"
+        &FocusTarget::control("workspace_mgr.dialog.confirm")
     ));
-    assert!(crate::view::workspace_manager::is_focused(
+    assert!(crate::app::ring(
         &state,
-        "workspace_mgr.dialog.close"
+        &FocusTarget::control("workspace_mgr.dialog.cancel")
+    ));
+    assert!(!crate::app::ring(
+        &state,
+        &FocusTarget::control("workspace_mgr.dialog.close")
+    ));
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert!(!crate::app::ring(
+        &state,
+        &FocusTarget::control("workspace_mgr.dialog.cancel")
+    ));
+    assert!(crate::app::ring(
+        &state,
+        &FocusTarget::control("workspace_mgr.dialog.close")
     ));
 }
 
