@@ -18,7 +18,7 @@ use crate::{
     message::{Message, WorkspaceMessage},
     state::{
         AppState, Screen,
-        focus::{FocusOrder, FocusTarget},
+        focus::{FocusOrder, FocusTarget, LayerFocus},
     },
 };
 
@@ -32,6 +32,60 @@ mod focus_target {
     pub const REFRESH: &str = "shell.refresh";
     pub const PALETTE: &str = "shell.palette";
     pub const SETTINGS: &str = "shell.settings";
+    pub const ADD_WORKSPACE: &str = "shell.switcher.add_workspace";
+    pub const RENAME: &str = "shell.switcher.rename";
+    pub const DELETE: &str = "shell.switcher.delete";
+}
+
+/// RFC-066 D2: order and entry for the workspace switcher menu —
+/// `[workspace rows…, "Add workspace", "Rename", "Delete"]`, entry the
+/// first workspace row.
+pub fn switcher_menu_layer_focus(state: &AppState) -> LayerFocus<Message> {
+    let active_id = state
+        .all_workspaces
+        .get(state.active_workspace_idx)
+        .map(|ws| ws.id.clone());
+
+    let mut order: FocusOrder<Message> = Vec::new();
+    let mut first_workspace = None;
+    for ws in &state.all_workspaces {
+        let is_active = Some(&ws.id) == active_id.as_ref();
+        let target = FocusTarget::control_dynamic(format!("shell.switcher.workspace.{}", ws.id));
+        if first_workspace.is_none() {
+            first_workspace = Some(target.clone());
+        }
+        order.push((
+            target,
+            (!is_active).then_some(Message::Workspace(WorkspaceMessage::WorkspaceSwitched(
+                ws.id.clone(),
+            ))),
+        ));
+    }
+
+    let can_delete = state.all_workspaces.len() > 1;
+    order.push((
+        FocusTarget::control(focus_target::ADD_WORKSPACE),
+        Some(Message::Workspace(
+            WorkspaceMessage::CreateWorkspaceDialogOpened,
+        )),
+    ));
+    order.push((
+        FocusTarget::control(focus_target::RENAME),
+        Some(Message::Workspace(
+            WorkspaceMessage::RenameWorkspaceDialogOpened,
+        )),
+    ));
+    order.push((
+        FocusTarget::control(focus_target::DELETE),
+        can_delete.then_some(Message::Workspace(
+            WorkspaceMessage::DeleteWorkspaceRequested,
+        )),
+    ));
+
+    LayerFocus {
+        entry: first_workspace.or_else(|| order.first().map(|(t, _)| t.clone())),
+        order,
+    }
 }
 
 /// The shell's Tab/Shift-Tab focus order (RFC-036 R1/R2), each target paired
@@ -229,6 +283,10 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
     for ws in &state.all_workspaces {
         let is_active = Some(&ws.id) == active_id.as_ref();
         let t = tokens.clone();
+        let is_focused = crate::app::ring(
+            state,
+            &FocusTarget::control_dynamic(format!("shell.switcher.workspace.{}", ws.id)),
+        );
         items = items.push(
             button(
                 text(ws.name.clone())
@@ -239,12 +297,14 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
             .on_press_maybe((!is_active).then_some(Message::Workspace(
                 WorkspaceMessage::WorkspaceSwitched(ws.id.clone()),
             )))
-            .style(move |_theme, status| widget::style::ghost(&t, status)),
+            .style(move |_theme, status| {
+                widget::style::with_focus_ring(&t, is_focused, widget::style::ghost(&t, status))
+            }),
         );
     }
 
     let can_delete = state.all_workspaces.len() > 1;
-    let menu_action = |label: &str, msg: Message, tokens: &Tokens| {
+    let menu_action = |label: &str, msg: Message, tokens: &Tokens, is_focused: bool| {
         let t = tokens.clone();
         button(
             text(label.to_owned())
@@ -253,7 +313,9 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
         )
         .width(Length::Fill)
         .on_press(msg)
-        .style(move |_theme, status| widget::style::ghost(&t, status))
+        .style(move |_theme, status| {
+            widget::style::with_focus_ring(&t, is_focused, widget::style::ghost(&t, status))
+        })
     };
 
     let content = column![
@@ -261,12 +323,14 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
         menu_action(
             state.t("plain.add_workspace"),
             Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
-            tokens
+            tokens,
+            crate::app::ring(state, &FocusTarget::control(focus_target::ADD_WORKSPACE)),
         ),
         menu_action(
             state.t("workspace.rename.short"),
             Message::Workspace(WorkspaceMessage::RenameWorkspaceDialogOpened),
-            tokens
+            tokens,
+            crate::app::ring(state, &FocusTarget::control(focus_target::RENAME)),
         ),
         danger_menu_action(
             state.t("workspace.delete.short"),
@@ -274,6 +338,7 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
                 WorkspaceMessage::DeleteWorkspaceRequested
             )),
             tokens,
+            crate::app::ring(state, &FocusTarget::control(focus_target::DELETE)),
         ),
     ]
     .spacing(2)
@@ -296,6 +361,7 @@ fn danger_menu_action<'a>(
     label: &'a str,
     on_press: Option<Message>,
     tokens: &Tokens,
+    is_focused: bool,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
     button(
@@ -305,7 +371,9 @@ fn danger_menu_action<'a>(
     )
     .width(Length::Fill)
     .on_press_maybe(on_press)
-    .style(move |_theme, status| widget::style::danger(&t, status))
+    .style(move |_theme, status| {
+        widget::style::with_focus_ring(&t, is_focused, widget::style::danger(&t, status))
+    })
     .into()
 }
 

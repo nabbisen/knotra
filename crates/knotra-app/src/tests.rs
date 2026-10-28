@@ -762,6 +762,38 @@ fn activate_focused_with_visible_ring_would_press_the_target() {
     ));
 }
 
+/// RFC-066 D2: the workspace switcher menu's entry is "the first
+/// workspace" and, from there, Tab reaches "Add workspace" — exercising
+/// `settle_layer_focus` moving onto a real order for the first time
+/// (the menu had no open-site focus call before this RFC, so Stage 1 left
+/// it at `None`).
+#[test]
+fn switcher_menu_entry_is_the_first_workspace_and_tab_reaches_add_workspace() {
+    let mut state = make_state();
+    let first = Workspace::new("Main");
+    let first_id = first.id.clone();
+    let second = Workspace::new("Lab");
+    install_workspaces(&mut state, vec![first, second], 0);
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::SwitcherToggled),
+    );
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::control_dynamic(format!(
+            "shell.switcher.workspace.{first_id}"
+        )))
+    );
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::control("shell.switcher.add_workspace"))
+    );
+}
+
 /// RFC-066 D5: `↓`/`↑` inside an open window advance that window's own
 /// order, the same as Tab/Shift-Tab — exercised against the create-
 /// workspace dialog, whose real order Stage 1 already gives it.
