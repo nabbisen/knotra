@@ -16,13 +16,13 @@ use crate::state::{
     context::ContextPhase,
     focus::{self, FocusTarget},
     freezer::FreezerPhase,
-    sync::{RetryPreparationId, SmartPullRetryPreparation, SyncPhase},
+    sync::{RetryPreparationId, SmartPullRetryPreparation, SyncPhase, SyncResult},
 };
 use chrono::Utc;
 use knotra_vcs::{
-    ChangelogDraft, CommitEntry, ConflictMarker, ConflictedFile, ContextList, ContextTarget,
-    OperationId, Project, ProjectCommits, ProjectConflictDetail, ProjectId, Workspace,
-    WorkspaceStatus,
+    ChangelogDraft, CommitEntry, ConflictMarker, ConflictedFile, ContextList, ContextSwitchResult,
+    ContextTarget, OperationId, Project, ProjectCommits, ProjectConflictDetail, ProjectId,
+    Workspace, WorkspaceStatus,
     model::{
         operation::{
             FreezeBlocker, FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
@@ -795,18 +795,681 @@ fn assert_entry_never_starts_a_change(
     );
 }
 
-/// RFC-066 Stage 2 R2 — every layer/phase whose entry is not trivially
-/// safe by construction (a text field, paired with `None`; a bare "Close"/
-/// "Cancel"/"Keep" control, whose own message is self-evidently not a
-/// confirm). Each case below is one where the entry rule (D2's table) or
-/// its own phase-dependent condition (an unreadable blocker, a dirty
-/// project, a share offer) could plausibly be miscomputed into landing on
-/// a change-starting control instead — the exact kind of mistake
-/// `freezer_layer_focus`'s share-offer condition almost made during
-/// implementation (see commit 4's history).
+/// RFC-066 Amendment A3 (from Review 234 on Stage 2): enumerates every
+/// `Layer` and every phase this test can construct, rather than arguing
+/// that the rest are safe "by construction" — an argument cannot fail
+/// when tomorrow's code reorders a footer or adds a control to a phase
+/// that today has none; a per-phase assertion can. Each phase's row
+/// reuses Stage 2's own state-building fragments (now factored out as
+/// helpers, or copied verbatim where the fragment was inline before).
+///
+/// Coverage is enforced two ways: `layer_kind`'s `match` on `Layer` has
+/// no wildcard arm, so a new `Layer` variant fails this file to compile
+/// until it is added here; and the final `assert_eq!` checks that every
+/// kind the match can produce has at least one row.
 #[test]
-fn every_risky_entry_never_starts_a_change_r2() {
-    // Get latest safely — AwaitingConfirm with a real dirty choice.
+fn every_layer_and_phase_entry_never_starts_a_change_r2() {
+    use crate::state::layer::Layer;
+
+    struct Row {
+        layer: Layer,
+        phase: &'static str,
+        order: focus::FocusOrder<Message>,
+        entry: Option<FocusTarget>,
+    }
+
+    fn layer_kind(layer: &Layer) -> &'static str {
+        match layer {
+            Layer::WorkspaceCreate => "WorkspaceCreate",
+            Layer::WorkspaceRename => "WorkspaceRename",
+            Layer::WorkspaceDelete => "WorkspaceDelete",
+            Layer::Palette => "Palette",
+            Layer::AddProject => "AddProject",
+            Layer::SaveReleasePoint => "SaveReleasePoint",
+            Layer::Resolve(_) => "Resolve",
+            Layer::GenerateNotes => "GenerateNotes",
+            Layer::ChangeWorkArea => "ChangeWorkArea",
+            Layer::GetLatest => "GetLatest",
+            Layer::WorkspaceMenu => "WorkspaceMenu",
+            Layer::ShortcutsSheet => "ShortcutsSheet",
+            Layer::RemoveProject => "RemoveProject",
+        }
+    }
+
+    let mut rows: Vec<Row> = Vec::new();
+
+    // ---- Palette: one shape — entry is always the search field. ----
+    {
+        let mut state = make_state();
+        dispatch(&mut state, Message::Palette(PaletteMessage::Opened));
+        let lf = crate::view::command_palette::layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::Palette,
+            phase: "open",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+
+    // ---- AddProject: both steps. ----
+    {
+        let mut state = make_state();
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
+        );
+        let lf = crate::view::add_project_modal::layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::AddProject,
+            phase: "ChooseFolder",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectPathChanged(
+                "/tmp/demo".to_owned(),
+            )),
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectNextStep),
+        );
+        let lf = crate::view::add_project_modal::layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::AddProject,
+            phase: "NameProject",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+
+    // ---- The three workspace dialogs. ----
+    {
+        let mut state = make_state();
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
+        );
+        let lf = crate::view::workspace_manager::layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::WorkspaceCreate,
+            phase: "open",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        install_workspaces(&mut state, vec![Workspace::new("Main")], 0);
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::RenameWorkspaceDialogOpened),
+        );
+        let lf = crate::view::workspace_manager::layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::WorkspaceRename,
+            phase: "open",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        install_workspaces(&mut state, vec![Workspace::new("Main")], 0);
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::DeleteWorkspaceRequested),
+        );
+        let lf = crate::view::workspace_manager::layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::WorkspaceDelete,
+            phase: "cannot delete (one workspace)",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        install_workspaces(
+            &mut state,
+            vec![Workspace::new("Main"), Workspace::new("Lab")],
+            0,
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::DeleteWorkspaceRequested),
+        );
+        let lf = crate::view::workspace_manager::layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::WorkspaceDelete,
+            phase: "can delete (two workspaces)",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+
+    // ---- SaveReleasePoint: every FreezerPhase, Idle sharing its arm
+    //      with Validating, ValidationReady split readable/unreadable,
+    //      Done split share-offer-shown/not. ----
+    {
+        let state = make_state();
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::SaveReleasePoint,
+            phase: "Idle",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        install_validating_freezer(&mut state);
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::SaveReleasePoint,
+            phase: "Validating",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.freezer.phase =
+            FreezerPhase::ValidationReady(ready_freeze_validation(&project, "v1.0.0"));
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::SaveReleasePoint,
+            phase: "ValidationReady(readable)",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        state.freezer.phase = FreezerPhase::ValidationReady(FreezeValidation {
+            freeze_name: "v1.0.0".to_owned(),
+            entries: vec![FreezeValidationEntry {
+                project_id: ProjectId::new(),
+                project_name: "unreadable".to_owned(),
+                notes: Vec::new(),
+                blockers: vec![FreezeBlocker::Unreadable {
+                    reason: "disk error".to_owned(),
+                }],
+            }],
+        });
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::SaveReleasePoint,
+            phase: "ValidationReady(unreadable)",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        install_running_freezer(&mut state);
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::SaveReleasePoint,
+            phase: "Executing",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        let result = FreezeResult {
+            freeze_name: "v1.0.0".to_owned(),
+            project_results: vec![FreezeProjectResult {
+                project_id: project.id.clone(),
+                project_name: project.name.clone(),
+                success: true,
+                commands_executed: Vec::new(),
+                stdout: String::new(),
+                stderr: String::new(),
+                rollback_attempted: false,
+                rollback_succeeded: None,
+                recovery_hint: None,
+            }],
+            outcome: FreezeOutcome::Success,
+        };
+        install_pending_push(&mut state, &result.freeze_name, project.id.clone());
+        state.freezer.phase = FreezerPhase::Done(result);
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::SaveReleasePoint,
+            phase: "Done(share offer shown)",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.freezer.phase = FreezerPhase::Done(FreezeResult {
+            freeze_name: "v1.0.0".to_owned(),
+            project_results: vec![FreezeProjectResult {
+                project_id: project.id.clone(),
+                project_name: project.name,
+                success: true,
+                commands_executed: Vec::new(),
+                stdout: String::new(),
+                stderr: String::new(),
+                rollback_attempted: false,
+                rollback_succeeded: None,
+                recovery_hint: None,
+            }],
+            outcome: FreezeOutcome::Success,
+        });
+        let lf = crate::view::overlays::freezer_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::SaveReleasePoint,
+            phase: "Done(no share offer)",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+
+    // ---- Resolve: every ConflictPhase. ----
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.conflict_ops.phase = ConflictPhase::Idle;
+        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        rows.push(Row {
+            layer: Layer::Resolve(project.id),
+            phase: "Idle",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.conflict_ops.phase = ConflictPhase::Loading(project.id.clone());
+        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        rows.push(Row {
+            layer: Layer::Resolve(project.id),
+            phase: "Loading",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.conflict_ops.phase = ConflictPhase::Browsing {
+            project_id: project.id.clone(),
+            detail: ProjectConflictDetail {
+                project_id: project.id.clone(),
+                project_name: project.name.clone(),
+                conflicted_files: Vec::new(),
+                read_error: None,
+            },
+        };
+        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        rows.push(Row {
+            layer: Layer::Resolve(project.id),
+            phase: "Browsing(no files)",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.conflict_ops.phase = ConflictPhase::Browsing {
+            project_id: project.id.clone(),
+            detail: ProjectConflictDetail {
+                project_id: project.id.clone(),
+                project_name: project.name.clone(),
+                conflicted_files: vec![ConflictedFile {
+                    path: "src/lib.rs".to_owned(),
+                    marker: ConflictMarker::BothModified,
+                }],
+                read_error: None,
+            },
+        };
+        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        rows.push(Row {
+            layer: Layer::Resolve(project.id),
+            phase: "Browsing(with files)",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let project = make_project("svc");
+        let detail = ProjectConflictDetail {
+            project_id: project.id.clone(),
+            project_name: project.name.clone(),
+            conflicted_files: Vec::new(),
+            read_error: None,
+        };
+        let state = confirm_stop_state(&project, detail);
+        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        rows.push(Row {
+            layer: Layer::Resolve(project.id),
+            phase: "ConfirmStop",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.conflict_ops.phase = ConflictPhase::Operating {
+            project_id: project.id.clone(),
+            action: "mark-resolved".to_owned(),
+        };
+        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        rows.push(Row {
+            layer: Layer::Resolve(project.id),
+            phase: "Operating",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.conflict_ops.phase = ConflictPhase::Done {
+            project_id: project.id.clone(),
+            success: true,
+            message: "done".to_owned(),
+            result: None,
+        };
+        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        rows.push(Row {
+            layer: Layer::Resolve(project.id),
+            phase: "Done",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+
+    // ---- GenerateNotes: every ChangelogPhase. ----
+    {
+        let state = make_state();
+        let lf = crate::view::overlays::changelog_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GenerateNotes,
+            phase: "Idle",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        state.changelog.phase = ChangelogPhase::Collecting;
+        let lf = crate::view::overlays::changelog_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GenerateNotes,
+            phase: "Collecting",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.changelog.phase = ChangelogPhase::Ready(make_changelog_draft(&project, Vec::new()));
+        let lf = crate::view::overlays::changelog_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GenerateNotes,
+            phase: "Ready",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+
+    // ---- ChangeWorkArea: every ContextPhase. ----
+    {
+        let state = make_state();
+        let lf = crate::view::overlays::context_switch_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::ChangeWorkArea,
+            phase: "Idle",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.context_ops.phase = ContextPhase::LoadingList(project.id.clone());
+        let lf = crate::view::overlays::context_switch_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::ChangeWorkArea,
+            phase: "LoadingList",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        install_workspaces(
+            &mut state,
+            vec![Workspace {
+                projects: vec![project.clone()],
+                ..Workspace::new("Main")
+            }],
+            0,
+        );
+        state.selection_mode = true;
+        state.selection.selected_ids.insert(project.id.clone());
+        dispatch(
+            &mut state,
+            Message::Context(ContextMessage::BulkOpenRequested),
+        );
+        dispatch(
+            &mut state,
+            Message::Background(BackgroundMessage::ContextListLoaded(ContextList {
+                project_id: project.id.clone(),
+                ..Default::default()
+            })),
+        );
+        let lf = crate::view::overlays::context_switch_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::ChangeWorkArea,
+            phase: "BrowsingList",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        install_workspaces(
+            &mut state,
+            vec![Workspace {
+                projects: vec![project.clone()],
+                ..Workspace::new("Main")
+            }],
+            0,
+        );
+        dispatch(
+            &mut state,
+            Message::Context(ContextMessage::SwitchTargetChosen(
+                project.id.clone(),
+                ContextTarget::GitLocalBranch {
+                    name: "feature/foo".to_owned(),
+                },
+                "feature/foo".to_owned(),
+            )),
+        );
+        let lf = crate::view::overlays::context_switch_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::ChangeWorkArea,
+            phase: "ConfirmSwitch",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        install_switching_context(&mut state);
+        let lf = crate::view::overlays::context_switch_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::ChangeWorkArea,
+            phase: "Switching",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        state.context_ops.phase = ContextPhase::Done(ContextSwitchResult {
+            project_id: project.id.clone(),
+            project_name: project.name.clone(),
+            target: "feature/foo".to_owned(),
+            operation_result: make_operation_result(
+                project.id.clone(),
+                ProjectOperationOutcome::Succeeded,
+            ),
+            recovery_hint: None,
+        });
+        let lf = crate::view::overlays::context_switch_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::ChangeWorkArea,
+            phase: "Done",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+
+    // ---- GetLatest: every SyncPhase. ----
+    {
+        let state = make_state();
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GetLatest,
+            phase: "Idle",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        state.sync.phase = SyncPhase::Planning;
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GetLatest,
+            phase: "Planning",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        state.sync.phase = SyncPhase::RetryPreparing;
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GetLatest,
+            phase: "RetryPreparing",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let available = make_project("available");
+        let missing = make_project("missing");
+        install_workspaces(
+            &mut state,
+            vec![Workspace {
+                projects: vec![available.clone(), missing.clone()],
+                ..Workspace::new("Main")
+            }],
+            0,
+        );
+        state.missing_projects.insert(missing.id.clone());
+        state.selection.selected_ids.insert(missing.id.clone());
+        state
+            .sync
+            .project_selection
+            .insert(missing.id.clone(), true);
+        dispatch(
+            &mut state,
+            Message::Sync(SyncMessage::BulkFetchAllRequested),
+        );
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GetLatest,
+            phase: "FetchRunning",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        install_running_smart_pull(&mut state);
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GetLatest,
+            phase: "PullRunning",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        state.sync.phase = SyncPhase::Done(SyncResult {
+            per_project: Vec::new(),
+        });
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GetLatest,
+            phase: "Done",
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
+    {
+        let mut state = make_state();
+        let (preparation, first, _second) = install_correlated_smart_pull_preparation(&mut state);
+        complete_smart_pull_preparation(
+            &mut state,
+            &preparation,
+            vec![make_project_status(first.id.clone(), Some("origin/main"))], // missing one id
+        );
+        assert!(matches!(
+            state.sync.phase,
+            SyncPhase::RetryPreparationFailed
+        ));
+        let has_retry = matches!(
+            &state.activity.latest,
+            crate::state::LatestOpState::Completed {
+                retry: crate::state::RetryAvailability::Available(
+                    crate::state::ActivityRetryAction::ReviewSmartPull { .. }
+                ),
+                ..
+            }
+        );
+        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::GetLatest,
+            phase: if has_retry {
+                "RetryPreparationFailed(retry available)"
+            } else {
+                "RetryPreparationFailed(no retry)"
+            },
+            order: lf.order,
+            entry: lf.entry,
+        });
+    }
     {
         let mut state = make_state();
         let with_upstream = make_project("with-upstream");
@@ -837,15 +1500,13 @@ fn every_risky_entry_never_starts_a_change_r2() {
             Message::Sync(SyncMessage::SmartPullPlanRequested),
         );
         let lf = crate::view::overlays::smart_pull_layer_focus(&state);
-        assert_entry_never_starts_a_change(
-            "get_latest.AwaitingConfirm(dirty choice)",
-            &lf.order,
-            lf.entry.as_ref(),
-        );
+        rows.push(Row {
+            layer: Layer::GetLatest,
+            phase: "AwaitingConfirm(dirty choice)",
+            order: lf.order,
+            entry: lf.entry,
+        });
     }
-
-    // Get latest safely — AwaitingConfirm with no dirty choices (falls
-    // back to Cancel, never Start/`ExecuteRequested`).
     {
         let mut state = make_state();
         state.sync.phase = SyncPhase::AwaitingConfirm(SmartPullPlan {
@@ -860,178 +1521,15 @@ fn every_risky_entry_never_starts_a_change_r2() {
             }],
         });
         let lf = crate::view::overlays::smart_pull_layer_focus(&state);
-        assert_entry_never_starts_a_change(
-            "get_latest.AwaitingConfirm(no dirty choice)",
-            &lf.order,
-            lf.entry.as_ref(),
-        );
-    }
-
-    // Get latest safely — RetryPreparationFailed, retry available.
-    {
-        let mut state = make_state();
-        let (preparation, first, _second) = install_correlated_smart_pull_preparation(&mut state);
-        complete_smart_pull_preparation(
-            &mut state,
-            &preparation,
-            vec![make_project_status(first.id.clone(), Some("origin/main"))], // missing one id
-        );
-        assert!(matches!(
-            state.sync.phase,
-            SyncPhase::RetryPreparationFailed
-        ));
-        let lf = crate::view::overlays::smart_pull_layer_focus(&state);
-        assert_entry_never_starts_a_change(
-            "get_latest.RetryPreparationFailed",
-            &lf.order,
-            lf.entry.as_ref(),
-        );
-    }
-
-    // Save release point — ValidationReady, readable (entry: Cancel, not
-    // "Save"/`ExecuteConfirmed`).
-    {
-        let mut state = make_state();
-        let project = make_project("svc");
-        state.freezer.phase =
-            FreezerPhase::ValidationReady(ready_freeze_validation(&project, "v1.0.0"));
-        let lf = crate::view::overlays::freezer_layer_focus(&state);
-        assert_entry_never_starts_a_change(
-            "release.ValidationReady(readable)",
-            &lf.order,
-            lf.entry.as_ref(),
-        );
-    }
-
-    // Save release point — ValidationReady, an unreadable project (entry:
-    // Details, still never "Save").
-    {
-        let mut state = make_state();
-        state.freezer.phase = FreezerPhase::ValidationReady(FreezeValidation {
-            freeze_name: "v1.0.0".to_owned(),
-            entries: vec![FreezeValidationEntry {
-                project_id: ProjectId::new(),
-                project_name: "unreadable".to_owned(),
-                notes: Vec::new(),
-                blockers: vec![FreezeBlocker::Unreadable {
-                    reason: "disk error".to_owned(),
-                }],
-            }],
+        rows.push(Row {
+            layer: Layer::GetLatest,
+            phase: "AwaitingConfirm(no dirty choice)",
+            order: lf.order,
+            entry: lf.entry,
         });
-        let lf = crate::view::overlays::freezer_layer_focus(&state);
-        assert_entry_never_starts_a_change(
-            "release.ValidationReady(unreadable)",
-            &lf.order,
-            lf.entry.as_ref(),
-        );
     }
 
-    // Save release point — Done, share offer shown (entry: "Not now",
-    // never "Push").
-    {
-        let mut state = make_state();
-        let project = make_project("svc");
-        let result = FreezeResult {
-            freeze_name: "v1.0.0".to_owned(),
-            project_results: vec![FreezeProjectResult {
-                project_id: project.id.clone(),
-                project_name: project.name.clone(),
-                success: true,
-                commands_executed: Vec::new(),
-                stdout: String::new(),
-                stderr: String::new(),
-                rollback_attempted: false,
-                rollback_succeeded: None,
-                recovery_hint: None,
-            }],
-            outcome: FreezeOutcome::Success,
-        };
-        install_pending_push(&mut state, &result.freeze_name, project.id.clone());
-        state.freezer.phase = FreezerPhase::Done(result);
-        let lf = crate::view::overlays::freezer_layer_focus(&state);
-        assert_entry_never_starts_a_change(
-            "release.Done(share offer shown)",
-            &lf.order,
-            lf.entry.as_ref(),
-        );
-    }
-
-    // Change work area — ConfirmSwitch (entry: Cancel, never
-    // `SwitchConfirmed`).
-    {
-        let mut state = make_state();
-        let project = make_project("svc");
-        install_workspaces(
-            &mut state,
-            vec![Workspace {
-                projects: vec![project.clone()],
-                ..Workspace::new("Main")
-            }],
-            0,
-        );
-        dispatch(
-            &mut state,
-            Message::Context(ContextMessage::SwitchTargetChosen(
-                project.id.clone(),
-                ContextTarget::GitLocalBranch {
-                    name: "feature/foo".to_owned(),
-                },
-                "feature/foo".to_owned(),
-            )),
-        );
-        assert!(matches!(
-            state.context_ops.phase,
-            ContextPhase::ConfirmSwitch { .. }
-        ));
-        let lf = crate::view::overlays::context_switch_layer_focus(&state);
-        assert_entry_never_starts_a_change("switch.ConfirmSwitch", &lf.order, lf.entry.as_ref());
-    }
-
-    // Resolve — Browsing with files (entry: first file's editor target,
-    // never `MarkResolvedRequested`/`AbortMergeRequested`).
-    {
-        let mut state = make_state();
-        let project = make_project("svc");
-        let detail = ProjectConflictDetail {
-            project_id: project.id.clone(),
-            project_name: project.name.clone(),
-            conflicted_files: vec![ConflictedFile {
-                path: "src/lib.rs".to_owned(),
-                marker: ConflictMarker::BothModified,
-            }],
-            read_error: None,
-        };
-        state.conflict_ops.phase = ConflictPhase::Browsing {
-            project_id: project.id.clone(),
-            detail,
-        };
-        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
-        assert_entry_never_starts_a_change(
-            "resolve.Browsing(with files)",
-            &lf.order,
-            lf.entry.as_ref(),
-        );
-    }
-
-    // Resolve — ConfirmStop (entry: "Keep fixing" = `StopCancelled`, never
-    // `AbortMergeRequested`).
-    {
-        let project = make_project("svc");
-        let detail = ProjectConflictDetail {
-            project_id: project.id.clone(),
-            project_name: project.name.clone(),
-            conflicted_files: Vec::new(),
-            read_error: None,
-        };
-        let state = confirm_stop_state(&project, detail);
-        let lf = crate::view::overlays::conflict_layer_focus(&state, &project.id);
-        assert_entry_never_starts_a_change("resolve.ConfirmStop", &lf.order, lf.entry.as_ref());
-    }
-
-    // Workspace delete dialog — entry: Cancel, never
-    // `DeleteWorkspaceConfirmed` — the reading-order reorder Stage 1 gave
-    // this dialog (`delete_dialog_tab_order_is_close_confirm_cancel_...`)
-    // makes this the one workspace dialog worth re-checking here.
+    // ---- The workspace switcher menu. ----
     {
         let mut state = make_state();
         install_workspaces(
@@ -1041,35 +1539,29 @@ fn every_risky_entry_never_starts_a_change_r2() {
         );
         dispatch(
             &mut state,
-            Message::Workspace(WorkspaceMessage::DeleteWorkspaceRequested),
+            Message::Workspace(WorkspaceMessage::SwitcherToggled),
         );
-        let lf = crate::view::workspace_manager::layer_focus(&state);
-        assert_entry_never_starts_a_change("workspace_mgr.delete", &lf.order, lf.entry.as_ref());
+        let lf = crate::view::shell::switcher_menu_layer_focus(&state);
+        rows.push(Row {
+            layer: Layer::WorkspaceMenu,
+            phase: "open",
+            order: lf.order,
+            entry: lf.entry,
+        });
     }
 
-    // Add project — NameProject step (entry: name field, never
-    // `AddProjectConfirmed`).
+    // ---- The shortcuts sheet. ----
     {
-        let mut state = make_state();
-        dispatch(
-            &mut state,
-            Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
-        );
-        dispatch(
-            &mut state,
-            Message::Workspace(WorkspaceMessage::AddProjectPathChanged(
-                "/tmp/demo".to_owned(),
-            )),
-        );
-        dispatch(
-            &mut state,
-            Message::Workspace(WorkspaceMessage::AddProjectNextStep),
-        );
-        let lf = crate::view::add_project_modal::layer_focus(&state);
-        assert_entry_never_starts_a_change("add_project.NameProject", &lf.order, lf.entry.as_ref());
+        let lf = crate::view::shortcuts_overlay::layer_focus();
+        rows.push(Row {
+            layer: Layer::ShortcutsSheet,
+            phase: "open",
+            order: lf.order,
+            entry: lf.entry,
+        });
     }
 
-    // Remove project — entry: "Keep", never `RemoveProjectConfirmed`.
+    // ---- Remove project. ----
     {
         let mut state = make_state();
         let project = make_project("svc");
@@ -1086,8 +1578,46 @@ fn every_risky_entry_never_starts_a_change_r2() {
             Message::Workspace(WorkspaceMessage::RemoveProjectRequested(project.id)),
         );
         let lf = crate::view::dashboard::remove_project_layer_focus(&state);
-        assert_entry_never_starts_a_change("remove_project", &lf.order, lf.entry.as_ref());
+        rows.push(Row {
+            layer: Layer::RemoveProject,
+            phase: "open",
+            order: lf.order,
+            entry: lf.entry,
+        });
     }
+
+    for row in &rows {
+        assert_entry_never_starts_a_change(
+            &format!("{}.{}", layer_kind(&row.layer), row.phase),
+            &row.order,
+            row.entry.as_ref(),
+        );
+    }
+
+    let covered: std::collections::BTreeSet<&str> =
+        rows.iter().map(|r| layer_kind(&r.layer)).collect();
+    let all: std::collections::BTreeSet<&str> = [
+        Layer::WorkspaceCreate,
+        Layer::WorkspaceRename,
+        Layer::WorkspaceDelete,
+        Layer::Palette,
+        Layer::AddProject,
+        Layer::SaveReleasePoint,
+        Layer::Resolve(ProjectId::new()),
+        Layer::GenerateNotes,
+        Layer::ChangeWorkArea,
+        Layer::GetLatest,
+        Layer::WorkspaceMenu,
+        Layer::ShortcutsSheet,
+        Layer::RemoveProject,
+    ]
+    .iter()
+    .map(layer_kind)
+    .collect();
+    assert_eq!(
+        covered, all,
+        "every Layer variant must have at least one row in this test"
+    );
 }
 
 /// RFC-066 Stage 2: a real defect in `settle_layer_focus`, found by the
