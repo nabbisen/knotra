@@ -103,56 +103,13 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
         Subscription::none()
     };
 
-    let keyboard_sub = keyboard::listen().map(|event| {
-        use keyboard::Event;
-        use keyboard::key::Named;
-        if let Event::KeyPressed { key, modifiers, .. } = event {
-            let ctrl = modifiers.control() || modifiers.command();
-            let shortcut = match &key {
-                keyboard::Key::Named(Named::Escape) => Some(ShortcutMessage::Close),
-                // RFC-036 R1: Tab/Shift-Tab traversal.
-                keyboard::Key::Named(Named::Tab) if modifiers.shift() => {
-                    Some(ShortcutMessage::FocusPrevious)
-                }
-                keyboard::Key::Named(Named::Tab) => Some(ShortcutMessage::FocusNext),
-                // RFC-036 R3/R3a: Enter/Space activate the focused control,
-                // gated in `handle_shortcut` so a focused text input still
-                // receives the keystroke instead of activating a control.
-                keyboard::Key::Named(Named::Enter) => Some(ShortcutMessage::ActivateFocused),
-                keyboard::Key::Named(Named::Space) => Some(ShortcutMessage::ActivateFocused),
-                // RFC-035 R22: card arrow-navigation. Confirmed against
-                // `iced_widget::text_input`'s own key handling (0.14.2) that
-                // it has no `ArrowUp`/`ArrowDown` branch at all — these are
-                // gated in `handle_shortcut` anyway, for the user's typing
-                // context rather than a widget-level conflict (see
-                // `ShortcutMessage::CardFocusNext`'s own doc comment).
-                keyboard::Key::Named(Named::ArrowDown) => Some(ShortcutMessage::CardFocusNext),
-                keyboard::Key::Named(Named::ArrowUp) => Some(ShortcutMessage::CardFocusPrevious),
-                keyboard::Key::Character(c) => match c.as_str() {
-                    "r" | "R" if ctrl => Some(ShortcutMessage::Refresh),
-                    "k" | "K" if ctrl => Some(ShortcutMessage::OpenContextOps),
-                    "t" | "T" if ctrl => Some(ShortcutMessage::OpenFreezer),
-                    "/" if ctrl => Some(ShortcutMessage::FocusSearch),
-                    // RFC-036 R4: bare `/` (no modifier) — gated in
-                    // `handle_shortcut`, not here, since only `AppState`
-                    // knows whether a text input currently holds focus.
-                    "/" => Some(ShortcutMessage::FocusSearchBare),
-                    // RFC-035 R22: bare `j`/`k` (vim-style down/up), gated
-                    // in `handle_shortcut` the same way. `k`/`K` with `Ctrl`
-                    // is `OpenContextOps` above and must stay first in this
-                    // match so the guarded arm claims it before this one.
-                    "j" | "J" => Some(ShortcutMessage::CardFocusNext),
-                    "k" | "K" => Some(ShortcutMessage::CardFocusPrevious),
-                    _ => None,
-                },
-                _ => None,
-            };
-            if let Some(s) = shortcut {
-                return Message::Shortcut(s);
-            }
-        }
-        Message::Tick
-    });
+    // RFC-066 Amendment A2: `filter_map`, not `map` — a key event that is
+    // not a shortcut (a release, a modifiers change, any other letter)
+    // produces no message at all now, where it used to fall through to
+    // `Message::Tick` and start a full workspace status read. See
+    // `shortcut_for`'s own doc comment for the defect this replaces.
+    let keyboard_sub =
+        keyboard::listen().filter_map(|event| shortcut_for_event(event).map(Message::Shortcut));
 
     let fs_sub = fs_watch_subscription(state);
 
@@ -163,6 +120,71 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
     let resize_sub = iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size));
 
     Subscription::batch([tick_sub, keyboard_sub, fs_sub, resize_sub])
+}
+
+/// The `Event`-level half of the keyboard subscription's mapping: only a
+/// key *press* can be a shortcut (RFC-066 Amendment A2) — a release or a
+/// modifiers-change event reaches this subscription too, and must produce
+/// no message, not `Message::Tick`'s old fallback. Split from
+/// [`shortcut_for`] so the latter's pure `Key`/`Modifiers` -> `ShortcutMessage`
+/// mapping is independently testable without constructing a full
+/// `keyboard::Event`, and keeps the shape Stage 3's own `shortcut_for`
+/// (RFC D7) reuses directly.
+fn shortcut_for_event(event: keyboard::Event) -> Option<ShortcutMessage> {
+    match event {
+        keyboard::Event::KeyPressed { key, modifiers, .. } => shortcut_for(&key, modifiers),
+        keyboard::Event::KeyReleased { .. } | keyboard::Event::ModifiersChanged(_) => None,
+    }
+}
+
+/// The keyboard shortcuts this app recognizes, as a pure function of the key
+/// and its modifiers — `None` for anything that is not one (RFC-066
+/// Amendment A2's fix: an un-mapped key used to fall through to
+/// `Message::Tick` in the subscription closure this was extracted from,
+/// starting a full workspace status read on every unrelated keystroke,
+/// including every key *release*).
+fn shortcut_for(key: &keyboard::Key, modifiers: keyboard::Modifiers) -> Option<ShortcutMessage> {
+    use keyboard::key::Named;
+    let ctrl = modifiers.control() || modifiers.command();
+    match key {
+        keyboard::Key::Named(Named::Escape) => Some(ShortcutMessage::Close),
+        // RFC-036 R1: Tab/Shift-Tab traversal.
+        keyboard::Key::Named(Named::Tab) if modifiers.shift() => {
+            Some(ShortcutMessage::FocusPrevious)
+        }
+        keyboard::Key::Named(Named::Tab) => Some(ShortcutMessage::FocusNext),
+        // RFC-036 R3/R3a: Enter/Space activate the focused control,
+        // gated in `handle_shortcut` so a focused text input still
+        // receives the keystroke instead of activating a control.
+        keyboard::Key::Named(Named::Enter) => Some(ShortcutMessage::ActivateFocused),
+        keyboard::Key::Named(Named::Space) => Some(ShortcutMessage::ActivateFocused),
+        // RFC-035 R22: card arrow-navigation. Confirmed against
+        // `iced_widget::text_input`'s own key handling (0.14.2) that
+        // it has no `ArrowUp`/`ArrowDown` branch at all — these are
+        // gated in `handle_shortcut` anyway, for the user's typing
+        // context rather than a widget-level conflict (see
+        // `ShortcutMessage::CardFocusNext`'s own doc comment).
+        keyboard::Key::Named(Named::ArrowDown) => Some(ShortcutMessage::CardFocusNext),
+        keyboard::Key::Named(Named::ArrowUp) => Some(ShortcutMessage::CardFocusPrevious),
+        keyboard::Key::Character(c) => match c.as_str() {
+            "r" | "R" if ctrl => Some(ShortcutMessage::Refresh),
+            "k" | "K" if ctrl => Some(ShortcutMessage::OpenContextOps),
+            "t" | "T" if ctrl => Some(ShortcutMessage::OpenFreezer),
+            "/" if ctrl => Some(ShortcutMessage::FocusSearch),
+            // RFC-036 R4: bare `/` (no modifier) — gated in
+            // `handle_shortcut`, not here, since only `AppState`
+            // knows whether a text input currently holds focus.
+            "/" => Some(ShortcutMessage::FocusSearchBare),
+            // RFC-035 R22: bare `j`/`k` (vim-style down/up), gated
+            // in `handle_shortcut` the same way. `k`/`K` with `Ctrl`
+            // is `OpenContextOps` above and must stay first in this
+            // match so the guarded arm claims it before this one.
+            "j" | "J" => Some(ShortcutMessage::CardFocusNext),
+            "k" | "K" => Some(ShortcutMessage::CardFocusPrevious),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -458,6 +480,67 @@ mod tests {
 
         let _ = handle_shortcut(&mut state, ShortcutMessage::CardFocusPrevious);
         assert_eq!(state.dashboard_focus, Some(search_target));
+    }
+
+    fn released(key: keyboard::Key) -> keyboard::Event {
+        keyboard::Event::KeyReleased {
+            key,
+            modified_key: keyboard::Key::Unidentified,
+            physical_key: keyboard::key::Physical::Unidentified(
+                keyboard::key::NativeCode::Unidentified,
+            ),
+            location: keyboard::Location::Standard,
+            modifiers: keyboard::Modifiers::empty(),
+        }
+    }
+
+    fn pressed(key: keyboard::Key, modifiers: keyboard::Modifiers) -> keyboard::Event {
+        keyboard::Event::KeyPressed {
+            key,
+            modified_key: keyboard::Key::Unidentified,
+            physical_key: keyboard::key::Physical::Unidentified(
+                keyboard::key::NativeCode::Unidentified,
+            ),
+            location: keyboard::Location::Standard,
+            modifiers,
+            text: None,
+            repeat: false,
+        }
+    }
+
+    /// RFC-066 Amendment A2. **Seen to fail first**, against the fallback
+    /// this replaced: the old subscription closure ended `Message::Tick`
+    /// for anything that was not `Event::KeyPressed` at all, so a release
+    /// — reconstructed here exactly as the baseline handled it — mapped to
+    /// `Tick`, not nothing.
+    #[test]
+    fn a_key_release_produces_no_shortcut() {
+        let event = released(keyboard::Key::Named(keyboard::key::Named::Tab));
+        assert_eq!(shortcut_for_event(event), None);
+    }
+
+    #[test]
+    fn a_modifiers_change_produces_no_shortcut() {
+        let event = keyboard::Event::ModifiersChanged(keyboard::Modifiers::SHIFT);
+        assert_eq!(shortcut_for_event(event), None);
+    }
+
+    #[test]
+    fn a_letter_that_is_not_a_shortcut_produces_none() {
+        let event = pressed(
+            keyboard::Key::Character("x".into()),
+            keyboard::Modifiers::empty(),
+        );
+        assert_eq!(shortcut_for_event(event), None);
+    }
+
+    #[test]
+    fn a_real_shortcut_still_maps_through_filter_map() {
+        let event = pressed(
+            keyboard::Key::Named(keyboard::key::Named::Escape),
+            keyboard::Modifiers::empty(),
+        );
+        assert_eq!(shortcut_for_event(event), Some(ShortcutMessage::Close));
     }
 
     /// RFC-051 R2: `window_width` and `width_mode` are both set on the same

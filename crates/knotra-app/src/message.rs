@@ -325,7 +325,7 @@ pub enum LaunchMessage {
 }
 
 // --- Shortcuts ---
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ShortcutMessage {
     Refresh,
     OpenContextOps,

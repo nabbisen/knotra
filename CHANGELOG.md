@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — every key press re-checked all projects
+
+Pressing or releasing a key that is not a shortcut made knotra re-check the status of
+every project, even with automatic checking turned off. Only the timer and "Check now"
+start a check now.
+
 ### Fixed — "Stop this fix attempt" discarded your edits without asking
 
 In the Resolve panel, "Stop this fix attempt" abandoned the merge at once, and every edit
