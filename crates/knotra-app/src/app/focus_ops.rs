@@ -343,30 +343,40 @@ pub(super) fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
 /// - a different layer is on top (including "a window just opened" —
 ///   `before` was `None`): focus moves to its `entry`;
 /// - the same layer, but the held target has fallen out of its (non-empty)
-///   `order` — its phase changed under it: focus moves to `entry` too;
+///   `order` — its phase changed under it: focus moves to `entry` too.
+///   Holding nothing (`overlay_focus` is `None`) counts as "fallen out" of
+///   any non-empty order — there is no real target to preserve, so a
+///   phase that goes from no controls to real ones (e.g. Get latest
+///   safely's `Planning` into `AwaitingConfirm`, or Change work area's
+///   `LoadingList` into `BrowsingList`) still settles onto the new phase's
+///   entry instead of leaving focus unset. Found exactly this way: the
+///   two cases above passed every hand-built-state test (which calls a
+///   window's `layer_focus` directly) but left `overlay_focus` at `None`
+///   through the real `update()` path, caught by a Tab-cycle test that
+///   goes through `dispatch` instead;
 /// - no layer is open any more: focus is cleared.
 ///
-/// An *empty* order (every layer but the three workspace dialogs, this
-/// stage) is deliberately exempted from the second case: with nothing
-/// declared to check membership against, "has the held target fallen out
-/// of the order" is undecidable, and the pre-RFC-066 answer — leave
-/// whatever is held alone — is also the only one that does not clear focus
-/// on every keystroke a text field inside such a window receives (its own
-/// `*Changed` message does not move the layer, so without this exemption
-/// the very next settle call would find that field "stale" against its
-/// empty order and clear it under the user's cursor).
+/// An *empty* order is still exempted from the second case for a held,
+/// *real* target: with nothing declared to check its membership against,
+/// "has the held target fallen out of the order" is undecidable, and the
+/// pre-RFC-066 answer — leave whatever is held alone — is also the only
+/// one that does not clear focus on every keystroke a text field inside
+/// such a window receives (its own `*Changed` message does not move the
+/// layer, so without this exemption the very next settle call would find
+/// that field "stale" against its empty order and clear it under the
+/// user's cursor).
 pub(super) fn settle_layer_focus(state: &mut AppState, before: Option<Layer>) -> Task<Message> {
     let Some(current) = layer::top_layer(state) else {
         return close_overlay_focus(state);
     };
     let lf = layer_focus(state, &current);
 
-    let moves_to_entry = before.as_ref() != Some(&current)
-        || (!lf.order.is_empty()
-            && state
-                .overlay_focus
-                .as_ref()
-                .is_some_and(|f| !lf.order.iter().any(|(t, _)| t == f)));
+    let held_is_stale = match &state.overlay_focus {
+        None => true,
+        Some(f) => !lf.order.iter().any(|(t, _)| t == f),
+    };
+    let moves_to_entry =
+        before.as_ref() != Some(&current) || (!lf.order.is_empty() && held_is_stale);
 
     if moves_to_entry {
         match lf.entry {

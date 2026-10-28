@@ -20,8 +20,9 @@ use crate::state::{
 };
 use chrono::Utc;
 use knotra_vcs::{
-    ChangelogDraft, CommitEntry, ConflictMarker, ConflictedFile, ContextTarget, OperationId,
-    Project, ProjectCommits, ProjectConflictDetail, ProjectId, Workspace, WorkspaceStatus,
+    ChangelogDraft, CommitEntry, ConflictMarker, ConflictedFile, ContextList, ContextTarget,
+    OperationId, Project, ProjectCommits, ProjectConflictDetail, ProjectId, Workspace,
+    WorkspaceStatus,
     model::{
         operation::{
             FreezeBlocker, FreezeOutcome, FreezeProjectResult, FreezeResult, FreezeValidation,
@@ -1086,6 +1087,187 @@ fn every_risky_entry_never_starts_a_change_r2() {
         );
         let lf = crate::view::dashboard::remove_project_layer_focus(&state);
         assert_entry_never_starts_a_change("remove_project", &lf.order, lf.entry.as_ref());
+    }
+}
+
+/// RFC-066 Stage 2: a real defect in `settle_layer_focus`, found by the
+/// Tab-cycle test below (`tab_all_the_way_around_a_windows_order_...r4`),
+/// not by hand-built-state tests (which call a window's `layer_focus`
+/// directly and never exercise `settle_layer_focus` at all). Both windows
+/// below enter their layer through an *empty-order* phase first — Get
+/// latest safely's `Planning`, Change work area's `LoadingList` — whose
+/// `entry: None` explicitly clears `overlay_focus` to `None`. The very
+/// next phase change, to a *non-empty* order under the same layer
+/// (`AwaitingConfirm`, `BrowsingList`), used to leave focus at that stale
+/// `None` forever: the staleness check only ever looked at
+/// `overlay_focus.is_some_and(...)`, so a `None` never counted as
+/// "fallen out of the order." Fixed by treating `None` as always stale
+/// against a non-empty order — see `settle_layer_focus`'s own doc comment.
+/// Seen to fail before the fix (confirmed by temporarily reverting it):
+/// both assertions below panicked with `overlay_focus: None`.
+#[test]
+fn settle_layer_focus_moves_off_a_stale_none_onto_a_newly_real_entry() {
+    // Get latest safely: `Planning` (empty order, clears focus) into
+    // `AwaitingConfirm` (real order) under the same `GetLatest` layer.
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![make_project_status(project.id.clone(), None)],
+        last_refresh: Some(Utc::now()),
+    });
+    state.selection.selected_ids.insert(project.id.clone());
+    dispatch(&mut state, Message::Sync(SyncMessage::BulkPullRequested));
+    assert_eq!(
+        state.overlay_focus, None,
+        "precondition: Planning's empty order clears focus"
+    );
+    dispatch(
+        &mut state,
+        Message::Sync(SyncMessage::SmartPullPlanRequested),
+    );
+    assert!(
+        matches!(state.sync.phase, SyncPhase::AwaitingConfirm(_)),
+        "precondition: plan review is ready"
+    );
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::control("get_latest.cancel")),
+        "AwaitingConfirm's entry must settle even though focus was None going in \
+         (this project has no dirty choice, so entry falls back to Cancel)"
+    );
+
+    // Change work area: `LoadingList` (empty order, clears focus) into
+    // `BrowsingList` (real order) under the same `ChangeWorkArea` layer.
+    let mut state = make_state();
+    let project = make_project("svc2");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection_mode = true;
+    state.selection.selected_ids.insert(project.id.clone());
+    dispatch(
+        &mut state,
+        Message::Context(ContextMessage::BulkOpenRequested),
+    );
+    assert_eq!(
+        state.overlay_focus, None,
+        "precondition: LoadingList's empty order clears focus"
+    );
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::ContextListLoaded(ContextList {
+            project_id: project.id.clone(),
+            ..Default::default()
+        })),
+    );
+    assert!(
+        matches!(state.context_ops.phase, ContextPhase::BrowsingList { .. }),
+        "precondition: the candidate list is ready"
+    );
+    assert_eq!(
+        state.overlay_focus,
+        Some(FocusTarget::text_input(
+            knotra_ui::widget::focus_id::SWITCH_TARGET.clone()
+        )),
+        "BrowsingList's entry (the search field) must settle even though focus was None going in"
+    );
+}
+
+/// RFC-066 Stage 2 R4: Tab, all the way around a window's own order, stays
+/// inside it and returns to where it started — `focus::advance`'s own
+/// signature (`order.get(next_index)`) makes this impossible to violate
+/// for any single `advance` call, so the real property worth a runtime
+/// check is confinement: that `overlay_focus_order`/`advance_focus` keep
+/// routing through the open window's order, never falling through to the
+/// dashboard's, for the length of a full cycle. Exercised against the two
+/// largest orders this stage adds (Get latest safely's `AwaitingConfirm`,
+/// five targets; the switcher menu, five targets) — the per-dialog Tab
+/// tests already in this file (`ring_follows_tab_through_a_name_dialog_...`,
+/// `delete_dialog_tab_order_is_close_confirm_cancel_...`,
+/// `seven_site_fix_dialog_open_paths_...r12`) cover the remaining windows.
+#[test]
+fn tab_all_the_way_around_a_windows_order_returns_to_the_entry_r4() {
+    // Get latest safely — AwaitingConfirm.
+    {
+        let mut state = make_state();
+        let with_upstream = make_project("with-upstream");
+        let no_upstream = make_project("no-upstream");
+        install_workspaces(
+            &mut state,
+            vec![Workspace {
+                projects: vec![with_upstream.clone(), no_upstream.clone()],
+                ..Workspace::new("Main")
+            }],
+            0,
+        );
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![
+                make_project_status(with_upstream.id.clone(), Some("origin/main")),
+                make_project_status(no_upstream.id.clone(), None),
+            ],
+            last_refresh: Some(Utc::now()),
+        });
+        state
+            .selection
+            .selected_ids
+            .insert(with_upstream.id.clone());
+        state.selection.selected_ids.insert(no_upstream.id.clone());
+        dispatch(&mut state, Message::Sync(SyncMessage::BulkPullRequested));
+        dispatch(
+            &mut state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+        let order_len = crate::view::overlays::smart_pull_layer_focus(&state)
+            .order
+            .len();
+        let entry = state.overlay_focus.clone();
+        assert!(entry.is_some(), "precondition: opening settles an entry");
+        for _ in 0..order_len {
+            dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+        }
+        assert_eq!(
+            state.overlay_focus, entry,
+            "a full Tab cycle must return to the entry, never fall through to the dashboard"
+        );
+    }
+
+    // The workspace switcher menu.
+    {
+        let mut state = make_state();
+        install_workspaces(
+            &mut state,
+            vec![Workspace::new("Main"), Workspace::new("Lab")],
+            0,
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::SwitcherToggled),
+        );
+        let order_len = crate::view::shell::switcher_menu_layer_focus(&state)
+            .order
+            .len();
+        let entry = state.overlay_focus.clone();
+        assert!(entry.is_some(), "precondition: opening settles an entry");
+        for _ in 0..order_len {
+            dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+        }
+        assert_eq!(
+            state.overlay_focus, entry,
+            "a full Tab cycle must return to the entry, never fall through to the dashboard"
+        );
     }
 }
 
