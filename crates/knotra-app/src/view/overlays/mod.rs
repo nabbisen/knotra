@@ -28,8 +28,11 @@ mod freezer;
 mod smart_pull;
 
 pub use changelog::changelog_modal;
+pub(crate) use changelog::layer_focus as changelog_layer_focus;
 pub(crate) use conflict::close_message as conflict_close_message;
+pub(crate) use conflict::layer_focus as conflict_layer_focus;
 pub use conflict::resolve_panel;
+pub(crate) use context_switch::layer_focus as context_switch_layer_focus;
 pub use context_switch::switch_modal;
 pub use freezer::tag_modal;
 pub use smart_pull::pull_modal;

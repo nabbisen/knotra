@@ -12,7 +12,14 @@ use crate::{
         layer::{self, Layer},
         sync::SyncPhase,
     },
-    view::{dashboard, overlays::conflict_close_message, selection_bar, shell, workspace_manager},
+    view::{
+        dashboard,
+        overlays::{
+            changelog_layer_focus, conflict_close_message, conflict_layer_focus,
+            context_switch_layer_focus,
+        },
+        selection_bar, shell, workspace_manager,
+    },
 };
 
 /// Whether Tab/Shift-Tab/Enter operate on a window's order right now, and if
@@ -93,16 +100,15 @@ pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<
                 knotra_ui::widget::focus_id::RELEASE_NAME.clone(),
             )),
         },
-        Layer::ShortcutsSheet
-        | Layer::RemoveProject
-        | Layer::WorkspaceMenu
-        | Layer::GetLatest
-        | Layer::GenerateNotes
-        | Layer::ChangeWorkArea
-        | Layer::Resolve(_) => focus::LayerFocus {
-            order: Vec::new(),
-            entry: None,
-        },
+        Layer::Resolve(id) => conflict_layer_focus(state, id),
+        Layer::GenerateNotes => changelog_layer_focus(state),
+        Layer::ChangeWorkArea => context_switch_layer_focus(state),
+        Layer::ShortcutsSheet | Layer::RemoveProject | Layer::WorkspaceMenu | Layer::GetLatest => {
+            focus::LayerFocus {
+                order: Vec::new(),
+                entry: None,
+            }
+        }
     }
 }
 

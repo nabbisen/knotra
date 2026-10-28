@@ -26,8 +26,111 @@ use knotra_vcs::ContextTarget;
 
 use crate::{
     message::{ContextMessage, Message},
-    state::AppState,
+    state::{
+        AppState,
+        focus::{FocusTarget, LayerFocus},
+    },
 };
+
+mod focus_target {
+    pub const CLOSE: &str = "switch.close";
+    pub const BROWSING_CANCEL: &str = "switch.browsing_cancel";
+    pub const CONFIRM_SWITCH: &str = "switch.confirm_switch";
+    pub const CONFIRM_CANCEL: &str = "switch.confirm_cancel";
+    pub const DETAILS: &str = "switch.details";
+    pub const FOOTER_CLOSE: &str = "switch.footer_close";
+}
+
+/// RFC-066 D2: order and entry for Change work area.
+pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
+    use crate::state::context::ContextPhase;
+
+    let ctx = &state.context_ops;
+    let close_msg = (!matches!(ctx.phase, ContextPhase::Switching { .. }))
+        .then_some(Message::Context(ContextMessage::BulkModalClosed));
+    let close_target = FocusTarget::control(focus_target::CLOSE);
+
+    match &ctx.phase {
+        ContextPhase::Idle | ContextPhase::LoadingList(_) | ContextPhase::Switching { .. } => {
+            LayerFocus {
+                order: Vec::new(),
+                entry: None,
+            }
+        }
+        ContextPhase::BrowsingList { .. } => {
+            let search_field =
+                FocusTarget::text_input(knotra_ui::widget::focus_id::SWITCH_TARGET.clone());
+            let mut order = vec![
+                (close_target, close_msg.clone()),
+                (search_field.clone(), None),
+            ];
+            for candidate in ctx.filtered_candidates() {
+                let target =
+                    FocusTarget::control_dynamic(format!("switch.candidate.{}", candidate.label));
+                let msg = (!candidate.is_current).then_some(Message::Context(
+                    ContextMessage::SwitchTargetChosen(
+                        // `project_id` lives on the phase, not the candidate —
+                        // read it back from the phase to avoid threading a
+                        // second copy through `filtered_candidates`.
+                        match &ctx.phase {
+                            ContextPhase::BrowsingList { project_id, .. } => project_id.clone(),
+                            _ => unreachable!("matched above"),
+                        },
+                        candidate.target.clone(),
+                        candidate.label.clone(),
+                    ),
+                ));
+                order.push((target, msg));
+            }
+            order.push((
+                FocusTarget::control(focus_target::BROWSING_CANCEL),
+                close_msg,
+            ));
+            LayerFocus {
+                order,
+                entry: Some(search_field),
+            }
+        }
+        ContextPhase::ConfirmSwitch {
+            disabled_reason_key,
+            ..
+        } => {
+            let switch_msg = (disabled_reason_key.is_none()
+                && !state.operation_interlock.is_busy())
+            .then_some(Message::Context(ContextMessage::SwitchConfirmed));
+            let cancel = FocusTarget::control(focus_target::CONFIRM_CANCEL);
+            LayerFocus {
+                order: vec![
+                    (close_target, close_msg),
+                    (
+                        FocusTarget::control(focus_target::CONFIRM_SWITCH),
+                        switch_msg,
+                    ),
+                    (
+                        cancel.clone(),
+                        Some(Message::Context(ContextMessage::SwitchCancelled)),
+                    ),
+                ],
+                // Never the entry: `SwitchConfirmed` starts a change (D2).
+                entry: Some(cancel),
+            }
+        }
+        ContextPhase::Done(_) => {
+            let footer_close = FocusTarget::control(focus_target::FOOTER_CLOSE);
+            LayerFocus {
+                order: vec![
+                    (close_target, close_msg.clone()),
+                    (
+                        FocusTarget::control(focus_target::DETAILS),
+                        Some(Message::ToggleOpDetails),
+                    ),
+                    (footer_close.clone(), close_msg),
+                ],
+                entry: Some(footer_close),
+            }
+        }
+    }
+}
 
 fn context_target_kind_key(target: &ContextTarget) -> &'static str {
     match target {
@@ -120,11 +223,18 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                         ),
                     ));
                     let t = tokens.clone();
+                    let candidate_focused = crate::app::ring(
+                        state,
+                        &FocusTarget::control_dynamic(format!(
+                            "switch.candidate.{}",
+                            candidate.label
+                        )),
+                    );
                     let candidate_btn = iced::widget::button(label)
                         .width(Length::Fill)
                         .on_press_maybe(press)
                         .style(move |_theme, status| {
-                            style::with_focus_ring(&t, false, style::ghost(&t, status))
+                            style::with_focus_ring(&t, candidate_focused, style::ghost(&t, status))
                         });
                     let mut row_col = column![candidate_btn];
                     if let Some(reason_key) = reason_key {
@@ -151,6 +261,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     tokens,
                     state.t("action.cancel"),
                     Some(Message::Context(ContextMessage::BulkModalClosed)),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::BROWSING_CANCEL)),
                     style::ghost,
                 ),
             ]
@@ -186,7 +297,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     } else {
                         disabled_reason_key.map(|key| state.t(key))
                     },
-                    false,
+                    crate::app::ring(state, &FocusTarget::control(focus_target::CONFIRM_SWITCH)),
                     style::primary,
                 ),
                 Space::new().width(Length::Fill),
@@ -194,6 +305,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     tokens,
                     state.t("action.cancel"),
                     Some(Message::Context(ContextMessage::SwitchCancelled)),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::CONFIRM_CANCEL)),
                     style::ghost,
                 ),
             ]
@@ -299,6 +411,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     tokens,
                     details_label,
                     Some(Message::ToggleOpDetails),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::DETAILS)),
                     style::ghost,
                 ),
                 Space::new().width(Length::Fill),
@@ -306,6 +419,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     tokens,
                     state.t("action.close"),
                     Some(Message::Context(ContextMessage::BulkModalClosed)),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::FOOTER_CLOSE)),
                     style::ghost,
                 ),
             ]
@@ -324,7 +438,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
         OverlayWidth::Large.resolve(state.window_width),
         state.t("plain.change_work_area"),
         close_msg,
-        false,
+        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
         inner,
         footer,
     )
@@ -332,13 +446,12 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
 /// A button styled with one of `knotra_ui::widget::style`'s semantic
 /// functions plus a focus ring — the same shape `conflict.rs` (Stage 2),
-/// `changelog.rs` (Stage 3), and `freezer.rs` (Stage 4) use. `is_focused` is
-/// always `false`: no real focus-order wiring exists or is permitted for
-/// this overlay this stage (R3 forbids `app/`/`state/`).
+/// `changelog.rs` (Stage 3), and `freezer.rs` (Stage 4) use.
 fn styled_button<'a>(
     tokens: &Tokens,
     label: &'a str,
     on_press: Option<Message>,
+    is_focused: bool,
     style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
@@ -350,6 +463,6 @@ fn styled_button<'a>(
     .height(BUTTON_HEIGHT)
     .padding([0, 18])
     .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
+    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
     .into()
 }
