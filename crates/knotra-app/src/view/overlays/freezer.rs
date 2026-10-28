@@ -16,7 +16,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field, guided_field_focused,
+    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused,
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
@@ -24,8 +24,144 @@ use knotra_vcs::model::operation::{FreezeBlocker, FreezeNote, FreezeOutcome};
 
 use crate::{
     message::{FreezerMessage, Message, TagPushMessage},
-    state::AppState,
+    state::{
+        AppState,
+        focus::{FocusTarget, LayerFocus},
+    },
 };
+
+mod focus_target {
+    pub const CLOSE: &str = "release.close";
+    pub const VALIDATE: &str = "release.validate";
+    pub const SAVE: &str = "release.save";
+    pub const DETAILS: &str = "release.details";
+    pub const CANCEL: &str = "release.cancel";
+    pub const SHARE: &str = "release.share";
+    pub const SHARE_DECLINE: &str = "release.share_decline";
+    pub const FOOTER_CLOSE: &str = "release.footer_close";
+}
+
+/// RFC-066 D2: order and entry for Save release point.
+pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
+    use crate::state::freezer::FreezerPhase;
+
+    let freezer = &state.freezer;
+    let close_target = FocusTarget::control(focus_target::CLOSE);
+    let name_field = FocusTarget::text_input(knotra_ui::widget::focus_id::RELEASE_NAME.clone());
+
+    match &freezer.phase {
+        FreezerPhase::Idle | FreezerPhase::Validating { .. } => {
+            let close_msg = Some(Message::Freezer(FreezerMessage::BulkModalClosed));
+            let note_field =
+                FocusTarget::text_input(knotra_ui::widget::focus_id::RELEASE_NOTE.clone());
+            let mut order = vec![
+                (close_target, close_msg),
+                (name_field.clone(), None),
+                (note_field, None),
+            ];
+            // `validate_or_spinner`'s third shape: only the "Check
+            // readiness" branch (name valid, not already validating) is a
+            // real control — the spinner text and the empty `Space` for an
+            // invalid/empty name are not.
+            if !matches!(freezer.phase, FreezerPhase::Validating { .. })
+                && freezer.freeze_name_is_valid()
+            {
+                order.push((
+                    FocusTarget::control(focus_target::VALIDATE),
+                    (!state.operation_interlock.is_busy())
+                        .then_some(Message::Freezer(FreezerMessage::ValidateRequested)),
+                ));
+            }
+            LayerFocus {
+                order,
+                entry: Some(name_field),
+            }
+        }
+        FreezerPhase::ValidationReady(validation) => {
+            let close_msg = Some(Message::Freezer(FreezerMessage::BulkModalClosed));
+            let can_save = validation.all_ready()
+                && validation.ready_count() > 0
+                && !state.operation_interlock.is_busy();
+            let has_unreadable = validation.entries.iter().any(|entry| {
+                entry.blockers.iter().any(|b| {
+                    matches!(
+                        b,
+                        knotra_vcs::model::operation::FreezeBlocker::Unreadable { .. }
+                    )
+                })
+            });
+            let mut order = vec![
+                (close_target, close_msg.clone()),
+                (
+                    FocusTarget::control(focus_target::SAVE),
+                    can_save.then_some(Message::Freezer(FreezerMessage::ExecuteConfirmed)),
+                ),
+            ];
+            let details_target = FocusTarget::control(focus_target::DETAILS);
+            if has_unreadable {
+                order.push((details_target.clone(), Some(Message::ToggleOpDetails)));
+            }
+            let cancel_target = FocusTarget::control(focus_target::CANCEL);
+            order.push((cancel_target.clone(), close_msg));
+            LayerFocus {
+                order,
+                // Never "Save": `ExecuteConfirmed` starts a change (D2).
+                entry: Some(if has_unreadable {
+                    details_target
+                } else {
+                    cancel_target
+                }),
+            }
+        }
+        FreezerPhase::Executing => LayerFocus {
+            order: Vec::new(),
+            entry: None,
+        },
+        FreezerPhase::Done(result) => {
+            let push_is_running = state
+                .pending_tag_push
+                .as_ref()
+                .is_some_and(|push| push.is_pushing);
+            let close_msg =
+                (!push_is_running).then_some(Message::Freezer(FreezerMessage::BulkModalClosed));
+            let mut order = vec![(close_target, close_msg.clone())];
+
+            let share_offer_shown = state.pending_tag_push.as_ref().is_some_and(|push| {
+                push.freeze_name == result.freeze_name
+                    && !push.project_ids.is_empty()
+                    && !push.is_pushing
+            });
+            let decline_target = FocusTarget::control(focus_target::SHARE_DECLINE);
+            if share_offer_shown {
+                order.push((
+                    FocusTarget::control(focus_target::SHARE),
+                    (!state.operation_interlock.is_busy())
+                        .then_some(Message::TagPush(TagPushMessage::PushConfirmed)),
+                ));
+                order.push((
+                    decline_target.clone(),
+                    Some(Message::TagPush(TagPushMessage::PushDeclined)),
+                ));
+            }
+
+            order.push((
+                FocusTarget::control(focus_target::DETAILS),
+                Some(Message::ToggleOpDetails),
+            ));
+            let footer_close = FocusTarget::control(focus_target::FOOTER_CLOSE);
+            order.push((footer_close.clone(), close_msg));
+
+            LayerFocus {
+                order,
+                entry: Some(if share_offer_shown {
+                    decline_target
+                } else {
+                    footer_close
+                }),
+            }
+        }
+    }
+}
 
 pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
     use crate::state::freezer::FreezerPhase;
@@ -54,13 +190,14 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 knotra_ui::widget::focus_id::RELEASE_NAME.clone(),
             );
 
-            let msg_field = guided_field(
+            let msg_field = guided_field_focused(
                 tokens,
                 state.t("plain.release.note_label"),
                 state.t("plain.release.note_hint"),
                 &freezer.tag_message,
                 |s| Message::Freezer(FreezerMessage::TagMessageChanged(s)),
                 None,
+                knotra_ui::widget::focus_id::RELEASE_NOTE.clone(),
             );
 
             let validate_or_spinner: Element<'_, Message> =
@@ -79,7 +216,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                             .operation_interlock
                             .is_busy()
                             .then_some(state.t("plain.activity.busy")),
-                        false,
+                        crate::app::ring(state, &FocusTarget::control(focus_target::VALIDATE)),
                         style::primary,
                     )
                 } else {
@@ -219,7 +356,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     state.t("plain.save_release_point"),
                     can_save.then_some(Message::Freezer(FreezerMessage::ExecuteConfirmed)),
                     save_reason,
-                    false,
+                    crate::app::ring(state, &FocusTarget::control(focus_target::SAVE)),
                     style::primary,
                 ),
                 Space::new().width(Length::Fill),
@@ -237,6 +374,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     tokens,
                     details_label,
                     Some(Message::ToggleOpDetails),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::DETAILS)),
                     style::ghost,
                 ));
             }
@@ -245,6 +383,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 tokens,
                 state.t("action.cancel"),
                 Some(Message::Freezer(FreezerMessage::BulkModalClosed)),
+                crate::app::ring(state, &FocusTarget::control(focus_target::CANCEL)),
                 style::ghost,
             ));
 
@@ -384,12 +523,20 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                                     state.t("plain.release.share_action"),
                                     (!state.operation_interlock.is_busy())
                                         .then_some(Message::TagPush(TagPushMessage::PushConfirmed)),
+                                    crate::app::ring(
+                                        state,
+                                        &FocusTarget::control(focus_target::SHARE)
+                                    ),
                                     style::primary,
                                 ),
                                 styled_button(
                                     tokens,
                                     state.t("plain.release.share_decline"),
                                     Some(Message::TagPush(TagPushMessage::PushDeclined)),
+                                    crate::app::ring(
+                                        state,
+                                        &FocusTarget::control(focus_target::SHARE_DECLINE)
+                                    ),
                                     style::ghost,
                                 ),
                             ]
@@ -408,6 +555,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     tokens,
                     details_label,
                     Some(Message::ToggleOpDetails),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::DETAILS)),
                     style::ghost,
                 ),
                 Space::new().width(Length::Fill),
@@ -415,6 +563,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     tokens,
                     state.t("action.close"),
                     (!push_is_running).then_some(Message::Freezer(FreezerMessage::BulkModalClosed)),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::FOOTER_CLOSE)),
                     style::ghost,
                 ),
             ]
@@ -458,7 +607,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         OverlayWidth::Large.resolve(state.window_width),
         state.t("plain.save_release_point"),
         close_msg,
-        false,
+        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
         inner,
         footer,
     )
@@ -473,6 +622,7 @@ fn styled_button<'a>(
     tokens: &Tokens,
     label: &'a str,
     on_press: Option<Message>,
+    is_focused: bool,
     style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
@@ -484,7 +634,7 @@ fn styled_button<'a>(
     .height(BUTTON_HEIGHT)
     .padding([0, 18])
     .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
+    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
     .into()
 }
 

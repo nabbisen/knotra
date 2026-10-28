@@ -16,7 +16,7 @@ use crate::{
         dashboard,
         overlays::{
             changelog_layer_focus, conflict_close_message, conflict_layer_focus,
-            context_switch_layer_focus,
+            context_switch_layer_focus, freezer_layer_focus,
         },
         selection_bar, shell, workspace_manager,
     },
@@ -58,14 +58,13 @@ pub(super) fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<
 ///   staleness to detect) focus is simply never moved off the folder
 ///   field, where `AddProjectNextStep`'s own now-removed call used to
 ///   move it to the name field unconditionally, defeated or not.
-/// - Save release point: the release-name field
-///   (`FreezerMessage::BulkOpenRequested` used to set this — but only from
-///   the selection bar; `OpenRequested`, the `Ctrl+T` path, never did, so
-///   this is also a fix, not only a preservation).
-/// - Everything else — the shortcuts sheet, the workspace switcher, remove
-///   project, get latest safely, change work area, generate notes, resolve
-///   — had no open-site focus call before this RFC either, so `None`
-///   really is "as today" for these.
+///
+/// Save release point, Resolve, Generate notes and Change work area have
+/// their own real, full `layer_focus` now (each window's own module), per
+/// phase. Everything else still here — the shortcuts sheet, the workspace
+/// switcher, remove project, get latest safely — had no open-site focus
+/// call before this RFC either, so `None` really is "as today" for these,
+/// pending their own commits.
 pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<Message> {
     match layer {
         Layer::WorkspaceCreate | Layer::WorkspaceRename | Layer::WorkspaceDelete => {
@@ -94,12 +93,7 @@ pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<
                 entry,
             }
         }
-        Layer::SaveReleasePoint => focus::LayerFocus {
-            order: Vec::new(),
-            entry: Some(focus::FocusTarget::text_input(
-                knotra_ui::widget::focus_id::RELEASE_NAME.clone(),
-            )),
-        },
+        Layer::SaveReleasePoint => freezer_layer_focus(state),
         Layer::Resolve(id) => conflict_layer_focus(state, id),
         Layer::GenerateNotes => changelog_layer_focus(state),
         Layer::ChangeWorkArea => context_switch_layer_focus(state),

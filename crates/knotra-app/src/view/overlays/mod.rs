@@ -34,6 +34,7 @@ pub(crate) use conflict::layer_focus as conflict_layer_focus;
 pub use conflict::resolve_panel;
 pub(crate) use context_switch::layer_focus as context_switch_layer_focus;
 pub use context_switch::switch_modal;
+pub(crate) use freezer::layer_focus as freezer_layer_focus;
 pub use freezer::tag_modal;
 pub use smart_pull::pull_modal;
 
