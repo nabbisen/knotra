@@ -16,7 +16,7 @@ use crate::{
         dashboard,
         overlays::{
             changelog_layer_focus, conflict_close_message, conflict_layer_focus,
-            context_switch_layer_focus, freezer_layer_focus,
+            context_switch_layer_focus, freezer_layer_focus, smart_pull_layer_focus,
         },
         selection_bar, shell, workspace_manager,
     },
@@ -59,12 +59,12 @@ pub(super) fn overlay_focus_order(state: &AppState) -> Option<focus::FocusOrder<
 ///   field, where `AddProjectNextStep`'s own now-removed call used to
 ///   move it to the name field unconditionally, defeated or not.
 ///
-/// Save release point, Resolve, Generate notes and Change work area have
-/// their own real, full `layer_focus` now (each window's own module), per
-/// phase. Everything else still here — the shortcuts sheet, the workspace
-/// switcher, remove project, get latest safely — had no open-site focus
-/// call before this RFC either, so `None` really is "as today" for these,
-/// pending their own commits.
+/// Save release point, Resolve, Generate notes, Change work area and Get
+/// latest safely have their own real, full `layer_focus` now (each
+/// window's own module), per phase. Everything else still here — the
+/// shortcuts sheet, the workspace switcher, remove project — had no
+/// open-site focus call before this RFC either, so `None` really is "as
+/// today" for these, pending their own commits.
 pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<Message> {
     match layer {
         Layer::WorkspaceCreate | Layer::WorkspaceRename | Layer::WorkspaceDelete => {
@@ -97,12 +97,11 @@ pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<
         Layer::Resolve(id) => conflict_layer_focus(state, id),
         Layer::GenerateNotes => changelog_layer_focus(state),
         Layer::ChangeWorkArea => context_switch_layer_focus(state),
-        Layer::ShortcutsSheet | Layer::RemoveProject | Layer::WorkspaceMenu | Layer::GetLatest => {
-            focus::LayerFocus {
-                order: Vec::new(),
-                entry: None,
-            }
-        }
+        Layer::GetLatest => smart_pull_layer_focus(state),
+        Layer::ShortcutsSheet | Layer::RemoveProject | Layer::WorkspaceMenu => focus::LayerFocus {
+            order: Vec::new(),
+            entry: None,
+        },
     }
 }
 

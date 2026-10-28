@@ -21,7 +21,7 @@ use iced::{
 use knotra_ui::widget::{
     BUTTON_HEIGHT, Tokens, centered_button_label, current_or,
     overlay::{OverlayWidth, surface},
-    primary_maybe, reasoned, style,
+    reasoned, style,
 };
 use knotra_vcs::{
     ProjectId, model::operation::ProjectOperationOutcome, model::operation::SmartPullDisposition,
@@ -29,8 +29,143 @@ use knotra_vcs::{
 
 use crate::{
     message::{Message, SyncMessage},
-    state::AppState,
+    state::{
+        AppState,
+        focus::{FocusTarget, LayerFocus},
+    },
 };
+
+mod focus_target {
+    pub const CLOSE: &str = "get_latest.close";
+    pub const REVIEW_RETRY: &str = "get_latest.review_retry";
+    pub const RETRY_FAILED_CLOSE: &str = "get_latest.retry_failed_close";
+    pub const START: &str = "get_latest.start";
+    pub const CANCEL: &str = "get_latest.cancel";
+    pub const DETAILS: &str = "get_latest.details";
+    pub const DONE_CLOSE: &str = "get_latest.done_close";
+}
+
+/// RFC-066 D2: order and entry for Get latest safely.
+pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
+    use crate::state::sync::SyncPhase;
+
+    let sync = &state.sync;
+    let close_target = FocusTarget::control(focus_target::CLOSE);
+
+    match &sync.phase {
+        SyncPhase::Idle
+        | SyncPhase::Planning
+        | SyncPhase::RetryPreparing
+        | SyncPhase::FetchRunning { .. }
+        | SyncPhase::PullRunning { .. } => LayerFocus {
+            order: Vec::new(),
+            entry: None,
+        },
+        SyncPhase::RetryPreparationFailed => {
+            let close_msg = Some(Message::Sync(SyncMessage::ModalClosed));
+            let retry_message = match &state.activity.latest {
+                crate::state::LatestOpState::Completed {
+                    log,
+                    retry:
+                        crate::state::RetryAvailability::Available(
+                            crate::state::ActivityRetryAction::ReviewSmartPull { .. },
+                        ),
+                } => Some(Message::Activity(
+                    crate::message::ActivityMessage::RetryRequested {
+                        source_operation_id: log.result.operation_id.clone(),
+                    },
+                )),
+                _ => None,
+            };
+            let review_target = FocusTarget::control(focus_target::REVIEW_RETRY);
+            let close_target_footer = FocusTarget::control(focus_target::RETRY_FAILED_CLOSE);
+            LayerFocus {
+                order: vec![
+                    (close_target, close_msg.clone()),
+                    (review_target.clone(), retry_message.clone()),
+                    (close_target_footer.clone(), close_msg),
+                ],
+                entry: Some(if retry_message.is_some() {
+                    review_target
+                } else {
+                    close_target_footer
+                }),
+            }
+        }
+        SyncPhase::AwaitingConfirm(plan) => {
+            let close_msg = Some(Message::Sync(SyncMessage::ModalClosed));
+            let mut order = vec![(close_target, close_msg.clone())];
+            let mut first_choice = None;
+            for entry in &plan.entries {
+                if entry.is_dirty && !entry.has_conflict && entry.skip_reason.is_none() {
+                    let fetch_target = FocusTarget::control_dynamic(format!(
+                        "get_latest.{}.fetch_only",
+                        entry.project_id
+                    ));
+                    if first_choice.is_none() {
+                        first_choice = Some(fetch_target.clone());
+                    }
+                    order.push((
+                        fetch_target,
+                        (entry.disposition
+                            != knotra_vcs::model::operation::SmartPullDisposition::FetchOnly)
+                            .then_some(Message::Sync(SyncMessage::DispositionChanged(
+                                entry.project_id.clone(),
+                                knotra_vcs::model::operation::SmartPullDisposition::FetchOnly,
+                            ))),
+                    ));
+                    let stash_target = FocusTarget::control_dynamic(format!(
+                        "get_latest.{}.stash_and_pull",
+                        entry.project_id
+                    ));
+                    order.push((
+                        stash_target,
+                        (entry.disposition
+                            != knotra_vcs::model::operation::SmartPullDisposition::StashAndPull)
+                            .then_some(Message::Sync(SyncMessage::DispositionChanged(
+                                entry.project_id.clone(),
+                                knotra_vcs::model::operation::SmartPullDisposition::StashAndPull,
+                            ))),
+                    ));
+                }
+            }
+            let has_work = plan
+                .entries
+                .iter()
+                .any(|e| !matches!(e.disposition, SmartPullDisposition::Excluded));
+            let can_start = has_work && !state.operation_interlock.is_busy();
+            order.push((
+                FocusTarget::control(focus_target::START),
+                can_start.then_some(Message::Sync(SyncMessage::ExecuteRequested)),
+            ));
+            let cancel_target = FocusTarget::control(focus_target::CANCEL);
+            order.push((
+                cancel_target.clone(),
+                Some(Message::Sync(SyncMessage::Cancelled)),
+            ));
+            LayerFocus {
+                order,
+                // Never "Start": `ExecuteRequested` starts a change (D2).
+                entry: Some(first_choice.unwrap_or(cancel_target)),
+            }
+        }
+        SyncPhase::Done(_) => {
+            let close_msg = Some(Message::Sync(SyncMessage::ModalClosed));
+            let footer_close = FocusTarget::control(focus_target::DONE_CLOSE);
+            LayerFocus {
+                order: vec![
+                    (close_target, close_msg.clone()),
+                    (
+                        FocusTarget::control(focus_target::DETAILS),
+                        Some(Message::ToggleOpDetails),
+                    ),
+                    (footer_close.clone(), close_msg),
+                ],
+                entry: Some(footer_close),
+            }
+        }
+    }
+}
 
 pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
     use crate::state::sync::SyncPhase;
@@ -83,21 +218,25 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 )),
                 _ => None,
             };
-            // `reason` was always `None` at this call site (no path here
-            // ever supplied one) — the plain `primary_maybe` constructor is
-            // the better target than `reasoned`, per the handoff's §1b note
-            // that not every site needs the reason-carrying form.
+            // RFC-066 D4: moved off `primary_maybe` onto `styled_button` —
+            // `*_maybe` helpers cannot draw the focus outline.
             let footer = row![
-                primary_maybe(
+                styled_button(
                     tokens,
                     state.t("plain.activity.review_retry"),
-                    retry_message
+                    retry_message,
+                    crate::app::ring(state, &FocusTarget::control(focus_target::REVIEW_RETRY)),
+                    style::primary,
                 ),
                 Space::new().width(Length::Fill),
                 styled_button(
                     tokens,
                     state.t("action.close"),
                     Some(Message::Sync(SyncMessage::ModalClosed)),
+                    crate::app::ring(
+                        state,
+                        &FocusTarget::control(focus_target::RETRY_FAILED_CLOSE)
+                    ),
                     style::ghost,
                 ),
             ]
@@ -157,14 +296,28 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                                 &entry.project_id,
                                 SmartPullDisposition::FetchOnly,
                                 state.t("plain.get_latest.check_only"),
-                                curr == &SmartPullDisposition::FetchOnly
+                                curr == &SmartPullDisposition::FetchOnly,
+                                crate::app::ring(
+                                    state,
+                                    &FocusTarget::control_dynamic(format!(
+                                        "get_latest.{}.fetch_only",
+                                        entry.project_id
+                                    ))
+                                )
                             ),
                             pick_disposition_btn(
                                 tokens,
                                 &entry.project_id,
                                 SmartPullDisposition::StashAndPull,
                                 state.t("plain.get_latest.get_anyway"),
-                                curr == &SmartPullDisposition::StashAndPull
+                                curr == &SmartPullDisposition::StashAndPull,
+                                crate::app::ring(
+                                    state,
+                                    &FocusTarget::control_dynamic(format!(
+                                        "get_latest.{}.stash_and_pull",
+                                        entry.project_id
+                                    ))
+                                )
                             ),
                         ]
                         .spacing(4)
@@ -247,7 +400,7 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                     state.t("plain.get_latest.start"),
                     can_start.then_some(Message::Sync(SyncMessage::ExecuteRequested)),
                     start_reason,
-                    false,
+                    crate::app::ring(state, &FocusTarget::control(focus_target::START)),
                     style::primary,
                 ),
                 Space::new().width(Length::Fill),
@@ -255,6 +408,7 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                     tokens,
                     state.t("action.cancel"),
                     Some(Message::Sync(SyncMessage::Cancelled)),
+                    crate::app::ring(state, &FocusTarget::control(focus_target::CANCEL)),
                     style::ghost,
                 ),
             ]
@@ -402,7 +556,7 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
         OverlayWidth::Large.resolve(state.window_width),
         state.t("plain.get_latest"),
         close_msg,
-        false,
+        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
         inner,
         footer,
     )
@@ -533,6 +687,7 @@ fn pull_result_view<'a>(
             tokens,
             details_label,
             Some(Message::ToggleOpDetails),
+            crate::app::ring(state, &FocusTarget::control(focus_target::DETAILS)),
             style::ghost,
         ),
         Space::new().width(Length::Fill),
@@ -540,6 +695,7 @@ fn pull_result_view<'a>(
             tokens,
             state.t("action.close"),
             Some(Message::Sync(SyncMessage::ModalClosed)),
+            crate::app::ring(state, &FocusTarget::control(focus_target::DONE_CLOSE)),
             style::ghost,
         ),
     ]
@@ -562,9 +718,8 @@ fn pull_result_view<'a>(
 /// A button styled with one of `knotra_ui::widget::style`'s semantic
 /// functions plus a focus ring — the same shape `conflict.rs` (Stage 2),
 /// `changelog.rs` (Stage 3), and `freezer.rs`/`context_switch.rs` (Stage 4)
-/// use. `is_focused` is always `false`: no real focus-order wiring exists
-/// or is permitted for this overlay this stage (R3 forbids `app/`/
-/// `state/`).
+/// use. `is_focused` is `crate::app::ring(state, &target)` at every call
+/// site (RFC-066 D4).
 ///
 /// The `RetryPreparationFailed` Close button this replaces had no explicit
 /// `.height(BUTTON_HEIGHT).padding([0, 18])` in the pre-migration code,
@@ -576,6 +731,7 @@ fn styled_button<'a>(
     tokens: &Tokens,
     label: &'a str,
     on_press: Option<Message>,
+    is_focused: bool,
     style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
@@ -587,7 +743,7 @@ fn styled_button<'a>(
     .height(BUTTON_HEIGHT)
     .padding([0, 18])
     .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, false, style_fn(&t, status)))
+    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
     .into()
 }
 
@@ -607,6 +763,7 @@ fn pick_disposition_btn<'a>(
     disposition: SmartPullDisposition,
     label: &'a str,
     selected: bool,
+    is_focused: bool,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
     let msg = (!selected).then_some(Message::Sync(SyncMessage::DispositionChanged(
@@ -621,7 +778,7 @@ fn pick_disposition_btn<'a>(
     .height(32.0)
     .padding([0, 10])
     .on_press_maybe(msg)
-    .style(move |_theme, status| current_or(selected, &t, status, false))
+    .style(move |_theme, status| current_or(selected, &t, status, is_focused))
     .into()
 }
 

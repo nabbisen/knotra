@@ -36,6 +36,7 @@ pub(crate) use context_switch::layer_focus as context_switch_layer_focus;
 pub use context_switch::switch_modal;
 pub(crate) use freezer::layer_focus as freezer_layer_focus;
 pub use freezer::tag_modal;
+pub(crate) use smart_pull::layer_focus as smart_pull_layer_focus;
 pub use smart_pull::pull_modal;
 
 // `tests.rs` calls these two `pub(crate)` changelog helpers via the old
