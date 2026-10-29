@@ -5,6 +5,8 @@ use iced::{
     widget::{Space, button, container, row, text},
 };
 
+use knotra_ui::widget::{SMALL_BUTTON_HEIGHT, centered_button_label};
+
 use crate::{
     message::{ActivityMessage, Message, WorkspaceMessage},
     state::{ActivityRetryAction, AppState, LatestOpState, RetryAvailability},
@@ -24,20 +26,25 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     .size(snora::design::style::text::body_small_size(tokens))
                     .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 Space::new().width(Length::Fill),
-                button(
+                // Task 098 Amendment A1: `button_label_guard`'s literal-
+                // height check also found these two (`.height(30.0)`, no
+                // `centered_button_label`) — migrated onto
+                // `SMALL_BUTTON_HEIGHT` the same way, no style change
+                // beyond that (neither button had one to begin with).
+                button(centered_button_label(
                     text(state.t("plain.undo.undo"))
                         .size(snora::design::style::text::body_small_size(tokens))
                         .line_height(snora::design::style::text::body_small_line_height(tokens))
-                )
-                .height(30.0)
+                ))
+                .height(SMALL_BUTTON_HEIGHT)
                 .padding([0, 12])
                 .on_press(Message::Workspace(WorkspaceMessage::UndoRemoval)),
-                button(
+                button(centered_button_label(
                     text(state.t("plain.undo.dismiss"))
                         .size(snora::design::style::text::body_small_size(tokens))
                         .line_height(snora::design::style::text::body_small_line_height(tokens))
-                )
-                .height(30.0)
+                ))
+                .height(SMALL_BUTTON_HEIGHT)
                 .padding([0, 12])
                 .on_press(Message::Workspace(WorkspaceMessage::DismissUndoSnackbar)),
             ]

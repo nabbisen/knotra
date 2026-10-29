@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — "Mark done" in the Resolve panel was smaller than the buttons beside it
+
+Its label also sat against the button's top edge. It now matches "Open in editor" and
+"Open in comparison tool".
+
 ### Fixed — file names overlapped buttons in the Resolve panel
 
 In a narrow window, a conflicted file's name was drawn over its "Open in editor" button,

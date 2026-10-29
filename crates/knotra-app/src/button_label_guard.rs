@@ -154,6 +154,47 @@ mod tests {
         starts
     }
 
+    /// True if `s` is a bare numeric literal — digits, at most one `.`, an
+    /// optional trailing `f32`/`f64` suffix (Rust accepts both on a float
+    /// literal; neither appears in this codebase's own button heights, but
+    /// excluding them costs nothing). Empty is not a literal.
+    fn is_numeric_literal(s: &str) -> bool {
+        let s = s
+            .strip_suffix("f32")
+            .or_else(|| s.strip_suffix("f64"))
+            .unwrap_or(s);
+        !s.is_empty()
+            && s.chars().filter(|c| *c == '.').count() <= 1
+            && s.chars().all(|c| c.is_ascii_digit() || c == '.')
+    }
+
+    /// Task 098 Amendment A1: the byte offset, within `source`, of the
+    /// start of each `.height(<numeric literal>)` call — a fixed height
+    /// that is **not** one of the two named constants
+    /// [`find_fixed_height_calls`] already looks for. Mirrors that
+    /// function's own scan shape; the two stay separate rather than one
+    /// combined pass, since a literal height is wrong regardless of
+    /// whether its label is centred (the violation this function reports
+    /// is "not one of the two constants," independent of
+    /// [`check_source`]'s own "not centred" check below).
+    fn find_literal_height_calls(source: &str) -> Vec<usize> {
+        let mut starts = Vec::new();
+        let mut search_from = 0;
+        while let Some(rel) = source[search_from..].find(".height(") {
+            let dot = search_from + rel;
+            let after_paren = dot + ".height(".len();
+            let rest = &source[after_paren..];
+            if let Some(close_rel) = rest.find(')') {
+                let arg = rest[..close_rel].trim();
+                if is_numeric_literal(arg) {
+                    starts.push(dot);
+                }
+            }
+            search_from = after_paren;
+        }
+        starts
+    }
+
     /// One violation this guard found: `file:line`, plus why.
     #[derive(Debug)]
     struct Violation {
@@ -232,6 +273,46 @@ mod tests {
         }
     }
 
+    /// Task 098 Amendment A1: scans `source` for every
+    /// `.height(<numeric literal>)` call chained directly off a
+    /// `button(...)`/`...::button(...)` call, and pushes a [`Violation`]
+    /// for each — a fixed height must be `BUTTON_HEIGHT` or
+    /// `SMALL_BUTTON_HEIGHT`, never a literal, so this one fires
+    /// regardless of whether the label happens to be centred. Shares
+    /// [`matching_open_paren`]/[`is_button_callee`] with [`check_source`]
+    /// above, but is its own pass over [`find_literal_height_calls`]
+    /// rather than folded into that function's loop: the two input sets
+    /// are disjoint by construction (a `.height(...)` argument can match
+    /// at most one of "is `BUTTON_HEIGHT`/`SMALL_BUTTON_HEIGHT`" or "is a
+    /// bare numeric literal"), so there is no double-reporting to
+    /// reconcile between them.
+    fn check_literal_heights(path: &std::path::Path, clean_source: &str, out: &mut Vec<Violation>) {
+        for dot in find_literal_height_calls(clean_source) {
+            let line = clean_source[..dot].matches('\n').count() + 1;
+            let location = format!("{}:{line}", path.display());
+
+            let before = clean_source[..dot].trim_end();
+            let Some(close_paren) = before.strip_suffix(')').map(|_| before.len() - 1) else {
+                continue;
+            };
+            let Some(open_paren) = matching_open_paren(clean_source, close_paren) else {
+                continue;
+            };
+            let callee = clean_source[..open_paren].trim_end();
+            if !is_button_callee(callee) {
+                continue;
+            }
+
+            out.push(Violation {
+                location,
+                reason: "a fixed-height `button(...)` uses a numeric literal instead of \
+                         `BUTTON_HEIGHT`/`SMALL_BUTTON_HEIGHT` — a literal escapes this \
+                         guard's other check too, since nothing requires it to match \
+                         either constant",
+            });
+        }
+    }
+
     /// R3: every fixed-height button label in either scanned directory is
     /// built through `centered_button_label`. The expected set is empty by
     /// design, the same shape `text_size_guard.rs` and
@@ -273,6 +354,43 @@ mod tests {
              `centered_button_label` -- RFC-062 D1/R3 requires every \
              `button(...).height(BUTTON_HEIGHT)` / `.height(SMALL_BUTTON_HEIGHT)` \
              site to build its label through that helper:\n{actual:#?}"
+        );
+    }
+
+    /// Task 098 Amendment A1: every fixed-height `button(...)` uses
+    /// `BUTTON_HEIGHT` or `SMALL_BUTTON_HEIGHT`, never a numeric literal —
+    /// a literal both escapes `every_fixed_height_button_label_is_centered`
+    /// above (it never matches either constant name, so that scan never
+    /// sees it) and is free to drift from both canonical sizes. Found
+    /// `conflict.rs`'s "Mark done" this way (Review 236 §3, Task 097's
+    /// evidence); the same scan over both directories found three more
+    /// pre-RFC-062 sites with the identical shape, migrated in the same
+    /// commit as this guard.
+    #[test]
+    fn every_fixed_height_button_uses_one_of_the_two_height_constants() {
+        let mut actual: Vec<String> = Vec::new();
+
+        for dir in scan_dirs() {
+            for file in rust_files_under(&dir)
+                .into_iter()
+                .filter(|f| is_scan_target(f))
+            {
+                let Ok(source) = std::fs::read_to_string(&file) else {
+                    continue;
+                };
+                let clean = blank_comment_lines(&source);
+                let mut violations = Vec::new();
+                check_literal_heights(&file, &clean, &mut violations);
+                for v in violations {
+                    actual.push(format!("{}: {}", v.location, v.reason));
+                }
+            }
+        }
+
+        assert!(
+            actual.is_empty(),
+            "fixed-height button(s) found using a numeric literal instead of \
+             `BUTTON_HEIGHT`/`SMALL_BUTTON_HEIGHT`:\n{actual:#?}"
         );
     }
 }

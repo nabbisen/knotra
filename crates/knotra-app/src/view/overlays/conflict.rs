@@ -671,25 +671,28 @@ fn third_slot_for<'a>(
 ) -> ThirdSlot<'a> {
     match vcs_kind {
         Some(VcsKind::Git) => {
-            let t = tokens.clone();
-            ThirdSlot::Button(
-                iced::widget::button(
-                    text(state.t("plain.resolve.mark_done"))
-                        .size(snora::design::style::text::label_size(tokens)),
-                )
-                .height(36.0)
-                .padding([0, 10])
-                .on_press(Message::ConflictOps(
+            // Task 098 Amendment A1: built with `reasoned`, the same
+            // helper and style as its neighbours ("Open in editor",
+            // "Open in comparison tool") — a bare `iced::widget::button`
+            // with a literal `.height(36.0)` and an uncentred label used
+            // to make this button shorter than those neighbours, with its
+            // label sitting against the top edge (in Japanese,
+            // 「完了としてマーク」 touched the border). `button_label_guard`
+            // never saw it: the guard only knew the two height constants,
+            // not a numeric literal.
+            ThirdSlot::Button(reasoned(
+                tokens,
+                state.t("plain.resolve.mark_done"),
+                Some(Message::ConflictOps(
                     ConflictOpsMessage::MarkResolvedRequested {
                         project_id: project_id.clone(),
                         file_path: file_path.to_owned(),
                     },
-                ))
-                .style(move |_theme, status| {
-                    style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
-                })
-                .into(),
-            )
+                )),
+                None,
+                is_focused,
+                style::secondary,
+            ))
         }
         // D1 deleted `ProjectConflictDetail.note`, the VCS layer's discarded
         // English sentence for this same slot — the completing action is

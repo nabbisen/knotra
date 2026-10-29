@@ -19,7 +19,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, current_or,
+    BUTTON_HEIGHT, SMALL_BUTTON_HEIGHT, Tokens, centered_button_label, current_or,
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
@@ -770,12 +770,20 @@ fn pick_disposition_btn<'a>(
         project_id.clone(),
         disposition,
     )));
-    iced::widget::button(
+    // Task 098 Amendment A1: `button_label_guard`'s literal-height check
+    // also found this one (`.height(32.0)`, no `centered_button_label`) —
+    // migrated onto `SMALL_BUTTON_HEIGHT` and `centered_button_label`,
+    // same as the others. Kept as a hand-built `button(...)`, not
+    // `reasoned`: `current_or`'s own per-button `selected` state has no
+    // room in `reasoned`'s plain `fn(&Tokens, Status) -> Style` style
+    // slot, which carries no extra state beyond the tokens and the
+    // button's own interaction status.
+    iced::widget::button(centered_button_label(
         text(label)
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
-    )
-    .height(32.0)
+    ))
+    .height(SMALL_BUTTON_HEIGHT)
     .padding([0, 10])
     .on_press_maybe(msg)
     .style(move |_theme, status| current_or(selected, &t, status, is_focused))
