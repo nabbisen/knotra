@@ -5,7 +5,7 @@ use iced::{
     widget::{Space, button, container, row, text},
 };
 
-use knotra_ui::widget::{SMALL_BUTTON_HEIGHT, centered_button_label};
+use knotra_ui::widget::{SMALL_BUTTON_HEIGHT, centered_button_label, style};
 
 use crate::{
     message::{ActivityMessage, Message, WorkspaceMessage},
@@ -26,11 +26,14 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     .size(snora::design::style::text::body_small_size(tokens))
                     .line_height(snora::design::style::text::body_small_line_height(tokens)),
                 Space::new().width(Length::Fill),
-                // Task 098 Amendment A1: `button_label_guard`'s literal-
-                // height check also found these two (`.height(30.0)`, no
-                // `centered_button_label`) — migrated onto
-                // `SMALL_BUTTON_HEIGHT` the same way, no style change
-                // beyond that (neither button had one to begin with).
+                // Task 100 §3: styled like every other knotra button —
+                // `style::secondary`/`style::ghost` plus `with_focus_ring`,
+                // the same shape `freezer.rs::styled_button` uses. Neither
+                // button is a focus target (the snackbar sits outside the
+                // `Layer`/`layer_focus` system entirely), so `is_focused` is
+                // hardcoded `false` rather than left out — the same choice
+                // `freezer.rs`'s own `styled_button` doc comment makes for
+                // this stage.
                 button(centered_button_label(
                     text(state.t("plain.undo.undo"))
                         .size(snora::design::style::text::body_small_size(tokens))
@@ -38,7 +41,13 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 ))
                 .height(SMALL_BUTTON_HEIGHT)
                 .padding([0, 12])
-                .on_press(Message::Workspace(WorkspaceMessage::UndoRemoval)),
+                .on_press(Message::Workspace(WorkspaceMessage::UndoRemoval))
+                .style({
+                    let t = tokens.clone();
+                    move |_theme, status| {
+                        style::with_focus_ring(&t, false, style::secondary(&t, status))
+                    }
+                }),
                 button(centered_button_label(
                     text(state.t("plain.undo.dismiss"))
                         .size(snora::design::style::text::body_small_size(tokens))
@@ -46,7 +55,13 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 ))
                 .height(SMALL_BUTTON_HEIGHT)
                 .padding([0, 12])
-                .on_press(Message::Workspace(WorkspaceMessage::DismissUndoSnackbar)),
+                .on_press(Message::Workspace(WorkspaceMessage::DismissUndoSnackbar))
+                .style({
+                    let t = tokens.clone();
+                    move |_theme, status| {
+                        style::with_focus_ring(&t, false, style::ghost(&t, status))
+                    }
+                }),
             ]
             .spacing(8)
             .align_y(Alignment::Center)

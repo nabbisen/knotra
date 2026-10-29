@@ -22,6 +22,10 @@ When a command could not be used, the line explaining why was brighter than the 
 itself, and started at the edge of the window. It is now indented under its command, in a
 quieter colour.
 
+### Fixed — "Undo" and "Dismiss" after removing a project looked unlike other buttons
+
+They were drawn in a plain default style. They now look like knotra's other buttons.
+
 ## [0.32.0] — 2026-10-29
 
 **Every window can now be used from the keyboard, and "Stop this fix attempt" asks before it
