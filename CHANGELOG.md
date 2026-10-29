@@ -16,11 +16,11 @@ its name. The others started at the left edge, under the name, where they looked
 their own. Every reason and note now sits under the first one, with the project it belongs to.
 The list of results after saving is fixed the same way.
 
-### Fixed — in the command palette, a reason looked more important than its command
+### Fixed — in the command palette, the reason a command is unavailable looked like a separate item
 
-When a command could not be used, the line explaining why was brighter than the command
-itself, and started at the edge of the window. It is now indented under its command, in a
-quieter colour.
+When a command could not be used, the line explaining why was drawn in the main text colour,
+at the edge of the window, so it looked like an item of its own. It is now indented under its
+command, in a softer colour.
 
 ### Fixed — "Undo" and "Dismiss" after removing a project looked unlike other buttons
 
