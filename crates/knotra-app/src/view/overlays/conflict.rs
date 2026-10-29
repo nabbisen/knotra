@@ -412,14 +412,18 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                     ConflictOpsMessage::OpenInMergeToolRequested(f.path.clone()),
                                 ));
 
-                            // RFC-054 D1/D4: line 1 always has the icon,
-                            // path, spacer and the two launch controls — a
-                            // button-kind third slot joins them inline
-                            // (R1/R3: Git rows are otherwise unchanged);
-                            // prose gets its own full-width line instead
-                            // (R2), because a row sized for buttons cannot
-                            // hold a sentence up to four times as wide.
-                            let mut line1 = row![
+                            // Task 097: a path and up to three buttons
+                            // cannot share one line at the panel's
+                            // narrowest width (seen at 1250px, the panel
+                            // half that) — the path's `Fill` share shrank
+                            // towards zero and iced does not clip text, so
+                            // the path was drawn over "Open in editor",
+                            // and "Mark done" was squeezed enough that its
+                            // label (「完了として」 in Japanese) ran outside
+                            // the button. So the name now has its own
+                            // line, full width, wrapping rather than
+                            // sharing space with anything:
+                            let line1 = row![
                                 text("!")
                                     .size(snora::design::style::text::body_size(tokens))
                                     .line_height(snora::design::style::text::body_line_height(
@@ -432,7 +436,22 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                         tokens
                                     ))
                                     .width(Length::Fill),
-                                Space::new().width(Length::Fixed(8.0)),
+                            ]
+                            .align_y(Alignment::Center)
+                            .spacing(6);
+
+                            // Line 2: indented 28px — the 22px glyph column
+                            // plus line 1's own 6px spacing before the
+                            // path — the same indent the prose line below
+                            // already used, so both read as belonging to
+                            // this file rather than as new list items.
+                            // `.wrap()` (iced 0.14's `Row::wrap`): a button
+                            // that does not fit moves to the next line
+                            // instead of being squeezed, and every wrapped
+                            // line inherits this row's own width (the
+                            // panel's width minus the 28px indent), so
+                            // continuation lines stay indented too.
+                            let mut line2_controls = row![
                                 // RFC-037 Stage 6: migrated onto the shared
                                 // `reasoned` primitive. `style::secondary`
                                 // matches the third slot's own weight when
@@ -466,7 +485,7 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                             .align_y(Alignment::Center)
                             .spacing(6);
 
-                            let mut file_col = column![].spacing(4);
+                            let mut file_col = column![line1].spacing(4);
                             match third_slot_for(
                                 state,
                                 tokens,
@@ -476,23 +495,27 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                 crate::app::ring(state, &mark_target),
                             ) {
                                 ThirdSlot::Button(control) => {
-                                    line1 = line1.push(control);
-                                    file_col = file_col.push(line1);
+                                    line2_controls = line2_controls.push(control);
+                                    file_col = file_col.push(row![
+                                        Space::new().width(Length::Fixed(28.0)),
+                                        line2_controls.wrap(),
+                                    ]);
                                 }
                                 ThirdSlot::Prose(sentence) => {
-                                    file_col = file_col.push(line1);
-                                    // RFC-054 D3: indented 28px — the 22px
-                                    // glyph plus line 1's own 6px
-                                    // `.spacing(6)` before the path — so
-                                    // this reads as belonging to that file,
-                                    // not as a new list item. Wraps rather
-                                    // than truncates (§4): the sentence is
-                                    // the thing the user needs to read, and
-                                    // this line exists to give it room —
-                                    // `text`'s default behaviour under a
-                                    // constrained `Fill` width already
-                                    // wraps, so no extra configuration is
-                                    // needed to get that.
+                                    file_col = file_col.push(row![
+                                        Space::new().width(Length::Fixed(28.0)),
+                                        line2_controls.wrap(),
+                                    ]);
+                                    // RFC-054 D3: the same 28px indent as
+                                    // line 2, on its own full-width line
+                                    // below it. Wraps rather than truncates
+                                    // (§4): the sentence is the thing the
+                                    // user needs to read, and this line
+                                    // exists to give it room — `text`'s
+                                    // default behaviour under a constrained
+                                    // `Fill` width already wraps, so no
+                                    // extra configuration is needed to get
+                                    // that.
                                     file_col = file_col.push(row![
                                         Space::new().width(Length::Fixed(28.0)),
                                         text(sentence)

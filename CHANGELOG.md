@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — file names overlapped buttons in the Resolve panel
+
+In a narrow window, a conflicted file's name was drawn over its "Open in editor" button,
+and "Mark done" could spill out of its button. Each file's name now has its own line, with
+its buttons below.
+
 ### Changed — every window can be used from the keyboard
 
 Opening a window now moves keyboard focus into it, onto a control that changes nothing.
