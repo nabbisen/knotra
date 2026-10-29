@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.32.1] — 2026-10-29
+
+**Three layout fixes: each explanation now sits with the item it explains, and "Undo" after
+removing a project looks like a button.**
+
 ### Fixed — "Save release point" showed a project's other reasons as separate rows
 
 When a project could not be saved for more than one reason, only the first reason sat beside
