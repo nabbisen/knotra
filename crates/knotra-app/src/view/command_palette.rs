@@ -107,10 +107,29 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             });
             let mut row = column![btn].spacing(2);
             if let Some(reason_key) = entry.disabled_reason_key {
+                // Task 100 §2: `text_secondary` (a token, never a literal —
+                // the theme's own WCAG AA contrast test already covers it),
+                // so the reason reads quieter than its disabled command
+                // rather than brighter. Indented by the button's own left
+                // padding (`iced`'s `DEFAULT_PADDING.left`, 10px — a value
+                // the button already uses, not a new literal), so it no
+                // longer starts at the panel's bare edge. It still does not
+                // reach the label's own start past the kind prefix ("⊞  "
+                // and the like): that offset is baked into one `text()` run
+                // with the label, and the three prefixes are neither the
+                // same glyph nor the same length, so the extra distance
+                // cannot be derived without measuring rendered text width —
+                // stopping here rather than choosing a number for it.
                 row = row.push(
-                    text(state.t(reason_key))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    iced::widget::container(
+                        text(state.t(reason_key))
+                            .size(snora::design::style::text::body_small_size(tokens))
+                            .line_height(snora::design::style::text::body_small_line_height(tokens))
+                            .color(snora::design::style::color::to_iced_color(
+                                tokens.palette.text_secondary,
+                            )),
+                    )
+                    .padding(iced::padding::left(10)),
                 );
             }
             row.into()

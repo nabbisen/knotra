@@ -16,6 +16,12 @@ its name. The others started at the left edge, under the name, where they looked
 their own. Every reason and note now sits under the first one, with the project it belongs to.
 The list of results after saving is fixed the same way.
 
+### Fixed — in the command palette, a reason looked more important than its command
+
+When a command could not be used, the line explaining why was brighter than the command
+itself, and started at the edge of the window. It is now indented under its command, in a
+quieter colour.
+
 ## [0.32.0] — 2026-10-29
 
 **Every window can now be used from the keyboard, and "Stop this fix attempt" asks before it
