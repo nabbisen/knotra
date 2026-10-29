@@ -31,6 +31,18 @@ mod focus_target {
     pub const CLOSE: &str = "palette.close";
 }
 
+/// A result button's own padding, set explicitly rather than left to iced's
+/// default — the value is unchanged (`iced_widget::button`'s own
+/// `DEFAULT_PADDING`), but now named so the disabled-reason indent below can
+/// read its `left` field instead of carrying a second copy of `10` that
+/// nothing would keep in step with it (Review 241 §3, Task 100 A1).
+const RESULT_BUTTON_PADDING: iced::Padding = iced::Padding {
+    top: 5.0,
+    bottom: 5.0,
+    right: 10.0,
+    left: 10.0,
+};
+
 /// RFC-066 D2: order and entry for the command palette. Entry is always the
 /// search field (RFC D2's table has one row for this window, no
 /// phase-dependent entries, unlike the other overlays).
@@ -102,24 +114,29 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .then_some(Message::Palette(PaletteMessage::EntryClicked(i))),
             )
             .width(Length::Fill)
+            .padding(RESULT_BUTTON_PADDING)
             .style(move |_theme, status| {
                 style::with_focus_ring(&t, is_focused, style::ghost(&t, status))
             });
             let mut row = column![btn].spacing(2);
             if let Some(reason_key) = entry.disabled_reason_key {
-                // Task 100 §2: `text_secondary` (a token, never a literal —
-                // the theme's own WCAG AA contrast test already covers it),
-                // so the reason reads quieter than its disabled command
-                // rather than brighter. Indented by the button's own left
-                // padding (`iced`'s `DEFAULT_PADDING.left`, 10px — a value
-                // the button already uses, not a new literal), so it no
-                // longer starts at the panel's bare edge. It still does not
-                // reach the label's own start past the kind prefix ("⊞  "
-                // and the like): that offset is baked into one `text()` run
-                // with the label, and the three prefixes are neither the
-                // same glyph nor the same length, so the extra distance
-                // cannot be derived without measuring rendered text width —
-                // stopping here rather than choosing a number for it.
+                // Task 100 §2 / Review 241 §3: `text_secondary` (a token,
+                // never a literal — the theme's own WCAG AA contrast test
+                // already covers it) replaces the main text colour, so the
+                // reason no longer reads as an item of its own at the
+                // window's edge. Indented by `RESULT_BUTTON_PADDING.left`,
+                // the same named value the button above it is now set to
+                // explicitly — not a second copy of the number — so the
+                // reason starts where the command's own kind symbol starts,
+                // inside the button's padding. It does not reach the
+                // label's own start past the kind prefix ("⊞  " and the
+                // like): that offset is baked into one `text()` run with the
+                // label, and the three prefixes are neither the same glyph
+                // nor the same length, so the extra distance cannot be
+                // derived without measuring rendered text width — stopping
+                // here rather than choosing a number for it (Review 241 §3
+                // accepts the symbol's own start as the target, not the
+                // label's).
                 row = row.push(
                     iced::widget::container(
                         text(state.t(reason_key))
@@ -129,7 +146,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                                 tokens.palette.text_secondary,
                             )),
                     )
-                    .padding(iced::padding::left(10)),
+                    .padding(iced::padding::left(RESULT_BUTTON_PADDING.left)),
                 );
             }
             row.into()

@@ -41,6 +41,14 @@ mod focus_target {
     pub const FOOTER_CLOSE: &str = "release.footer_close";
 }
 
+/// The leading icon column every row built on it shares — the validation
+/// rows, the result rows, the impact-warning rows, and `continuation_line`'s
+/// own alignment beneath them. Named so the four sites stay in step with
+/// each other (Review 241 §3, Task 100 A1); every other `.spacing(8)` in
+/// this file is an unrelated layout that happens to use the same number.
+const ICON_COLUMN_WIDTH: Length = Length::Fixed(22.0);
+const ICON_COLUMN_SPACING: f32 = 8.0;
+
 /// RFC-066 D2: order and entry for Save release point.
 pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
     use crate::state::freezer::FreezerPhase;
@@ -271,7 +279,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                             text(icon)
                                 .size(snora::design::style::text::body_size(tokens))
                                 .line_height(snora::design::style::text::body_line_height(tokens))
-                                .width(Length::Fixed(22.0)),
+                                .width(ICON_COLUMN_WIDTH),
                             text(&entry.project_name)
                                 .size(snora::design::style::text::body_size(tokens))
                                 .line_height(snora::design::style::text::body_line_height(tokens))
@@ -283,7 +291,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                                 ))
                                 .width(Length::FillPortion(3)),
                         ]
-                        .spacing(8)
+                        .spacing(ICON_COLUMN_SPACING)
                         .align_y(Alignment::Center),
                     ]
                     .spacing(4);
@@ -451,7 +459,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                             text(icon)
                                 .size(snora::design::style::text::body_size(tokens))
                                 .line_height(snora::design::style::text::body_line_height(tokens))
-                                .width(Length::Fixed(22.0)),
+                                .width(ICON_COLUMN_WIDTH),
                             text(&pr.project_name)
                                 .size(snora::design::style::text::body_size(tokens))
                                 .line_height(snora::design::style::text::body_line_height(tokens))
@@ -461,7 +469,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                                 .line_height(snora::design::style::text::body_line_height(tokens))
                                 .width(Length::FillPortion(2)),
                         ]
-                        .spacing(8),
+                        .spacing(ICON_COLUMN_SPACING),
                     ]
                     .spacing(4);
 
@@ -646,7 +654,7 @@ fn impact_warnings_section<'a>(tokens: &Tokens, state: &'a AppState) -> Element<
                 text("⚠")
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens))
-                    .width(Length::Fixed(22.0)),
+                    .width(ICON_COLUMN_WIDTH),
                 text(&w.frozen_project_name)
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens))
@@ -660,7 +668,7 @@ fn impact_warnings_section<'a>(tokens: &Tokens, state: &'a AppState) -> Element<
                 .line_height(snora::design::style::text::body_small_line_height(tokens))
                 .width(Length::FillPortion(3)),
             ]
-            .spacing(8)
+            .spacing(ICON_COLUMN_SPACING)
             .align_y(Alignment::Center)
             .into()
         })
@@ -689,14 +697,14 @@ fn continuation_line<'a>(
     content_portion: u16,
 ) -> Element<'a, Message> {
     row![
-        Space::new().width(Length::Fixed(22.0)),
+        Space::new().width(ICON_COLUMN_WIDTH),
         Space::new().width(Length::FillPortion(2)),
         text(content.into())
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens))
             .width(Length::FillPortion(content_portion)),
     ]
-    .spacing(8)
+    .spacing(ICON_COLUMN_SPACING)
     .into()
 }
 
