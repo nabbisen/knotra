@@ -289,31 +289,23 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     .spacing(4);
 
                     // D3: every blocker, not only the first, once each, in
-                    // declaration order.
+                    // declaration order. Each sits under the first reason's
+                    // own column, not at the row's left edge (Review 239 §4).
                     for blocker in entry.blockers.iter().skip(1) {
-                        row_col = row_col.push(
-                            text(blocker_message(state, blocker))
-                                .size(snora::design::style::text::body_small_size(tokens))
-                                .line_height(snora::design::style::text::body_small_line_height(
-                                    tokens,
-                                )),
-                        );
+                        row_col = row_col.push(continuation_line(
+                            tokens,
+                            blocker_message(state, blocker),
+                            3,
+                        ));
                     }
 
                     // R9: `Unreadable`'s own diagnostic, only under "Show
-                    // details".
+                    // details" — same column as the reasons above it.
                     if state.show_op_details {
                         for blocker in &entry.blockers {
                             if let FreezeBlocker::Unreadable { reason } = blocker {
-                                row_col = row_col.push(
-                                    text(reason.as_str())
-                                        .size(snora::design::style::text::body_small_size(tokens))
-                                        .line_height(
-                                            snora::design::style::text::body_small_line_height(
-                                                tokens,
-                                            ),
-                                        ),
-                                );
+                                row_col =
+                                    row_col.push(continuation_line(tokens, reason.as_str(), 3));
                             }
                         }
                     }
@@ -321,13 +313,8 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     // D3/D5: notes are just as true on a blocked row as on a
                     // ready one, so they are not gated on `is_blocked()`.
                     for note in &entry.notes {
-                        row_col = row_col.push(
-                            text(note_message(state, note))
-                                .size(snora::design::style::text::body_small_size(tokens))
-                                .line_height(snora::design::style::text::body_small_line_height(
-                                    tokens,
-                                )),
-                        );
+                        row_col =
+                            row_col.push(continuation_line(tokens, note_message(state, note), 3));
                     }
 
                     row_col.into()
@@ -483,13 +470,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                         && let Some(hint) = &pr.recovery_hint
                     {
                         for cmd in &hint.suggested_commands {
-                            row_col = row_col.push(
-                                text(format!("  {}", cmd))
-                                    .size(snora::design::style::text::body_small_size(tokens))
-                                    .line_height(
-                                        snora::design::style::text::body_small_line_height(tokens),
-                                    ),
-                            );
+                            row_col = row_col.push(continuation_line(tokens, cmd.as_str(), 2));
                         }
                     }
 
@@ -692,6 +673,30 @@ fn impact_warnings_section<'a>(tokens: &Tokens, state: &'a AppState) -> Element<
         column(rows).spacing(6),
     ]
     .spacing(6)
+    .into()
+}
+
+/// A continuation line for a validation/result row — a further reason, a
+/// note, an `Unreadable` diagnostic, or a recovery-hint command. Uses the
+/// same icon/name/content column weights as the row's own first line
+/// (`row_col`'s `row![...]` above), so it lines up under that line's content
+/// column instead of starting at the row's left edge (Review 239 §4) — no
+/// padding number guessed to match. `content_portion` is the first line's
+/// own content column weight: 3 for validation rows, 2 for result rows.
+fn continuation_line<'a>(
+    tokens: &Tokens,
+    content: impl Into<String>,
+    content_portion: u16,
+) -> Element<'a, Message> {
+    row![
+        Space::new().width(Length::Fixed(22.0)),
+        Space::new().width(Length::FillPortion(2)),
+        text(content.into())
+            .size(snora::design::style::text::body_small_size(tokens))
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .width(Length::FillPortion(content_portion)),
+    ]
+    .spacing(8)
     .into()
 }
 

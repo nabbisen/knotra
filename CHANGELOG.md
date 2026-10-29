@@ -9,6 +9,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — "Save release point" showed a project's other reasons as separate rows
+
+When a project could not be saved for more than one reason, only the first reason sat beside
+its name. The others started at the left edge, under the name, where they looked like rows of
+their own. Every reason and note now sits under the first one, with the project it belongs to.
+The list of results after saving is fixed the same way.
+
 ## [0.32.0] — 2026-10-29
 
 **Every window can now be used from the keyboard, and "Stop this fix attempt" asks before it
