@@ -9,23 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed — three windows were drawn without a background
+## [0.32.0] — 2026-10-29
 
-The command palette, "Add project" and the keyboard shortcuts list were drawn straight over
-the screen behind them, with no background, so their text could overlap it. They now open
-like every other window: on their own surface, with the screen behind dimmed, and a click
-outside closes them. The shortcuts list's columns now line up.
-
-### Fixed — "Mark done" in the Resolve panel was smaller than the buttons beside it
-
-Its label also sat against the button's top edge. It now matches "Open in editor" and
-"Open in comparison tool".
-
-### Fixed — file names overlapped buttons in the Resolve panel
-
-In a narrow window, a conflicted file's name was drawn over its "Open in editor" button,
-and "Mark done" could spill out of its button. Each file's name now has its own line, with
-its buttons below.
+**Every window can now be used from the keyboard, and "Stop this fix attempt" asks before it
+discards your edits.**
 
 ### Changed — every window can be used from the keyboard
 
@@ -35,23 +22,11 @@ and Escape closes it. The focus outline appears only while you use the keyboard.
 "Remove project" now asks in a window on every screen, and the keyboard shortcuts list
 shows exactly the keys that work.
 
-### Fixed — every key press re-checked all projects
-
-Pressing or releasing a key that is not a shortcut made knotra re-check the status of
-every project, even with automatic checking turned off. Only the timer and "Check now"
-start a check now.
-
 ### Fixed — "Stop this fix attempt" discarded your edits without asking
 
 In the Resolve panel, "Stop this fix attempt" abandoned the merge at once, and every edit
 you had made to the conflicted files was lost, with no warning. It now asks first, says
 that your edits will be lost, and cannot be pressed while another operation is running.
-
-### Fixed — in the dark theme, the screen behind an open window was barely dimmed
-
-When a window such as "Save release point" was open in the dark theme, the screen behind it
-hardly changed, so it was hard to tell that it could not be used. It is now covered by a
-light veil. In the light theme, the dim is slightly darker.
 
 ### Fixed — keyboard shortcuts acted on the screen behind an open window
 
@@ -59,6 +34,36 @@ While a window such as "Save release point" was open, Ctrl+T, Ctrl+K and the sea
 still acted on the screen behind it. Pressed while a release point was being saved or while
 "Get latest safely" was running, Ctrl+T or Ctrl+K replaced or hid the window, and its result
 could be missed. These shortcuts now wait until the window is closed.
+
+### Fixed — every key press re-checked all projects
+
+Pressing or releasing a key that is not a shortcut made knotra re-check the status of
+every project, even with automatic checking turned off. Only the timer and "Check now"
+start a check now.
+
+### Fixed — three windows were drawn without a background
+
+The command palette, "Add project" and the keyboard shortcuts list were drawn straight over
+the screen behind them, with no background, so their text could overlap it. They now open
+like every other window: on their own surface, with the screen behind dimmed, and a click
+outside closes them. The shortcuts list's columns now line up.
+
+### Fixed — in the dark theme, the screen behind an open window was barely dimmed
+
+When a window such as "Save release point" was open in the dark theme, the screen behind it
+hardly changed, so it was hard to tell that it could not be used. It is now covered by a
+light veil. In the light theme, the dim is slightly darker.
+
+### Fixed — file names overlapped buttons in the Resolve panel
+
+In a narrow window, a conflicted file's name was drawn over its "Open in editor" button,
+and "Mark done" could spill out of its button. Each file's name now has its own line, with
+its buttons below.
+
+### Fixed — "Mark done" in the Resolve panel was smaller than the buttons beside it
+
+Its label also sat against the button's top edge. It now matches "Open in editor" and
+"Open in comparison tool".
 
 ### Fixed — "Back" in "Add project" closed the dialog
 
