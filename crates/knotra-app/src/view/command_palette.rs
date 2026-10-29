@@ -10,11 +10,14 @@
 //! Rendered as a floating centered modal when `state.palette.open == true`.
 
 use iced::{
-    Alignment, Element, Length,
-    widget::{Space, button, column, container, row, text, text_input},
+    Element, Length,
+    widget::{Space, button, column, text, text_input},
 };
 
-use knotra_ui::widget::style;
+use knotra_ui::widget::{
+    overlay::{OverlayWidth, surface},
+    style,
+};
 
 use crate::{
     message::{Message, PaletteMessage},
@@ -53,6 +56,15 @@ pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
 }
 
 /// Render the palette overlay (call only when `state.palette.open`).
+///
+/// Task 098 Amendment A2: content now goes through `surface()`, so this
+/// renders directly into `AppLayout::dialog` (`view.rs`) instead of its
+/// own centred `iced::widget::stack` layer — the opaque surface, the
+/// full-window dim, and the scrim's click-to-close all come from the
+/// engine now, the same as every other migrated window. The old header's
+/// own "✕ Esc" button becomes `surface()`'s close — its "Esc" hint text
+/// does not carry over, since `surface()`'s close is always a bare icon
+/// (see `overlay.rs::surface`, unconditional across every caller).
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     let input = text_input(state.t("palette.search_placeholder"), &state.palette.query)
@@ -105,29 +117,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         })
         .collect();
 
-    let close_is_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE));
-    let close_t = tokens.clone();
-    let close_btn = button(
-        text("✕ Esc")
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
-    )
-    .on_press(Message::Palette(PaletteMessage::Closed))
-    .style(move |_theme, status| {
-        style::with_focus_ring(&close_t, close_is_focused, style::ghost(&close_t, status))
-    });
-
-    let header = row![
-        text(state.t("palette.title"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
-        Space::new().width(Length::Fill),
-        close_btn,
-    ]
-    .align_y(Alignment::Center)
-    .padding([4, 0]);
-
-    let mut body = column![header, input].spacing(6);
+    let mut body = column![input].spacing(6);
     if let Some(notice_key) = state.palette.notice_key {
         body = body.push(
             text(state.t(notice_key))
@@ -145,7 +135,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         );
     }
 
-    container(body.padding(16))
-        .width(Length::Fixed(480.0))
-        .into()
+    surface(
+        tokens,
+        OverlayWidth::Standard.resolve(state.window_width),
+        state.t("palette.title"),
+        Some(Message::Palette(PaletteMessage::Closed)),
+        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
+        body,
+        Space::new(),
+    )
 }

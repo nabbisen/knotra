@@ -2806,6 +2806,17 @@ fn close_shortcut_closes_only_topmost_layer() {
     state.workspace_mgr.create_dialog = Some(Default::default());
     state.add_project_dialog = Some(AddProjectDialog::default());
     state.palette.open = true;
+    state.keyboard.cheat_sheet_open = true;
+
+    // Task 098 Amendment A2: the shortcuts sheet outranks every other
+    // layer in `layer::top_layer`'s priority order, so it must be the
+    // first thing an Escape closes when every layer is open at once.
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+    assert!(!state.keyboard.cheat_sheet_open);
+    assert!(state.palette.open);
+    assert!(state.add_project_dialog.is_some());
+    assert!(state.workspace_mgr.create_dialog.is_some());
+    assert!(matches!(state.active_modal, ActiveModal::Changelog));
 
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
     assert!(!state.palette.open);

@@ -12,7 +12,9 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused, reasoned, style,
+    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused,
+    overlay::{OverlayWidth, surface},
+    reasoned, style,
 };
 
 use crate::{
@@ -117,44 +119,29 @@ fn styled_button<'a>(
     .into()
 }
 
+/// Task 098 Amendment A2: content now goes through `surface()`, so this
+/// renders into `AppLayout::dialog` (`view.rs`) instead of its own centred
+/// `iced::widget::stack` layer — the opaque surface, the full-window dim,
+/// and the scrim's click-to-close all come from the engine now. The
+/// header's own title and "✕" become `surface()`'s — its text is
+/// unchanged (`plain.add_project.title`). `surface()`'s header has no
+/// room for a second line, so the step label ("Step 1 of 2" /
+/// "Step 2 of 2") moves into the body, as its own small line directly
+/// above the step's instruction text — the same text, just relocated,
+/// not reworded.
 pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     let dialog = state.add_project_dialog.as_ref()?;
     let tokens = &state.theme.tokens;
 
-    let (step_label, _total) = match dialog.step {
-        AddProjectStep::ChooseFolder => (state.t("plain.add_project.step1_of2"), "1"),
-        AddProjectStep::NameProject => (state.t("plain.add_project.step2_of2"), "2"),
+    let step_label = match dialog.step {
+        AddProjectStep::ChooseFolder => state.t("plain.add_project.step1_of2"),
+        AddProjectStep::NameProject => state.t("plain.add_project.step2_of2"),
     };
+    let step_label_line = text(step_label)
+        .size(snora::design::style::text::body_small_size(tokens))
+        .line_height(snora::design::style::text::body_small_line_height(tokens));
 
-    let close_t = tokens.clone();
-    let close_is_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE));
-    let close_btn = button(centered_button_label(
-        text("✕")
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 12])
-    .on_press(Message::Workspace(WorkspaceMessage::AddProjectCancelled))
-    .style(move |_theme, status| {
-        style::with_focus_ring(&close_t, close_is_focused, style::ghost(&close_t, status))
-    });
-
-    let header = row![
-        column![
-            text(state.t("plain.add_project.title"))
-                .size(snora::design::style::text::title_size(tokens)),
-            text(step_label)
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
-        ]
-        .spacing(2),
-        Space::new().width(Length::Fill),
-        close_btn,
-    ]
-    .align_y(Alignment::Center);
-
-    let body: Element<'_, Message> = match dialog.step {
+    let (body, footer): (Element<'_, Message>, Element<'_, Message>) = match dialog.step {
         // ------------------------------------------------------------------
         // Step 1 — Choose the folder
         // ------------------------------------------------------------------
@@ -204,16 +191,19 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             ]
             .align_y(Alignment::Center);
 
-            column![
-                text(state.t("plain.add_project.step1_instruction"))
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens)),
-                path_field,
-                browse_btn,
-                footer,
-            ]
-            .spacing(14)
-            .into()
+            (
+                column![
+                    step_label_line,
+                    text(state.t("plain.add_project.step1_instruction"))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
+                    path_field,
+                    browse_btn,
+                ]
+                .spacing(14)
+                .into(),
+                footer.into(),
+            )
         }
 
         // ------------------------------------------------------------------
@@ -271,22 +261,29 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             ]
             .align_y(Alignment::Center);
 
-            column![
-                text(state.t("plain.add_project.step2_instruction"))
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens)),
-                folder_display,
-                name_field,
-                footer,
-            ]
-            .spacing(14)
-            .into()
+            (
+                column![
+                    step_label_line,
+                    text(state.t("plain.add_project.step2_instruction"))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
+                    folder_display,
+                    name_field,
+                ]
+                .spacing(14)
+                .into(),
+                footer.into(),
+            )
         }
     };
 
-    Some(
-        container(column![header, body].spacing(16).padding(24))
-            .width(Length::Fixed(480.0))
-            .into(),
-    )
+    Some(surface(
+        tokens,
+        OverlayWidth::Standard.resolve(state.window_width),
+        state.t("plain.add_project.title"),
+        Some(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
+        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
+        body,
+        footer,
+    ))
 }

@@ -23,13 +23,21 @@
 //! (D1): `Esc`, `Ctrl` are hardware legends, identical on a Japanese
 //! keyboard, and translating them would break the correspondence between
 //! the overlay and the key being hunted for.
+//!
+//! Task 098 Amendment A2: content goes through `surface()`, so this
+//! renders into `AppLayout::dialog` (`view.rs`) instead of its own centred
+//! `iced::widget::stack` layer — the opaque surface, the full-window dim,
+//! and the scrim's click-to-close all come from the engine now. The old
+//! header's own "✕  Close" button becomes `surface()`'s close; its
+//! "Close" text (`action.close`) does not carry over, since `surface()`'s
+//! close is always a bare icon.
 
 use iced::{
-    Alignment, Element, Length,
-    widget::{Space, button, column, container, row, text},
+    Element, Length,
+    widget::{Space, column, row, text},
 };
 
-use knotra_ui::widget::style;
+use knotra_ui::widget::overlay::{OverlayWidth, surface};
 
 use crate::{
     message::{KeyboardMessage, Message},
@@ -110,42 +118,38 @@ pub(crate) const BINDINGS: &[Binding] = &[
     },
 ];
 
+/// Column widths (Task 098 step 3): fixed, so the header and every row
+/// line up. Chosen to comfortably hold the longest entry of each column
+/// in both languages without wrapping — `KEYS_COL`/`WHERE_COL` fit their
+/// longest literal/translated entry ("Tab / Shift+Tab" / "Main screens",
+/// "メイン画面") on one line; `ACTION_COL` is wide enough for most rows'
+/// sentences on one line, with the two longest ("Close the open window,
+/// or clear the selection", "Move to the next or previous control")
+/// wrapping onto a second line rather than forcing a much wider sheet for
+/// their sake alone — checked by building and capturing both languages
+/// (`.git-exclude/evidence/task-098/`), not by character count alone,
+/// since a fixed-width CJK glyph measures roughly double a Latin one at
+/// the same point size.
+const KEYS_COL: f32 = 150.0;
+const WHERE_COL: f32 = 130.0;
+const ACTION_COL: f32 = 280.0;
+
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    // RFC-049 §2: `action.close` already exists in both catalogs — reused,
-    // not duplicated. The glyph stays a literal; only the word is resolved.
-    let close_is_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE));
-    let close_t = tokens.clone();
-    let close_btn = button(
-        text(format!("✕  {}", state.t("action.close")))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
-    )
-    .on_press(Message::KeyEvent(KeyboardMessage::CheatSheetToggled))
-    .style(move |_theme, status| {
-        style::with_focus_ring(&close_t, close_is_focused, style::ghost(&close_t, status))
-    });
-
-    let header = row![
-        text(state.t("shortcut.overlay_title"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-        Space::new().width(Length::Fill),
-        close_btn,
-    ]
-    .align_y(Alignment::Center)
-    .padding([0, 0]);
 
     let col_header = row![
         text(state.t("shortcut.column_keys"))
             .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .width(Length::Fixed(KEYS_COL)),
         text(state.t("shortcut.column_where"))
             .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .width(Length::Fixed(WHERE_COL)),
         text(state.t("shortcut.column_action"))
             .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .width(Length::Fixed(ACTION_COL)),
     ]
     .spacing(16);
 
@@ -155,26 +159,33 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 text(b.keys)
                     .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .width(Length::Fixed(KEYS_COL)),
                 text(state.t(b.where_key))
                     .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .width(Length::Fixed(WHERE_COL)),
                 text(state.t(b.action_key))
                     .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .width(Length::Fixed(ACTION_COL)),
             ]
             .spacing(16)
             .into()
         })
         .collect();
 
-    container(
-        column![header, col_header, column(rows).spacing(4),]
-            .spacing(8)
-            .padding(20),
+    let body = column![col_header, column(rows).spacing(4)].spacing(8);
+
+    surface(
+        tokens,
+        OverlayWidth::Large.resolve(state.window_width),
+        state.t("shortcut.overlay_title"),
+        Some(Message::KeyEvent(KeyboardMessage::CheatSheetToggled)),
+        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
+        body,
+        Space::new(),
     )
-    .width(Length::Fixed(600.0))
-    .into()
 }
 
 #[cfg(test)]

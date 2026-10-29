@@ -9,6 +9,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — three windows were drawn without a background
+
+The command palette, "Add project" and the keyboard shortcuts list were drawn straight over
+the screen behind them, with no background, so their text could overlap it. They now open
+like every other window: on their own surface, with the screen behind dimmed, and a click
+outside closes them. The shortcuts list's columns now line up.
+
 ### Fixed — "Mark done" in the Resolve panel was smaller than the buttons beside it
 
 Its label also sat against the button's top edge. It now matches "Open in editor" and

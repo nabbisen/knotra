@@ -43,28 +43,30 @@ use iced::Element;
 ///   ├─ body: (screen + sel_bar + activity_strip + detail_panel)
 ///   ├─ header_menu: shell::switcher_menu, when open — dismissed by
 ///   │               on_close_menus, independent of the dialog/sheet group
-///   ├─ dialog: workspace-manager (RFC-034 R9) *or* ActiveModal (Pull / Tag /
-///   │          Switch / Changelog) — `AppLayout::dialog` is a single slot
-///   ├─ sheet: ActiveModal::Resolve
+///   ├─ dialog: one of the twelve non-sheet `Layer`s — `AppLayout::dialog`
+///   │          is a single slot
+///   ├─ sheet: `Layer::Resolve`
 ///   └─ on_close_modals: Message::Shortcut(ShortcutMessage::Close)
-/// add_project_layer                 ← knotra-specific, own state channel
-/// palette_layer                     ← knotra-specific, own state channel
-/// shortcuts_layer                   ← knotra-specific, own state channel
 /// ```
 ///
-/// Command palette, shortcuts overlay, and add-project modal are pushed as
-/// stack layers above `render(layout)` because they have their own state
-/// channels and are not standard modal-close-sink overlays (RFC-036 migrates
-/// them). Workspace-manager dialogs and the workspace-tab strip moved off
-/// this ad hoc stack in RFC-034 — the former renders as an opaque surface
-/// through `AppLayout::dialog`, the latter through the shell `header` /
-/// `header_menu` slots, so both get the engine's scrim/backdrop and input
-/// blocking, which the ad hoc stack never provided.
+/// Task 098 Amendment A2: every window — including the command palette,
+/// Add project and the shortcuts sheet, previously pushed as their own
+/// centred `iced::widget::stack` layers above `render(layout)` — now goes
+/// through `AppLayout::dialog`/`sheet`, so every one of them gets the
+/// engine's own opaque surface, full-window dim, and scrim click-to-close.
+/// `dialog`'s content is chosen from `layer::top_layer(state)` through one
+/// exhaustive `match` with no `_` arm (below), rather than the old
+/// `if`/`else` chain plus three independent `Option` flags — the window
+/// drawn and the window `top_layer` (and so the keyboard) considers open
+/// can no longer disagree, and a thirteenth `Layer` variant fails this
+/// file to compile until it is given a row here. `WorkspaceMenu` stays in
+/// `header_menu`, unchanged — it was never part of the dialog/sheet group.
 pub fn app_view(state: &AppState) -> Element<'_, Message> {
     use crate::message::{ShortcutMessage, WorkspaceMessage};
     use crate::state::ActiveModal;
+    use crate::state::layer::{self, Layer};
     use iced::Length;
-    use iced::widget::{column, container, row, stack};
+    use iced::widget::{column, row};
     use snora::{AppLayout, Dialog, LayoutDirection, Sheet, SheetEdge, SheetSize, render};
 
     // -----------------------------------------------------------------------
@@ -113,16 +115,16 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // -----------------------------------------------------------------------
     // snora AppLayout: skeleton + standard modal overlays (RFC-0013).
     //
-    // `AppLayout::dialog` is a single slot (last write wins), so at most one
-    // dialog builder below may run. Workspace-manager dialogs (RFC-034 R9,
-    // the overlay-host validating migration) take priority over `ActiveModal`
-    // dialogs, matching `close_topmost_layer`'s existing branch order in
-    // `app.rs` (workspace_mgr dialogs are checked, and so close, before the
-    // active_modal cases) — rendering priority and close priority agree.
-    //
-    // ActiveModal variants map to snora overlay slots:
-    //   Centred dialogs  → AppLayout::dialog(Dialog::new(el))
-    //   Right-docked panel → AppLayout::sheet(Sheet::new(el).at(SheetEdge::End))
+    // `AppLayout::dialog` is a single slot (last write wins). Task 098
+    // Amendment A2: its content is chosen from `layer::top_layer(state)`
+    // through one exhaustive `match`, which already encodes the full
+    // priority order every window's close site and focus order already
+    // agree on (`state/layer.rs`'s own doc comment) — so this match needs
+    // no separate priority logic of its own, unlike the `if`/`else` chain
+    // it replaces. `Resolve` is the one variant that maps to `sheet`
+    // (right-docked) instead of `dialog` (centred); every other variant
+    // maps to `dialog` or to nothing (`None`, `WorkspaceMenu` — the
+    // latter stays in `header_menu`, set separately below).
     //
     // on_close_modals dispatches ShortcutMessage::Close. The update layer
     // closes exactly one topmost visible layer per close action.
@@ -143,107 +145,76 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
             .on_close_menus(Message::Workspace(WorkspaceMessage::SwitcherToggled));
     }
 
-    if let Some(el) = workspace_manager::view(state) {
-        layout = layout.dialog(Dialog::new(el));
-    } else {
-        match &state.active_modal {
-            ActiveModal::None => {}
-
-            ActiveModal::Pull => {
-                let el: Element<'_, Message> = overlays::pull_modal(state);
+    let top_layer = layer::top_layer(state);
+    match top_layer {
+        None | Some(Layer::WorkspaceMenu) => {}
+        Some(Layer::ShortcutsSheet) => {
+            let el: Element<'_, Message> = shortcuts_overlay::view(state);
+            layout = layout.dialog(Dialog::new(el));
+        }
+        Some(Layer::Palette) => {
+            let el: Element<'_, Message> = command_palette::view(state);
+            layout = layout.dialog(Dialog::new(el));
+        }
+        Some(Layer::AddProject) => {
+            if let Some(el) = add_project_modal::view(state) {
                 layout = layout.dialog(Dialog::new(el));
             }
-            ActiveModal::Tag => {
-                let el: Element<'_, Message> = overlays::tag_modal(state);
+        }
+        Some(Layer::WorkspaceCreate)
+        | Some(Layer::WorkspaceRename)
+        | Some(Layer::WorkspaceDelete) => {
+            if let Some(el) = workspace_manager::view(state) {
                 layout = layout.dialog(Dialog::new(el));
             }
-            ActiveModal::Switch => {
-                let el: Element<'_, Message> = overlays::switch_modal(state);
-                layout = layout.dialog(Dialog::new(el));
-            }
-            ActiveModal::Changelog => {
-                let el: Element<'_, Message> = overlays::changelog_modal(state);
-                layout = layout.dialog(Dialog::new(el));
-            }
-            ActiveModal::Resolve(pid) => {
-                // Right-docked resolve panel → snora Sheet anchored to the End edge.
-                //
-                // RFC-058 D3: `Sheet` exposes only `new`/`at`/`with_size`
-                // (`snora-core-0.52.0::overlay::Sheet`) — no style
-                // hook. Its own drawn edge (fill `background.base`, 1px
-                // border `background.weak`) measures 1.29–1.35:1, well
-                // under the 3:1 SC 1.4.11 floor, and knotra cannot change
-                // it. The content passed here — `resolve_panel`, whose
-                // outermost element is `overlay::surface` — is what
-                // supplies the panel's only perceivable, compliant edge.
-                // See `overlay.rs::surface`'s own comment for why that
-                // border is load-bearing, not decorative.
+        }
+        Some(Layer::GetLatest) => {
+            let el: Element<'_, Message> = overlays::pull_modal(state);
+            layout = layout.dialog(Dialog::new(el));
+        }
+        Some(Layer::SaveReleasePoint) => {
+            let el: Element<'_, Message> = overlays::tag_modal(state);
+            layout = layout.dialog(Dialog::new(el));
+        }
+        Some(Layer::ChangeWorkArea) => {
+            let el: Element<'_, Message> = overlays::switch_modal(state);
+            layout = layout.dialog(Dialog::new(el));
+        }
+        Some(Layer::GenerateNotes) => {
+            let el: Element<'_, Message> = overlays::changelog_modal(state);
+            layout = layout.dialog(Dialog::new(el));
+        }
+        Some(Layer::Resolve(_)) => {
+            // Right-docked resolve panel → snora Sheet anchored to the End edge.
+            //
+            // RFC-058 D3: `Sheet` exposes only `new`/`at`/`with_size`
+            // (`snora-core-0.52.0::overlay::Sheet`) — no style
+            // hook. Its own drawn edge (fill `background.base`, 1px
+            // border `background.weak`) measures 1.29–1.35:1, well
+            // under the 3:1 SC 1.4.11 floor, and knotra cannot change
+            // it. The content passed here — `resolve_panel`, whose
+            // outermost element is `overlay::surface` — is what
+            // supplies the panel's only perceivable, compliant edge.
+            // See `overlay.rs::surface`'s own comment for why that
+            // border is load-bearing, not decorative.
+            //
+            // `pid` is read back from `state.active_modal`, not from the
+            // `top_layer` match above, so it borrows from `state` (the
+            // lifetime `resolve_panel` and this function's return type
+            // both need) rather than from a local owned by this function.
+            if let ActiveModal::Resolve(ref pid) = state.active_modal {
                 let el: Element<'_, Message> = overlays::resolve_panel(state, pid);
                 layout = layout.sheet(Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half));
             }
         }
-
-        // RFC-066 D6: Remove project, as a dialog over any screen — the
-        // same `dialog` slot "Delete workspace" uses, one priority step
-        // below it (`layer::top_layer`'s own order: a workspace dialog or
-        // an `ActiveModal` always outranks it). Gated on `top_layer`
-        // itself, not a bare `confirm_remove_dialog.is_some()`, so this
-        // can never double up with whichever of the two arms above just
-        // claimed the slot.
-        if matches!(
-            crate::state::layer::top_layer(state),
-            Some(crate::state::layer::Layer::RemoveProject)
-        ) && let Some(el) = remove_project_dialog::view(state)
-        {
-            layout = layout.dialog(Dialog::new(el));
+        Some(Layer::RemoveProject) => {
+            if let Some(el) = remove_project_dialog::view(state) {
+                layout = layout.dialog(Dialog::new(el));
+            }
         }
     }
 
-    let snora_layer: Element<'_, Message> = render(layout);
-
-    // -----------------------------------------------------------------------
-    // Knotra-specific overlays (own state channels; not wired to
-    // on_close_modals — they are pushed as iced stack layers above snora's
-    // layer composition). RFC-034 non-goal: migrating these is RFC-036.
-    // -----------------------------------------------------------------------
-    let palette_layer: Option<Element<'_, Message>> = if state.palette.open {
-        Some(
-            container(command_palette::view(state))
-                .center(Length::Fill)
-                .into(),
-        )
-    } else {
-        None
-    };
-
-    let add_project_layer: Option<Element<'_, Message>> =
-        add_project_modal::view(state).map(|m| container(m).center(Length::Fill).into());
-
-    let shortcuts_layer: Option<Element<'_, Message>> = if state.keyboard.cheat_sheet_open {
-        Some(
-            container(shortcuts_overlay::view(state))
-                .center(Length::Fill)
-                .into(),
-        )
-    } else {
-        None
-    };
-
-    if palette_layer.is_some() || add_project_layer.is_some() || shortcuts_layer.is_some() {
-        let mut layers: Vec<Element<'_, Message>> = vec![snora_layer];
-        if let Some(a) = add_project_layer {
-            layers.push(a);
-        }
-        if let Some(p) = palette_layer {
-            layers.push(p);
-        }
-        if let Some(s) = shortcuts_layer {
-            layers.push(s);
-        }
-        stack(layers).into()
-    } else {
-        snora_layer
-    }
+    render(layout)
 }
 
 /// The plain-language label for an operation kind — moved here from
