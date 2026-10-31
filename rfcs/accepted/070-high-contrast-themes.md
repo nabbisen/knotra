@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted |
 | Priority | Medium - for users who find the normal themes hard to read; builds on RFC-071's colour roles |
 | Effort | Small - two theme constructors, one setting with a compatible saved form, one Settings control, the contrast suite extended |
 | Target | 0.33.0, after RFC-071 stage 2 is approved (`.git-exclude/reviewed/244-release-plan-0.33.0-scope.md` §7) |
 | Related files | `crates/knotra-ui/src/theme.rs`, `crates/knotra-app/src/{config,state}.rs`, `crates/knotra-app/src/app/misc.rs`, `crates/knotra-app/src/view/settings.rs`, `crates/knotra-ui/src/i18n.rs` |
-| Decided by | - |
+| Decided by | project owner, 2026-10-31 - "Accepted", with D5's texts |
 | Related | RFC-071 (D3 tone badges, D6 placeholders, D8a lines, handoff A1 D13's contrast suite); RFC-057 (snora palette adopted) |
 
 ## Summary
