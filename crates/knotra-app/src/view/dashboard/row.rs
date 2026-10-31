@@ -3,7 +3,7 @@
 
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, checkbox, style};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, checkbox, strong, style};
 use knotra_vcs::model::project::Project;
 
 use crate::{
@@ -115,11 +115,11 @@ fn name_button<'a>(
 ) -> Element<'a, Message> {
     let focused = is_focused(state, &name_key(&project.id));
     let t = tokens.clone();
-    button(
+    button(strong(
         text(project.name.as_str())
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
-    )
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    ))
     .on_press(Message::DetailPanel(DetailPanelMessage::Opened(
         project.id.clone(),
     )))
@@ -207,10 +207,13 @@ fn view_standard_row<'a>(
     }
     identity = identity.push(identity_details);
 
+    // RFC-071 D1: a project's status line is `body`, same as D9's density
+    // adjustments expect — the VCS sub-line above it (metadata) keeps
+    // `body_small`.
     let middle: Element<'_, Message> = match entry.tier {
         DashboardTier::NeedsHelp => text(cause_label(state, entry.cause))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into(),
         DashboardTier::InProgress => {
             let count = entry
@@ -219,18 +222,18 @@ fn view_standard_row<'a>(
                 .unwrap_or_else(|| state.t("plain.status.unsaved_work").to_owned());
             column![
                 text(work_area)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
                 text(count)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
             ]
             .spacing(2)
             .into()
         }
         DashboardTier::AllSet => text(work_area)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into(),
     };
 
@@ -276,10 +279,8 @@ fn view_compact_row<'a>(
         column![
             line_one,
             text(line_two)
-                .size(snora::design::style::text::body_small_size(
-                    &state.theme.tokens
-                ))
-                .line_height(snora::design::style::text::body_small_line_height(
+                .size(snora::design::style::text::body_size(&state.theme.tokens))
+                .line_height(snora::design::style::text::body_line_height(
                     &state.theme.tokens
                 ))
         ]

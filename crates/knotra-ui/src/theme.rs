@@ -63,39 +63,16 @@ pub struct KnotraTheme {
     pub tokens: snora::design::Tokens,
 }
 
-/// RFC-056 Stage 2 (D3/A1/A3): knotra supplies its own `body_small` — 13.0,
-/// not snora's default 14.0. knotra's dense metadata rows were already at 13
-/// (the retired `FONT_SMALL`, 70 sites) before this stage; adopting snora's
-/// default would have shrunk every one of them by a pixel to gain one pixel
-/// on the sub-floor outliers moving up to it — a regression on the many to
-/// spare the few (A3), and R10 forbids any site shrinking.
-///
-/// **Safe from snora's own chrome**, verified against the 0.52.0 library
-/// source (`src/`) of all five snora crates (A1): `snora`, `snora-core` and
-/// `snora-widgets` never reference `body_small`, and `snora-style`'s own
-/// `body_small_size`/`body_small_line_height` (`snora-style::text`) are
-/// called only by that module's own `#[cfg(test)]` tests — so this override
-/// reaches knotra's own text and nothing snora renders. `snora`'s
-/// integration tests under `tests/` do scale `body_small` in a fixture; they
-/// are not built into a dependent and draw nothing knotra shows. `label` and
-/// `body` are left untouched.
-fn with_knotra_typography(mut tokens: snora::design::Tokens) -> snora::design::Tokens {
-    tokens.typography.body_small.size = 13.0;
-    tokens
-}
-
 impl KnotraTheme {
     pub fn light() -> Self {
-        let tokens = with_knotra_typography(snora::design::Tokens::light());
+        let tokens = snora::design::Tokens::light();
         KnotraTheme {
             // RFC-057 D1/R1: `base` is what `main.rs` hands to iced as the
             // application theme — every widget with no explicit `.style()`
             // (five confirmed `scrollable` sites, more unmeasured — R2)
-            // renders from it. Built from `tokens` above (after
-            // `with_knotra_typography`) rather than `Tokens::light()`
-            // directly: ordering is not load-bearing (the override is
-            // typographic, `theme()` reads the palette), but deriving both
-            // fields from the same value is the only way they cannot drift.
+            // renders from it. Built from the same `tokens` stored below
+            // rather than a second `Tokens::light()` call, so the two fields
+            // cannot drift from each other.
             base: snora::design::theme(&tokens),
             dark: false,
             tokens,
@@ -103,7 +80,7 @@ impl KnotraTheme {
     }
 
     pub fn dark() -> Self {
-        let tokens = with_knotra_typography(snora::design::Tokens::dark());
+        let tokens = snora::design::Tokens::dark();
         KnotraTheme {
             base: snora::design::theme(&tokens),
             dark: true,

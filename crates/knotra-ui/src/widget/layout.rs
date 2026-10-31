@@ -6,6 +6,28 @@ pub use iced::{
     widget::{Column, Row, button, column, container, row, scrollable, text, text_input},
 };
 
+/// RFC-071 D2: the one place knotra ever names a text weight. Chains onto a
+/// `text(...)` the caller already built with its own `.size(...)`/
+/// `.line_height(...)` — the same composition `centered_button_label`
+/// applies for a button's own label — setting
+/// `Font { weight: Semibold, ..Font::DEFAULT }`. No view names a `Weight`
+/// itself; `text_weight_guard.rs` is the guard that enforces it (the shape
+/// of `text_size_guard.rs`, scanning for `Weight::` outside this function).
+///
+/// Weight only ever reinforces another signal (D2: every strong text also
+/// differs in role or position from its neighbours), so a system font with
+/// no semibold face loses emphasis, never meaning — iced falls back to the
+/// nearest available face on its own.
+#[must_use]
+pub fn strong<'a>(
+    label: iced::widget::Text<'a, iced::Theme, iced::Renderer>,
+) -> iced::widget::Text<'a, iced::Theme, iced::Renderer> {
+    label.font(iced::Font {
+        weight: iced::font::Weight::Semibold,
+        ..iced::Font::DEFAULT
+    })
+}
+
 /// Standard corner radius for cards and panels.
 pub const CARD_RADIUS: f32 = 8.0;
 

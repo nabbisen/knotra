@@ -12,7 +12,7 @@ use iced::{
     Alignment, Element, Length,
     widget::{Space, button, column, container, row, text},
 };
-use knotra_ui::widget::{self, Tokens, icon, icon_button_maybe};
+use knotra_ui::widget::{self, Tokens, icon, icon_button_maybe, strong};
 
 use crate::{
     message::{Message, WorkspaceMessage},
@@ -383,13 +383,16 @@ fn danger_menu_action<'a>(
 ///
 /// RFC-056 Stage 2: the title is `heading` (24) — snora's own description of
 /// that role, "page or section heading," is exactly what this is.
+///
+/// RFC-071 D1: the title is also `strong` — a page title is the one piece of
+/// text on the whole page that outranks everything else on it.
 pub fn page_header<'a>(
     title: impl Into<String>,
     actions: impl Into<Element<'a, Message>>,
     tokens: &Tokens,
 ) -> Element<'a, Message> {
     row![
-        text(title.into()).size(snora::design::style::text::heading_size(tokens)),
+        strong(text(title.into()).size(snora::design::style::text::heading_size(tokens))),
         Space::new().width(Length::Fill),
         actions.into(),
     ]

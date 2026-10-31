@@ -3,7 +3,7 @@
 
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{icon, style};
+use knotra_ui::widget::{icon, strong, style};
 
 use crate::{
     message::{DashboardMessage, Message},
@@ -87,9 +87,7 @@ fn section_header<'a>(
         };
         button(
             row![
-                text(label)
-                    .size(snora::design::style::text::body_small_size(&tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(&tokens)),
+                strong(text(label).size(snora::design::style::text::title_size(&tokens))),
                 icon::icon_element(&chevron)
             ]
             .spacing(6)
@@ -102,15 +100,9 @@ fn section_header<'a>(
         })
         .into()
     } else {
-        container(
-            text(label)
-                .size(snora::design::style::text::body_small_size(
-                    &state.theme.tokens,
-                ))
-                .line_height(snora::design::style::text::body_small_line_height(
-                    &state.theme.tokens,
-                )),
-        )
+        container(strong(text(label).size(
+            snora::design::style::text::title_size(&state.theme.tokens),
+        )))
         .width(Length::Fill)
         .padding([5, 8])
         .into()

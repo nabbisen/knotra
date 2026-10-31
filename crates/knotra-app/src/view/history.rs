@@ -18,7 +18,7 @@ use iced::{
     Alignment, Element, Length, Padding,
     widget::{Space, button, column, container, row, scrollable, text, text_input},
 };
-use knotra_ui::widget::{Tokens, icon, record_row};
+use knotra_ui::widget::{Tokens, icon, record_row, strong};
 use knotra_vcs::model::operation::{OperationLog, OperationResult, ProjectOperationOutcome};
 
 use crate::{
@@ -53,11 +53,13 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     // RFC-034 R13: per-screen back navigation removed — Dashboard/History are
     // reached through the persistent shell now, not a screen-owned button.
-    row![text(state.t("history.title")).size(snora::design::style::text::heading_size(tokens))]
-        .spacing(12)
-        .align_y(Alignment::Center)
-        .padding(Padding::new(12.0))
-        .into()
+    row![strong(
+        text(state.t("history.title")).size(snora::design::style::text::heading_size(tokens))
+    )]
+    .spacing(12)
+    .align_y(Alignment::Center)
+    .padding(Padding::new(12.0))
+    .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -218,9 +220,14 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     // smaller line beneath. Was one row interleaving all five with `"  "`
     // string-padding standing in for real spacing.
     let primary_row = row![
-        text(super::operation_kind_label(state, &result.kind))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+        // RFC-071 D1: the entry's title — body, strong, same as a dashboard
+        // project name. Its status/toggle/copy-log neighbours on this row
+        // stay `body_small`; they are not what names the entry.
+        strong(
+            text(super::operation_kind_label(state, &result.kind))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
+        ),
         Space::new().width(Length::Fill),
         text(status_label)
             .size(snora::design::style::text::body_small_size(tokens))

@@ -18,7 +18,7 @@ use iced::{
     widget::{Space, button, column, container, row, scrollable, text},
 };
 use knotra_ui::i18n::Locale;
-use knotra_ui::widget::{Tokens, validated_field};
+use knotra_ui::widget::{Tokens, strong, validated_field};
 
 use crate::{
     message::{Message, SettingsMessage},
@@ -45,11 +45,13 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     // RFC-034 R13: per-screen back navigation removed — Dashboard/History are
     // reached through the persistent shell now, not a screen-owned button.
-    row![text(state.t("settings.title")).size(snora::design::style::text::heading_size(tokens))]
-        .spacing(12)
-        .align_y(Alignment::Center)
-        .padding(Padding::new(12.0))
-        .into()
+    row![strong(
+        text(state.t("settings.title")).size(snora::design::style::text::heading_size(tokens))
+    )]
+    .spacing(12)
+    .align_y(Alignment::Center)
+    .padding(Padding::new(12.0))
+    .into()
 }
 
 fn view_body(state: &AppState) -> Element<'_, Message> {

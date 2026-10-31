@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — project names, statuses and headings are easier to read
+
+Project names, their status, group headings and History entries were drawn in the smallest
+text on the screen. They now use the normal text size, and names and headings are drawn
+stronger. The smallest text is also slightly larger.
+
 ### Changed — "Add project folder" opens where you last added a project
 
 "Browse…" now opens the folder picker in the folder that holds the project you added most

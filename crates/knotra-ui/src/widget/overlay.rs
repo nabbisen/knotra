@@ -15,7 +15,7 @@
 use snora::design::Tokens;
 
 use super::icon;
-use super::layout::{Element, Length};
+use super::layout::{Element, Length, strong};
 
 /// Width tokens for the overlay surface (RFC-034 R8.2: small ~400px,
 /// standard ~520px, large ~680px). The exact pixel value is approximate by
@@ -133,10 +133,15 @@ pub fn surface<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     use iced::widget::{Space, button, column, container, row, scrollable, text};
 
-    let mut header = row![text(title.into()).size(snora::design::style::text::title_size(tokens))]
-        .align_y(iced::Alignment::Center)
-        .spacing(8)
-        .push(Space::new().width(Length::Fill));
+    // RFC-071 D1: every dialog's title is `strong` — it is the one line
+    // that names what the whole window is, so it outranks the window's own
+    // body text.
+    let mut header = row![strong(
+        text(title.into()).size(snora::design::style::text::title_size(tokens))
+    )]
+    .align_y(iced::Alignment::Center)
+    .spacing(8)
+    .push(Space::new().width(Length::Fill));
 
     if let Some(close_msg) = on_close {
         let t = tokens.clone();

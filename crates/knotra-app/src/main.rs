@@ -15,6 +15,8 @@ mod suppressions_guard;
 mod text_outside_catalog_guard;
 #[cfg(test)]
 mod text_size_guard;
+#[cfg(test)]
+mod text_weight_guard;
 mod view;
 
 #[cfg(test)]
