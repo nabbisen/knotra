@@ -6,24 +6,35 @@ pub use iced::{
     widget::{Column, Row, button, column, container, row, scrollable, text, text_input},
 };
 
-/// RFC-071 D2: the one place knotra ever names a text weight. Chains onto a
-/// `text(...)` the caller already built with its own `.size(...)`/
-/// `.line_height(...)` — the same composition `centered_button_label`
-/// applies for a button's own label — setting
-/// `Font { weight: Semibold, ..Font::DEFAULT }`. No view names a `Weight`
+/// RFC-071 D2 / Amendment A2: the one place knotra ever names a text
+/// weight. Chains onto a `text(...)` the caller already built with its own
+/// `.size(...)`/`.line_height(...)` — the same composition
+/// `centered_button_label` applies for a button's own label — setting
+/// `Font { weight: Bold, ..Font::DEFAULT }`. No view names a `Weight`
 /// itself; `text_weight_guard.rs` is the guard that enforces it (the shape
 /// of `text_size_guard.rs`, scanning for `Weight::` outside this function).
 ///
-/// Weight only ever reinforces another signal (D2: every strong text also
-/// differs in role or position from its neighbours), so a system font with
-/// no semibold face loses emphasis, never meaning — iced falls back to the
-/// nearest available face on its own.
+/// **Bold, not Semibold** (Review 248 §3): asking for weight 600 does not
+/// just miss a face, it *changes the family*. On this project's own Linux
+/// dev machine, Noto Sans CJK JP ships Regular/Medium/Bold but no SemiBold,
+/// while Noto Serif CJK JP does — so a `Weight::Semibold` request on
+/// Japanese text resolved to a serif (Mincho) face, silently, while every
+/// regular line around it stayed sans (Gothic). Bold (700) exists in the
+/// sans family on all three platforms this app ships for: Noto Sans / Noto
+/// Sans CJK JP Bold on Linux, Segoe UI / Yu Gothic UI Bold on Windows, the
+/// system font / Hiragino Sans W6-W7 on macOS. Weight only ever reinforces
+/// another signal (D2: every strong text also differs in role or position
+/// from its neighbours) — a system font with no bold face loses only
+/// emphasis, never meaning, and iced falls back to the nearest available
+/// face on its own; the Semibold case is why "nearest available face" is
+/// not by itself a safe assumption, and must be checked by eye, by
+/// typeface, not inferred from the request.
 #[must_use]
 pub fn strong<'a>(
     label: iced::widget::Text<'a, iced::Theme, iced::Renderer>,
 ) -> iced::widget::Text<'a, iced::Theme, iced::Renderer> {
     label.font(iced::Font {
-        weight: iced::font::Weight::Semibold,
+        weight: iced::font::Weight::Bold,
         ..iced::Font::DEFAULT
     })
 }
