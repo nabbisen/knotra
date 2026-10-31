@@ -583,6 +583,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "plain.add_project.reason_no_name",
         "Enter a project name to continue.",
     );
+    m.insert("plain.add_project.picker_title", "Select project folder");
     m.insert("plain.empty.welcome_title", "Welcome to knotra");
     m.insert(
         "plain.empty.welcome_body",
@@ -1404,6 +1405,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert(
         "plain.add_project.reason_no_name",
         "続けるにはプロジェクト名を入力してください。",
+    );
+    m.insert(
+        "plain.add_project.picker_title",
+        "プロジェクトフォルダーを選択",
     );
     m.insert("plain.empty.welcome_title", "knotra へようこそ");
     m.insert("plain.empty.welcome_body",    "最初のプロジェクトフォルダーを追加してください。knotra が確認して、対応が必要なものをお知らせします。");

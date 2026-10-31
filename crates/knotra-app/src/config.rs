@@ -55,6 +55,9 @@ pub struct AppConfig {
     pub dashboard_in_progress_collapsed: bool,
     /// Whether the All set attention section is collapsed.
     pub dashboard_all_set_collapsed: bool,
+    /// Parent of the folder most recently added as a project (Task 102) —
+    /// "Browse…" starts there next time, if it still exists.
+    pub last_project_parent: Option<PathBuf>,
 }
 
 impl Default for AppConfig {
@@ -73,6 +76,7 @@ impl Default for AppConfig {
             dashboard_sort: DashboardSort::default(),
             dashboard_in_progress_collapsed: false,
             dashboard_all_set_collapsed: true,
+            last_project_parent: None,
         }
     }
 }
@@ -325,5 +329,22 @@ mod tests {
             AppConfig::default().refresh_interval_secs
         );
         assert_eq!(loaded.dark_theme, AppConfig::default().dark_theme);
+    }
+
+    /// Task 102: `last_project_parent` is new. A `config.toml` written before
+    /// it existed has no such key at all — `#[serde(default)]` must still
+    /// load it cleanly, with the field empty, not as a parse error.
+    #[test]
+    fn load_config_without_last_project_parent_key_loads_it_as_none() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths::under(tmp.path().to_path_buf());
+        std::fs::create_dir_all(paths.config_file.parent().unwrap()).expect("config dir");
+        std::fs::write(&paths.config_file, "dark_theme = true\n").expect("older config.toml");
+
+        let (loaded, warning) = load_config(&paths);
+
+        assert_eq!(warning, None);
+        assert_eq!(loaded.last_project_parent, None);
+        assert!(loaded.dark_theme);
     }
 }

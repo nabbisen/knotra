@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — "Add project folder" opens where you last added a project
+
+"Browse…" now opens the folder picker in the folder that holds the project you added most
+recently, so adding several projects from one place takes fewer steps. If that folder no
+longer exists, the picker opens as before. The picker's title is now shown in Japanese too.
+
 ## [0.32.1] — 2026-10-29
 
 **Three layout fixes: each explanation now sits with the item it explains, and "Undo" after

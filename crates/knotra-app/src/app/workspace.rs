@@ -12,7 +12,7 @@ use knotra_vcs::model::{project::Project, workspace::Workspace};
 
 use super::shared;
 use crate::{
-    config::AppPaths,
+    config::{AppPaths, save_config},
     message::{Message, WorkspaceMessage},
     persistence::{delete_workspace_file, save_workspace},
     state::{
@@ -27,6 +27,27 @@ use crate::{
 fn persist_workspace(paths: &AppPaths, ws: &Workspace) {
     if let Err(e) = save_workspace(ws, paths) {
         tracing::warn!("failed to save workspace: {e}");
+    }
+}
+
+fn persist_config(state: &AppState) {
+    if let Err(e) = save_config(&state.config, &state.paths) {
+        tracing::warn!("failed to save config: {e}");
+    }
+}
+
+/// Task 102: the folder "Browse…" should start in — `None` if nothing is
+/// remembered, or if what is remembered no longer exists as a directory.
+/// Pure, so the three cases (none, gone, present) are each unit-tested
+/// without touching disk from the decision itself; the existence check
+/// happens at the call site, off the UI thread.
+fn initial_browse_dir(
+    remembered: Option<&std::path::Path>,
+    exists: bool,
+) -> Option<&std::path::Path> {
+    match remembered {
+        Some(p) if exists => Some(p),
+        _ => None,
     }
 }
 
@@ -91,11 +112,19 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             }
             // Clear any pending undo when a new project is added.
             state.recent_removal = None;
+            // Task 102: the parent of the folder just added, remembered only
+            // on success — `path` is consumed by `Project::new` below, so
+            // its parent is captured here, before that move.
+            let parent = std::path::Path::new(&path)
+                .parent()
+                .map(|p| p.to_path_buf());
             let project = Project::new(name, path);
             let paths = state.paths.clone();
             if let Some(ws) = &mut state.workspace {
                 ws.add_project(project);
                 persist_workspace(&paths, ws);
+                state.config.last_project_parent = parent;
+                persist_config(state);
             }
             state.reconcile_selection_with_display();
             state.is_refreshing = true;
@@ -116,14 +145,27 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             }
             Task::none()
         }
-        WorkspaceMessage::BrowsePathRequested => Task::future(async {
-            let folder = rfd::AsyncFileDialog::new()
-                .set_title("Select project folder")
-                .pick_folder()
-                .await;
-            let path = folder.map(|f| f.path().to_string_lossy().into_owned());
-            Message::Workspace(crate::message::WorkspaceMessage::BrowsePathSelected(path))
-        }),
+        WorkspaceMessage::BrowsePathRequested => {
+            let remembered = state.config.last_project_parent.clone();
+            let title = state.t("plain.add_project.picker_title").to_owned();
+            Task::future(async move {
+                // Task 102: the existence check runs here, off the UI
+                // thread — the decision itself (`initial_browse_dir`) stays
+                // pure and is what's unit-tested.
+                let exists = remembered
+                    .as_deref()
+                    .is_some_and(|p| std::fs::metadata(p).is_ok_and(|m| m.is_dir()));
+                let start_dir = initial_browse_dir(remembered.as_deref(), exists);
+
+                let mut dialog = rfd::AsyncFileDialog::new().set_title(title);
+                if let Some(dir) = start_dir {
+                    dialog = dialog.set_directory(dir);
+                }
+                let folder = dialog.pick_folder().await;
+                let path = folder.map(|f| f.path().to_string_lossy().into_owned());
+                Message::Workspace(crate::message::WorkspaceMessage::BrowsePathSelected(path))
+            })
+        }
         WorkspaceMessage::BrowsePathSelected(path_opt) => {
             if let Some(path) = path_opt
                 && let Some(d) = &mut state.add_project_dialog
@@ -455,5 +497,28 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             }
             Task::none()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::initial_browse_dir;
+    use std::path::Path;
+
+    #[test]
+    fn none_remembered_starts_nowhere() {
+        assert_eq!(initial_browse_dir(None, false), None);
+    }
+
+    #[test]
+    fn remembered_but_gone_starts_nowhere() {
+        let p = Path::new("/tmp/knotra-demo-102/repos");
+        assert_eq!(initial_browse_dir(Some(p), false), None);
+    }
+
+    #[test]
+    fn remembered_and_present_starts_there() {
+        let p = Path::new("/tmp/knotra-demo-102/repos");
+        assert_eq!(initial_browse_dir(Some(p), true), Some(p));
     }
 }

@@ -41,6 +41,15 @@
 //! `i18n.rs`'s guards accept, and the same reason R3-style planted-violation
 //! proof matters more than it would for a real parser.
 //!
+//! **Task 102**: the `view/`-only scope above missed `workspace.rs`'s
+//! `rfd::AsyncFileDialog::new().set_title("Select project folder")` — a
+//! user-visible literal, but not a `text(...)` call, and not under `view/`
+//! at all (the dialog is built in `app/`). A second scan below covers
+//! `crates/knotra-app/src/app/` for a letter-led literal passed to
+//! `set_title(`, `set_description(`, or `add_filter(` — `rfd`'s other
+//! user-visible setters, included on the chance a future dialog call adds
+//! one, not because any currently do.
+//!
 //! `#[cfg(test)]`-only: this module never compiles into the shipped binary.
 
 #[cfg(test)]
@@ -70,6 +79,13 @@ mod tests {
     /// `state.rs`, `app/`, etc. are not UI text).
     fn view_dir() -> std::path::PathBuf {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/view")
+    }
+
+    /// `crates/knotra-app/src/app` — Task 102's second scan root. A sibling
+    /// of `view/`, not a subdirectory of it, so no overlap with the scan
+    /// above.
+    fn app_dir() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/app")
     }
 
     /// This file's own doc comment contains the literal patterns it scans
@@ -107,6 +123,15 @@ mod tests {
     fn count_in_file(source: &str) -> usize {
         count_letter_led_text_calls(source, "text(\"")
             + count_letter_led_text_calls(source, "text(format!(\"")
+    }
+
+    /// Task 102: `rfd`'s user-visible setters, under `app/` — a dialog
+    /// title, description, or filter name the user sees, same leading-letter
+    /// rule as `count_in_file` above.
+    fn count_rfd_setter_literals(source: &str) -> usize {
+        count_letter_led_text_calls(source, "set_title(\"")
+            + count_letter_led_text_calls(source, "set_description(\"")
+            + count_letter_led_text_calls(source, "add_filter(\"")
     }
 
     /// The exact, justified set of letter-led `text("…")` /
@@ -175,6 +200,59 @@ mod tests {
              a language naming itself), add it to this file's EXPECTED list \
              with the same per-item justification its neighbours carry. If \
              you removed one, remove its entry from EXPECTED too.\n\
+             actual:   {actual:?}\n\
+             expected: {expected:?}"
+        );
+    }
+
+    /// Task 102: no letter-led `set_title("…")` / `set_description("…")` /
+    /// `add_filter("…")` literal under `app/` — every one of `rfd`'s
+    /// user-visible setters must route through `state.t()` and a catalog
+    /// key, the same rule `user_facing_text_under_view_routes_through_the_catalog`
+    /// enforces for `text(...)` under `view/`. Empty: no current call site
+    /// is allowed to carry one.
+    const APP_EXPECTED: &[(&str, usize)] = &[];
+
+    #[test]
+    fn rfd_dialog_text_under_app_routes_through_the_catalog() {
+        let dir = app_dir();
+        let files = rust_files_under(&dir);
+        assert!(
+            files.len() > 5,
+            "found only {} .rs files under {} -- path resolution is \
+             broken, not that nothing needed checking",
+            files.len(),
+            dir.display()
+        );
+
+        let mut actual: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
+        for file in &files {
+            let Ok(source) = std::fs::read_to_string(file) else {
+                continue;
+            };
+            let n = count_rfd_setter_literals(&source);
+            if n > 0 {
+                let rel = file
+                    .strip_prefix(&dir)
+                    .unwrap_or(file)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                actual.insert(rel, n);
+            }
+        }
+
+        let expected: std::collections::BTreeMap<String, usize> = APP_EXPECTED
+            .iter()
+            .map(|(path, n)| ((*path).to_owned(), *n))
+            .collect();
+
+        assert_eq!(
+            actual, expected,
+            "letter-led set_title(\"...\") / set_description(\"...\") / \
+             add_filter(\"...\") literals under crates/knotra-app/src/app/ \
+             changed. Route it through state.t() and a catalog key instead \
+             (Task 102).\n\
              actual:   {actual:?}\n\
              expected: {expected:?}"
         );
