@@ -246,7 +246,14 @@ jobs:
       # NOTICE ship with the binary, as Apache-2.0 section 4 requires.
       - name: Stage archive contents
         run: |
-          ASSET="${BIN_NAME}@${{ matrix.name }}-${GITHUB_REF_NAME}${{ matrix.archive_ext }}"
+          # F2 (Task 102 commit 2, Review 207 §6): a dispatched run's
+          # GITHUB_REF_NAME is a branch name, which can contain `/`
+          # (`task-102/slash-check`); unreplaced, that `/` lands inside the
+          # archive filename and the tar/7z step below fails trying to write
+          # it. A tag never contains `/`, so this is a no-op on every real
+          # release.
+          REF_SLUG="${GITHUB_REF_NAME//\//-}"
+          ASSET="${BIN_NAME}@${{ matrix.name }}-${REF_SLUG}${{ matrix.archive_ext }}"
           echo "ASSET=${ASSET}" >> "$GITHUB_ENV"
           mkdir -p dist
           cp "target/${{ matrix.target }}/release/${BIN_NAME}${{ matrix.bin_ext }}" dist/
@@ -327,9 +334,37 @@ jobs:
   # and version comparison, which pwsh handles natively instead of through
   # Git Bash's path translation. Native commands are checked via
   # $LASTEXITCODE explicitly rather than trusting the shell to fail.
+  #
+  # F4 (Task 102 commit 2, Review 207 §6): a pre-release tag's crate version
+  # (e.g. 1.2.3-rc.1) cannot become an MSIX version, which is four plain
+  # numbers. Deciding this from the ref, in its own job that always runs,
+  # lets `msix` itself be skipped outright on a pre-release tag — shown as
+  # skipped rather than failed — while still leaving a `::notice::` in the
+  # log explaining why. A tag never has two consecutive dots, so testing for
+  # a hyphen in the ref name is equivalent to testing the crate version's own
+  # shape, without needing `msix` to start (and check out the repo) first
+  # just to decide not to run.
+  msix-gate:
+    name: Decide whether to package an MSIX
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.decide.outputs.skip }}
+    steps:
+      - name: Decide
+        id: decide
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF_NAME" == *-* ]]; then
+            echo "::notice::Skipping the Windows MSIX package: '$GITHUB_REF_NAME' is a pre-release tag, and an MSIX version must be four plain numbers."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   msix:
     name: Windows MSIX package
-    needs: build
+    needs: [build, msix-gate]
+    if: needs.msix-gate.outputs.skip != 'true'
     runs-on: windows-latest
     defaults:
       run:
