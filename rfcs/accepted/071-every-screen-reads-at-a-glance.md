@@ -8,7 +8,7 @@
 | Target | 0.33.0 (`.git-exclude/reviewed/244-release-plan-0.33.0-scope.md` §7) |
 | Related files | `crates/knotra-ui/src/{theme,widget/chip,widget/buttons,widget/layout}.rs`, `crates/knotra-app/src/view/{shell,history,settings}.rs`, `crates/knotra-app/src/view/dashboard/{mod,row,section,toolbar}.rs`, `crates/knotra-app/src/{config,app}.rs`, `crates/knotra-ui/src/i18n.rs` |
 | Decided by | project owner, 2026-10-31 - "Accepted", with D12's texts. Row style: the owner asked for one integrated style, chosen against the design philosophy; ruled in D8a. **Architect correction before the handoff (2026-10-31):** D3 drew the tone as coloured text; snora's tone tokens are backgrounds, so D3 now draws a badge. Same meaning: colour plus symbol plus words |
-| Amended | Handoff Amendment A1, "kind to older eyes" (D13: readable unavailable controls, no hover-only meaning, one contrast suite), approved by the owner 2026-10-31. Handoff Amendment A2, "strong is bold; the detail panel's labels stack" (Review 248). Handoff Amendment A3, "text you read to act is never small" (D14: 16 px for everything read to act, 14 px only for incidental metadata; D9 revised so text size never gives way to row count), approved by the owner 2026-10-31 |
+| Amended | Handoff Amendment A1, "kind to older eyes" (D13: readable unavailable controls, no hover-only meaning, one contrast suite), approved by the owner 2026-10-31. Handoff Amendment A2, "strong is bold; the detail panel's labels stack" (Review 248). Handoff Amendment A4, "no badge on group headings" (Review 250). Handoff Amendment A3, "text you read to act is never small" (D14: 16 px for everything read to act, 14 px only for incidental metadata; D9 revised so text size never gives way to row count), approved by the owner 2026-10-31 |
 | Related | `.git-exclude/reviewed/245-visibility-assessment.md` (the findings L1-L5, T1-T3, C1-C5 cited below); RFC-056 (type roles, 12 px floor); RFC-057 (snora palette); RFC-035 R8 (width bands; D9 revises its wide band); RFC-066 (focus orders; D8 changes two); RFC-070 (high contrast, built on D4) |
 
 ## Summary
@@ -126,8 +126,10 @@ list. In short:
   - One `knotra-ui` helper, `status_badge(tone)`, draws it. No view colours a status itself.
 - **Where it shows:**
   - before the row's status line;
-  - in each group header;
   - on each status chip (D5).
+  - **Not in group headings** (handoff Amendment A4): a heading is structure, not a status.
+    Under "Attention", "In progress" holds two tones; under other groupings, headings are
+    not statuses at all.
 - **The colours come from snora's palette tokens**, never a literal, so RFC-070's
   high-contrast presets restyle the badges with no further change.
 - **A test** checks each tone pair: the symbol colour (`*_text`) against its badge colour,
