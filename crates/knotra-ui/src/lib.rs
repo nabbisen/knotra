@@ -8,4 +8,4 @@ pub mod i18n;
 pub mod theme;
 pub mod widget;
 
-pub use theme::{KnotraTheme, StatusColor};
+pub use theme::KnotraTheme;

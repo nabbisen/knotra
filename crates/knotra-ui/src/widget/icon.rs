@@ -11,6 +11,34 @@
 
 pub use snora::widget::icon::{icon_element, icon_element_sized};
 
+/// Renders `icon` at `size`, in `color` — `icon_element`/`icon_element_sized`
+/// return a type-erased `Element` with no colour hook, so anything that
+/// needs the glyph in a colour other than the surrounding text (RFC-071's
+/// status-badge symbol, the project-name "›" cue in `text_secondary`)
+/// reproduces `icon_element_sized`'s own glyph construction here, once,
+/// with `.color(...)` added.
+///
+/// Exhaustive over `Icon`'s two variants this workspace's `snora` feature
+/// set can ever produce (`Text`, `Lucide`; `svg-icons` is not enabled) —
+/// not a guarded match, so a third variant becoming reachable fails to
+/// compile here rather than silently falling through.
+pub fn colored_icon_element<'a>(
+    icon: &snora::Icon,
+    size: f32,
+    color: iced::Color,
+) -> iced::widget::Text<'a, iced::Theme, iced::Renderer> {
+    match icon {
+        snora::Icon::Lucide(lucide_const) => {
+            let glyph = char::from(*lucide_const).to_string();
+            iced::widget::text(glyph)
+                .font(iced::Font::with_name("lucide"))
+                .size(size)
+                .color(color)
+        }
+        snora::Icon::Text(s) => iced::widget::text(s.clone()).size(size).color(color),
+    }
+}
+
 /// The raw Lucide font bytes. Must be registered once at application startup
 /// (`iced::application(...).font(knotra_ui::widget::icon::FONT_BYTES)`) or
 /// `Icon::Lucide` glyphs render as tofu / missing-glyph boxes.

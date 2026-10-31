@@ -12,6 +12,71 @@ use snora::design::Tokens;
 
 use super::layout::{Element, Length};
 
+fn to_iced(color: snora::design::Color) -> iced::Color {
+    snora::design::style::color::to_iced_color(color)
+}
+
+/// RFC-071 D6: the one `text_input` style in `knotra-ui` — every
+/// `text_input` in `crates/` goes through this. Placeholder is
+/// `text_muted`, typed value is `text_primary`; everything else (fill,
+/// border, selection, the icon slot) comes from the active theme's tokens
+/// too, so the field restyles with RFC-070's high-contrast presets like
+/// every other control, rather than keeping iced's own hard-coded default.
+pub fn text_input_style(
+    tokens: &Tokens,
+    status: iced::widget::text_input::Status,
+) -> iced::widget::text_input::Style {
+    use iced::widget::text_input::{Status, Style};
+    use iced::{Background, Border, Color};
+
+    let background = to_iced(tokens.palette.surface);
+    let border_color = to_iced(tokens.palette.border);
+    let accent = to_iced(tokens.palette.accent);
+    let radius = tokens.radius.md;
+
+    let active = Style {
+        background: Background::Color(background),
+        border: Border {
+            radius: radius.into(),
+            width: 1.0,
+            color: border_color,
+        },
+        icon: to_iced(tokens.palette.text_secondary),
+        placeholder: to_iced(tokens.palette.text_muted),
+        value: to_iced(tokens.palette.text_primary),
+        selection: Color { a: 0.3, ..accent },
+    };
+
+    match status {
+        Status::Active => active,
+        Status::Hovered => Style {
+            border: Border {
+                color: to_iced(tokens.palette.text_secondary),
+                ..active.border
+            },
+            ..active
+        },
+        Status::Focused { .. } => Style {
+            border: Border {
+                color: accent,
+                ..active.border
+            },
+            ..active
+        },
+        Status::Disabled => Style {
+            background: Background::Color(Color {
+                a: 0.5,
+                ..background
+            }),
+            value: Color {
+                a: 0.5,
+                ..active.value
+            },
+            ..active
+        },
+    }
+}
+
 /// A labelled text input with persistent label above and optional inline error.
 ///
 /// The label always stays visible (not a placeholder that disappears on
@@ -72,7 +137,11 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
         .padding([tokens.spacing.sm, 12.0])
         .width(Length::Fill)
         .size(snora::design::style::text::body_size(tokens))
-        .line_height(snora::design::style::text::body_line_height(tokens));
+        .line_height(snora::design::style::text::body_line_height(tokens))
+        .style({
+            let t = tokens.clone();
+            move |_theme, status| text_input_style(&t, status)
+        });
 
     if let Some(widget_id) = id {
         field = field.id(widget_id);
@@ -142,7 +211,11 @@ pub fn validated_field<'a, Message: Clone + 'a>(
         .padding([tokens.spacing.sm, 12.0])
         .width(Length::Fill)
         .size(snora::design::style::text::body_size(tokens))
-        .line_height(snora::design::style::text::body_line_height(tokens));
+        .line_height(snora::design::style::text::body_line_height(tokens))
+        .style({
+            let t = tokens.clone();
+            move |_theme, status| text_input_style(&t, status)
+        });
 
     let mut field_row = row![field].spacing(8).align_y(iced::Alignment::Center);
     if let Some(unit) = unit {

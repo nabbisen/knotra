@@ -18,7 +18,7 @@ use iced::{
     Alignment, Element, Length, Padding,
     widget::{Space, button, column, container, row, scrollable, text, text_input},
 };
-use knotra_ui::widget::{Tokens, icon, record_row, strong};
+use knotra_ui::widget::{Tokens, icon, record_row, strong, style, text_input_style};
 use knotra_vcs::model::operation::{OperationLog, OperationResult, ProjectOperationOutcome};
 
 use crate::{
@@ -67,9 +67,11 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
 // ---------------------------------------------------------------------------
 
 fn view_toolbar(state: &AppState) -> Element<'_, Message> {
+    let tokens = state.theme.tokens.clone();
     let input = text_input(state.t("history.search_hint"), &state.history_search)
         .on_input(|s| Message::History(HistoryMessage::SearchChanged(s)))
-        .width(Length::Fill);
+        .width(Length::Fill)
+        .style(move |_theme, status| text_input_style(&tokens, status));
 
     container(input)
         .width(Length::Fill)
@@ -232,6 +234,12 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         text(status_label)
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
+        // RFC-071 D5: an entry's own actions are not the page's main act —
+        // both become `secondary`, not the bare-default (effectively
+        // filled) look they had before. Neither is a focus target today
+        // (History has no focus-order wiring at all yet), so `false` is
+        // passed explicitly rather than left out — the ring ships in case
+        // one is ever wired up, same choice Task 100's snackbar made.
         button(
             row![
                 text(toggle_label)
@@ -242,13 +250,21 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
             .spacing(4)
             .align_y(Alignment::Center)
         )
-        .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle))),
+        .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle)))
+        .style({
+            let t = tokens.clone();
+            move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
+        }),
         button(
             text(state.t("history.copy_log"))
                 .size(snora::design::style::text::body_small_size(tokens))
                 .line_height(snora::design::style::text::body_small_line_height(tokens))
         )
-        .on_press(Message::CopyToClipboard(export_text(result))),
+        .on_press(Message::CopyToClipboard(export_text(result)))
+        .style({
+            let t = tokens.clone();
+            move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
+        }),
     ]
     .spacing(8)
     .align_y(Alignment::Center);

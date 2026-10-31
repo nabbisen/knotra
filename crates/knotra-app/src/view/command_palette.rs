@@ -79,11 +79,15 @@ pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
 /// (see `overlay.rs::surface`, unconditional across every caller).
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    let input = text_input(state.t("palette.search_placeholder"), &state.palette.query)
-        .id(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
-        .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
-        .padding([8, 12])
-        .size(snora::design::style::text::label_size(tokens));
+    let input = {
+        let t = tokens.clone();
+        text_input(state.t("palette.search_placeholder"), &state.palette.query)
+            .id(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
+            .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
+            .padding([8, 12])
+            .size(snora::design::style::text::label_size(tokens))
+            .style(move |_theme, status| knotra_ui::widget::text_input_style(&t, status))
+    };
 
     let results: Vec<Element<'_, Message>> = state
         .palette

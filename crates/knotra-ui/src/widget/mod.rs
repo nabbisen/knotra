@@ -18,18 +18,19 @@ pub mod overlay;
 mod record;
 pub(crate) mod ring;
 pub mod select;
+pub mod status;
 
 pub use buttons::{
     centered_button_label, current_or, danger, danger_maybe, ghost, ghost_maybe, icon_button_maybe,
     primary, primary_maybe, reasoned, secondary, secondary_maybe, style,
 };
 pub use checkbox::checkbox;
-pub use field::{guided_field, guided_field_focused, validated_field};
+pub use field::{guided_field, guided_field_focused, text_input_style, validated_field};
 pub use focus::{clear_input_focus, focus_id, focus_input};
 pub use layout::{
     Alignment, BUTTON_HEIGHT, CARD_GAP, CARD_MIN_WIDTH, CARD_PADDING, CARD_RADIUS, Color, Column,
-    Element, Length, Padding, Row, SIDEBAR_WIDTH, SMALL_BUTTON_HEIGHT, button, column, container,
-    row, scrollable, strong, text, text_input,
+    Element, Length, Padding, Row, SIDEBAR_WIDTH, SMALL_BUTTON_HEIGHT, STRONG_FONT, button, column,
+    container, row, scrollable, strong, text, text_input,
 };
 pub use notice::{NoticeAction, NoticeTone, notice};
 pub use record::record_row;
@@ -39,3 +40,4 @@ pub use snora::design::FocusTokens;
 /// Snora Design token bundle. Re-exported so view-layer signatures can name
 /// `Tokens` without importing `snora::design` directly (RFC-034 R2).
 pub use snora::design::Tokens;
+pub use status::{Tone, status_badge, symbol as status_symbol};

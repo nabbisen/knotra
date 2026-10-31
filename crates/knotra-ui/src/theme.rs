@@ -6,48 +6,6 @@
 
 use iced::Color;
 
-/// Semantic color roles for repository status indicators.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StatusColor {
-    /// Fully synchronized — no action required.
-    Healthy,
-    /// Behind upstream; pull recommended.
-    Behind,
-    /// Local commits not yet pushed.
-    Ahead,
-    /// Uncommitted changes present.
-    Dirty,
-    /// Merge / rebase conflict.
-    Conflict,
-    /// Could not determine status (read error).
-    Unknown,
-}
-
-impl StatusColor {
-    /// Returns an `iced::Color` appropriate for the current theme variant.
-    pub fn to_color(self, dark: bool) -> Color {
-        if dark {
-            match self {
-                StatusColor::Healthy => Color::from_rgb8(0x4c, 0xaf, 0x50), // green-500
-                StatusColor::Behind => Color::from_rgb8(0xff, 0xb7, 0x4d),  // amber-300
-                StatusColor::Ahead => Color::from_rgb8(0x42, 0xa5, 0xf5),   // blue-400
-                StatusColor::Dirty => Color::from_rgb8(0xff, 0xb7, 0x4d),   // amber-300
-                StatusColor::Conflict => Color::from_rgb8(0xef, 0x53, 0x50), // red-400
-                StatusColor::Unknown => Color::from_rgb8(0x75, 0x75, 0x75), // grey-600
-            }
-        } else {
-            match self {
-                StatusColor::Healthy => Color::from_rgb8(0x2e, 0x7d, 0x32), // green-800
-                StatusColor::Behind => Color::from_rgb8(0xbf, 0x46, 0x00), // orange-900++ (WCAG AA 4.7:1 on #F5F5F5)
-                StatusColor::Ahead => Color::from_rgb8(0x15, 0x65, 0xc0),  // blue-800
-                StatusColor::Dirty => Color::from_rgb8(0xbf, 0x46, 0x00), // orange-900++ (WCAG AA 4.7:1 on #F5F5F5)
-                StatusColor::Conflict => Color::from_rgb8(0xc6, 0x28, 0x28), // red-800
-                StatusColor::Unknown => Color::from_rgb8(0x61, 0x61, 0x61), // grey-700
-            }
-        }
-    }
-}
-
 /// The application's iced `Theme` extension carrying knotra-specific tokens.
 ///
 /// Wraps the built-in `iced::Theme` so that both the light and dark system
@@ -86,10 +44,6 @@ impl KnotraTheme {
             dark: true,
             tokens,
         }
-    }
-
-    pub fn status_color(&self, status: StatusColor) -> Color {
-        status.to_color(self.dark)
     }
 
     // -- D7 colour role accessors -------------------------------------------
@@ -188,50 +142,6 @@ mod tests {
     const AA_NORMAL: f32 = 4.5;
     /// AA-large threshold, for the one documented exception below.
     const AA_LARGE: f32 = 3.0;
-
-    /// R5: every `StatusColor` against its intended surface — the plain
-    /// application background, since no card in the current codebase styles
-    /// its own background (RFC-034 Background section) — meets WCAG AA in
-    /// both themes, with one carried-forward exception.
-    #[test]
-    fn status_colors_meet_wcag_aa_against_background_in_both_themes() {
-        let cases: [(&str, StatusColor); 6] = [
-            ("Healthy", StatusColor::Healthy),
-            ("Behind", StatusColor::Behind),
-            ("Ahead", StatusColor::Ahead),
-            ("Dirty", StatusColor::Dirty),
-            ("Conflict", StatusColor::Conflict),
-            ("Unknown", StatusColor::Unknown),
-        ];
-
-        for (theme_name, theme) in [
-            ("light", KnotraTheme::light()),
-            ("dark", KnotraTheme::dark()),
-        ] {
-            let background = from_iced(theme.background());
-
-            for (label, status) in cases {
-                let color = from_iced(status.to_color(theme.dark));
-                let ratio = snora::design::contrast::contrast_ratio(color, background);
-
-                // Documented exception, carried forward from RFC-021 Phase 6:
-                // `Unknown` on the dark background meets AA-large only. It is
-                // used solely as a secondary label alongside an icon, never as
-                // the sole indicator of state (module doc comment above).
-                let threshold = if theme_name == "dark" && label == "Unknown" {
-                    AA_LARGE
-                } else {
-                    AA_NORMAL
-                };
-
-                assert!(
-                    ratio >= threshold,
-                    "{theme_name} StatusColor::{label} vs background: {ratio:.2}:1 \
-                     is below the required {threshold}:1"
-                );
-            }
-        }
-    }
 
     /// R5: every mandatory-contrast text role (`text_primary`,
     /// `text_secondary`, `text_muted`) meets WCAG AA against every surface
@@ -597,8 +507,8 @@ mod tests {
             let tokens = &theme.tokens;
 
             for selected in [false, true] {
-                let unfocused = chip_style(tokens, selected, Status::Active, false);
-                let focused = chip_style(tokens, selected, Status::Active, true);
+                let unfocused = chip_style(tokens, selected, 1, Status::Active, false);
+                let focused = chip_style(tokens, selected, 1, Status::Active, true);
                 let background = match unfocused.background {
                     Some(iced::Background::Color(c)) => c,
                     other => panic!("expected a solid Background::Color, got {other:?}"),
@@ -801,6 +711,162 @@ mod tests {
                     "{theme_name} base.extended_palette().{label}: {ratio:.2}:1 \
                      is below the required {AA_NORMAL}:1"
                 );
+            }
+        }
+    }
+
+    /// RFC-071 D3: every status badge's symbol colour (`*_text`) against its
+    /// own badge colour, in both themes — the pairing `status_badge` draws.
+    #[test]
+    fn status_badge_symbol_meets_wcag_aa_on_its_own_tone_in_both_themes() {
+        use crate::widget::Tone;
+
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let cases = [
+                ("Success", Tone::Success),
+                ("Warning", Tone::Warning),
+                ("Danger", Tone::Danger),
+                ("Info", Tone::Info),
+            ];
+            for (label, tone) in cases {
+                let (bg, fg) = tone.colors(&theme.tokens);
+                let ratio = snora::design::contrast::contrast_ratio(from_iced(fg), from_iced(bg));
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} Tone::{label} symbol vs badge: {ratio:.2}:1 \
+                     is below the required {AA_NORMAL}:1"
+                );
+            }
+        }
+    }
+
+    /// RFC-071 Amendment A1 D13 item 3: **the** contrast suite — one test
+    /// covering every colour knotra draws text or symbols with, against
+    /// every surface it can appear on, at the floor its own category of use
+    /// carries. Earlier tests in this file each check one role against one
+    /// or a few surfaces, for their own reason; this one exists so a reader
+    /// (and a reviewer) can find every floor in one place, and so a role
+    /// that falls short stops here, with its own name, rather than passing
+    /// silently because some narrower pre-existing test happened not to
+    /// cover that particular pairing.
+    ///
+    /// **A shortfall here is never adjusted silently.** `snora`'s palette is
+    /// an upstream dependency; a role that comes in short is an upstream
+    /// matter (D13 item 3), not a token this crate is allowed to override.
+    #[test]
+    fn the_contrast_suite_covers_every_colour_knotra_draws_text_or_symbols_with() {
+        use crate::widget::Tone;
+
+        /// 1.4.6-strength floor for the text a user reads to understand or
+        /// act: names, statuses, messages, headings.
+        const CONTENT_TEXT: f32 = 7.0;
+
+        for (theme_name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+        ] {
+            let p = &theme.tokens.palette;
+            let surfaces: [(&str, snora::design::Color); 3] = [
+                ("background", p.background),
+                ("surface", p.surface),
+                ("surface_raised", p.surface_raised),
+            ];
+
+            // Content text (7:1): text_primary, text_secondary — never
+            // text_muted, which this RFC scopes to placeholders and
+            // unavailable-control labels only (items 2/3 below), not to
+            // anything a user reads to understand or act.
+            for (text_label, text_color) in [
+                ("text_primary", p.text_primary),
+                ("text_secondary", p.text_secondary),
+            ] {
+                for (surface_label, surface_color) in surfaces {
+                    let ratio = snora::design::contrast::contrast_ratio(text_color, surface_color);
+                    assert!(
+                        ratio >= CONTENT_TEXT,
+                        "{theme_name} content text {text_label} on {surface_label}: \
+                         {ratio:.2}:1 is below the required {CONTENT_TEXT}:1"
+                    );
+                }
+            }
+
+            // Labels of controls you can press (4.5:1): accent as text
+            // (links, ghost/secondary labels), and each fill's own
+            // `*_text` against its fill.
+            for (surface_label, surface_color) in surfaces {
+                let ratio = snora::design::contrast::contrast_ratio(p.accent, surface_color);
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} accent (as a pressable label) on {surface_label}: \
+                     {ratio:.2}:1 is below the required {AA_NORMAL}:1"
+                );
+            }
+            for (fill_label, fill, fill_text) in [
+                ("accent", p.accent, p.accent_text),
+                ("danger", p.danger, p.danger_text),
+            ] {
+                let ratio = snora::design::contrast::contrast_ratio(fill_text, fill);
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} {fill_label}_text on {fill_label}: {ratio:.2}:1 \
+                     is below the required {AA_NORMAL}:1"
+                );
+            }
+
+            // Labels of unavailable controls (4.5:1, D13 item 1): a
+            // disabled button has no fill, so its `text_muted` label sits
+            // directly on whichever surface is behind the button.
+            // Placeholders (4.5:1, D6): `text_muted` on the field's own
+            // `surface` fill — the same token, the same floor, the same
+            // pairing a disabled label on a surface-backed area already
+            // covers, stated here under its own name too.
+            for (surface_label, surface_color) in surfaces {
+                let ratio = snora::design::contrast::contrast_ratio(p.text_muted, surface_color);
+                assert!(
+                    ratio >= AA_NORMAL,
+                    "{theme_name} text_muted (disabled label / placeholder) on \
+                     {surface_label}: {ratio:.2}:1 is below the required {AA_NORMAL}:1"
+                );
+            }
+
+            // Lines, outlines, the focus ring, a badge against the page
+            // (3:1, non-text, SC 1.4.11): border and every tone's own badge
+            // fill, each against every surface it can sit on.
+            for (surface_label, surface_color) in surfaces {
+                let ratio = snora::design::contrast::contrast_ratio(p.border, surface_color);
+                assert!(
+                    ratio >= AA_LARGE,
+                    "{theme_name} border on {surface_label}: {ratio:.2}:1 \
+                     is below the required {AA_LARGE}:1 non-text boundary floor"
+                );
+                let ring_ratio = snora::design::contrast::contrast_ratio(
+                    theme.tokens.focus.ring_color,
+                    surface_color,
+                );
+                assert!(
+                    ring_ratio >= AA_LARGE,
+                    "{theme_name} focus ring on {surface_label}: {ring_ratio:.2}:1 \
+                     is below the required {AA_LARGE}:1 non-text boundary floor"
+                );
+                for (tone_label, tone) in [
+                    ("Success", Tone::Success),
+                    ("Warning", Tone::Warning),
+                    ("Danger", Tone::Danger),
+                    ("Info", Tone::Info),
+                ] {
+                    let (badge_bg, _) = tone.colors(&theme.tokens);
+                    let badge_ratio =
+                        snora::design::contrast::contrast_ratio(from_iced(badge_bg), surface_color);
+                    assert!(
+                        badge_ratio >= AA_LARGE,
+                        "{theme_name} Tone::{tone_label} badge on {surface_label}: \
+                         {badge_ratio:.2}:1 is below the required {AA_LARGE}:1 non-text \
+                         boundary floor"
+                    );
+                }
             }
         }
     }

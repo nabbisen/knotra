@@ -9,6 +9,28 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — each status has its own colour and symbol
+
+A project that needs help now looks different from one that is all set. Each status has a
+coloured symbol beside its words, in the project list and on the filter buttons, which now
+also show how many projects each one matches. Blue now marks only what you can click or
+press, and on History an entry's buttons are no longer both highlighted.
+
+### Changed — the hint in an empty search box is easier to read
+
+It was drawn so faintly that it was hard to see. It is now readable, and still lighter than
+what you type.
+
+### Changed — buttons you cannot use right now are easier to read
+
+They were drawn so faintly that their names were hard to read. They are now shown as an
+outline with readable text, next to the reason they are unavailable.
+
+### Removed — `StatusColor` from the `knotra-ui` crate
+
+For developers using `knotra-ui`: this enum held fixed colours that knotra did not use and
+that no theme could change. Status colours now come from the theme's palette.
+
 ### Changed — project names, statuses and headings are easier to read
 
 Project names, their status, group headings and History entries were drawn in the smallest

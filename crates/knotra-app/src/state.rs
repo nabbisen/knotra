@@ -671,6 +671,21 @@ impl AppState {
         self.dashboard_display().ordered_selectable_ids
     }
 
+    /// RFC-071 D5: a status filter chip's own count.
+    pub fn status_filter_count(&self, filter: &StatusFilter) -> usize {
+        let projects = self
+            .workspace
+            .as_ref()
+            .map(|ws| ws.projects.as_slice())
+            .unwrap_or(&[]);
+        dashboard::count_for_filter(
+            projects,
+            self.workspace_status.as_ref(),
+            &self.missing_projects,
+            filter,
+        )
+    }
+
     pub fn dashboard_display(&self) -> dashboard::DashboardDisplay<'_> {
         let projects = self
             .workspace

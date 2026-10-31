@@ -11,12 +11,13 @@
 //! — this reuses `buttons.rs`'s `with_focus_ring` directly rather than
 //! `ring_color_for`.
 
-use iced::widget::button;
-use iced::{Border, Color, Shadow};
+use iced::widget::{Space, button, row, text};
+use iced::{Alignment, Border, Color, Length, Shadow};
 use snora::design::Tokens;
 
 use super::buttons::style::with_focus_ring;
 use super::layout::Element;
+use super::status::{Tone, status_badge};
 
 fn to_iced(color: snora::design::Color) -> Color {
     snora::design::style::color::to_iced_color(color)
@@ -40,19 +41,42 @@ fn darken(color: Color, amount: f32) -> Color {
 /// `text_secondary` at rest — the same appearance as
 /// `snora::design::chip::filter`, plus a focus ring `snora`'s own pass-through
 /// could not carry.
+///
+/// RFC-071 D5: every chip now shows its status's badge (the same
+/// `status_badge` a dashboard row's own status line uses, never a second
+/// vocabulary for the same meaning — D3) and its count. A chip at `count ==
+/// 0` is never hidden — the row of chips must not jump as projects change
+/// state — but is drawn in `text_secondary` regardless of `selected`, so an
+/// empty filter reads as present-but-inactive rather than as a live,
+/// equally-weighted choice.
 #[must_use]
 pub fn filter<'a, Message: Clone + 'a>(
     tokens: &Tokens,
     label: impl Into<String>,
+    badge: (Tone, &snora::Icon),
+    count: usize,
     selected: bool,
     is_focused: bool,
     on_toggle: impl Into<Option<Message>>,
 ) -> Element<'a, Message> {
+    let (tone, glyph) = badge;
     let t = tokens.clone();
-    button(iced::widget::text(label.into()).size(snora::design::style::text::label_size(tokens)))
+    let label_size = snora::design::style::text::label_size(tokens);
+    let diameter = tokens.typography.label.size * tokens.typography.label.line_height;
+
+    let content = row![
+        status_badge(tokens, tone, glyph, diameter),
+        text(label.into()).size(label_size),
+        Space::new().width(Length::Fixed(tokens.spacing.xs)),
+        text(count.to_string()).size(label_size),
+    ]
+    .spacing(tokens.spacing.xs)
+    .align_y(Alignment::Center);
+
+    button(content)
         .on_press_maybe(on_toggle.into())
         .padding([tokens.spacing.xs, tokens.spacing.sm])
-        .style(move |_theme, status| style(&t, selected, status, is_focused))
+        .style(move |_theme, status| style(&t, selected, count, status, is_focused))
         .into()
 }
 
@@ -61,6 +85,7 @@ pub fn filter<'a, Message: Clone + 'a>(
 pub(crate) fn style(
     tokens: &Tokens,
     selected: bool,
+    count: usize,
     status: button::Status,
     is_focused: bool,
 ) -> button::Style {
@@ -68,6 +93,17 @@ pub(crate) fn style(
         selected_style(tokens, status)
     } else {
         unselected_style(tokens, status)
+    };
+    // RFC-071 D5: a chip at count 0 reads as present-but-inactive, in
+    // `text_secondary`, regardless of `selected` — never hidden, never
+    // styled as if it were a live equal choice.
+    let base = if count == 0 {
+        button::Style {
+            text_color: dim_if_disabled(status, to_iced(tokens.palette.text_secondary)),
+            ..base
+        }
+    } else {
+        base
     };
     with_focus_ring(tokens, is_focused, base)
 }
@@ -150,8 +186,8 @@ mod tests {
     fn focused_and_unfocused_styles_differ() {
         for tokens in [Tokens::dark(), Tokens::light()] {
             for selected in [false, true] {
-                let unfocused = style(&tokens, selected, button::Status::Active, false);
-                let focused = style(&tokens, selected, button::Status::Active, true);
+                let unfocused = style(&tokens, selected, 1, button::Status::Active, false);
+                let focused = style(&tokens, selected, 1, button::Status::Active, true);
                 assert_ne!(unfocused.border, focused.border, "selected={selected}");
             }
         }
@@ -166,8 +202,8 @@ mod tests {
     fn disabled_chip_text_and_border_differ_from_enabled() {
         for tokens in [Tokens::dark(), Tokens::light()] {
             for selected in [false, true] {
-                let enabled = style(&tokens, selected, button::Status::Active, false);
-                let disabled = style(&tokens, selected, button::Status::Disabled, false);
+                let enabled = style(&tokens, selected, 1, button::Status::Active, false);
+                let disabled = style(&tokens, selected, 1, button::Status::Disabled, false);
                 assert_ne!(
                     enabled.text_color, disabled.text_color,
                     "selected={selected}: disabled text must not match enabled text"
@@ -177,6 +213,33 @@ mod tests {
                     "selected={selected}: disabled border must not match enabled border"
                 );
             }
+        }
+    }
+
+    /// RFC-071 D5: a chip at count 0 is drawn in `text_secondary`,
+    /// regardless of `selected` — including when `selected` would otherwise
+    /// draw `accent_text` on a filled background.
+    #[test]
+    fn zero_count_chip_text_is_secondary_regardless_of_selected() {
+        for tokens in [Tokens::dark(), Tokens::light()] {
+            let expected = to_iced(tokens.palette.text_secondary);
+            for selected in [false, true] {
+                let zero = style(&tokens, selected, 0, button::Status::Active, false);
+                assert_eq!(
+                    zero.text_color, expected,
+                    "selected={selected}: count 0 must use text_secondary"
+                );
+            }
+            // A selected chip's own non-zero text colour (`accent_text`) is
+            // the one case `text_secondary` must visibly differ from —
+            // unselected already uses `text_secondary` at any count, so
+            // only `selected=true` is a meaningful contrast to check here.
+            let zero_selected = style(&tokens, true, 0, button::Status::Active, false);
+            let non_zero_selected = style(&tokens, true, 1, button::Status::Active, false);
+            assert_ne!(
+                zero_selected.text_color, non_zero_selected.text_color,
+                "a selected chip at count 0 must look different from one with a real count"
+            );
         }
     }
 }

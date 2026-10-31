@@ -7,12 +7,9 @@ pub use iced::{
 };
 
 /// RFC-071 D2 / Amendment A2: the one place knotra ever names a text
-/// weight. Chains onto a `text(...)` the caller already built with its own
-/// `.size(...)`/`.line_height(...)` — the same composition
-/// `centered_button_label` applies for a button's own label — setting
-/// `Font { weight: Bold, ..Font::DEFAULT }`. No view names a `Weight`
-/// itself; `text_weight_guard.rs` is the guard that enforces it (the shape
-/// of `text_size_guard.rs`, scanning for `Weight::` outside this function).
+/// weight. No view names a `Weight` itself; `text_weight_guard.rs` is the
+/// guard that enforces it (the shape of `text_size_guard.rs`, scanning for
+/// `Weight::` outside this file).
 ///
 /// **Bold, not Semibold** (Review 248 §3): asking for weight 600 does not
 /// just miss a face, it *changes the family*. On this project's own Linux
@@ -29,14 +26,25 @@ pub use iced::{
 /// face on its own; the Semibold case is why "nearest available face" is
 /// not by itself a safe assumption, and must be checked by eye, by
 /// typeface, not inferred from the request.
+pub const STRONG_FONT: iced::Font = iced::Font {
+    weight: iced::font::Weight::Bold,
+    ..iced::Font::DEFAULT
+};
+
+/// Chains onto a `text(...)` the caller already built with its own
+/// `.size(...)`/`.line_height(...)` — the same composition
+/// `centered_button_label` applies for a button's own label — setting
+/// [`STRONG_FONT`]. A `rich_text` span that needs the same weight (RFC-071
+/// D4's project name, which also needs a colour that changes with hover/
+/// focus — a `Text` widget's `.color()` is static, a `Span`'s is not) calls
+/// `.font(STRONG_FONT)` directly rather than through this function, since
+/// `strong` is typed to `Text`, not `Span` — the constant is what the guard
+/// actually pins, not this wrapper.
 #[must_use]
 pub fn strong<'a>(
     label: iced::widget::Text<'a, iced::Theme, iced::Renderer>,
 ) -> iced::widget::Text<'a, iced::Theme, iced::Renderer> {
-    label.font(iced::Font {
-        weight: iced::font::Weight::Bold,
-        ..iced::Font::DEFAULT
-    })
+    label.font(STRONG_FONT)
 }
 
 /// Standard corner radius for cards and panels.

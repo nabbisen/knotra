@@ -195,24 +195,71 @@ pub fn danger_maybe<'a, Message: Clone + 'a>(
 /// [`iced::widget::button::Status`] is needed (see [`current_or`]).
 pub mod style {
     use iced::widget::button::{Status, Style};
+    use iced::{Border, Color};
     use snora::design::Tokens;
 
     use super::super::ring::ring_color_for;
 
+    fn to_iced(color: snora::design::Color) -> Color {
+        snora::design::style::color::to_iced_color(color)
+    }
+
+    /// RFC-071 Amendment A1 D13 item 1: replaces snora's own `Disabled`
+    /// result (a uniform 45% alpha fade — `≈2.2:1` for a filled `primary`
+    /// button's label, below every WCAG level for text) with knotra's own:
+    /// no fill, a 1px `border` outline, the label in `text_muted` at full
+    /// opacity (4.9:1 / 5.4:1 light/dark — the theme's own AA contrast test
+    /// already covers `text_muted`). The outline and the reason line
+    /// `reasoned` already draws beside a disabled control say "not now";
+    /// faintness no longer has to carry that meaning too. Every semantic
+    /// variant below routes its own snora-computed style through this
+    /// override, so none can forget it and keep the old fade.
+    fn readable_when_disabled(tokens: &Tokens, status: Status, computed: Style) -> Style {
+        if status != Status::Disabled {
+            return computed;
+        }
+        Style {
+            background: None,
+            text_color: to_iced(tokens.palette.text_muted),
+            border: Border {
+                width: 1.0,
+                color: to_iced(tokens.palette.border),
+                radius: computed.border.radius,
+            },
+            ..computed
+        }
+    }
+
     pub fn primary(tokens: &Tokens, status: Status) -> Style {
-        snora::design::style::button::primary(tokens, status)
+        readable_when_disabled(
+            tokens,
+            status,
+            snora::design::style::button::primary(tokens, status),
+        )
     }
 
     pub fn secondary(tokens: &Tokens, status: Status) -> Style {
-        snora::design::style::button::secondary(tokens, status)
+        readable_when_disabled(
+            tokens,
+            status,
+            snora::design::style::button::secondary(tokens, status),
+        )
     }
 
     pub fn ghost(tokens: &Tokens, status: Status) -> Style {
-        snora::design::style::button::ghost(tokens, status)
+        readable_when_disabled(
+            tokens,
+            status,
+            snora::design::style::button::ghost(tokens, status),
+        )
     }
 
     pub fn danger(tokens: &Tokens, status: Status) -> Style {
-        snora::design::style::button::danger(tokens, status)
+        readable_when_disabled(
+            tokens,
+            status,
+            snora::design::style::button::danger(tokens, status),
+        )
     }
 
     /// Composes a visible focus ring (RFC-033 D7 `FocusTokens`) onto an
@@ -419,6 +466,56 @@ mod tests {
                 assert_eq!(
                     secondary_ring, expected,
                     "secondary ring changed for {status:?}"
+                );
+            }
+        }
+    }
+
+    /// RFC-071 Amendment A1 D13 item 1: every semantic variant's `Disabled`
+    /// result has no fill, a 1px border, and a `text_muted` label — not
+    /// snora's own faded, still-tinted result. Checked for all four
+    /// variants, in both themes, so none can keep the old fade silently.
+    #[test]
+    fn disabled_is_outline_only_with_text_muted_label_for_every_variant() {
+        for tokens in [Tokens::dark(), Tokens::light()] {
+            let expected_text =
+                snora::design::style::color::to_iced_color(tokens.palette.text_muted);
+            let expected_border = snora::design::style::color::to_iced_color(tokens.palette.border);
+
+            type StyleFn = fn(&Tokens, Status) -> iced::widget::button::Style;
+            let variants: [(&str, StyleFn); 4] = [
+                ("primary", super::style::primary),
+                ("secondary", super::style::secondary),
+                ("ghost", super::style::ghost),
+                ("danger", super::style::danger),
+            ];
+            for (name, style_fn) in variants {
+                let disabled = style_fn(&tokens, Status::Disabled);
+                assert_eq!(
+                    disabled.background, None,
+                    "{name}: Disabled must have no fill"
+                );
+                assert_eq!(
+                    disabled.border.width, 1.0,
+                    "{name}: Disabled must have a 1px border"
+                );
+                assert_eq!(
+                    disabled.border.color, expected_border,
+                    "{name}: Disabled border must be the `border` token"
+                );
+                assert_eq!(
+                    disabled.text_color, expected_text,
+                    "{name}: Disabled label must be `text_muted`, at full opacity"
+                );
+                assert_eq!(
+                    expected_text.a, 1.0,
+                    "{name}: text_muted itself must not already carry a reduced alpha"
+                );
+
+                let active = style_fn(&tokens, Status::Active);
+                assert_ne!(
+                    disabled.text_color, active.text_color,
+                    "{name}: Disabled must look different from Active"
                 );
             }
         }

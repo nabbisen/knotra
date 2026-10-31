@@ -26,6 +26,7 @@ use crate::{
     message::{DashboardMessage, FilterMessage, Message, SelectionMessage, StatusFilter},
     state::{
         AppState, SelectionSummary,
+        dashboard::badge_for_filter,
         focus::{FocusOrder, FocusTarget},
     },
 };
@@ -98,9 +99,13 @@ fn chip_element<'a>(
     filter: &StatusFilter,
 ) -> Element<'a, Message> {
     let active = state.filter.has_status_filter(filter);
+    let (tone, glyph) = badge_for_filter(filter);
+    let count = state.status_filter_count(filter);
     chip::filter(
         tokens,
         state.t(filter.label_key()),
+        (tone, &glyph),
+        count,
         active,
         is_focused(state, filter_focus_key(filter)),
         Some(Message::Filter(FilterMessage::StatusFilterToggled(
@@ -340,13 +345,17 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
     .spacing(4)
     .align_y(Alignment::Center);
 
-    let search = text_input(
-        state.t("dashboard.search_placeholder"),
-        &state.filter.search_text,
-    )
-    .id(knotra_ui::widget::focus_id::SEARCH.clone())
-    .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
-    .width(Length::Fixed(220.0));
+    let search = {
+        let t = tokens.clone();
+        text_input(
+            state.t("dashboard.search_placeholder"),
+            &state.filter.search_text,
+        )
+        .id(knotra_ui::widget::focus_id::SEARCH.clone())
+        .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
+        .width(Length::Fixed(220.0))
+        .style(move |_theme, status| knotra_ui::widget::text_input_style(&t, status))
+    };
 
     let clear: Element<'_, Message> = if state.filter.is_active() {
         clear_filters_button(
@@ -428,13 +437,17 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         chip_area = chip_area.push(overflow_chips);
     }
 
-    let search = text_input(
-        state.t("dashboard.search_placeholder"),
-        &state.filter.search_text,
-    )
-    .id(knotra_ui::widget::focus_id::SEARCH.clone())
-    .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
-    .width(Length::Fixed(220.0));
+    let search = {
+        let t = tokens.clone();
+        text_input(
+            state.t("dashboard.search_placeholder"),
+            &state.filter.search_text,
+        )
+        .id(knotra_ui::widget::focus_id::SEARCH.clone())
+        .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
+        .width(Length::Fixed(220.0))
+        .style(move |_theme, status| knotra_ui::widget::text_input_style(&t, status))
+    };
 
     let selectors_button = disclosure_button(
         tokens,

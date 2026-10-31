@@ -2,6 +2,7 @@
 
 use std::{cmp::Ordering, collections::HashSet};
 
+use knotra_ui::widget::{Tone, status_symbol as symbol};
 use knotra_vcs::{ProjectId, WorkspaceStatus, model::project::Project};
 
 use crate::{
@@ -50,6 +51,66 @@ pub struct DashboardEntry<'a> {
     pub relevant_count: Option<RelevantCount>,
 }
 
+// --- RFC-071 D3 / Amendment A4: tone and symbol ----------------------------
+//
+// A badge goes on each row's status line and on each chip — never on a
+// group heading, which is structure, not a status (A4). Every function here
+// is exhaustive over its own enum, with no `_` arm, so a new `StatusFilter`,
+// `DashboardCause` or `ProgressKind` variant fails to compile without a
+// tone and a symbol, rather than silently rendering with neither.
+
+/// A chip's badge. Every `StatusFilter` variant is one of D3's five rows:
+/// `NeedsHelp`/`Conflict` both read "Needs help"/"Needs a choice" and share
+/// `danger`; the rest are each their own row.
+#[must_use]
+pub fn badge_for_filter(filter: &StatusFilter) -> (Tone, snora::Icon) {
+    match filter {
+        StatusFilter::NeedsHelp | StatusFilter::Conflict => (Tone::Danger, symbol::alert()),
+        StatusFilter::Dirty => (Tone::Warning, symbol::unsaved()),
+        StatusFilter::Behind => (Tone::Info, symbol::updates_available()),
+        StatusFilter::Ahead => (Tone::Info, symbol::local_commits()),
+        StatusFilter::AllSet => (Tone::Success, symbol::all_set()),
+    }
+}
+
+/// A needs-help row's badge. Every `DashboardCause` variant is a reason a
+/// project needs help — none of them is "all set" or "in progress" — so
+/// every one shares D3's "Needs help, Needs a choice, unreadable" row:
+/// `danger`, alert.
+#[must_use]
+pub fn badge_for_cause(cause: DashboardCause) -> (Tone, snora::Icon) {
+    match cause {
+        DashboardCause::MissingPath
+        | DashboardCause::Conflict
+        | DashboardCause::ConflictDetectionUnavailable
+        | DashboardCause::ReadUnavailable
+        | DashboardCause::DetachedContext
+        | DashboardCause::StatusUnknown => (Tone::Danger, symbol::alert()),
+    }
+}
+
+/// An in-progress row's badge. `Uncommitted`/`Untracked` are both "work not
+/// yet saved to the repository" (Review 250 §3 confirms `Untracked` here) —
+/// D3's "Unsaved work" row, `warning`. `Ahead`/`Behind` are D3's "Local
+/// commits"/"Updates available" rows, both `info` but with different
+/// arrows.
+#[must_use]
+pub fn badge_for_progress(kind: ProgressKind) -> (Tone, snora::Icon) {
+    match kind {
+        ProgressKind::Uncommitted | ProgressKind::Untracked => (Tone::Warning, symbol::unsaved()),
+        ProgressKind::Ahead => (Tone::Info, symbol::local_commits()),
+        ProgressKind::Behind => (Tone::Info, symbol::updates_available()),
+    }
+}
+
+/// An all-set row's badge. D3's "All set" row: `success`, check. A plain
+/// function rather than a one-armed match over a unit case, since there is
+/// no enum to be exhaustive over here.
+#[must_use]
+pub fn badge_for_all_set() -> (Tone, snora::Icon) {
+    (Tone::Success, symbol::all_set())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DashboardSectionKey {
     Tier(DashboardTier),
@@ -78,17 +139,20 @@ pub struct DashboardDisplayOptions {
     pub all_set_collapsed: bool,
 }
 
-pub fn build_dashboard_display<'a>(
+/// Every project, classified, before `FilterState` (search text, active
+/// group, status-filter toggles) narrows the list. Shared by
+/// [`build_dashboard_display`] and [`count_for_filter`] — RFC-071 D5's chip
+/// counts read from this same unfiltered set, so toggling one chip never
+/// moves another chip's own number.
+fn classify_all<'a>(
     projects: &'a [Project],
     workspace_status: Option<&'a WorkspaceStatus>,
     missing_projects: &HashSet<ProjectId>,
-    filter: &FilterState,
-    options: DashboardDisplayOptions,
-) -> DashboardDisplay<'a> {
+) -> Vec<DashboardEntry<'a>> {
     let statuses = workspace_status
         .map(|status| status.projects.as_slice())
         .unwrap_or_default();
-    let mut entries: Vec<_> = projects
+    projects
         .iter()
         .map(|project| {
             let status = statuses
@@ -96,6 +160,33 @@ pub fn build_dashboard_display<'a>(
                 .find(|status| status.project_id == project.id);
             classify(project, status, missing_projects.contains(&project.id))
         })
+        .collect()
+}
+
+/// RFC-071 D5: a chip's own count — how many of the full, unfiltered
+/// classified set match `filter`.
+#[must_use]
+pub fn count_for_filter(
+    projects: &[Project],
+    workspace_status: Option<&WorkspaceStatus>,
+    missing_projects: &HashSet<ProjectId>,
+    filter: &StatusFilter,
+) -> usize {
+    classify_all(projects, workspace_status, missing_projects)
+        .iter()
+        .filter(|entry| matches_status_filter(entry, filter))
+        .count()
+}
+
+pub fn build_dashboard_display<'a>(
+    projects: &'a [Project],
+    workspace_status: Option<&'a WorkspaceStatus>,
+    missing_projects: &HashSet<ProjectId>,
+    filter: &FilterState,
+    options: DashboardDisplayOptions,
+) -> DashboardDisplay<'a> {
+    let mut entries: Vec<_> = classify_all(projects, workspace_status, missing_projects)
+        .into_iter()
         .filter(|entry| matches_filter(entry, filter))
         .collect();
 
@@ -727,5 +818,89 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// RFC-071 D3/Amendment A4: every chip's tone, matching the table's
+    /// five rows — `NeedsHelp`/`Conflict` share `danger`.
+    #[test]
+    fn badge_for_filter_matches_d3s_table() {
+        assert_eq!(badge_for_filter(&StatusFilter::NeedsHelp).0, Tone::Danger);
+        assert_eq!(badge_for_filter(&StatusFilter::Conflict).0, Tone::Danger);
+        assert_eq!(badge_for_filter(&StatusFilter::Dirty).0, Tone::Warning);
+        assert_eq!(badge_for_filter(&StatusFilter::Behind).0, Tone::Info);
+        assert_eq!(badge_for_filter(&StatusFilter::Ahead).0, Tone::Info);
+        assert_eq!(badge_for_filter(&StatusFilter::AllSet).0, Tone::Success);
+    }
+
+    /// RFC-071 D3: every `DashboardCause` is `danger` — none of them is
+    /// "all set" or "in progress".
+    #[test]
+    fn badge_for_cause_is_always_danger() {
+        for cause in [
+            DashboardCause::MissingPath,
+            DashboardCause::Conflict,
+            DashboardCause::ConflictDetectionUnavailable,
+            DashboardCause::ReadUnavailable,
+            DashboardCause::DetachedContext,
+            DashboardCause::StatusUnknown,
+        ] {
+            assert_eq!(badge_for_cause(cause).0, Tone::Danger, "{cause:?}");
+        }
+    }
+
+    /// RFC-071 D3 / Review 250 §3: `Uncommitted`/`Untracked` are both
+    /// "Unsaved work" (`warning`); `Ahead`/`Behind` are both `info`.
+    #[test]
+    fn badge_for_progress_matches_d3s_table() {
+        assert_eq!(
+            badge_for_progress(ProgressKind::Uncommitted).0,
+            Tone::Warning
+        );
+        assert_eq!(badge_for_progress(ProgressKind::Untracked).0, Tone::Warning);
+        assert_eq!(badge_for_progress(ProgressKind::Ahead).0, Tone::Info);
+        assert_eq!(badge_for_progress(ProgressKind::Behind).0, Tone::Info);
+    }
+
+    #[test]
+    fn badge_for_all_set_is_success() {
+        assert_eq!(badge_for_all_set().0, Tone::Success);
+    }
+
+    /// RFC-071 D5: a chip's count reads from the full classified set,
+    /// independent of the active search text or other status-filter
+    /// toggles — toggling `NeedsHelp` must not move `AllSet`'s own number.
+    #[test]
+    fn count_for_filter_is_independent_of_active_filters() {
+        let needs_help = project(1, "needs-help", None);
+        let mut needs_help_status = status(&needs_help);
+        needs_help_status.conflict.has_conflict = true;
+
+        let all_set = project(2, "all-set", None);
+        let all_set_status = status(&all_set);
+
+        let projects = [needs_help.clone(), all_set.clone()];
+        let ws_status = knotra_vcs::WorkspaceStatus {
+            projects: vec![needs_help_status, all_set_status],
+            ..Default::default()
+        };
+        let missing = HashSet::new();
+
+        assert_eq!(
+            count_for_filter(
+                &projects,
+                Some(&ws_status),
+                &missing,
+                &StatusFilter::NeedsHelp
+            ),
+            1
+        );
+        assert_eq!(
+            count_for_filter(&projects, Some(&ws_status), &missing, &StatusFilter::AllSet),
+            1
+        );
+        assert_eq!(
+            count_for_filter(&projects, Some(&ws_status), &missing, &StatusFilter::Dirty),
+            0
+        );
     }
 }

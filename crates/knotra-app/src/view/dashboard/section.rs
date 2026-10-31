@@ -2,8 +2,8 @@
 //! list of rows beneath it.
 
 use iced::widget::{button, column, container, row, text};
-use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{icon, strong, style};
+use iced::{Alignment, Color, Element, Length};
+use knotra_ui::widget::{Tokens, icon, strong, style};
 
 use crate::{
     message::{DashboardMessage, Message},
@@ -51,6 +51,26 @@ fn is_focused(state: &AppState, key: &str) -> bool {
     state.dashboard_focus.as_ref() == Some(&FocusTarget::control_dynamic(key.to_owned()))
 }
 
+/// RFC-071 D4: a group toggle is `text_secondary`, not `accent` — the
+/// chevron beside it, not its colour, says "this opens and closes". Unlike
+/// `project_name_style` (`row.rs`), this has no hover/focus colour change
+/// to make: D4 names only the one colour for toggles.
+fn group_toggle_style(tokens: &Tokens, status: button::Status) -> button::Style {
+    let text_secondary = snora::design::style::color::to_iced_color(tokens.palette.text_secondary);
+    let text_color = match status {
+        button::Status::Disabled => Color {
+            a: text_secondary.a * 0.5,
+            ..text_secondary
+        },
+        _ => text_secondary,
+    };
+    button::Style {
+        background: None,
+        text_color,
+        ..button::Style::default()
+    }
+}
+
 fn section_header<'a>(
     state: &'a AppState,
     key: DashboardSectionKey,
@@ -96,7 +116,7 @@ fn section_header<'a>(
         .width(Length::Fill)
         .on_press(Message::Dashboard(DashboardMessage::TierToggled(tier)))
         .style(move |_theme, status| {
-            style::with_focus_ring(&tokens, focused, style::ghost(&tokens, status))
+            style::with_focus_ring(&tokens, focused, group_toggle_style(&tokens, status))
         })
         .into()
     } else {

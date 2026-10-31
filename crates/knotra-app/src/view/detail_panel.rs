@@ -22,7 +22,7 @@ use iced::{
     widget::{Space, button, column, container, row, scrollable, text},
 };
 
-use knotra_ui::widget::{Tokens, record_row};
+use knotra_ui::widget::{Tokens, icon, record_row, style};
 
 use crate::{
     message::{DetailPanelMessage, Message, ProjectMessage, WorkspaceMessage},
@@ -74,12 +74,16 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .and_then(|ws| ws.projects.iter().find(|ps| &ps.project_id == id));
 
     // --- Header ---
-    let close_btn = button(
-        text("✕")
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
-    )
-    .on_press(Message::DetailPanel(DetailPanelMessage::Closed));
+    // Review 249 §2: the close control is not the panel's main action — it
+    // takes `overlay::surface`'s own close button whole (the lucide `X`
+    // icon, `ghost` style, plus a focus ring that never lights, since this
+    // panel has no focus-order wiring), not only its colour.
+    let close_btn = button(icon::icon_element(&icon::close()))
+        .on_press(Message::DetailPanel(DetailPanelMessage::Closed))
+        .style({
+            let t = tokens.clone();
+            move |_theme, status| style::with_focus_ring(&t, false, style::ghost(&t, status))
+        });
 
     let header = row![
         text(project.name.clone())
@@ -273,6 +277,9 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     .spacing(3);
 
     // --- Actions ---
+    // Review 249 §2: Refresh and Fetch become `secondary` — neither is the
+    // panel's one mutating action. None of the three is a focus target
+    // today (no focus-order wiring here), so `false` is passed explicitly.
     let refresh_btn = button(
         text(state.t("detail.refresh"))
             .size(snora::design::style::text::body_small_size(tokens))
@@ -280,7 +287,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     )
     .on_press(Message::Project(ProjectMessage::StatusRefreshRequested(
         id.clone(),
-    )));
+    )))
+    .style({
+        let t = tokens.clone();
+        move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
+    });
 
     let fetch_btn = button(
         text(state.t("detail.fetch"))
@@ -290,8 +301,15 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     .on_press_maybe(
         (!state.operation_interlock.is_busy())
             .then_some(Message::Project(ProjectMessage::FetchRequested(id.clone()))),
-    );
+    )
+    .style({
+        let t = tokens.clone();
+        move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
+    });
 
+    // Review 249 §2: "Remove from workspace" becomes `danger` — the one
+    // mutating action in this area, styled so it looks like what it does.
+    // Its confirmation window (RFC-066 D6) is unchanged.
     let remove_btn = button(
         text(state.t("detail.remove_from_workspace"))
             .size(snora::design::style::text::body_small_size(tokens))
@@ -299,7 +317,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     )
     .on_press(Message::Workspace(
         WorkspaceMessage::RemoveProjectRequested(id.clone()),
-    ));
+    ))
+    .style({
+        let t = tokens.clone();
+        move |_theme, status| style::with_focus_ring(&t, false, style::danger(&t, status))
+    });
 
     let actions = column![
         text(state.t("detail.section_actions"))

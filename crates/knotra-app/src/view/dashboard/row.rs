@@ -1,16 +1,21 @@
 //! A single dashboard project row: identity, status/progress summary, and
 //! the tier-specific action.
 
-use iced::widget::{Space, button, column, container, row, text};
+use iced::widget::{Space, button, column, container, rich_text, row, span, text};
 use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, checkbox, strong, style};
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, STRONG_FONT, Tokens, centered_button_label, checkbox, status_badge, style,
+};
 use knotra_vcs::model::project::Project;
 
 use crate::{
     message::{ConflictOpsMessage, DetailPanelMessage, Message, SelectionMessage},
     state::{
         AppState,
-        dashboard::{DashboardCause, DashboardEntry, DashboardTier, ProgressKind},
+        dashboard::{
+            DashboardCause, DashboardEntry, DashboardTier, ProgressKind, badge_for_all_set,
+            badge_for_cause, badge_for_progress,
+        },
         focus::FocusTarget,
     },
 };
@@ -52,6 +57,32 @@ pub(super) fn action_key(id: &knotra_vcs::ProjectId) -> String {
 
 fn is_focused(state: &AppState, key: &str) -> bool {
     state.dashboard_focus.as_ref() == Some(&FocusTarget::control_dynamic(key.to_owned()))
+}
+
+/// RFC-071 D4: the project-name button's own text colour — `accent` on
+/// hover, press, or keyboard focus; `text_primary` at rest. Kept in step
+/// with `name_button`'s span, which applies the same rule statically for
+/// `focused` (see that function's own doc comment for why hover alone
+/// cannot drive the span's underline the same way).
+fn project_name_style(
+    tokens: &Tokens,
+    status: iced::widget::button::Status,
+    focused: bool,
+) -> iced::widget::button::Style {
+    use iced::widget::button::Status;
+
+    let text_primary = snora::design::style::color::to_iced_color(tokens.palette.text_primary);
+    let accent = snora::design::style::color::to_iced_color(tokens.palette.accent);
+    let text_color = if focused || matches!(status, Status::Hovered | Status::Pressed) {
+        accent
+    } else {
+        text_primary
+    };
+    iced::widget::button::Style {
+        background: None,
+        text_color,
+        ..iced::widget::button::Style::default()
+    }
 }
 
 pub(super) fn view_project_row<'a>(
@@ -107,7 +138,26 @@ fn selection_checkbox<'a>(
     ))
 }
 
-/// The project name link — shared between layouts.
+/// RFC-071 D4: a project name is `text_primary` at rest — blue is for
+/// what acts, and a name's own click target/message are unchanged, but it
+/// no longer looks like a link by default. On hover or keyboard focus it
+/// becomes `accent`, with an underline, so what is clickable is visible
+/// when it matters (never only on hover — A1 D13 item 2).
+///
+/// **Hover and focus are not symmetric here, and that is reported, not
+/// silently accepted**: a plain `iced::widget::Text`'s colour has no
+/// per-`button::Status` hook of its own, so hover's colour change is driven
+/// entirely by the button's own `.style(...)` closure (which iced already
+/// re-evaluates every frame from real pointer state) — the name's `Span`
+/// leaves its colour unset there, inheriting the button's. The underline
+/// has no such ambient hook: `iced::widget::text::Style` carries only a
+/// colour, and `Span::underline` is static content built once per `view()`
+/// call, with no per-`Status` variant at all. Keyboard focus already is
+/// app state the view rebuilds on, so the span can set its own colour and
+/// underline statically whenever `focused` is true; mouse hover is not
+/// tracked as app state anywhere, and adding live pointer-position
+/// tracking to get a reactive underline on hover alone was judged
+/// disproportionate to this one cosmetic detail.
 fn name_button<'a>(
     state: &'a AppState,
     tokens: &Tokens,
@@ -115,16 +165,39 @@ fn name_button<'a>(
 ) -> Element<'a, Message> {
     let focused = is_focused(state, &name_key(&project.id));
     let t = tokens.clone();
-    button(strong(
-        text(project.name.as_str())
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .on_press(Message::DetailPanel(DetailPanelMessage::Opened(
-        project.id.clone(),
-    )))
-    .style(move |_theme, status| style::with_focus_ring(&t, focused, style::ghost(&t, status)))
-    .into()
+
+    let mut name_span: iced::advanced::text::Span<'_, ()> =
+        span(project.name.as_str()).font(STRONG_FONT);
+    if focused {
+        name_span = name_span
+            .color(snora::design::style::color::to_iced_color(
+                tokens.palette.accent,
+            ))
+            .underline(true);
+    }
+    let label = rich_text![name_span]
+        .size(snora::design::style::text::body_size(tokens))
+        .line_height(snora::design::style::text::body_line_height(tokens));
+
+    // RFC-071 A1 D13 item 2: a small "›" follows the name, in
+    // `text_secondary`, always visible — so what a name does is
+    // recognisable without hovering, not only on hover or focus.
+    let cue = knotra_ui::widget::icon::colored_icon_element(
+        &knotra_ui::widget::icon::chevron_right(),
+        snora::design::style::text::body_small_size(tokens).0,
+        snora::design::style::color::to_iced_color(tokens.palette.text_secondary),
+    );
+
+    let content = row![label, cue].spacing(2).align_y(Alignment::Center);
+
+    button(content)
+        .on_press(Message::DetailPanel(DetailPanelMessage::Opened(
+            project.id.clone(),
+        )))
+        .style(move |_theme, status| {
+            style::with_focus_ring(&t, focused, project_name_style(&t, status, focused))
+        })
+        .into()
 }
 
 /// The tier-specific row action — shared between layouts. `Space::new()` for
@@ -179,6 +252,37 @@ fn row_action<'a>(
     }
 }
 
+/// RFC-071 D3: the badge for a row's own status line — picks the one
+/// `badge_for_*` function that matches what the row's status text already
+/// shows (`cause_label` for `NeedsHelp`, the count line for `InProgress`,
+/// `work_area` for `AllSet`), so the badge is never out of step with the
+/// words beside it. The `None`/fallback cases mirror the status line's own
+/// fallback text exactly: `cause_label` reads a missing cause the same way
+/// `Some(StatusUnknown)` does, and the count line falls back to
+/// `plain.status.unsaved_work` when `relevant_count` is `None`.
+fn entry_badge(entry: &DashboardEntry<'_>) -> (knotra_ui::widget::Tone, snora::Icon) {
+    match entry.tier {
+        DashboardTier::NeedsHelp => {
+            badge_for_cause(entry.cause.unwrap_or(DashboardCause::StatusUnknown))
+        }
+        DashboardTier::InProgress => badge_for_progress(
+            entry
+                .relevant_count
+                .map(|c| c.kind)
+                .unwrap_or(ProgressKind::Uncommitted),
+        ),
+        DashboardTier::AllSet => badge_for_all_set(),
+    }
+}
+
+/// The `body` role's own rendered line height in pixels (`size ×
+/// line_height` ratio) — D3's "the line height of the text it precedes",
+/// computed rather than guessed, so the badge and the text beside it share
+/// one vertical rhythm.
+fn body_badge_diameter(tokens: &Tokens) -> f32 {
+    tokens.typography.body.size * tokens.typography.body.line_height
+}
+
 /// Standard/wide layout (R9): bounded three-track row, unchanged from Stage 3.
 fn view_standard_row<'a>(
     state: &'a AppState,
@@ -209,12 +313,21 @@ fn view_standard_row<'a>(
 
     // RFC-071 D1: a project's status line is `body`, same as D9's density
     // adjustments expect — the VCS sub-line above it (metadata) keeps
-    // `body_small`.
+    // `body_small`. RFC-071 D3: the status line carries a tone badge before
+    // its words — never colour alone, the badge's symbol and the words both
+    // carry the meaning.
+    let (tone, glyph) = entry_badge(entry);
+    let diameter = body_badge_diameter(tokens);
     let middle: Element<'_, Message> = match entry.tier {
-        DashboardTier::NeedsHelp => text(cause_label(state, entry.cause))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens))
-            .into(),
+        DashboardTier::NeedsHelp => row![
+            status_badge(tokens, tone, &glyph, diameter),
+            text(cause_label(state, entry.cause))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center)
+        .into(),
         DashboardTier::InProgress => {
             let count = entry
                 .relevant_count
@@ -224,17 +337,27 @@ fn view_standard_row<'a>(
                 text(work_area)
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
-                text(count)
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens))
+                row![
+                    status_badge(tokens, tone, &glyph, diameter),
+                    text(count)
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Center),
             ]
             .spacing(2)
             .into()
         }
-        DashboardTier::AllSet => text(work_area)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens))
-            .into(),
+        DashboardTier::AllSet => row![
+            status_badge(tokens, tone, &glyph, diameter),
+            text(work_area)
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center)
+        .into(),
     };
 
     container(
@@ -273,16 +396,21 @@ fn view_compact_row<'a>(
     line_one = line_one.push(Space::new().width(Length::Fill));
     line_one = line_one.push(action);
 
+    let tokens = &state.theme.tokens;
     let line_two = compact_status_line(state, entry, work_area);
+    let (tone, glyph) = entry_badge(entry);
 
     container(
         column![
             line_one,
-            text(line_two)
-                .size(snora::design::style::text::body_size(&state.theme.tokens))
-                .line_height(snora::design::style::text::body_line_height(
-                    &state.theme.tokens
-                ))
+            row![
+                status_badge(tokens, tone, &glyph, body_badge_diameter(tokens)),
+                text(line_two)
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center),
         ]
         .spacing(2),
     )

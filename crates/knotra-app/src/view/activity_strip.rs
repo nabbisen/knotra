@@ -197,6 +197,10 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 RetryAvailability::NotApplicable => {}
             }
 
+            // RFC-071 D5: "Details" becomes `secondary` — the retry button
+            // beside it (when shown) is the row's one mutating action.
+            // Not a focus target today (no focus-order wiring exists for
+            // the activity strip), so `false` is passed explicitly.
             content = content.push(
                 button(
                     text(state.t("plain.activity.details"))
@@ -205,7 +209,13 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 )
                 .on_press(Message::Activity(ActivityMessage::DetailsRequested {
                     operation_id: log.result.operation_id.clone(),
-                })),
+                }))
+                .style({
+                    let t = tokens.clone();
+                    move |_theme, status| {
+                        style::with_focus_ring(&t, false, style::secondary(&t, status))
+                    }
+                }),
             );
             Some(
                 container(content.padding([4, 12]))
