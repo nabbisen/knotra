@@ -12,7 +12,7 @@ use iced::{
     Alignment, Element, Length,
     widget::{Space, button, column, container, row, text},
 };
-use knotra_ui::widget::{self, Tokens, icon, icon_button_maybe, strong};
+use knotra_ui::widget::{self, Tokens, icon, icon_button_maybe};
 
 use crate::{
     message::{Message, WorkspaceMessage},
@@ -201,36 +201,72 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let status_text: Element<'_, Message> = if state.is_refreshing {
         text(state.t("plain.status.checking"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into()
     } else {
         Space::new().width(Length::Shrink).into()
     };
 
-    let refresh_button = icon_button_maybe(
-        tokens,
-        &icon::refresh(),
-        state.t("plain.check_now"),
-        (!state.is_refreshing).then_some(Message::Workspace(WorkspaceMessage::RefreshRequested)),
-        crate::app::ring(state, &FocusTarget::control(focus_target::REFRESH)),
-    );
+    // RFC-071 D10: Refresh, the command palette and Settings show their own
+    // name beside the icon in the standard and wide bands; the compact band
+    // keeps the icon-only control with today's tooltip, unchanged.
+    let compact = matches!(state.width_mode, crate::view::dashboard::WidthMode::Compact);
+    let refresh_button = if compact {
+        icon_button_maybe(
+            tokens,
+            &icon::refresh(),
+            state.t("plain.check_now"),
+            (!state.is_refreshing)
+                .then_some(Message::Workspace(WorkspaceMessage::RefreshRequested)),
+            crate::app::ring(state, &FocusTarget::control(focus_target::REFRESH)),
+        )
+    } else {
+        widget::header_control(
+            tokens,
+            &icon::refresh(),
+            state.t("plain.check_now"),
+            (!state.is_refreshing)
+                .then_some(Message::Workspace(WorkspaceMessage::RefreshRequested)),
+            crate::app::ring(state, &FocusTarget::control(focus_target::REFRESH)),
+        )
+    };
 
-    let palette_button = icon_button_maybe(
-        tokens,
-        &icon::command_palette(),
-        state.t("palette.title"),
-        Some(Message::Palette(crate::message::PaletteMessage::Opened)),
-        crate::app::ring(state, &FocusTarget::control(focus_target::PALETTE)),
-    );
+    let palette_button = if compact {
+        icon_button_maybe(
+            tokens,
+            &icon::command_palette(),
+            state.t("palette.title"),
+            Some(Message::Palette(crate::message::PaletteMessage::Opened)),
+            crate::app::ring(state, &FocusTarget::control(focus_target::PALETTE)),
+        )
+    } else {
+        widget::header_control(
+            tokens,
+            &icon::command_palette(),
+            state.t("palette.title"),
+            Some(Message::Palette(crate::message::PaletteMessage::Opened)),
+            crate::app::ring(state, &FocusTarget::control(focus_target::PALETTE)),
+        )
+    };
 
-    let settings_button = icon_button_maybe(
-        tokens,
-        &icon::settings(),
-        state.t("nav.settings"),
-        Some(Message::Navigate(Screen::Settings)),
-        crate::app::ring(state, &FocusTarget::control(focus_target::SETTINGS)),
-    );
+    let settings_button = if compact {
+        icon_button_maybe(
+            tokens,
+            &icon::settings(),
+            state.t("nav.settings"),
+            Some(Message::Navigate(Screen::Settings)),
+            crate::app::ring(state, &FocusTarget::control(focus_target::SETTINGS)),
+        )
+    } else {
+        widget::header_control(
+            tokens,
+            &icon::settings(),
+            state.t("nav.settings"),
+            Some(Message::Navigate(Screen::Settings)),
+            crate::app::ring(state, &FocusTarget::control(focus_target::SETTINGS)),
+        )
+    };
 
     let bar = row![
         switcher_trigger,
@@ -374,29 +410,5 @@ fn danger_menu_action<'a>(
     .style(move |_theme, status| {
         widget::style::with_focus_ring(&t, is_focused, widget::style::danger(&t, status))
     })
-    .into()
-}
-
-/// Shared page-header pattern: title on the left, contextual actions on the
-/// right. RFC-034 R14 migrates exactly one caller (the dashboard) as
-/// validation; other screens keep their own inline header for now.
-///
-/// RFC-056 Stage 2: the title is `heading` (24) — snora's own description of
-/// that role, "page or section heading," is exactly what this is.
-///
-/// RFC-071 D1: the title is also `strong` — a page title is the one piece of
-/// text on the whole page that outranks everything else on it.
-pub fn page_header<'a>(
-    title: impl Into<String>,
-    actions: impl Into<Element<'a, Message>>,
-    tokens: &Tokens,
-) -> Element<'a, Message> {
-    row![
-        strong(text(title.into()).size(snora::design::style::text::heading_size(tokens))),
-        Space::new().width(Length::Fill),
-        actions.into(),
-    ]
-    .align_y(Alignment::Center)
-    .padding([8, 14])
     .into()
 }

@@ -16,7 +16,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused,
+    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused, list,
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
@@ -284,11 +284,11 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                                 .size(snora::design::style::text::body_size(tokens))
                                 .line_height(snora::design::style::text::body_line_height(tokens))
                                 .width(Length::FillPortion(2)),
+                            // RFC-071 Amendment A3 D14: the row's own
+                            // reason/status — `body`.
                             text(first_line)
-                                .size(snora::design::style::text::body_small_size(tokens))
-                                .line_height(snora::design::style::text::body_small_line_height(
-                                    tokens
-                                ))
+                                .size(snora::design::style::text::body_size(tokens))
+                                .line_height(snora::design::style::text::body_line_height(tokens))
                                 .width(Length::FillPortion(3)),
                         ]
                         .spacing(ICON_COLUMN_SPACING)
@@ -391,7 +391,9 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     text(state.t("plain.release.ready_check"))
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),
-                    column(val_rows).spacing(6),
+                    // RFC-071 D8a: the ready check is a list of items — one
+                    // border line between adjacent entries.
+                    list(tokens, val_rows),
                     impact_warnings_section(tokens, state),
                 ]
                 .spacing(12)
@@ -406,9 +408,10 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 text(state.t("plain.release.saving"))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
+                // RFC-071 Amendment A3 D14: read to understand — `body`.
                 text(state.t("plain.release.saving_hint"))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -566,7 +569,8 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                     text(outcome_body)
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),
-                    column(rows).spacing(8),
+                    // RFC-071 D8a: the results are a list of items too.
+                    list(tokens, rows),
                     push_offer,
                 ]
                 .spacing(12)
@@ -632,16 +636,18 @@ fn styled_button<'a>(
 /// "checked, found nothing" — both are stated explicitly, never left as an
 /// empty section a silent absence could be misread from (D3, R3).
 fn impact_warnings_section<'a>(tokens: &Tokens, state: &'a AppState) -> Element<'a, Message> {
+    // RFC-071 Amendment A3 D14: notices read to understand the release's
+    // consequences — `body`.
     if !state.freezer.topology_checked {
         return text(state.t("plain.release.impact_unchecked"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into();
     }
     if state.freezer.impact_warnings.is_empty() {
         return text(state.t("plain.release.impact_clear"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into();
     }
 
@@ -659,13 +665,15 @@ fn impact_warnings_section<'a>(tokens: &Tokens, state: &'a AppState) -> Element<
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens))
                     .width(Length::FillPortion(2)),
+                // RFC-071 Amendment A3 D14: a warning read to understand
+                // the release's consequences — `body`.
                 text(format!(
                     "{}: {}",
                     state.t("plain.release.impact_depended_on_by"),
                     w.dependent_projects.join(", ")
                 ))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
                 .width(Length::FillPortion(3)),
             ]
             .spacing(ICON_COLUMN_SPACING)
@@ -675,10 +683,13 @@ fn impact_warnings_section<'a>(tokens: &Tokens, state: &'a AppState) -> Element<
         .collect();
 
     column![
+        // RFC-071 Amendment A3 D14: introduces the section's own content —
+        // `body`.
         text(state.t("plain.release.impact_title"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
-        column(rows).spacing(6),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+        // RFC-071 D8a: another list of items, same rule.
+        list(tokens, rows),
     ]
     .spacing(6)
     .into()
@@ -691,18 +702,29 @@ fn impact_warnings_section<'a>(tokens: &Tokens, state: &'a AppState) -> Element<
 /// column instead of starting at the row's left edge (Review 239 §4) — no
 /// padding number guessed to match. `content_portion` is the first line's
 /// own content column weight: 3 for validation rows, 2 for result rows.
+///
+/// **RFC-071 Amendment A3 D14:** every kind of continuation this helper
+/// renders is read in order to understand why a project is blocked or how
+/// to recover — `body`, matching the row's own first line. An `Unreadable`
+/// diagnostic and a suggested recovery command sit behind "Show details",
+/// but D14's `body_small` bucket is incidental metadata only (timestamps,
+/// VCS kind, branch, counts, keyboard hints) — being gated behind a toggle
+/// is not that; the text underneath is still the reason a user opened the
+/// toggle to read.
 fn continuation_line<'a>(
     tokens: &Tokens,
     content: impl Into<String>,
     content_portion: u16,
 ) -> Element<'a, Message> {
+    let content_text: Element<'a, Message> = text(content.into())
+        .size(snora::design::style::text::body_size(tokens))
+        .line_height(snora::design::style::text::body_line_height(tokens))
+        .width(Length::FillPortion(content_portion))
+        .into();
     row![
         Space::new().width(ICON_COLUMN_WIDTH),
         Space::new().width(Length::FillPortion(2)),
-        text(content.into())
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
-            .width(Length::FillPortion(content_portion)),
+        content_text,
     ]
     .spacing(ICON_COLUMN_SPACING)
     .into()

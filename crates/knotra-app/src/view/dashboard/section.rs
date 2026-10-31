@@ -3,7 +3,7 @@
 
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Color, Element, Length};
-use knotra_ui::widget::{Tokens, icon, strong, style};
+use knotra_ui::widget::{Tokens, icon, list, strong, style};
 
 use crate::{
     message::{DashboardMessage, Message},
@@ -22,21 +22,26 @@ pub(super) fn view_section<'a>(
     section: DashboardSection<'a>,
     mode: WidthMode,
 ) -> Element<'a, Message> {
-    let mut elements = vec![section_header(
-        state,
-        section.key,
-        section.entries.len(),
-        section.collapsed,
-    )];
-    if !section.collapsed {
-        elements.extend(
-            section
-                .entries
-                .into_iter()
-                .map(|entry| view_project_row(state, entry, mode)),
-        );
+    let header = section_header(state, section.key, section.entries.len(), section.collapsed);
+    if section.collapsed {
+        return header;
     }
-    column(elements).spacing(3).into()
+    // RFC-071 D8a: the rows share one border line between adjacent rows,
+    // never above the first or below the last — the header sits outside
+    // `list(...)` rather than as one of its items, so it keeps its own
+    // larger gap (D8) instead of picking up a separator line of its own.
+    let rows: Vec<Element<'a, Message>> = section
+        .entries
+        .into_iter()
+        .map(|entry| view_project_row(state, entry, mode))
+        .collect();
+    // RFC-071 D8: `tokens.spacing.sm` between the header and its own rows
+    // — smaller than `dashboard/mod.rs`'s inter-section `tokens.spacing.lg`,
+    // so a header binds visually to the rows beneath it rather than
+    // floating an equal distance from both neighbours.
+    column![header, list(&state.theme.tokens, rows)]
+        .spacing(state.theme.tokens.spacing.sm)
+        .into()
 }
 
 /// The `dashboard.section.{tier:?}` focus key, shared between

@@ -93,9 +93,10 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         text(dialog.project_name.as_str())
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
+        // RFC-071 Amendment A3 D14: a dialog body — `body`.
         text(state.t("plain.remove.body"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     ]
     .spacing(8);
 

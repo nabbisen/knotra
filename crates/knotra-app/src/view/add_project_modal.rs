@@ -137,6 +137,9 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         AddProjectStep::ChooseFolder => state.t("plain.add_project.step1_of2"),
         AddProjectStep::NameProject => state.t("plain.add_project.step2_of2"),
     };
+    // RFC-071 Amendment A3 D14: kept `body_small` — a wizard-progress
+    // indicator ("Step 1 of 2"), ambient orientation rather than content
+    // read to act.
     let step_label_line = text(step_label)
         .size(snora::design::style::text::body_small_size(tokens))
         .line_height(snora::design::style::text::body_small_line_height(tokens));
@@ -213,9 +216,10 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             // Show the chosen folder as a read-only confirmation.
             let folder_display = container(
                 column![
+                    // RFC-071 Amendment A3 D14: a field label — `body`.
                     text(state.t("plain.add_project.folder_chosen"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
                     text(&dialog.path)
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),

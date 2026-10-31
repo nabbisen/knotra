@@ -156,10 +156,12 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
     .spacing(8);
 
     if let Some(err) = error {
+        // RFC-071 Amendment A3 D14: an error is read to understand and fix
+        // a problem — `body`, not incidental metadata.
         group = group.push(
             text(err)
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
         );
     }
 
@@ -219,6 +221,10 @@ pub fn validated_field<'a, Message: Clone + 'a>(
 
     let mut field_row = row![field].spacing(8).align_y(iced::Alignment::Center);
     if let Some(unit) = unit {
+        // RFC-071 Amendment A3 D14: kept `body_small` — a terse unit tag
+        // ("seconds") beside a value, the same kind of incidental qualifier
+        // as a count inside metadata; the field's own label (already
+        // `body`) carries what the value means.
         field_row = field_row.push(
             text(unit)
                 .size(snora::design::style::text::body_small_size(tokens))
@@ -238,8 +244,8 @@ pub fn validated_field<'a, Message: Clone + 'a>(
         let danger = snora::design::style::color::to_iced_color(tokens.palette.danger_text);
         group = group.push(
             text(error.unwrap_or_default())
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
                 .color(danger),
         );
     }

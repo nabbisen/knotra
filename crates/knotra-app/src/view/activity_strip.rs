@@ -1,4 +1,7 @@
 //! Activity strip and project-removal undo snackbar.
+//!
+//! RFC-071 Amendment A3 D14: every text size here is `body` — a status
+//! message, a button label, or a reason, never incidental metadata.
 
 use iced::{
     Alignment, Element, Length,
@@ -23,8 +26,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         let snackbar = container(
             row![
                 text(msg)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
                 Space::new().width(Length::Fill),
                 // Task 100 §3: styled like every other knotra button —
                 // `style::secondary`/`style::ghost` plus `with_focus_ring`,
@@ -36,8 +39,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 // this stage.
                 button(centered_button_label(
                     text(state.t("plain.undo.undo"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens))
                 ))
                 .height(SMALL_BUTTON_HEIGHT)
                 .padding([0, 12])
@@ -50,8 +53,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 }),
                 button(centered_button_label(
                     text(state.t("plain.undo.dismiss"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens))
                 ))
                 .height(SMALL_BUTTON_HEIGHT)
                 .padding([0, 12])
@@ -85,10 +88,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 container(
                     row![
                         text(progress_label)
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                         Space::new().width(Length::Fill)
                     ]
                     .spacing(8)
@@ -138,8 +139,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
 
             let mut content = row![
                 text(label)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
                 Space::new().width(Length::Fill)
             ]
             .spacing(8)
@@ -168,30 +169,24 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     content = content.push(
                         button(
                             text(label)
-                                .size(snora::design::style::text::body_small_size(tokens))
-                                .line_height(snora::design::style::text::body_small_line_height(
-                                    tokens,
-                                )),
+                                .size(snora::design::style::text::body_size(tokens))
+                                .line_height(snora::design::style::text::body_line_height(tokens)),
                         )
                         .on_press_maybe(retry),
                     );
                     if state.operation_interlock.is_busy() {
                         content = content.push(
                             text(state.t("plain.activity.busy"))
-                                .size(snora::design::style::text::body_small_size(tokens))
-                                .line_height(snora::design::style::text::body_small_line_height(
-                                    tokens,
-                                )),
+                                .size(snora::design::style::text::body_size(tokens))
+                                .line_height(snora::design::style::text::body_line_height(tokens)),
                         );
                     }
                 }
                 RetryAvailability::Unavailable(reason) => {
                     content = content.push(
                         text(state.t(reason.i18n_key()))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                     );
                 }
                 RetryAvailability::NotApplicable => {}
@@ -204,8 +199,8 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             content = content.push(
                 button(
                     text(state.t("plain.activity.details"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
                 )
                 .on_press(Message::Activity(ActivityMessage::DetailsRequested {
                     operation_id: log.result.operation_id.clone(),

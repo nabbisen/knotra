@@ -1,7 +1,11 @@
 //! RFC-056 Stage 2 D4/R8: catches a raw `.size(<numeric literal>)` re-entering
 //! the view tree. RFC-056 Stage 3 D5/R4 adds a second guard beside it: every
 //! `body_size(`/`body_small_size(` call must carry a matching
-//! `.line_height(...)` — the pairing Stage 3 exists to establish.
+//! `.line_height(...)` — the pairing Stage 3 exists to establish. RFC-071
+//! Amendment A3 D14 adds a third: every remaining `body_small` *text* site
+//! is pinned by file and count in `EXPECTED_BODY_SMALL_SITES`, the same
+//! non-empty, justified-map shape `suppressions_guard.rs` and
+//! `text_outside_catalog_guard.rs` use.
 //!
 //! `crates/knotra-app/src/view/` and `crates/knotra-ui/src/widget/` had 249
 //! such call sites before Stage 2 — 159 via the retired `FONT_BODY`/
@@ -313,6 +317,139 @@ mod tests {
              every body/body_small text size to carry its role's \
              line-height (label/title/heading/display are correctly \
              unpaired -- see this file's module doc comment):\n{actual:#?}"
+        );
+    }
+
+    /// The count of real `.size(snora::design::style::text::body_small_size(`
+    /// text-role call sites in `source` (comment lines already blanked) —
+    /// requires the `.size(` prefix on the same textual run as
+    /// `count_unpaired_body_roles` does, so a bare
+    /// `body_small_size(tokens).0` read for its numeric value (an icon's
+    /// own size parameter, not a text role — `row.rs`'s "›" cue) is not
+    /// counted; it was never a text-size call to begin with.
+    fn count_body_small_text_sites(clean_source: &str) -> usize {
+        clean_source
+            .matches(".size(snora::design::style::text::body_small_size(")
+            .count()
+    }
+
+    /// RFC-071 Amendment A3 D14: every remaining `body_small` TEXT site,
+    /// classified once and pinned here by file and count — the same shape
+    /// `suppressions_guard.rs` and `text_outside_catalog_guard.rs` use for
+    /// their own non-empty, justified exception maps, not the two empty
+    /// maps above (those stay empty by design; this one does not, because
+    /// D14 names a real "incidental metadata" category that legitimately
+    /// keeps `body_small`).
+    ///
+    /// Each entry's own site(s) already carry a `RFC-071 Amendment A3 D14:
+    /// kept body_small` comment at the call site stating which of D14's
+    /// named categories it falls under (timestamp, VCS kind, branch beside
+    /// a name, count inside metadata, keyboard hint, or a documented close
+    /// analogue — `add_project_modal.rs`'s step count, `field.rs`'s unit
+    /// suffix, `buttons.rs`'s/`checkbox.rs`'s tooltip per D10's "today's
+    /// tooltip" ruling) — this map does not repeat that reasoning, only
+    /// pins the count so a new site cannot join silently.
+    ///
+    /// - `view/add_project_modal.rs`, 1 — the wizard step count ("Step 1
+    ///   of 2"), a count inside metadata.
+    /// - `view/dashboard/row.rs`, 1 — the VCS kind sub-line under a
+    ///   project's name.
+    /// - `view/detail_panel.rs`, 3 — the shared identity/status field
+    ///   primitive's label and value (both metadata labels), plus a
+    ///   commit's author/date line (metadata beside the commit, the same
+    ///   role as a project's VCS kind beside its name).
+    /// - `view/history.rs`, 2 — an entry's timestamp and project count.
+    /// - `view/overlays/context_switch.rs`, 2 — the VCS kind and branch/
+    ///   bookmark detail beside a candidate's name, and the VCS kind label
+    ///   beside the confirm-switch target's own name. (Three other sites
+    ///   in this same file were moved to `body` during classification —
+    ///   see the Stage 3 review request's table — because they named the
+    ///   message's own content, not a detail beside another name.)
+    /// - `view/shortcuts_overlay.rs`, 6 — the whole keyboard-shortcuts
+    ///   sheet, D14's own named "keyboard hints" example; the column
+    ///   header (3 columns) and the per-row closure (3 columns) are two
+    ///   separate source occurrences of the same per-row shape.
+    /// - `widget/buttons.rs`, 1 — `icon_button_maybe`'s tooltip.
+    /// - `widget/checkbox.rs`, 1 — the checkbox tooltip (consistency with
+    ///   `buttons.rs`'s tooltip, D10's "today's tooltip" ruling).
+    /// - `widget/field.rs`, 1 — `validated_field`'s unit suffix ("seconds"
+    ///   beside a value), the same kind of terse qualifier as a count
+    ///   inside metadata.
+    const EXPECTED_BODY_SMALL_SITES: &[(&str, usize)] = &[
+        ("view/add_project_modal.rs", 1),
+        ("view/dashboard/row.rs", 1),
+        ("view/detail_panel.rs", 3),
+        ("view/history.rs", 2),
+        ("view/overlays/context_switch.rs", 2),
+        ("view/shortcuts_overlay.rs", 6),
+        ("widget/buttons.rs", 1),
+        ("widget/checkbox.rs", 1),
+        ("widget/field.rs", 1),
+    ];
+
+    /// RFC-071 Amendment A3 D14: pins `EXPECTED_BODY_SMALL_SITES` — a new
+    /// `body_small` text site anywhere under either scanned directory must
+    /// be a deliberate addition to this map (with its own one-line "why",
+    /// same discipline `suppressions_guard.rs` requires), not a silent
+    /// drift back toward the smaller size D14 exists to move text away
+    /// from. Keys are `<scan-dir-name>/<path relative to that dir>`
+    /// (`view/...` or `widget/...`), portable across checkouts — unlike
+    /// the two empty-map tests above, whose `file.display()` keys were
+    /// never exercised against a real mismatch and so never had to be.
+    #[test]
+    fn body_small_text_sites_match_the_d14_classification_map() {
+        let mut actual: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
+        let mut total_files = 0;
+
+        for dir in scan_dirs() {
+            let dir_name = dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .expect("scan dir has a UTF-8 name")
+                .to_owned();
+            let files = rust_files_under(&dir);
+            total_files += files.len();
+            for file in files.iter().filter(|f| is_scan_target(f)) {
+                let Ok(source) = std::fs::read_to_string(file) else {
+                    continue;
+                };
+                let clean = blank_comment_lines(&source);
+                let n = count_body_small_text_sites(&clean);
+                if n > 0 {
+                    let rel = file
+                        .strip_prefix(&dir)
+                        .unwrap_or(file)
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    actual.insert(format!("{dir_name}/{rel}"), n);
+                }
+            }
+        }
+
+        assert!(
+            total_files > 20,
+            "found only {total_files} .rs files under the two scanned \
+             directories -- path resolution is broken (expected 20+ across \
+             view/ and widget/), not that nothing needed checking"
+        );
+
+        let expected: std::collections::BTreeMap<String, usize> = EXPECTED_BODY_SMALL_SITES
+            .iter()
+            .map(|(path, n)| ((*path).to_owned(), *n))
+            .collect();
+
+        assert_eq!(
+            actual, expected,
+            "`body_small` text sites changed -- RFC-071 Amendment A3 D14 \
+             requires every `body_small` site to be classified once (kept, \
+             with a one-line reason at the call site, and an entry here; or \
+             moved to `body`). If you added a new kept site, add it to \
+             `EXPECTED_BODY_SMALL_SITES` with the same per-item \
+             justification its neighbours carry. If you moved or removed \
+             one, remove its entry (or lower its count) here too.\n\
+             actual:   {actual:#?}\n\
+             expected: {expected:#?}"
         );
     }
 }

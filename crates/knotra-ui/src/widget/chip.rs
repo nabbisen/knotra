@@ -61,14 +61,22 @@ pub fn filter<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let (tone, glyph) = badge;
     let t = tokens.clone();
-    let label_size = snora::design::style::text::label_size(tokens);
-    let diameter = tokens.typography.label.size * tokens.typography.label.line_height;
+    // RFC-071 Amendment A3 D14: a chip's label is read to act (it is a
+    // filter you press), so it is `body`, not the `label` role — the
+    // badge's own diameter follows it, same as every other status badge.
+    let label_size = snora::design::style::text::body_size(tokens);
+    let label_line_height = snora::design::style::text::body_line_height(tokens);
+    let diameter = tokens.typography.body.size * tokens.typography.body.line_height;
 
     let content = row![
         status_badge(tokens, tone, glyph, diameter),
-        text(label.into()).size(label_size),
+        text(label.into())
+            .size(label_size)
+            .line_height(label_line_height),
         Space::new().width(Length::Fixed(tokens.spacing.xs)),
-        text(count.to_string()).size(label_size),
+        text(count.to_string())
+            .size(label_size)
+            .line_height(label_line_height),
     ]
     .spacing(tokens.spacing.xs)
     .align_y(Alignment::Center);

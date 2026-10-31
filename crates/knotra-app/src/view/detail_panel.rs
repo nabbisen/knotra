@@ -22,7 +22,7 @@ use iced::{
     widget::{Space, button, column, container, row, scrollable, text},
 };
 
-use knotra_ui::widget::{Tokens, icon, record_row, style};
+use knotra_ui::widget::{Tokens, icon, list, record_row, style};
 
 use crate::{
     message::{DetailPanelMessage, Message, ProjectMessage, WorkspaceMessage},
@@ -39,6 +39,13 @@ use crate::{
 /// it. The label stays `body_small`, now in `text_secondary` so it reads as
 /// a caption rather than competing with its own value; the value keeps its
 /// role unchanged.
+///
+/// RFC-071 Amendment A3 D14: kept `body_small` for both label and value.
+/// Every caller of this one shared primitive is metadata D14's own KEEP
+/// list names directly — "the VCS kind, the branch beside a name, counts
+/// inside metadata" covers VCS/branch/ahead/behind/dirty/untracked; the
+/// two remaining fields (Path, Remote, Conflict) are read-only identity
+/// facts in the same caption role, not a status a user acts on from here.
 fn field_row<'a>(
     tokens: &Tokens,
     label: &'a str,
@@ -104,9 +111,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .unwrap_or_else(|| "—".into());
 
     let identity = column![
+        // RFC-071 Amendment A3 D14: a section header is dialog-body
+        // structure the user reads to orient themselves — `body`.
         text(state.t("detail.section_identity"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         field_row(tokens, state.t("detail.label_vcs"), vcs),
         field_row(tokens, state.t("detail.label_path"), path),
         field_row(tokens, state.t("detail.label_remote"), remote),
@@ -130,8 +139,8 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
 
         column![
             text(state.t("detail.section_status"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
             field_row(tokens, state.t("detail.label_branch"), branch),
             field_row(tokens, state.t("detail.label_ahead"), ahead),
             field_row(tokens, state.t("detail.label_behind"), behind),
@@ -143,11 +152,12 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     } else {
         column![
             text(state.t("detail.section_status"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+            // RFC-071 Amendment A3 D14: a status message — `body`.
             text(state.t("detail.loading"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
         ]
     };
 
@@ -170,36 +180,44 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
             // RFC-048 §2: `operation_kind_label` (`view.rs`), not
             // `log.result.kind`'s raw English `Display` — the fourth
             // consumer, after `activity_strip.rs` and `history.rs`'s two.
+            // RFC-071 Amendment A3 D14: list content (a recent-operation
+            // entry) — `body`, the same role History gives its own entry
+            // titles.
             text(format!(
                 "{} {} — {}",
                 icon,
                 super::operation_kind_label(state, &log.result.kind),
                 log.result.started_at.format("%m/%d %H:%M")
             ))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into()
         })
         .collect();
 
-    let recent = column(
-        std::iter::once(
-            text(state.t("detail.section_recent_operations"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
-                .into(),
-        )
-        .chain(if recent_ops.is_empty() {
-            vec![
-                text(state.t("detail.none"))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
-                    .into(),
-            ]
-        } else {
-            recent_ops
-        }),
-    )
+    // RFC-071 D8a: the section header sits outside `list(...)` — the same
+    // "header never gets its own separator line" rule the dashboard's
+    // section header and History's entries follow.
+    let recent = column![
+        // RFC-071 Amendment A3 D14: section header — `body`.
+        text(state.t("detail.section_recent_operations"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+        list(
+            tokens,
+            if recent_ops.is_empty() {
+                vec![
+                    // RFC-071 Amendment A3 D14: a status message — `body`.
+                    text(state.t("detail.none"))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens))
+                        .into(),
+                ]
+            } else {
+                recent_ops
+            },
+        ),
+    ]
     .spacing(3);
 
     // --- Recent commits section (RFC-039 D3/D5) ---
@@ -209,10 +227,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     // unread by RFC-045).
     let commits_body: Vec<Element<'_, Message>> = match &state.detail_panel.commits_phase {
         RecentCommitsPhase::Loading(loading_id) if loading_id == id => {
+            // RFC-071 Amendment A3 D14: a status message — `body`.
             vec![
                 text(state.t("detail.commits_loading"))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
                     .into(),
             ]
         }
@@ -221,17 +240,19 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
             commits,
         } if project_id == id => {
             if let Some(err) = &commits.error {
+                // RFC-071 Amendment A3 D14: an error message — `body`.
                 vec![
                     text(format!("{} {}", state.t("detail.commits_error"), err))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens))
                         .into(),
                 ]
             } else if commits.entries.is_empty() {
+                // RFC-071 Amendment A3 D14: a status message — `body`.
                 vec![
                     text(state.t("detail.commits_empty"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens))
                         .into(),
                 ]
             } else {
@@ -240,11 +261,15 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                     .iter()
                     .map(|entry| {
                         let short_hash = &entry.hash[..entry.hash.len().min(7)];
+                        // RFC-071 Amendment A3 D14: list content (a commit's
+                        // own subject) — `body`.
                         let summary = text(format!("{short_hash}  {}", entry.subject))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            ));
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens));
+                        // RFC-071 Amendment A3 D14: kept `body_small` —
+                        // author and date are metadata beside the commit,
+                        // the same role as a project's VCS kind beside its
+                        // name.
                         let detail = text(format!(
                             "{} — {}",
                             entry.author,
@@ -257,23 +282,24 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                     .collect()
             }
         }
+        // RFC-071 Amendment A3 D14: a status message — `body`.
         _ => vec![
             text(state.t("detail.commits_loading"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
                 .into(),
         ],
     };
 
-    let commits = column(
-        std::iter::once(
-            text(state.t("detail.section_recent_commits"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
-                .into(),
-        )
-        .chain(commits_body),
-    )
+    // RFC-071 D8a: same header-outside-the-list composition as `recent`
+    // above.
+    let commits = column![
+        // RFC-071 Amendment A3 D14: section header — `body`.
+        text(state.t("detail.section_recent_commits"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+        list(tokens, commits_body),
+    ]
     .spacing(3);
 
     // --- Actions ---
@@ -281,9 +307,10 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     // panel's one mutating action. None of the three is a focus target
     // today (no focus-order wiring here), so `false` is passed explicitly.
     let refresh_btn = button(
+        // RFC-071 Amendment A3 D14: a button label — `body`.
         text(state.t("detail.refresh"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     )
     .on_press(Message::Project(ProjectMessage::StatusRefreshRequested(
         id.clone(),
@@ -294,9 +321,10 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     });
 
     let fetch_btn = button(
+        // RFC-071 Amendment A3 D14: a button label — `body`.
         text(state.t("detail.fetch"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     )
     .on_press_maybe(
         (!state.operation_interlock.is_busy())
@@ -311,9 +339,10 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     // mutating action in this area, styled so it looks like what it does.
     // Its confirmation window (RFC-066 D6) is unchanged.
     let remove_btn = button(
+        // RFC-071 Amendment A3 D14: a button label — `body`.
         text(state.t("detail.remove_from_workspace"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     )
     .on_press(Message::Workspace(
         WorkspaceMessage::RemoveProjectRequested(id.clone()),
@@ -324,9 +353,10 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     });
 
     let actions = column![
+        // RFC-071 Amendment A3 D14: section header — `body`.
         text(state.t("detail.section_actions"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         row![refresh_btn, fetch_btn].spacing(6),
         remove_btn,
     ]

@@ -18,7 +18,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused,
+    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused, list,
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
@@ -166,9 +166,11 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                 text(state.t("plain.status.checking"))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
+                // RFC-071 Amendment A3 D14: instructional guidance, read to
+                // understand what to do next — `body`.
                 text(state.t("plain.switch.loading_hint"))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -191,13 +193,14 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
             let mut rows = column![search_field].spacing(8);
             let candidates = ctx.filtered_candidates();
             if candidates.is_empty() {
+                // RFC-071 Amendment A3 D14: a status message — `body`.
                 rows = rows.push(
                     text(state.t("plain.switch.no_targets"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
                 );
             } else {
-                let mut list = column![].spacing(4);
+                let mut candidate_rows: Vec<Element<'_, Message>> = Vec::new();
                 for candidate in candidates {
                     let reason_key = candidate
                         .is_current
@@ -208,6 +211,10 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                         text(candidate.label.as_str())
                             .size(snora::design::style::text::body_size(tokens))
                             .line_height(snora::design::style::text::body_line_height(tokens)),
+                        // RFC-071 Amendment A3 D14: kept body_small — the
+                        // VCS kind and the branch/bookmark detail beside a
+                        // candidate's name, both explicitly incidental
+                        // metadata.
                         text(format!("{kind} · {detail}"))
                             .size(snora::design::style::text::body_small_size(tokens))
                             .line_height(snora::design::style::text::body_small_line_height(
@@ -238,21 +245,23 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                         });
                     let mut row_col = column![candidate_btn];
                     if let Some(reason_key) = reason_key {
+                        // RFC-071 Amendment A3 D14: a reason — `body`.
                         row_col = row_col.push(
                             text(state.t(reason_key))
-                                .size(snora::design::style::text::body_small_size(tokens))
-                                .line_height(snora::design::style::text::body_small_line_height(
-                                    tokens,
-                                )),
+                                .size(snora::design::style::text::body_size(tokens))
+                                .line_height(snora::design::style::text::body_line_height(tokens)),
                         );
                     }
-                    list = list.push(row_col.spacing(2));
+                    candidate_rows.push(row_col.spacing(2).into());
                 }
                 // No inner `scrollable` around the candidate list (unlike
                 // the pre-migration `.height(Length::Fixed(220.0))` box) —
                 // `surface()`'s own body scrollable now covers the whole
                 // body, same reasoning as Stage 2/3 (review `132` §4).
-                rows = rows.push(list);
+                //
+                // RFC-071 D8a: the candidates are a list of items — one
+                // border line between adjacent candidates.
+                rows = rows.push(list(tokens, candidate_rows));
             }
 
             let footer = row![
@@ -319,12 +328,16 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                     text(target_label)
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),
+                    // RFC-071 Amendment A3 D14: kept body_small — the VCS
+                    // kind label beside the target's own name.
                     text(state.t(context_target_kind_key(target)))
                         .size(snora::design::style::text::body_small_size(tokens))
                         .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    // A caution/reason the user must read before confirming
+                    // — `body`.
                     text(caution)
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
                 ]
                 .spacing(12)
                 .into(),
@@ -337,9 +350,14 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                 text(state.t("plain.switch.working"))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
+                // RFC-071 Amendment A3 D14: moved to `body` — this names
+                // what is being switched to, the status line's own content,
+                // not a detail beside a name (D14's "branch beside a name"
+                // exemption needs a name to sit beside; here it is the
+                // whole message).
                 text(target_label)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -361,41 +379,43 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
             let mut detail_col = column![
                 text(title).size(snora::design::style::text::title_size(tokens)),
+                // RFC-071 Amendment A3 D14: moved to `body` — same reasoning
+                // as the `Switching` phase above: the target name is this
+                // line's own content, not a detail beside another name.
                 text(result.target.as_str())
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
                 text(body)
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
             ]
             .spacing(8);
 
+            // RFC-071 Amendment A3 D14: moved to `body` — this diagnostic
+            // detail is read, under "Show details", to understand why the
+            // switch failed and how to recover; D14's `body_small` bucket
+            // is incidental metadata only (timestamps, VCS kind, branch,
+            // counts, keyboard hints), which this is not.
             if !result.operation_result.success && state.show_op_details {
                 if let Some(hint) = &result.recovery_hint {
                     detail_col = detail_col.push(
                         text(hint.situation.as_str())
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                     );
                     for cmd in &hint.suggested_commands {
                         detail_col = detail_col.push(
                             text(format!("  {}", cmd))
-                                .size(snora::design::style::text::body_small_size(tokens))
-                                .line_height(snora::design::style::text::body_small_line_height(
-                                    tokens,
-                                )),
+                                .size(snora::design::style::text::body_size(tokens))
+                                .line_height(snora::design::style::text::body_line_height(tokens)),
                         );
                     }
                 }
                 for cmd in &result.operation_result.commands_executed {
                     detail_col = detail_col.push(
                         text(format!("  {}", cmd))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                     );
                 }
             }

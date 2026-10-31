@@ -37,7 +37,10 @@ use iced::{
     widget::{Space, column, row, text},
 };
 
-use knotra_ui::widget::overlay::{OverlayWidth, surface};
+use knotra_ui::widget::{
+    list,
+    overlay::{OverlayWidth, surface},
+};
 
 use crate::{
     message::{KeyboardMessage, Message},
@@ -137,6 +140,12 @@ const ACTION_COL: f32 = 280.0;
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
 
+    // RFC-071 Amendment A3 D14: this whole sheet is the "keyboard hints"
+    // D14 names as its own kept example — header and every column of every
+    // row stay `body_small`, not only the key-combo column. The fixed
+    // `KEYS_COL`/`WHERE_COL`/`ACTION_COL` widths above were measured for
+    // `body_small` text in both languages (Task 098); keeping the role
+    // here keeps those measurements valid.
     let col_header = row![
         text(state.t("shortcut.column_keys"))
             .size(snora::design::style::text::body_small_size(tokens))
@@ -175,7 +184,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         })
         .collect();
 
-    let body = column![col_header, column(rows).spacing(4)].spacing(8);
+    // RFC-071 D8a: the shortcuts are a list of items too — one border
+    // line between adjacent rows, the header kept outside as it already
+    // was.
+    let body = column![col_header, list(tokens, rows)].spacing(8);
 
     surface(
         tokens,

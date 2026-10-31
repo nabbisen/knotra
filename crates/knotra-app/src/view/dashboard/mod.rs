@@ -6,13 +6,14 @@
 //! external entry points, `view` and `focus_order`, plus the two
 //! functions (`view_header`, `view_body`) that compose across submodules.
 
-use iced::widget::{button, column, container, scrollable, text};
-use iced::{Element, Length, Padding};
+use iced::widget::{column, container, scrollable, text};
+use iced::{Alignment, Element, Length, Padding};
+
+use knotra_ui::widget::{WIDE_CONTENT_WIDTH, strong};
 
 use crate::{
     message::{
         ConflictOpsMessage, DashboardMessage, DetailPanelMessage, Message, SelectionMessage,
-        WorkspaceMessage,
     },
     state::{
         AppState, LoadPhase,
@@ -142,16 +143,27 @@ pub fn view(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     let mut body = column![view_header(state), view_toolbar(state, mode)]
         .height(Length::Fill)
         .spacing(4);
-    body = body.push(scrollable(view_body(state, mode)).height(Length::Fill));
+    // RFC-071 D7: `scrollable`'s own `width` defaults to `Length::Shrink`
+    // (`iced_widget::scrollable::Scrollable::new`) — left unset, the
+    // scrollable collapses to its content's natural width instead of the
+    // window's, so `view_body`'s wide-band `container(...).align_left(
+    // Length::Fill)` never receives any real extra space to position
+    // within, and centring never visibly worked either before this stage.
+    // Found by direct pixel inspection of the before/after evidence
+    // (neither showed any margin), not assumed from the code.
+    body = body.push(
+        scrollable(view_body(state, mode))
+            .width(Length::Fill)
+            .height(Length::Fill),
+    );
 
+    // RFC-071 Amendment A3 D14: a status message — `body`.
     if let Some(message) = &state.status_bar {
         body = body.push(
             container(
                 text(message)
-                    .size(snora::design::style::text::body_small_size(
-                        &state.theme.tokens,
-                    ))
-                    .line_height(snora::design::style::text::body_small_line_height(
+                    .size(snora::design::style::text::body_size(&state.theme.tokens))
+                    .line_height(snora::design::style::text::body_line_height(
                         &state.theme.tokens,
                     )),
             )
@@ -163,33 +175,22 @@ pub fn view(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     body.into()
 }
 
+/// RFC-071 D8: the dashboard's own "Check now" (and its "Checking…" status
+/// swap) is gone — the shell header's own refresh control (D10) is now the
+/// only "Check now" on screen, visible from every screen rather than only
+/// here. This leaves the header as a plain title, the same shape History's
+/// and Settings' own headers already use (RFC-034 R13/R14: the workspace
+/// name lives in the shell switcher, not repeated here).
 fn view_header(state: &AppState) -> Element<'_, Message> {
-    // RFC-034 R13/R14: the workspace name lives in the shell switcher now,
-    // not repeated here. This is the RFC's one migrated page header; the
-    // toolbar below (grouping/sorting/filtering/selection) is RFC-035.
     let tokens = &state.theme.tokens;
-    let refresh: Element<'_, Message> = if state.is_refreshing {
-        text(state.t("plain.status.checking"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
-            .into()
-    } else {
-        button(
-            text(state.t("plain.check_now"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
-        )
-        .on_press(Message::Workspace(WorkspaceMessage::RefreshRequested))
-        .into()
-    };
-
-    crate::view::shell::page_header(state.t("nav.dashboard"), refresh, &state.theme.tokens)
+    iced::widget::row![strong(
+        text(state.t("nav.dashboard")).size(snora::design::style::text::heading_size(tokens))
+    )]
+    .spacing(12)
+    .align_y(Alignment::Center)
+    .padding(Padding::new(12.0))
+    .into()
 }
-
-/// R8's wide-mode centring width (~1180-1240px per the Internal Design
-/// audit note) — a fixed value, not derived from the window, so the row
-/// tracks beneath it never grow past what Stage 3 verified.
-const WIDE_CONTENT_WIDTH: f32 = 1200.0;
 
 fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     if state.workspace.is_none() {
@@ -207,13 +208,12 @@ fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     let display = state.dashboard_display();
     let mut content: Vec<Element<'_, Message>> = Vec::new();
     match &state.load_phase {
+        // RFC-071 Amendment A3 D14: a status — `body`.
         LoadPhase::Startup | LoadPhase::Refreshing => content.push(
             container(
                 text(state.t("plain.status.checking"))
-                    .size(snora::design::style::text::body_small_size(
-                        &state.theme.tokens,
-                    ))
-                    .line_height(snora::design::style::text::body_small_line_height(
+                    .size(snora::design::style::text::body_size(&state.theme.tokens))
+                    .line_height(snora::design::style::text::body_line_height(
                         &state.theme.tokens,
                     )),
             )
@@ -231,21 +231,31 @@ fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
             content.push(view_section(state, section, mode));
         }
     }
-    let content_column = column(content).spacing(8).padding(Padding {
-        top: 4.0,
-        right: 12.0,
-        bottom: 16.0,
-        left: 12.0,
-    });
+    // RFC-071 D8: the gap above a group header (between one section and
+    // the next) is `tokens.spacing.lg` — "section spacing" by the scale's
+    // own naming — deliberately larger than the gap between a header and
+    // its own rows (`view_section`'s `tokens.spacing.sm`) and larger still
+    // than the ~0px between rows themselves (D8a's hairline, no spacing of
+    // its own), so a header reads as a heading rather than just another
+    // row.
+    let content_column = column(content)
+        .spacing(state.theme.tokens.spacing.lg)
+        .padding(Padding {
+            top: 4.0,
+            right: 12.0,
+            bottom: 16.0,
+            left: 12.0,
+        });
 
     match mode {
-        // R8: content centred, tracks do not grow indefinitely - achieved by
-        // bounding the column itself to a fixed width and centring that
-        // within the full available width, rather than letting the column's
-        // `Fill`-seeking row/header children (see `row.rs`/`section.rs`)
-        // stretch to the window.
+        // RFC-071 D7: content left-aligned, at most `WIDE_CONTENT_WIDTH` —
+        // bounding the column itself to a fixed width and aligning that
+        // within the full available width to the left edge (the toolbar's
+        // own edge above it), rather than centring it. Tracks still do not
+        // grow indefinitely, same reasoning as the centred version this
+        // replaces; only the alignment changed.
         WidthMode::Wide => container(content_column.width(Length::Fixed(WIDE_CONTENT_WIDTH)))
-            .center_x(Length::Fill)
+            .align_left(Length::Fill)
             .into(),
         WidthMode::Compact | WidthMode::Standard => content_column.into(),
     }

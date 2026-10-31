@@ -9,6 +9,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the dashboard and History line up, and rows are easier to tell apart
+
+On a wide window, the project list now starts at the same left edge as the controls above
+it instead of floating in the middle, and History's results sit close to what they
+describe. Items in a list, on these screens and inside windows, are separated by thin
+lines. The header's "Check now", command palette and Settings now show their names, and
+the dashboard's second "Check now" button is gone: the one in the header does the same.
+
 ### Changed — each status has its own colour and symbol
 
 A project that needs help now looks different from one that is all set. Each status has a
@@ -26,10 +34,12 @@ what you type.
 Their names were drawn so faintly that they were hard to read. They are now shown in
 readable grey, without their colour, next to the reason they are unavailable.
 
-### Removed — `StatusColor` from the `knotra-ui` crate
+### Removed — `StatusColor` and unused layout constants from the `knotra-ui` crate
 
 For developers using `knotra-ui`: this enum held fixed colours that knotra did not use and
-that no theme could change. Status colours now come from the theme's palette.
+that no theme could change. Status colours now come from the theme's palette. The constants
+`CARD_RADIUS`, `CARD_GAP`, `CARD_PADDING`, `CARD_MIN_WIDTH` and `SIDEBAR_WIDTH`, left over
+from an earlier layout, are removed as well.
 
 ### Changed — project names, statuses and headings are easier to read
 

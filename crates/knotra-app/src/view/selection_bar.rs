@@ -199,10 +199,13 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
         crate::app::ring(state, &FocusTarget::control(focus_target::EXIT)),
     );
 
+    // RFC-071 Amendment A3 D14: the selection count is this bar's own
+    // status — read to confirm what the four actions below will act on,
+    // not a count incidental to something else — `body`.
     let command_row = row![
         text(label)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
         clear_btn,
     ]
@@ -242,20 +245,21 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
         .into(),
     };
 
+    // RFC-071 Amendment A3 D14: reasons — `body`.
     let mut content = column![command_row].spacing(6);
     if let Some(reason) = group_reason {
         content = content.push(
             text(reason)
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
         );
     }
     content = content.push(actions);
     for reason in contextual_reasons {
         content = content.push(
             text(reason)
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
         );
     }
 
@@ -302,10 +306,11 @@ fn action_button<'a>(
 /// a non-mutating, lower-weight action, not a fourth `secondary` button.
 fn exit_button<'a>(tokens: &Tokens, label: &'a str, is_focused: bool) -> Element<'a, Message> {
     let t = tokens.clone();
+    // RFC-071 Amendment A3 D14: a button label — `body`.
     button(centered_button_label(
         text(label)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     ))
     .height(BUTTON_HEIGHT)
     .on_press(Message::Selection(SelectionMessage::ModeExited))

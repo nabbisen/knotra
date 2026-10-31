@@ -59,9 +59,13 @@ pub(super) fn no_matches(state: &AppState) -> Element<'_, Message> {
 }
 
 fn placeholder<'a>(tokens: &Tokens, message: &'a str) -> Element<'a, Message> {
-    container(text(message).size(snora::design::style::text::label_size(tokens)))
-        .width(Length::Fill)
-        .height(Length::Fixed(250.0))
-        .center(Length::Fill)
-        .into()
+    container(
+        text(message)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    )
+    .width(Length::Fill)
+    .height(Length::Fixed(250.0))
+    .center(Length::Fill)
+    .into()
 }

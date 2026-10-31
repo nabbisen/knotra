@@ -192,9 +192,11 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
                     .line_height(snora::design::style::text::body_line_height(tokens)),
                 changelog_result_notice(tokens, state, draft, counts),
                 changelog_project_results(tokens, state, draft, counts),
+                // RFC-071 Amendment A3 D14: the generated notes themselves
+                // — dialog body content the user reviews before copying.
                 text(preview_text)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             ]
             .spacing(8);
 
@@ -282,24 +284,26 @@ fn changelog_project_picker<'a>(
     state: &'a AppState,
     disabled: bool,
 ) -> Element<'a, Message> {
+    // RFC-071 Amendment A3 D14: a notice/message and a list label — both
+    // read to understand what the picker shows.
     let Some(workspace) = &state.workspace else {
         return text(state.t("plain.changelog.no_projects"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into();
     };
 
     if workspace.projects.is_empty() {
         return text(state.t("plain.changelog.no_projects"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into();
     }
 
     let mut rows = column![
         text(state.t("plain.changelog.projects_label"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
     ]
     .spacing(6);
     for project in &workspace.projects {
@@ -321,10 +325,12 @@ fn changelog_project_picker<'a>(
             &FocusTarget::control_dynamic(format!("changelog.project.{}", project.id)),
         );
         rows = rows.push(
+            // RFC-071 Amendment A3 D14: a project-selection row label —
+            // list content read to decide which projects to include.
             iced::widget::button(centered_button_label(
                 text(label)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             ))
             .height(BUTTON_HEIGHT)
             .padding([0, 12])
@@ -403,9 +409,10 @@ fn changelog_result_notice<'a>(
         state.t("plain.changelog.ready")
     };
 
+    // RFC-071 Amendment A3 D14: a notice — explicit move category.
     text(notice)
-        .size(snora::design::style::text::body_small_size(tokens))
-        .line_height(snora::design::style::text::body_small_line_height(tokens))
+        .size(snora::design::style::text::body_size(tokens))
+        .line_height(snora::design::style::text::body_line_height(tokens))
         .into()
 }
 
@@ -425,14 +432,16 @@ fn changelog_project_results<'a>(
             .map(|project| project.project_name.as_str())
             .collect::<Vec<_>>()
             .join(", ");
+        // RFC-071 Amendment A3 D14: result list content, read to see which
+        // projects had nothing new.
         rows = rows.push(
             text(format!(
                 "{} {}",
                 state.t("plain.changelog.no_change_projects"),
                 names
             ))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         );
     }
 
@@ -442,6 +451,8 @@ fn changelog_project_results<'a>(
         .filter(|project| project.error.is_some())
     {
         let error = project.error.as_deref().unwrap_or_default();
+        // RFC-071 Amendment A3 D14: an error/reason, read to understand why
+        // a project failed.
         rows = rows.push(
             text(format!(
                 "{}: {}",
@@ -452,8 +463,8 @@ fn changelog_project_results<'a>(
                     error
                 }
             ))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         );
     }
 

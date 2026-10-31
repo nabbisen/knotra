@@ -228,9 +228,10 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     {
         column![
             confirm_btn,
+            // RFC-071 Amendment A3 D14: a reason — `body`.
             text(reason.unwrap_or_default())
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
         ]
         .spacing(6)
         .into()
@@ -314,9 +315,10 @@ fn delete_dialog<'a>(
     {
         column![
             confirm_btn,
+            // RFC-071 Amendment A3 D14: a reason — `body`.
             text(reason.unwrap_or_default())
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
         ]
         .spacing(6)
         .into()
@@ -349,9 +351,11 @@ fn delete_dialog<'a>(
         text(body_text)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
+        // RFC-071 Amendment A3 D14: a second sentence of the dialog's own
+        // body, warning of a consequence — `body`, not a metadata count.
         text(project_count)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     ]
     .spacing(8);
 

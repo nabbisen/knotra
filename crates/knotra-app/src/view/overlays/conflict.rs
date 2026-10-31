@@ -17,7 +17,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, NoticeTone, Tokens, centered_button_label, notice,
+    BUTTON_HEIGHT, NoticeTone, Tokens, centered_button_label, list, notice,
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
@@ -285,9 +285,11 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
             text(action)
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
+            // RFC-071 Amendment A3 D14: explains what's happening while an
+            // operation runs — a status, read to understand.
             text(state.t("plain.resolve.working_hint"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
         ]
         .spacing(8)
         .into(),
@@ -328,43 +330,43 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
             ]
             .spacing(8);
 
+            // RFC-071 Amendment A3 D14: moved to `body` — raw tool
+            // diagnostics (command/stdout/stderr/error) are read in order to
+            // understand why an operation failed, the text a user opened
+            // "Show details" to see. D14's `body_small` bucket is incidental
+            // metadata only (timestamps, VCS kind, branch, counts, keyboard
+            // hints); sitting behind a disclosure toggle is not that —
+            // `text_outside_catalog_guard.rs`'s export-text exception is
+            // about i18n routing, not text size, and does not apply here.
             if state.show_op_details
                 && let Some(result) = result
             {
                 for command in &result.commands_executed {
                     result_col = result_col.push(
                         text(format!("command: {command}"))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                     );
                 }
                 if !result.stdout.is_empty() {
                     result_col = result_col.push(
                         text(format!("stdout: {}", result.stdout))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                     );
                 }
                 if !result.stderr.is_empty() {
                     result_col = result_col.push(
                         text(format!("stderr: {}", result.stderr))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                     );
                 }
                 if let Some(error) = &result.error_message {
                     result_col = result_col.push(
                         text(format!("error: {error}"))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                     );
                 }
             }
@@ -516,14 +518,18 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                     // `Fill` width already wraps, so no
                                     // extra configuration is needed to get
                                     // that.
+                                    // RFC-071 Amendment A3 D14: this
+                                    // sentence is the completing action for
+                                    // a Jujutsu project — the prose
+                                    // equivalent of the "Mark done" button
+                                    // Git rows show beside it, so it is
+                                    // `body`, read to act, not metadata.
                                     file_col = file_col.push(row![
                                         Space::new().width(Length::Fixed(28.0)),
                                         text(sentence)
-                                            .size(snora::design::style::text::body_small_size(
-                                                tokens
-                                            ))
+                                            .size(snora::design::style::text::body_size(tokens))
                                             .line_height(
-                                                snora::design::style::text::body_small_line_height(
+                                                snora::design::style::text::body_line_height(
                                                     tokens
                                                 )
                                             )
@@ -539,7 +545,10 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                     // `content` slot; nesting a second independently
                     // scrollable region inside it would be the same
                     // accessibility anti-pattern RFC-035 avoided elsewhere.
-                    column(file_rows).spacing(8).into()
+                    //
+                    // RFC-071 D8a: the conflicted files are a list of
+                    // items — one border line between adjacent files.
+                    list(tokens, file_rows)
                 }
             } else {
                 text(state.t("plain.resolve.loading"))

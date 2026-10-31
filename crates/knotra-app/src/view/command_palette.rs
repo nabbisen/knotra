@@ -15,6 +15,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
+    list,
     overlay::{OverlayWidth, surface},
     style,
 };
@@ -85,7 +86,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .id(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
             .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
             .padding([8, 12])
-            .size(snora::design::style::text::label_size(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .style(move |_theme, status| knotra_ui::widget::text_input_style(&t, status))
     };
 
@@ -106,10 +108,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 state,
                 &FocusTarget::control_dynamic(format!("palette.result.{i}")),
             );
+            // RFC-071 Amendment A3 D14: a command's own label — `body`.
             let btn = button(
                 text(label)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             )
             .on_press_maybe(
                 entry
@@ -141,11 +144,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 // here rather than choosing a number for it (Review 241 §3
                 // accepts the symbol's own start as the target, not the
                 // label's).
+                // RFC-071 Amendment A3 D14: a reason — `body`. The indent
+                // math above is unaffected (it is derived from the button's
+                // own padding, not the text's size).
                 row = row.push(
                     iced::widget::container(
                         text(state.t(reason_key))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(tokens))
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens))
                             .color(snora::design::style::color::to_iced_color(
                                 tokens.palette.text_secondary,
                             )),
@@ -157,21 +163,27 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         })
         .collect();
 
+    // RFC-071 Amendment A3 D14: a notice and a "no matches" message — both
+    // `body`.
     let mut body = column![input].spacing(6);
     if let Some(notice_key) = state.palette.notice_key {
         body = body.push(
             text(state.t(notice_key))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
         );
     }
     if !results.is_empty() {
-        body = body.push(column(results).spacing(2));
+        // RFC-071 D8a: one border line between commands — each `results[i]`
+        // already bundles a command with its own reason into one column,
+        // so `list(...)`'s line falls only between those bundles, never
+        // between a command and its reason.
+        body = body.push(list(tokens, results));
     } else if !state.palette.query.is_empty() {
         body = body.push(
             text(state.t("palette.no_matches"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
         );
     }
 

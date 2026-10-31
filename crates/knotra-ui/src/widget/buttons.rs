@@ -15,8 +15,8 @@
 
 use snora::design::Tokens;
 
-use super::icon::icon_element;
-use super::layout::{BUTTON_HEIGHT, Element, Length};
+use super::icon::{icon_element, icon_element_sized};
+use super::layout::{BUTTON_HEIGHT, Element, Length, SMALL_BUTTON_HEIGHT};
 
 /// Centres a button's label text vertically, filling the button's fixed
 /// height.
@@ -85,11 +85,14 @@ pub fn reasoned<'a, Message: Clone + 'a>(
     .into();
 
     match reason {
+        // RFC-071 Amendment A3 D14: a reason is read to understand why a
+        // control can't be used right now — `body`, not incidental
+        // metadata.
         Some(r) if show_reason => column![
             btn,
             text(r)
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
         ]
         .spacing(6)
         .into(),
@@ -400,6 +403,44 @@ pub fn icon_button_maybe<'a, Message: Clone + 'a>(
         tooltip::Position::Bottom,
     )
     .into()
+}
+
+/// RFC-071 D10: a header control that shows its own name beside its icon
+/// — Refresh, the command palette and Settings, in the standard and wide
+/// bands — rather than relying on [`icon_button_maybe`]'s tooltip alone.
+/// The icon is at least 16px and the control at least `SMALL_BUTTON_HEIGHT`
+/// high. The compact band keeps `icon_button_maybe`'s icon-only-plus-
+/// tooltip form unchanged (D10's own "today's tooltip"); callers choose
+/// between the two per `state.width_mode`, this function does not.
+#[must_use]
+pub fn header_control<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    icon: &snora::Icon,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    is_focused: bool,
+) -> Element<'a, Message> {
+    use iced::widget::{button, row, text};
+
+    let t = tokens.clone();
+    let content = row![
+        icon_element_sized(icon, 16.0),
+        text(label.into())
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    ]
+    .spacing(6)
+    .align_y(iced::Alignment::Center)
+    .height(Length::Fill);
+
+    button(content)
+        .height(Length::Fixed(SMALL_BUTTON_HEIGHT))
+        .padding([0, 12])
+        .on_press_maybe(on_press)
+        .style(move |_theme, status| {
+            style::with_focus_ring(&t, is_focused, style::ghost(&t, status))
+        })
+        .into()
 }
 
 #[cfg(test)]

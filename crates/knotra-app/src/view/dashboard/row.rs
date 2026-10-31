@@ -2,7 +2,7 @@
 //! the tier-specific action.
 
 use iced::widget::{Space, button, column, container, rich_text, row, span, text};
-use iced::{Alignment, Element, Length};
+use iced::{Alignment, Element, Length, Padding};
 use knotra_ui::widget::{
     BUTTON_HEIGHT, STRONG_FONT, Tokens, centered_button_label, checkbox, status_badge, style,
 };
@@ -26,18 +26,48 @@ use super::width_mode::WidthMode;
 /// breakpoint (`.git-exclude/reviewed/062-...md` "Standard, 1000-1279px:
 /// bounded three-track project rows"): identity, then status/progress, then
 /// the tier action, each a fixed width rather than `FillPortion` so the
-/// three columns line up down the entire list. Measured against a 1000px
-/// window (`SIDEBAR_WIDTH` 180px leaves ~820px of content, minus the
-/// dashboard body's 24px horizontal padding, the row's own 16px padding, and
-/// 16px of inter-column spacing, leaves ~764px before a scrollbar) — the sum
-/// here (700px of tracks + 16px of gaps = 716px) keeps a margin at that
-/// floor. Stage 4 centres and may revisit these; they must not grow
-/// indefinitely at wide widths (the audit's explicit warning), so this stage
-/// keeps them fixed rather than picking something that only works at one
-/// size.
+/// three columns line up down the entire list. Originally measured against
+/// a 1000px window (a now-removed 180px sidebar from an earlier shell
+/// layout left ~820px of content, minus the dashboard body's 24px
+/// horizontal padding, the row's own 16px padding, and 16px of
+/// inter-column spacing, leaving ~764px before a scrollbar), with the
+/// original sum (700px of tracks + 16px of gaps = 716px) keeping a margin
+/// at that floor. The sidebar itself, and the `SIDEBAR_WIDTH` constant
+/// that named it, are long gone from the shell (RFC-071 D8a removes the
+/// leftover constant); this measurement stays historical rather than
+/// rewritten to describe a shell that no longer exists. RFC-071 D8 then
+/// grew `ACTION_TRACK_WIDTH` from 100px to 160px (see its own doc comment
+/// below) — the sum is now 760px of tracks + 16px of gaps = 776px,
+/// already past the old 764px sidebar-era floor; the floor itself no
+/// longer applies (there is no sidebar to leave ~764px of content), and a
+/// real build confirms today's three tracks still fit cleanly in a real
+/// 1000px-wide window (the screenshots behind `ACTION_TRACK_WIDTH`'s own
+/// measurement), so this is not a live regression — only the historical
+/// arithmetic's own margin claim, which this note corrects rather than
+/// leaves silently wrong. Stage 4 centres and may revisit these; they must
+/// not grow indefinitely at wide widths (the audit's explicit warning), so
+/// this stage keeps them fixed rather than picking something that only
+/// works at one size.
 const IDENTITY_TRACK_WIDTH: f32 = 280.0;
 const MIDDLE_TRACK_WIDTH: f32 = 320.0;
-const ACTION_TRACK_WIDTH: f32 = 100.0;
+
+/// RFC-071 D8: grown from 100px to fit `row_action_button`'s label at
+/// `body` (16px) — Amendment A3 D14 moved that label off `body_small`
+/// (14px) without revisiting this width, so the longest pair in either
+/// language, "Choose resolution" / 「解決方法を選ぶ」 (`dashboard.resolve`,
+/// the longer of the two possible action labels — confirmed by reading
+/// `crates/knotra-ui/src/i18n.rs`), wrapped onto two lines at the old
+/// value. Measured the same way Task 098 found its own button-padding
+/// defect: a real build, a real NeedsHelp/conflict row at the Standard
+/// band (~1040px window), screenshotted in both languages at each
+/// candidate width. 100/140/150px wrapped "Choose resolution"; 160px was
+/// the smallest round value (matching this file's own `IDENTITY_`/
+/// `MIDDLE_TRACK_WIDTH` convention of clean round numbers) where both
+/// languages rendered on one line with visible margin from the track's own
+/// edge, at 160/180/200px alike — the button is content-sized, not
+/// track-stretched, so 160px is the point past which a wider track buys
+/// nothing.
+const ACTION_TRACK_WIDTH: f32 = 160.0;
 
 /// Stable per-row `FocusTarget` keys, shared between `dashboard/mod.rs`'s
 /// `focus_order` and this module's [`is_focused`] — one expression per
@@ -190,7 +220,17 @@ fn name_button<'a>(
 
     let content = row![label, cue].spacing(2).align_y(Alignment::Center);
 
+    // RFC-071 D8: `left: 0.0` — a plain `button` otherwise opens with
+    // `button::DEFAULT_PADDING`'s 10px left inset, which the VCS kind text
+    // pushed directly beneath it (`identity_details`, no padding of its
+    // own) does not share; without this the name's own glyphs start 10px
+    // right of where "Git"/"jj" starts, even though both are meant to line
+    // up at the identity column's left edge.
     button(content)
+        .padding(Padding {
+            left: 0.0,
+            ..button::DEFAULT_PADDING
+        })
         .on_press(Message::DetailPanel(DetailPanelMessage::Opened(
             project.id.clone(),
         )))
@@ -333,20 +373,18 @@ fn view_standard_row<'a>(
                 .relevant_count
                 .map(|count| format!("{}: {}", progress_label(state, count.kind), count.value))
                 .unwrap_or_else(|| state.t("plain.status.unsaved_work").to_owned());
-            column![
-                text(work_area)
+            // RFC-071 Amendment A3 D9: one status line, joining the two
+            // existing catalog texts with " · " — no new wording — the
+            // same one-line shape NeedsHelp and AllSet already use below,
+            // instead of `work_area` and `count` on two separate lines.
+            row![
+                status_badge(tokens, tone, &glyph, diameter),
+                text(format!("{work_area} · {count}"))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
-                row![
-                    status_badge(tokens, tone, &glyph, diameter),
-                    text(count)
-                        .size(snora::design::style::text::body_size(tokens))
-                        .line_height(snora::design::style::text::body_line_height(tokens)),
-                ]
-                .spacing(6)
-                .align_y(Alignment::Center),
             ]
-            .spacing(2)
+            .spacing(6)
+            .align_y(Alignment::Center)
             .into()
         }
         DashboardTier::AllSet => row![
@@ -405,9 +443,15 @@ fn view_compact_row<'a>(
             line_one,
             row![
                 status_badge(tokens, tone, &glyph, body_badge_diameter(tokens)),
+                // RFC-071 Amendment A3 D9: `Length::Fill` so this line
+                // wraps instead of rendering unbounded past the window's
+                // edge — a `Row` with no `Fill` child sizes itself to its
+                // children's natural width, and `text` only wraps when its
+                // own layout width is bounded.
                 text(line_two)
                     .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens)),
+                    .line_height(snora::design::style::text::body_line_height(tokens))
+                    .width(Length::Fill),
             ]
             .spacing(6)
             .align_y(Alignment::Center),
@@ -462,10 +506,12 @@ fn row_action_button<'a>(
     let t = tokens.clone();
     let show_reason = on_press.is_none();
 
+    // RFC-071 Amendment A3 D14: a button label, then its disabled-reason —
+    // both `body`.
     let btn = button(centered_button_label(
         text(label)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     ))
     .height(BUTTON_HEIGHT)
     .padding([0, 12])
@@ -476,8 +522,8 @@ fn row_action_button<'a>(
         Some(r) if show_reason => column![
             btn,
             text(r)
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
         ]
         .spacing(4)
         .into(),

@@ -44,7 +44,9 @@ pub(crate) enum WidthMode {
     Compact,
     /// 1000-1279px: bounded three-track rows, full toolbar.
     Standard,
-    /// >=1280px: content centred, tracks do not grow.
+    /// 1280px or more: content left-aligned at a 1200px maximum (RFC-071
+    /// D7, revising this band's original "content centred"), tracks do
+    /// not grow.
     Wide,
 }
 

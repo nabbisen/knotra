@@ -305,10 +305,11 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
             state.t("dashboard.grouping.none").to_owned(),
         ),
     ];
+    // RFC-071 Amendment A3 D14: a field label — `body`.
     let grouping = row![
         text(state.t("dashboard.grouping"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         select::pick_list(
             tokens,
             grouping_options,
@@ -330,10 +331,11 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
             state.t("dashboard.sorting.name").to_owned(),
         ),
     ];
+    // RFC-071 Amendment A3 D14: a field label — `body`.
     let sorting = row![
         text(state.t("dashboard.sorting"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         select::pick_list(
             tokens,
             sorting_options,
@@ -521,10 +523,11 @@ fn compact_selectors_row<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a
             state.t("dashboard.grouping.none").to_owned(),
         ),
     ];
+    // RFC-071 Amendment A3 D14: a field label — `body`.
     let grouping = row![
         text(state.t("dashboard.grouping"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         select::pick_list(
             tokens,
             grouping_options,
@@ -546,10 +549,11 @@ fn compact_selectors_row<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a
             state.t("dashboard.sorting.name").to_owned(),
         ),
     ];
+    // RFC-071 Amendment A3 D14: a field label — `body`.
     let sorting = row![
         text(state.t("dashboard.sorting"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         select::pick_list(
             tokens,
             sorting_options,
@@ -599,11 +603,12 @@ fn select_mode_button<'a>(
     });
 
     match reason {
+        // RFC-071 Amendment A3 D14: a reason — `body`.
         Some(r) if show_reason => column![
             btn,
             text(r)
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
         ]
         .spacing(6)
         .into(),
@@ -622,10 +627,11 @@ fn clear_filters_button<'a>(
     is_focused: bool,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
+    // RFC-071 Amendment A3 D14: a button label — `body`.
     button(
         text(label)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     )
     .on_press(Message::Filter(FilterMessage::AllFiltersCleared))
     .style(move |_theme, status| {

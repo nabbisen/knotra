@@ -19,7 +19,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, SMALL_BUTTON_HEIGHT, Tokens, centered_button_label, current_or,
+    BUTTON_HEIGHT, SMALL_BUTTON_HEIGHT, Tokens, centered_button_label, current_or, list,
     overlay::{OverlayWidth, surface},
     reasoned, style,
 };
@@ -180,9 +180,10 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 text(state.t("plain.get_latest.preparing"))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
+                // RFC-071 Amendment A3 D14: read to understand — `body`.
                 text(state.t("plain.get_latest.preparing_hint"))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -194,9 +195,10 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 text(state.t("plain.activity.retry_preparing"))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
+                // RFC-071 Amendment A3 D14: read to understand — `body`.
                 text(state.t("plain.get_latest.preparing_hint"))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
             ]
             .spacing(8)
             .into(),
@@ -257,25 +259,27 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
         SyncPhase::AwaitingConfirm(plan) => {
             let mut rows: Vec<Element<'_, Message>> = Vec::new();
 
-            // Header row
-            rows.push(
-                row![
-                    text(state.t("plain.project"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens))
-                        .width(Length::FillPortion(3)),
-                    text(state.t("plain.what_will_happen"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens))
-                        .width(Length::FillPortion(2)),
-                    text(state.t("plain.note"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens))
-                        .width(Length::FillPortion(3)),
-                ]
-                .spacing(8)
-                .into(),
-            );
+            // Header row. RFC-071 Amendment A3 D14: column headers are field
+            // labels for the plan's own list content — `body`, matching the
+            // cells they head. RFC-071 D8a: kept outside `list(...)` below
+            // — a column heading, not a list item, the same reasoning that
+            // keeps the dashboard's section header out of its own row-list.
+            let header_row: Element<'_, Message> = row![
+                text(state.t("plain.project"))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
+                    .width(Length::FillPortion(3)),
+                text(state.t("plain.what_will_happen"))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
+                    .width(Length::FillPortion(2)),
+                text(state.t("plain.note"))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
+                    .width(Length::FillPortion(3)),
+            ]
+            .spacing(8)
+            .into();
 
             for entry in &plan.entries {
                 let (action_label, note) = disposition_plain(
@@ -337,9 +341,11 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                             .line_height(snora::design::style::text::body_line_height(tokens))
                             .width(Length::FillPortion(3)),
                         action_cell,
+                        // RFC-071 Amendment A3 D14: the row's own note/reason
+                        // — `body`, matching the rest of the row.
                         text(note)
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(tokens))
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens))
                             .width(Length::FillPortion(3)),
                     ]
                     .spacing(8)
@@ -370,9 +376,10 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                             .size(snora::design::style::text::body_size(tokens))
                             .line_height(snora::design::style::text::body_line_height(tokens))
                             .width(Length::FillPortion(2)),
+                        // RFC-071 Amendment A3 D14: a reason — `body`.
                         text(state.t(exclusion.reason.i18n_key()))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(tokens))
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens))
                             .width(Length::FillPortion(3)),
                     ]
                     .spacing(8)
@@ -423,7 +430,10 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                     text(state.t("plain.get_latest.review_heading"))
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),
-                    column(rows).spacing(6),
+                    header_row,
+                    // RFC-071 D8a: the plan's own entries are a list of
+                    // items — one border line between adjacent entries.
+                    list(tokens, rows),
                 ]
                 .spacing(12)
                 .into(),
@@ -502,9 +512,11 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                             .size(snora::design::style::text::body_size(tokens))
                             .line_height(snora::design::style::text::body_line_height(tokens))
                             .width(Length::FillPortion(2)),
+                        // RFC-071 Amendment A3 D14: a status word, same
+                        // column the above rows' own status (`body`) uses.
                         text(state.t("plain.waiting"))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(tokens))
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens))
                             .width(Length::FillPortion(2)),
                     ]
                     .spacing(8)
@@ -525,10 +537,12 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                     text(state.t("plain.get_latest.working"))
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),
+                    // RFC-071 Amendment A3 D14: a progress status — `body`.
                     text(progress_label)
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens)),
-                    column(result_rows).spacing(6),
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
+                    // RFC-071 D8a: each project's own progress row, listed.
+                    list(tokens, result_rows),
                 ]
                 .spacing(12)
                 .into(),
@@ -647,7 +661,12 @@ fn pull_result_view<'a>(
             ]
             .spacing(4);
 
-            // Show commands under "Show details" if failed
+            // Show commands under "Show details" if failed. RFC-071
+            // Amendment A3 D14: moved to `body` — this is the diagnostic
+            // text a user opened "Show details" to read in order to
+            // understand the failure, not the incidental metadata (a
+            // timestamp, a count, a keyboard hint) D14 reserves
+            // `body_small` for.
             if pp.outcome == ProjectOperationOutcome::Failed
                 && !pp.commands_executed.is_empty()
                 && state.show_op_details
@@ -655,19 +674,15 @@ fn pull_result_view<'a>(
                 for cmd in &pp.commands_executed {
                     row_col = row_col.push(
                         text(format!("  {}", cmd))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                     );
                 }
                 if !pp.stderr.is_empty() {
                     row_col = row_col.push(
                         text(format!("  {}", pp.stderr.lines().next().unwrap_or("")))
-                            .size(snora::design::style::text::body_small_size(tokens))
-                            .line_height(snora::design::style::text::body_small_line_height(
-                                tokens,
-                            )),
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
                     );
                 }
             }
@@ -708,7 +723,8 @@ fn pull_result_view<'a>(
         text(body_text)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-        column(rows).spacing(8),
+        // RFC-071 D8a: the results are a list of items.
+        list(tokens, rows),
     ]
     .spacing(12);
 
@@ -778,10 +794,11 @@ fn pick_disposition_btn<'a>(
     // room in `reasoned`'s plain `fn(&Tokens, Status) -> Style` style
     // slot, which carries no extra state beyond the tokens and the
     // button's own interaction status.
+    // RFC-071 Amendment A3 D14: a button label — `body`.
     iced::widget::button(centered_button_label(
         text(label)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     ))
     .height(SMALL_BUTTON_HEIGHT)
     .padding([0, 10])

@@ -61,6 +61,10 @@ pub fn checkbox<'a, Message: Clone + 'a>(
         mouse_area(target).on_press(toggle_message),
         super::overlay::raised_card(
             tokens,
+            // RFC-071 Amendment A3 D14: a tooltip is a transient hint, not
+            // primary content read to act — kept `body_small`, same as
+            // D10's header icon-button tooltips ("today's tooltip",
+            // unchanged by this amendment).
             text(accessible_label.into())
                 .size(snora::design::style::text::body_small_size(tokens))
                 .line_height(snora::design::style::text::body_small_line_height(tokens)),

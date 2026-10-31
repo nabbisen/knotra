@@ -47,25 +47,16 @@ pub fn strong<'a>(
     label.font(STRONG_FONT)
 }
 
-/// Standard corner radius for cards and panels.
-pub const CARD_RADIUS: f32 = 8.0;
-
-/// Standard gap between cards in the dashboard grid.
-pub const CARD_GAP: f32 = 12.0;
-
-/// Standard padding inside a card.
-pub const CARD_PADDING: Padding = Padding {
-    top: 14.0,
-    right: 16.0,
-    bottom: 14.0,
-    left: 16.0,
-};
-
-/// Sidebar width in pixels.
-pub const SIDEBAR_WIDTH: f32 = 180.0;
-
-/// Minimum card width in the dashboard grid.
-pub const CARD_MIN_WIDTH: f32 = 240.0;
+/// RFC-071 D7: the wide band's content-width ceiling, shared by Dashboard,
+/// History and Settings so the three screens agree on how far their wide-
+/// band content may grow — one constant, not three screens each picking
+/// their own number. ~1180-1240px per the Internal Design audit note
+/// (RFC-035 R8). Each screen still aligns its own content to the left
+/// within this ceiling, rather than centring it (D7 replaces RFC-035 R8's
+/// "content centred" with "content left-aligned, at most 1200 px"); a
+/// screen whose own content is already narrower than this (Settings'
+/// `FORM_MAX_WIDTH`) is simply never constrained by it.
+pub const WIDE_CONTENT_WIDTH: f32 = 1200.0;
 
 // --- Accessibility tokens (UX review) ---------------------------------------
 // Non-technical users benefit from larger hit targets and more readable body

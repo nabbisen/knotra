@@ -18,12 +18,15 @@ use iced::{
     Alignment, Element, Length, Padding,
     widget::{Space, button, column, container, row, scrollable, text, text_input},
 };
-use knotra_ui::widget::{Tokens, icon, record_row, strong, style, text_input_style};
+use knotra_ui::widget::{
+    Tokens, WIDE_CONTENT_WIDTH, icon, list, record_row, strong, style, text_input_style,
+};
 use knotra_vcs::model::operation::{OperationLog, OperationResult, ProjectOperationOutcome};
 
 use crate::{
     message::{HistoryMessage, Message},
     state::AppState,
+    view::dashboard::WidthMode,
 };
 
 /// Matches `view/settings.rs`'s own bounded-form width (`FORM_MAX_WIDTH`) —
@@ -40,9 +43,19 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let toolbar = view_toolbar(state);
     let body = view_body(state);
 
-    column![header, toolbar, scrollable(body).height(Length::Fill)]
-        .height(Length::Fill)
-        .into()
+    // RFC-071 D7: `scrollable`'s own width defaults to `Length::Shrink` —
+    // left unset, it collapses to its content's natural width rather than
+    // the window's, leaving `view_body`'s wide-band `container(...).
+    // align_left(Length::Fill)` no real extra space to position within.
+    // Same fix as `dashboard/mod.rs`'s own `view`, found the same way
+    // (direct pixel inspection of the before/after evidence).
+    column![
+        header,
+        toolbar,
+        scrollable(body).width(Length::Fill).height(Length::Fill)
+    ]
+    .height(Length::Fill)
+    .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +126,7 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
 
     let q = state.history_search.to_lowercase();
 
-    let mut entries: Vec<Element<'_, Message>> = state
+    let entries: Vec<Element<'_, Message>> = state
         .operation_logs
         .iter()
         .filter(|log| {
@@ -138,19 +151,38 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         return empty_state(tokens, state.t("history.no_match"));
     }
 
-    // RFC-047 D2: above the populated list, not replacing it — the list is
-    // still the useful content here.
-    if state.history_unreadable_count > 0 {
-        entries.insert(
-            0,
+    // RFC-071 D8a: the history entries are the list; a notice above a
+    // populated list (RFC-047 D2) is not one of its entries, so it sits
+    // outside `list(...)` the same way the dashboard's section header
+    // sits outside its own row-list, rather than picking up a separator
+    // line of its own.
+    let notice = (state.history_unreadable_count > 0).then(|| {
+        // RFC-071 Amendment A3 D14: a status message, read to understand
+        // what happened — `body`.
+        Element::from(
             text(unreadable_count_message(state))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
-                .into(),
-        );
-    }
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        )
+    });
 
-    column(entries).spacing(6).padding(12).into()
+    let mut list_body = column![].spacing(6).padding(12);
+    if let Some(notice) = notice {
+        list_body = list_body.push(notice);
+    }
+    let list_column = list_body.push(list(tokens, entries));
+
+    // RFC-071 D7: the same wide-band ceiling Dashboard and Settings use —
+    // an entry's result and actions then sit within `WIDE_CONTENT_WIDTH` of
+    // its title, left-aligned at the toolbar's own edge rather than
+    // centred. Standard/Compact are already narrower than the ceiling, so
+    // they are left as plain fill, same as Dashboard's own match.
+    match state.width_mode {
+        WidthMode::Wide => container(list_column.width(Length::Fixed(WIDE_CONTENT_WIDTH)))
+            .align_left(Length::Fill)
+            .into(),
+        WidthMode::Compact | WidthMode::Standard => list_column.into(),
+    }
 }
 
 fn unreadable_count_message(state: &AppState) -> String {
@@ -171,10 +203,14 @@ fn unreadable_count_message(state: &AppState) -> String {
 /// message alongside the two that don't (`state.t(...)`), through the same
 /// helper rather than a parallel one.
 fn empty_state(tokens: &Tokens, message: impl Into<String>) -> Element<'static, Message> {
-    container(text(message.into()).size(snora::design::style::text::label_size(tokens)))
-        .width(Length::Fill)
-        .padding(24)
-        .into()
+    container(
+        text(message.into())
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    )
+    .width(Length::Fill)
+    .padding(24)
+    .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -221,10 +257,14 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     // one primary line; timestamp and project count, both secondary, on a
     // smaller line beneath. Was one row interleaving all five with `"  "`
     // string-padding standing in for real spacing.
+    //
+    // RFC-071 Amendment A3 D14: `status_label`/`toggle_label`/`copy_log`
+    // move to `body` here too — a status and a button's own label are both
+    // explicitly in D14's "read to act or understand" category, not the
+    // incidental metadata the secondary row below still is.
     let primary_row = row![
         // RFC-071 D1: the entry's title — body, strong, same as a dashboard
-        // project name. Its status/toggle/copy-log neighbours on this row
-        // stay `body_small`; they are not what names the entry.
+        // project name.
         strong(
             text(super::operation_kind_label(state, &result.kind))
                 .size(snora::design::style::text::body_size(tokens))
@@ -232,8 +272,8 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         ),
         Space::new().width(Length::Fill),
         text(status_label)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         // RFC-071 D5: an entry's own actions are not the page's main act —
         // both become `secondary`, not the bare-default (effectively
         // filled) look they had before. Neither is a focus target today
@@ -243,8 +283,8 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         button(
             row![
                 text(toggle_label)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
                 icon::icon_element(&chevron)
             ]
             .spacing(4)
@@ -257,8 +297,8 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         }),
         button(
             text(state.t("history.copy_log"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
         )
         .on_press(Message::CopyToClipboard(export_text(result)))
         .style({
@@ -269,6 +309,8 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     .spacing(8)
     .align_y(Alignment::Center);
 
+    // RFC-071 Amendment A3 D14: kept `body_small` — a timestamp and a count
+    // inside metadata are D14's own named examples of incidental metadata.
     let secondary_row = row![
         text(timestamp)
             .size(snora::design::style::text::body_small_size(tokens))
@@ -326,15 +368,19 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
                 state.t("plain.activity.failed")
             }
         );
+        // RFC-071 Amendment A3 D14: a status message — `body`.
         rows.push(
             text(rb_text)
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
                 .into(),
         );
     }
 
-    // Per-project results.
+    // Per-project results. RFC-071 Amendment A3 D14: this whole expanded
+    // block is list content/reasons, read to understand and act on a
+    // result — `body`, including the raw command lines (they are the
+    // list's own content, not incidental metadata beside something else).
     for pr in &result.per_project {
         let icon = match pr.effective_outcome() {
             ProjectOperationOutcome::Succeeded => "✓",
@@ -343,15 +389,15 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
         };
         rows.push(
             text(format!("  {icon} {}", pr.project_id))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
                 .into(),
         );
         if let Some(reason) = &pr.skip_reason {
             rows.push(
                 text(format!("    {}", super::skip_reason_display(state, reason)))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
                     .into(),
             );
         }
@@ -360,15 +406,15 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
         if !pr.commands_executed.is_empty() {
             rows.push(
                 text(state.t("history.commands_header"))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
                     .into(),
             );
             for cmd in &pr.commands_executed {
                 rows.push(
                     text(format!("    $ {cmd}"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens))
                         .into(),
                 );
             }
@@ -379,8 +425,8 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
             let preview: String = pr.stderr.lines().take(3).collect::<Vec<_>>().join("\n");
             rows.push(
                 text(format!("    {preview}"))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
                     .into(),
             );
         }
@@ -390,22 +436,22 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
     if !log.recovery_hints.is_empty() {
         rows.push(
             text(state.t("history.recovery_header"))
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
                 .into(),
         );
         for hint in &log.recovery_hints {
             rows.push(
                 text(format!("  {}", hint.situation))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
                     .into(),
             );
             for cmd in &hint.suggested_commands {
                 rows.push(
                     text(format!("    $ {cmd}"))
-                        .size(snora::design::style::text::body_small_size(tokens))
-                        .line_height(snora::design::style::text::body_small_line_height(tokens))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens))
                         .into(),
                 );
             }

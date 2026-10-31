@@ -18,7 +18,7 @@ use iced::{
     widget::{Space, button, column, container, row, scrollable, text},
 };
 use knotra_ui::i18n::Locale;
-use knotra_ui::widget::{Tokens, strong, validated_field};
+use knotra_ui::widget::{Tokens, WIDE_CONTENT_WIDTH, strong, validated_field};
 
 use crate::{
     message::{Message, SettingsMessage},
@@ -30,15 +30,34 @@ use crate::{
 /// RFC-034) — reusing the app's existing "large bounded content" number
 /// rather than inventing a new one for this form (D4: "a bounded form, not
 /// a full-width column").
+///
+/// RFC-071 D7: well inside the shared `WIDE_CONTENT_WIDTH` ceiling
+/// Dashboard and History also use, so Settings satisfies "the same
+/// maximum" without needing a second `Length::Fixed(WIDE_CONTENT_WIDTH)`
+/// wrapper of its own — one that would sit outside this already-narrower
+/// cap and never do anything. The `const` assertion below keeps that
+/// relationship checked at compile time rather than assumed.
 const FORM_MAX_WIDTH: f32 = 680.0;
+
+const _: () = assert!(FORM_MAX_WIDTH <= WIDE_CONTENT_WIDTH);
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let header = view_header(state);
     let body = view_body(state);
 
-    column![header, scrollable(body).height(Length::Fill)]
-        .height(Length::Fill)
-        .into()
+    // RFC-071 D7: `scrollable`'s own width defaults to `Length::Shrink` —
+    // left unset, it collapses to its content's natural width rather than
+    // the window's, leaving `view_body`'s own `container(form).padding(24).
+    // align_left(Length::Fill)` no real extra space to position within.
+    // Same fix as `dashboard/mod.rs`'s and `history.rs`'s own `view`,
+    // found the same way (direct pixel inspection of the before/after
+    // evidence, where neither build showed any margin at all).
+    column![
+        header,
+        scrollable(body).width(Length::Fill).height(Length::Fill)
+    ]
+    .height(Length::Fill)
+    .into()
 }
 
 fn view_header(state: &AppState) -> Element<'_, Message> {
@@ -79,15 +98,21 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         section_header(tokens, state.t("settings.section.fs_watch")),
         view_fs_watch_section(state),
         view_save_row(state),
+        // RFC-071 Amendment A3 D14: a notice, read to understand that a
+        // change needs a restart.
         text(state.t("settings.restart_hint"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     ]
     .spacing(16)
     .width(Length::Fill)
     .max_width(FORM_MAX_WIDTH);
 
-    container(form).padding(24).center_x(Length::Fill).into()
+    // RFC-071 D7: left-aligned, not centred — the same change Dashboard
+    // and History's wide band make, replacing RFC-035 R8's "content
+    // centred". `form`'s own `FORM_MAX_WIDTH` already governs what width
+    // actually renders (see the `const` assertion above).
+    container(form).padding(24).align_left(Length::Fill).into()
 }
 
 // ---------------------------------------------------------------------------
@@ -112,10 +137,11 @@ fn field_grid<'a>(mode: WidthMode, cells: Vec<Element<'a, Message>>) -> Element<
 
 fn view_display_section(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
+    // RFC-071 Amendment A3 D14: field labels — explicit move category.
     let locale_row = row![
         text(state.t("settings.locale_label"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
         button(text("English")).on_press_maybe(if state.config.locale != Locale::En {
             Some(Message::Settings(SettingsMessage::LocaleChanged(
@@ -137,8 +163,8 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
 
     let theme_row = row![
         text(state.t("settings.theme_label"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
         button(text(state.t("settings.theme_dark"))).on_press_maybe(if !state.config.dark_theme {
             Some(Message::Settings(SettingsMessage::ThemeChanged(true)))
@@ -177,15 +203,17 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
         }
     );
 
+    // RFC-071 Amendment A3 D14: a status, read to understand the current
+    // setting.
     column![
         locale_row,
         text(active_locale_note)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         theme_row,
         text(active_theme_note)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     ]
     .spacing(8)
     .into()
@@ -332,9 +360,11 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
         // handoff's explicit instruction. `settings.*` is not among
         // `FIRST_LEVEL_PREFIXES`, so `first_level_wording_has_no_developer_jargon`
         // does not and will not police it either way.
+        // RFC-071 Amendment A3 D14: explains what this setting does — read
+        // to understand before enabling it.
         text(state.t("settings.fs_watch_hint"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         view_fs_debounce_field(state),
     ]
     .spacing(12)
@@ -350,10 +380,12 @@ fn view_save_row(state: &AppState) -> Element<'_, Message> {
     let save_btn = button(text(state.t("settings.save")))
         .on_press(Message::Settings(SettingsMessage::SaveRequested));
 
+    // RFC-071 Amendment A3 D14: a message, read to confirm the save
+    // happened.
     let save_msg: Element<'_, Message> = if let Some(ref msg) = state.settings_save_msg {
         text(msg.as_str())
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .into()
     } else {
         Space::new().into()
@@ -378,10 +410,11 @@ fn labeled_row<'a>(
     label: &'a str,
     widget: Element<'a, Message>,
 ) -> Element<'a, Message> {
+    // RFC-071 Amendment A3 D14: a field label — explicit move category.
     row![
         text(label)
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
         widget,
     ]
