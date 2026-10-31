@@ -23,8 +23,8 @@ what you type.
 
 ### Changed — buttons you cannot use right now are easier to read
 
-They were drawn so faintly that their names were hard to read. They are now shown as an
-outline with readable text, next to the reason they are unavailable.
+Their names were drawn so faintly that they were hard to read. They are now shown in
+readable grey, without their colour, next to the reason they are unavailable.
 
 ### Removed — `StatusColor` from the `knotra-ui` crate
 

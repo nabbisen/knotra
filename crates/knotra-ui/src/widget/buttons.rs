@@ -204,28 +204,50 @@ pub mod style {
         snora::design::style::color::to_iced_color(color)
     }
 
-    /// RFC-071 Amendment A1 D13 item 1: replaces snora's own `Disabled`
-    /// result (a uniform 45% alpha fade — `≈2.2:1` for a filled `primary`
-    /// button's label, below every WCAG level for text) with knotra's own:
-    /// no fill, a 1px `border` outline, the label in `text_muted` at full
+    /// RFC-071 Amendment A1 D13 item 1, corrected by Amendment A5: replaces
+    /// snora's own `Disabled` result (a uniform 45% alpha fade — `≈2.2:1`
+    /// for a filled `primary` button's label, below every WCAG level for
+    /// text) with knotra's own: no fill, the label in `text_muted` at full
     /// opacity (4.9:1 / 5.4:1 light/dark — the theme's own AA contrast test
-    /// already covers `text_muted`). The outline and the reason line
-    /// `reasoned` already draws beside a disabled control say "not now";
-    /// faintness no longer has to carry that meaning too. Every semantic
-    /// variant below routes its own snora-computed style through this
-    /// override, so none can forget it and keep the old fade.
-    fn readable_when_disabled(tokens: &Tokens, status: Status, computed: Style) -> Style {
+    /// already covers `text_muted`).
+    ///
+    /// **`outlined` is per variant, not universal (A5's correction to A1).**
+    /// A1 gave every variant a 1px border when disabled, including `ghost`
+    /// — whose *available* form has no border at all, no fill, nothing but
+    /// coloured text. That made an unavailable `ghost` command gain a box
+    /// its available form never has, so in the command palette the
+    /// unavailable commands looked more button-like than the available
+    /// ones: the opposite of the intent. The rule now: an unavailable
+    /// control never gains a shape its available form lacks. `primary`/
+    /// `secondary`/`danger` are already box-shaped when available (filled
+    /// or outlined), so they stay box-shaped, outlined, when disabled.
+    /// `ghost` is bare text when available, so it stays bare text —
+    /// `outlined: false` — when disabled too; only its colour changes.
+    fn readable_when_disabled(
+        tokens: &Tokens,
+        status: Status,
+        computed: Style,
+        outlined: bool,
+    ) -> Style {
         if status != Status::Disabled {
             return computed;
         }
-        Style {
-            background: None,
-            text_color: to_iced(tokens.palette.text_muted),
-            border: Border {
+        let border = if outlined {
+            Border {
                 width: 1.0,
                 color: to_iced(tokens.palette.border),
                 radius: computed.border.radius,
-            },
+            }
+        } else {
+            Border {
+                width: 0.0,
+                ..computed.border
+            }
+        };
+        Style {
+            background: None,
+            text_color: to_iced(tokens.palette.text_muted),
+            border,
             ..computed
         }
     }
@@ -235,6 +257,7 @@ pub mod style {
             tokens,
             status,
             snora::design::style::button::primary(tokens, status),
+            true,
         )
     }
 
@@ -243,6 +266,7 @@ pub mod style {
             tokens,
             status,
             snora::design::style::button::secondary(tokens, status),
+            true,
         )
     }
 
@@ -251,6 +275,7 @@ pub mod style {
             tokens,
             status,
             snora::design::style::button::ghost(tokens, status),
+            false,
         )
     }
 
@@ -259,6 +284,7 @@ pub mod style {
             tokens,
             status,
             snora::design::style::button::danger(tokens, status),
+            true,
         )
     }
 
@@ -483,25 +509,24 @@ mod tests {
             let expected_border = snora::design::style::color::to_iced_color(tokens.palette.border);
 
             type StyleFn = fn(&Tokens, Status) -> iced::widget::button::Style;
-            let variants: [(&str, StyleFn); 4] = [
-                ("primary", super::style::primary),
-                ("secondary", super::style::secondary),
-                ("ghost", super::style::ghost),
-                ("danger", super::style::danger),
+            // Amendment A5: `outlined` is per variant. `primary`/`secondary`/
+            // `danger` are box-shaped when available (filled or outlined),
+            // so they stay box-shaped, with a 1px border, when disabled.
+            // `ghost` has no border at all when available (bare text), so
+            // it must not gain one when disabled either.
+            let variants: [(&str, StyleFn, bool); 4] = [
+                ("primary", super::style::primary, true),
+                ("secondary", super::style::secondary, true),
+                ("ghost", super::style::ghost, false),
+                ("danger", super::style::danger, true),
             ];
-            for (name, style_fn) in variants {
+            for (name, style_fn, outlined) in variants {
                 let disabled = style_fn(&tokens, Status::Disabled);
+                let active = style_fn(&tokens, Status::Active);
+
                 assert_eq!(
                     disabled.background, None,
                     "{name}: Disabled must have no fill"
-                );
-                assert_eq!(
-                    disabled.border.width, 1.0,
-                    "{name}: Disabled must have a 1px border"
-                );
-                assert_eq!(
-                    disabled.border.color, expected_border,
-                    "{name}: Disabled border must be the `border` token"
                 );
                 assert_eq!(
                     disabled.text_color, expected_text,
@@ -511,12 +536,31 @@ mod tests {
                     expected_text.a, 1.0,
                     "{name}: text_muted itself must not already carry a reduced alpha"
                 );
-
-                let active = style_fn(&tokens, Status::Active);
                 assert_ne!(
                     disabled.text_color, active.text_color,
                     "{name}: Disabled must look different from Active"
                 );
+
+                if outlined {
+                    assert_eq!(
+                        disabled.border.width, 1.0,
+                        "{name}: Disabled must have a 1px border"
+                    );
+                    assert_eq!(
+                        disabled.border.color, expected_border,
+                        "{name}: Disabled border must be the `border` token"
+                    );
+                } else {
+                    assert_eq!(
+                        disabled.border.width, 0.0,
+                        "{name}: Disabled must not gain a border its available form lacks"
+                    );
+                    assert_eq!(
+                        disabled.border.width, active.border.width,
+                        "{name}: Disabled border width must match Active's own \
+                         (never a shape the available form lacks)"
+                    );
+                }
             }
         }
     }
