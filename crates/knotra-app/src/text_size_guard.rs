@@ -16,10 +16,11 @@
 //! project accepts. Two things this scan deliberately does *not* count:
 //!
 //! - **Comment lines** (`//`, `///`, `//!`). A raw `.size(11)` is common
-//!   prose when a doc comment explains what a role replaced — two sites in
-//!   `detail_panel.rs` do exactly this, describing `IDENTITY_LABEL_WIDTH`/
-//!   `STATUS_LABEL_WIDTH`'s original fit. Counting those would make the
-//!   guard fail on its own migration notes, not on live code. A line is
+//!   prose when a doc comment explains what a role replaced — two
+//!   fixed-width layout constants `detail_panel.rs` once carried (removed
+//!   in RFC-071 Amendment A2, once their own guessed fit broke) did exactly
+//!   this, describing their original fit. Counting lines like those would
+//!   make the guard fail on migration notes, not on live code. A line is
 //!   skipped whenever its trimmed text starts with `//` — this cannot be
 //!   fooled by a real call site, since Rust syntax never places `.size(`
 //!   at the start of a comment-opening line.

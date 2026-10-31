@@ -1,10 +1,9 @@
 // RFC-052 A1: `unused_imports`/`unused_variables` masked nothing in any
 // target and are gone. `dead_code` is narrowed to the test build only —
-// `view()`, and `field_row`/`IDENTITY_LABEL_WIDTH`/`STATUS_LABEL_WIDTH`
-// (only reachable from inside it), are called/used from `view.rs` in the
-// real binary, but no `#[test]` in this crate calls into the render tree,
-// so the test compilation's call graph never reaches them and flags all
-// four as dead. The binary build carries no suppression at all.
+// `view()` and `field_row` (only reachable from inside it) are called from
+// `view.rs` in the real binary, but no `#[test]` in this crate calls into
+// the render tree, so the test compilation's call graph never reaches them
+// and flags both as dead. The binary build carries no suppression at all.
 #![cfg_attr(test, allow(dead_code))]
 //! RFC-0014 — Project detail side panel.
 //!
@@ -30,45 +29,35 @@ use crate::{
     state::{AppState, detail_panel::RecentCommitsPhase},
 };
 
-/// RFC-048 D3: label/value pairs laid out as two columns sized by the
-/// layout engine, not by space-padding the label string to a fixed
-/// character count (the pre-RFC-048 shape — `format!("Branch:     {}",
-/// branch)`). No catalog value carries alignment whitespace in either
-/// locale; `label_width` is chosen per section to fit that section's
-/// longest label, matching the old padded columns' per-section grouping
-/// rather than one width shared across the whole panel.
+/// RFC-071 Amendment A2 commit 2: the label sits on its own line, the value
+/// directly below it — replaces RFC-048 D3's two-column layout, whose fixed
+/// `label_width` was always a guessed fit for one language at one font
+/// size (Review 248 §4: at 14 px, "Remote:"/"Untracked:" already exceeded
+/// their own guessed widths). A stacked layout needs nothing measured: no
+/// font, language or zoom level can make a label not fit its own line, and
+/// a long value (a path) wraps under its label instead of colliding with
+/// it. The label stays `body_small`, now in `text_secondary` so it reads as
+/// a caption rather than competing with its own value; the value keeps its
+/// role unchanged.
 fn field_row<'a>(
     tokens: &Tokens,
     label: &'a str,
     value: impl std::fmt::Display,
-    label_width: f32,
 ) -> Element<'a, Message> {
-    row![
+    column![
         text(label)
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens))
-            .width(Length::Fixed(label_width)),
+            .color(snora::design::style::color::to_iced_color(
+                tokens.palette.text_secondary
+            )),
         text(value.to_string())
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
     ]
+    .spacing(1)
     .into()
 }
-
-/// Fits `detail.label_remote` ("Remote:"), the longest label in the
-/// Identity section, at the `body_small` role. **RFC-056 Stage 4 (R11)**:
-/// re-derived — Stage 2 moved this label from a raw `.size(11)` to
-/// `body_small` (13.0) and rewrote this comment to claim the fit held at
-/// the new size without measuring it (A4 §1). No renderer is available
-/// here to measure the string directly, so this is 56.0 scaled by
-/// 13/11 (≈66.2, rounded up for margin) rather than a re-verified figure —
-/// stated plainly, not implied as measured.
-const IDENTITY_LABEL_WIDTH: f32 = 67.0;
-/// Fits `detail.label_untracked` ("Untracked:"), the longest label in the
-/// Status section, at the `body_small` role. **RFC-056 Stage 4 (R11)**:
-/// re-derived the same way as `IDENTITY_LABEL_WIDTH` above — 72.0 scaled
-/// by 13/11 (≈85.1, rounded up), not re-verified against a render.
-const STATUS_LABEL_WIDTH: f32 = 86.0;
 
 pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     let tokens = &state.theme.tokens;
@@ -114,24 +103,9 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         text(state.t("detail.section_identity"))
             .size(snora::design::style::text::body_small_size(tokens))
             .line_height(snora::design::style::text::body_small_line_height(tokens)),
-        field_row(
-            tokens,
-            state.t("detail.label_vcs"),
-            vcs,
-            IDENTITY_LABEL_WIDTH
-        ),
-        field_row(
-            tokens,
-            state.t("detail.label_path"),
-            path,
-            IDENTITY_LABEL_WIDTH
-        ),
-        field_row(
-            tokens,
-            state.t("detail.label_remote"),
-            remote,
-            IDENTITY_LABEL_WIDTH
-        ),
+        field_row(tokens, state.t("detail.label_vcs"), vcs),
+        field_row(tokens, state.t("detail.label_path"), path),
+        field_row(tokens, state.t("detail.label_remote"), remote),
     ]
     .spacing(3);
 
@@ -154,42 +128,12 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
             text(state.t("detail.section_status"))
                 .size(snora::design::style::text::body_small_size(tokens))
                 .line_height(snora::design::style::text::body_small_line_height(tokens)),
-            field_row(
-                tokens,
-                state.t("detail.label_branch"),
-                branch,
-                STATUS_LABEL_WIDTH
-            ),
-            field_row(
-                tokens,
-                state.t("detail.label_ahead"),
-                ahead,
-                STATUS_LABEL_WIDTH
-            ),
-            field_row(
-                tokens,
-                state.t("detail.label_behind"),
-                behind,
-                STATUS_LABEL_WIDTH
-            ),
-            field_row(
-                tokens,
-                state.t("detail.label_dirty"),
-                dirty,
-                STATUS_LABEL_WIDTH
-            ),
-            field_row(
-                tokens,
-                state.t("detail.label_untracked"),
-                untracked,
-                STATUS_LABEL_WIDTH
-            ),
-            field_row(
-                tokens,
-                state.t("detail.label_conflict"),
-                conflict,
-                STATUS_LABEL_WIDTH
-            ),
+            field_row(tokens, state.t("detail.label_branch"), branch),
+            field_row(tokens, state.t("detail.label_ahead"), ahead),
+            field_row(tokens, state.t("detail.label_behind"), behind),
+            field_row(tokens, state.t("detail.label_dirty"), dirty),
+            field_row(tokens, state.t("detail.label_untracked"), untracked),
+            field_row(tokens, state.t("detail.label_conflict"), conflict),
         ]
         .spacing(3)
     } else {
