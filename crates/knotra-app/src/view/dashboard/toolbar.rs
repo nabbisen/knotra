@@ -285,11 +285,16 @@ pub(super) fn view_toolbar(state: &AppState, mode: WidthMode) -> Element<'_, Mes
 fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
 
+    // RFC-071 Amendment A6 §1: the chip row wraps onto a second line when
+    // it does not fit, rather than letting a chip's own label wrap inside
+    // it (`chip::filter`'s `Wrapping::None` is the other half of this).
     let chips = row(FILTERS
         .iter()
         .map(|filter| chip_element(state, tokens, filter))
         .collect::<Vec<_>>())
-    .spacing(4);
+    .spacing(4)
+    .wrap()
+    .vertical_spacing(4);
 
     let grouping_options = vec![
         (

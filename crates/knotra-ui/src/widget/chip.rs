@@ -70,9 +70,14 @@ pub fn filter<'a, Message: Clone + 'a>(
 
     let content = row![
         status_badge(tokens, tone, glyph, diameter),
+        // RFC-071 Amendment A6 §1: a chip's label must never wrap onto a
+        // second line inside the chip — when the chip row itself does not
+        // fit, the row wraps as a whole (see the toolbar's own `.wrap()`),
+        // not the label inside one chip.
         text(label.into())
             .size(label_size)
-            .line_height(label_line_height),
+            .line_height(label_line_height)
+            .wrapping(iced::advanced::text::Wrapping::None),
         Space::new().width(Length::Fixed(tokens.spacing.xs)),
         text(count.to_string())
             .size(label_size)

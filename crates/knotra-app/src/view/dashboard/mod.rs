@@ -143,19 +143,7 @@ pub fn view(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     let mut body = column![view_header(state), view_toolbar(state, mode)]
         .height(Length::Fill)
         .spacing(4);
-    // RFC-071 D7: `scrollable`'s own `width` defaults to `Length::Shrink`
-    // (`iced_widget::scrollable::Scrollable::new`) — left unset, the
-    // scrollable collapses to its content's natural width instead of the
-    // window's, so `view_body`'s wide-band `container(...).align_left(
-    // Length::Fill)` never receives any real extra space to position
-    // within, and centring never visibly worked either before this stage.
-    // Found by direct pixel inspection of the before/after evidence
-    // (neither showed any margin), not assumed from the code.
-    body = body.push(
-        scrollable(view_body(state, mode))
-            .width(Length::Fill)
-            .height(Length::Fill),
-    );
+    body = body.push(scrollable(view_body(state, mode)).height(Length::Fill));
 
     // RFC-071 Amendment A3 D14: a status message — `body`.
     if let Some(message) = &state.status_bar {

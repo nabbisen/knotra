@@ -45,19 +45,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let header = view_header(state);
     let body = view_body(state);
 
-    // RFC-071 D7: `scrollable`'s own width defaults to `Length::Shrink` —
-    // left unset, it collapses to its content's natural width rather than
-    // the window's, leaving `view_body`'s own `container(form).padding(24).
-    // align_left(Length::Fill)` no real extra space to position within.
-    // Same fix as `dashboard/mod.rs`'s and `history.rs`'s own `view`,
-    // found the same way (direct pixel inspection of the before/after
-    // evidence, where neither build showed any margin at all).
-    column![
-        header,
-        scrollable(body).width(Length::Fill).height(Length::Fill)
-    ]
-    .height(Length::Fill)
-    .into()
+    column![header, scrollable(body).height(Length::Fill)]
+        .height(Length::Fill)
+        .into()
 }
 
 fn view_header(state: &AppState) -> Element<'_, Message> {

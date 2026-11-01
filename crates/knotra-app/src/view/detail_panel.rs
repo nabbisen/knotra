@@ -40,12 +40,15 @@ use crate::{
 /// a caption rather than competing with its own value; the value keeps its
 /// role unchanged.
 ///
-/// RFC-071 Amendment A3 D14: kept `body_small` for both label and value.
-/// Every caller of this one shared primitive is metadata D14's own KEEP
-/// list names directly — "the VCS kind, the branch beside a name, counts
-/// inside metadata" covers VCS/branch/ahead/behind/dirty/untracked; the
-/// two remaining fields (Path, Remote, Conflict) are read-only identity
-/// facts in the same caption role, not a status a user acts on from here.
+/// RFC-071 Amendment A6 §2, correcting Amendment A3 D14's first pass: the
+/// label stays `body_small` (a caption, in `text_secondary`), but the
+/// value moves to `body` — the path, the branch, the VCS kind, the
+/// counts are the content this panel exists to show, not incidental
+/// metadata beside something else. D14's KEEP list names "the VCS kind,
+/// the branch beside a name, counts inside metadata" for a value sitting
+/// *beside* a name (a dashboard row's own sub-line); here the value is
+/// the panel's entire content for that field, not a qualifier next to
+/// anything else.
 fn field_row<'a>(
     tokens: &Tokens,
     label: &'a str,
@@ -59,8 +62,8 @@ fn field_row<'a>(
                 tokens.palette.text_secondary
             )),
         text(value.to_string())
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
     ]
     .spacing(1)
     .into()

@@ -133,31 +133,31 @@ pub(crate) const BINDINGS: &[Binding] = &[
 /// (`.git-exclude/evidence/task-098/`), not by character count alone,
 /// since a fixed-width CJK glyph measures roughly double a Latin one at
 /// the same point size.
-const KEYS_COL: f32 = 150.0;
-const WHERE_COL: f32 = 130.0;
-const ACTION_COL: f32 = 280.0;
+const KEYS_COL: f32 = 180.0;
+const WHERE_COL: f32 = 150.0;
+const ACTION_COL: f32 = 320.0;
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
 
-    // RFC-071 Amendment A3 D14: this whole sheet is the "keyboard hints"
-    // D14 names as its own kept example — header and every column of every
-    // row stay `body_small`, not only the key-combo column. The fixed
-    // `KEYS_COL`/`WHERE_COL`/`ACTION_COL` widths above were measured for
-    // `body_small` text in both languages (Task 098); keeping the role
-    // here keeps those measurements valid.
+    // RFC-071 Amendment A6 §2: this whole sheet is a page a user opens to
+    // read, not a key shown beside a control — D14's "keyboard hints"
+    // example means the latter (e.g. "Esc" on a close button), not this
+    // sheet. Every column of every row moves to `body`. The fixed
+    // `KEYS_COL`/`WHERE_COL`/`ACTION_COL` widths below are re-measured for
+    // `body` text in both languages (Task 098's own method).
     let col_header = row![
         text(state.t("shortcut.column_keys"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .width(Length::Fixed(KEYS_COL)),
         text(state.t("shortcut.column_where"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .width(Length::Fixed(WHERE_COL)),
         text(state.t("shortcut.column_action"))
-            .size(snora::design::style::text::body_small_size(tokens))
-            .line_height(snora::design::style::text::body_small_line_height(tokens))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
             .width(Length::Fixed(ACTION_COL)),
     ]
     .spacing(16);
@@ -167,16 +167,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .map(|b| {
             row![
                 text(b.keys)
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
                     .width(Length::Fixed(KEYS_COL)),
                 text(state.t(b.where_key))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
                     .width(Length::Fixed(WHERE_COL)),
                 text(state.t(b.action_key))
-                    .size(snora::design::style::text::body_small_size(tokens))
-                    .line_height(snora::design::style::text::body_small_line_height(tokens))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
                     .width(Length::Fixed(ACTION_COL)),
             ]
             .spacing(16)

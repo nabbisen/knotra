@@ -333,29 +333,37 @@ mod tests {
             .count()
     }
 
-    /// RFC-071 Amendment A3 D14: every remaining `body_small` TEXT site,
-    /// classified once and pinned here by file and count — the same shape
-    /// `suppressions_guard.rs` and `text_outside_catalog_guard.rs` use for
-    /// their own non-empty, justified exception maps, not the two empty
-    /// maps above (those stay empty by design; this one does not, because
-    /// D14 names a real "incidental metadata" category that legitimately
-    /// keeps `body_small`).
+    /// RFC-071 Amendment A3 D14, corrected by Amendment A6 §2: every
+    /// remaining `body_small` TEXT site, classified once and pinned here
+    /// by file and count — the same shape `suppressions_guard.rs` and
+    /// `text_outside_catalog_guard.rs` use for their own non-empty,
+    /// justified exception maps, not the two empty maps above (those stay
+    /// empty by design; this one does not, because D14 names a real
+    /// "incidental metadata" category that legitimately keeps
+    /// `body_small`).
     ///
-    /// Each entry's own site(s) already carry a `RFC-071 Amendment A3 D14:
-    /// kept body_small` comment at the call site stating which of D14's
-    /// named categories it falls under (timestamp, VCS kind, branch beside
-    /// a name, count inside metadata, keyboard hint, or a documented close
-    /// analogue — `add_project_modal.rs`'s step count, `field.rs`'s unit
-    /// suffix, `buttons.rs`'s/`checkbox.rs`'s tooltip per D10's "today's
-    /// tooltip" ruling) — this map does not repeat that reasoning, only
-    /// pins the count so a new site cannot join silently.
+    /// A6 §2 corrected two over-eager keeps from D14's first pass: the
+    /// keyboard-shortcuts sheet (a page a user opens to read in full, not
+    /// a key shown beside a control — D14's own "keyboard hints" example
+    /// means the latter) moved entirely to `body`; the detail panel's
+    /// field *values* (the content the panel exists to show) moved to
+    /// `body`, while their labels stay `body_small` captions.
+    ///
+    /// Each entry's own site(s) already carry a `kept body_small` comment
+    /// at the call site stating which of D14's named categories it falls
+    /// under (timestamp, VCS kind, branch beside a name, count inside
+    /// metadata, keyboard hint, or a documented close analogue —
+    /// `add_project_modal.rs`'s step count, `field.rs`'s unit suffix,
+    /// `buttons.rs`'s/`checkbox.rs`'s tooltip per D10's "today's tooltip"
+    /// ruling) — this map does not repeat that reasoning, only pins the
+    /// count so a new site cannot join silently.
     ///
     /// - `view/add_project_modal.rs`, 1 — the wizard step count ("Step 1
     ///   of 2"), a count inside metadata.
     /// - `view/dashboard/row.rs`, 1 — the VCS kind sub-line under a
     ///   project's name.
-    /// - `view/detail_panel.rs`, 3 — the shared identity/status field
-    ///   primitive's label and value (both metadata labels), plus a
+    /// - `view/detail_panel.rs`, 2 — the shared identity/status field
+    ///   primitive's label only (its value is now `body`, A6 §2); a
     ///   commit's author/date line (metadata beside the commit, the same
     ///   role as a project's VCS kind beside its name).
     /// - `view/history.rs`, 2 — an entry's timestamp and project count.
@@ -365,10 +373,6 @@ mod tests {
     ///   in this same file were moved to `body` during classification —
     ///   see the Stage 3 review request's table — because they named the
     ///   message's own content, not a detail beside another name.)
-    /// - `view/shortcuts_overlay.rs`, 6 — the whole keyboard-shortcuts
-    ///   sheet, D14's own named "keyboard hints" example; the column
-    ///   header (3 columns) and the per-row closure (3 columns) are two
-    ///   separate source occurrences of the same per-row shape.
     /// - `widget/buttons.rs`, 1 — `icon_button_maybe`'s tooltip.
     /// - `widget/checkbox.rs`, 1 — the checkbox tooltip (consistency with
     ///   `buttons.rs`'s tooltip, D10's "today's tooltip" ruling).
@@ -378,10 +382,9 @@ mod tests {
     const EXPECTED_BODY_SMALL_SITES: &[(&str, usize)] = &[
         ("view/add_project_modal.rs", 1),
         ("view/dashboard/row.rs", 1),
-        ("view/detail_panel.rs", 3),
+        ("view/detail_panel.rs", 2),
         ("view/history.rs", 2),
         ("view/overlays/context_switch.rs", 2),
-        ("view/shortcuts_overlay.rs", 6),
         ("widget/buttons.rs", 1),
         ("widget/checkbox.rs", 1),
         ("widget/field.rs", 1),
