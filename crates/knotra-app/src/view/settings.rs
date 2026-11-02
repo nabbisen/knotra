@@ -17,8 +17,9 @@ use iced::{
     Alignment, Element, Length, Padding,
     widget::{Space, button, column, container, row, scrollable, text},
 };
+use knotra_ui::ThemeChoice;
 use knotra_ui::i18n::Locale;
-use knotra_ui::widget::{Tokens, WIDE_CONTENT_WIDTH, strong, validated_field};
+use knotra_ui::widget::{Tokens, WIDE_CONTENT_WIDTH, select, strong, validated_field};
 
 use crate::{
     message::{Message, SettingsMessage},
@@ -125,88 +126,77 @@ fn field_grid<'a>(mode: WidthMode, cells: Vec<Element<'a, Message>>) -> Element<
 // not a `validated_field` candidate)
 // ---------------------------------------------------------------------------
 
+/// RFC-070 D3, extended by Amendment A1: both the language and the theme
+/// choice are one `select` each, showing the current choice directly — no
+/// separate "Active: …" note, and no button disabled *because* it is the
+/// current choice (A1's own rule: a current choice is chosen, not
+/// unavailable; a disabled button means something else since RFC-071 A1/A5
+/// drew unavailable controls in grey). Neither select carries a focus
+/// target: Settings has no RFC-066 `FocusTarget` wiring at all today (its
+/// buttons never did either, confirmed by grep before this change), so
+/// `is_focused: false` is the honest unwired state, the same choice other
+/// not-yet-wired controls elsewhere in the app make explicitly rather than
+/// silently.
 fn view_display_section(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    // RFC-071 Amendment A3 D14: field labels — explicit move category.
+
+    // RFC-070 Amendment A1 §1: "English"/"日本語" stay literal endonyms, not
+    // `state.t()` calls — unchanged reasoning from the buttons this
+    // replaces (a language names itself, never translated).
+    let locale_options = vec![
+        (Locale::En, "English".to_owned()),
+        (Locale::Ja, "日本語".to_owned()),
+    ];
     let locale_row = row![
         text(state.t("settings.locale_label"))
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        button(text("English")).on_press_maybe(if state.config.locale != Locale::En {
-            Some(Message::Settings(SettingsMessage::LocaleChanged(
-                Locale::En,
-            )))
-        } else {
-            None
-        }),
-        button(text("日本語")).on_press_maybe(if state.config.locale != Locale::Ja {
-            Some(Message::Settings(SettingsMessage::LocaleChanged(
-                Locale::Ja,
-            )))
-        } else {
-            None
-        }),
+        select::pick_list(
+            tokens,
+            locale_options,
+            Some(state.config.locale),
+            false,
+            |value| Message::Settings(SettingsMessage::LocaleChanged(value)),
+        ),
     ]
     .spacing(8)
     .align_y(Alignment::Center);
 
+    // RFC-070 D3: Light, Dark, High contrast light, High contrast dark —
+    // the RFC's own order.
+    let theme_options = vec![
+        (
+            ThemeChoice::Light,
+            state.t("settings.theme_light").to_owned(),
+        ),
+        (ThemeChoice::Dark, state.t("settings.theme_dark").to_owned()),
+        (
+            ThemeChoice::HighContrastLight,
+            state.t("settings.theme_high_contrast_light").to_owned(),
+        ),
+        (
+            ThemeChoice::HighContrastDark,
+            state.t("settings.theme_high_contrast_dark").to_owned(),
+        ),
+    ];
     let theme_row = row![
         text(state.t("settings.theme_label"))
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        button(text(state.t("settings.theme_dark"))).on_press_maybe(if !state.config.dark_theme {
-            Some(Message::Settings(SettingsMessage::ThemeChanged(true)))
-        } else {
-            None
-        }),
-        button(text(state.t("settings.theme_light"))).on_press_maybe(if state.config.dark_theme {
-            Some(Message::Settings(SettingsMessage::ThemeChanged(false)))
-        } else {
-            None
-        }),
+        select::pick_list(
+            tokens,
+            theme_options,
+            Some(state.config.theme),
+            false,
+            |value| Message::Settings(SettingsMessage::ThemeChanged(value)),
+        ),
     ]
     .spacing(8)
     .align_y(Alignment::Center);
 
-    // RFC-038 Stage 1 §2: was a hand-rolled `match` returning a
-    // pre-baked "Active: {locale}" string — a second, unaudited
-    // localisation mechanism alongside the catalog, so a Japanese user got
-    // the value translated but not the "Active:" label. `Locale`'s own
-    // `Display` impl (i18n.rs) is left as the source of each language's
-    // name — "English"/"日本語" are endonyms, not translatable content, the
-    // same reason the locale-switch buttons above say "English"/"日本語"
-    // unconditionally rather than through `state.t()`.
-    let active_locale_note = format!(
-        "{} {}",
-        state.t("settings.active_prefix"),
-        state.config.locale
-    );
-    let active_theme_note = format!(
-        "{} {}",
-        state.t("settings.active_prefix"),
-        if state.config.dark_theme {
-            state.t("settings.theme_dark")
-        } else {
-            state.t("settings.theme_light")
-        }
-    );
-
-    // RFC-071 Amendment A3 D14: a status, read to understand the current
-    // setting.
-    column![
-        locale_row,
-        text(active_locale_note)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-        theme_row,
-        text(active_theme_note)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ]
-    .spacing(8)
-    .into()
+    column![locale_row, theme_row].spacing(8).into()
 }
 
 // ---------------------------------------------------------------------------

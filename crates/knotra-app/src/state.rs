@@ -590,15 +590,10 @@ impl AppState {
 
     pub fn new_with_paths(config: AppConfig, paths: AppPaths) -> Self {
         let locale = config.locale;
-        let dark = config.dark_theme;
         AppState {
             screen: Screen::Dashboard,
             catalog: Catalog::for_locale(locale),
-            theme: if dark {
-                KnotraTheme::dark()
-            } else {
-                KnotraTheme::light()
-            },
+            theme: KnotraTheme::from_choice(config.theme),
             workspace: None,
             workspace_status: None,
             load_phase: LoadPhase::Startup,

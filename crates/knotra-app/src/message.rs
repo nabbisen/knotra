@@ -150,7 +150,7 @@ pub enum HistoryMessage {
 #[derive(Debug, Clone)]
 pub enum SettingsMessage {
     LocaleChanged(knotra_ui::i18n::Locale),
-    ThemeChanged(bool),
+    ThemeChanged(knotra_ui::ThemeChoice),
     // RFC-038 Stage 2 §1b: these four carry the raw typed text, not a
     // pre-parsed number — the view previously coerced unparseable input to
     // a magic default (0/1/10/2) at the message boundary, which destroyed

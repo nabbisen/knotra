@@ -136,26 +136,32 @@ mod tests {
 
     /// The exact, justified set of letter-led `text("…")` /
     /// `text(format!("…"))` literals under `view/` that do not route
-    /// through the catalog. Both entries predate RFC-048 and are the RFC's
-    /// own named exceptions:
+    /// through the catalog.
     ///
     /// - `overlays/conflict.rs`, 4 — `command:`/`stdout:`/`stderr:`/`error:`
     ///   prefixes on raw tool output, RFC-038 A1's "export text is English
-    ///   by design" category, not first-level UI wording.
-    /// - `settings.rs`, **2** — the language switcher, both buttons:
-    ///   `text("English")` and `text("日本語")`. Each names a language in
-    ///   that language, never translatable by definition. RFC-048's own
-    ///   survey counted only the first — `char::is_alphabetic` is
-    ///   Unicode-aware and treats `日` as a letter exactly as it treats
-    ///   `E`, so a scan that is honest about what "letter-led" means finds
-    ///   both. Confirmed by reading `settings.rs:111-118`: the two buttons
-    ///   are symmetric, same shape, same justification.
+    ///   by design" category, not first-level UI wording. Predates
+    ///   RFC-048, one of the RFC's own named exceptions.
+    ///
+    /// `settings.rs`'s own former entry (**2** — `text("English")` and
+    /// `text("日本語")`, the language switcher's two buttons) is gone, not
+    /// renamed: RFC-070 Amendment A1 replaced both buttons with one
+    /// `select`, whose options are now `(Locale, String)` pairs built from
+    /// plain `"English".to_owned()` / `"日本語".to_owned()` string
+    /// literals — still unconditional endonyms, same justification as
+    /// before, just no longer literal arguments to a `text(...)` call this
+    /// guard's own pattern matches (`select::pick_list` builds its own
+    /// `Text` internally, from the label it is handed). The exemption these
+    /// two strings needed moved with them, in spirit; this guard simply has
+    /// nothing left to scan for in `settings.rs`, which is why it is absent
+    /// below rather than pinned at 0 the way every *other* unlisted file
+    /// implicitly is.
     ///
     /// Every other file must be zero. Adding a new letter-led literal here
     /// means adding it to this list with the same per-item justification
     /// its neighbours carry — never silently, and never a blanket
     /// exception for a whole file.
-    const EXPECTED: &[(&str, usize)] = &[("overlays/conflict.rs", 4), ("settings.rs", 2)];
+    const EXPECTED: &[(&str, usize)] = &[("overlays/conflict.rs", 4)];
 
     #[test]
     fn user_facing_text_under_view_routes_through_the_catalog() {

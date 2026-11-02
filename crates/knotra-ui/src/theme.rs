@@ -6,6 +6,23 @@
 
 use iced::Color;
 
+/// The four themes knotra offers (RFC-070 D1). Saved form is snake_case
+/// (`"light"` / `"dark"` / `"high_contrast_light"` / `"high_contrast_dark"`),
+/// distinct from [`crate::i18n::Locale`]'s own PascalCase saved form — D1
+/// names this exact saved form, and `DashboardGrouping`/`DashboardSort`
+/// (`knotra-app`'s `config.rs`) already use the same `rename_all` for the
+/// same reason: a value a user never sees, read back from their own saved
+/// file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ThemeChoice {
+    Light,
+    #[default]
+    Dark,
+    HighContrastLight,
+    HighContrastDark,
+}
+
 /// The application's iced `Theme` extension carrying knotra-specific tokens.
 ///
 /// Wraps the built-in `iced::Theme` so that both the light and dark system
@@ -14,14 +31,32 @@ use iced::Color;
 #[derive(Debug, Clone)]
 pub struct KnotraTheme {
     pub base: iced::Theme,
-    pub dark: bool,
     /// Snora Design token bundle: palette, spacing, typography, radius, and
-    /// focus tokens (RFC-033 D7). `KnotraTheme::light()`/`dark()` map to
-    /// `Tokens::light()`/`dark()` one-to-one.
+    /// focus tokens (RFC-033 D7). `KnotraTheme::light()`/`dark()`/
+    /// `high_contrast_light()`/`high_contrast_dark()` map to
+    /// `Tokens::light()`/`dark()`/`high_contrast_light()`/
+    /// `high_contrast_dark()` one-to-one.
     pub tokens: snora::design::Tokens,
 }
 
 impl KnotraTheme {
+    /// RFC-070 D2: the only constructor the app itself calls — every other
+    /// constructor below exists for this to dispatch to (and for this
+    /// file's own tests, which legitimately need one preset at a time).
+    /// `R2` pins this as a standing rule with a guard, not only a style
+    /// preference: `git grep` finds no `KnotraTheme::light()`/`dark()`/
+    /// `high_contrast_light()`/`high_contrast_dark()` call anywhere under
+    /// `crates/knotra-app`.
+    #[must_use]
+    pub fn from_choice(choice: ThemeChoice) -> Self {
+        match choice {
+            ThemeChoice::Light => Self::light(),
+            ThemeChoice::Dark => Self::dark(),
+            ThemeChoice::HighContrastLight => Self::high_contrast_light(),
+            ThemeChoice::HighContrastDark => Self::high_contrast_dark(),
+        }
+    }
+
     pub fn light() -> Self {
         let tokens = snora::design::Tokens::light();
         KnotraTheme {
@@ -32,7 +67,6 @@ impl KnotraTheme {
             // rather than a second `Tokens::light()` call, so the two fields
             // cannot drift from each other.
             base: snora::design::theme(&tokens),
-            dark: false,
             tokens,
         }
     }
@@ -41,7 +75,27 @@ impl KnotraTheme {
         let tokens = snora::design::Tokens::dark();
         KnotraTheme {
             base: snora::design::theme(&tokens),
-            dark: true,
+            tokens,
+        }
+    }
+
+    /// RFC-070 D1/D4: snora's own high-contrast light preset, held to the
+    /// RFC's own stricter floors (see this file's contrast suite test) —
+    /// not a knotra-authored palette.
+    pub fn high_contrast_light() -> Self {
+        let tokens = snora::design::Tokens::high_contrast_light();
+        KnotraTheme {
+            base: snora::design::theme(&tokens),
+            tokens,
+        }
+    }
+
+    /// RFC-070 D1/D4: snora's own high-contrast dark preset, same reasoning
+    /// as [`Self::high_contrast_light`].
+    pub fn high_contrast_dark() -> Self {
+        let tokens = snora::design::Tokens::high_contrast_dark();
+        KnotraTheme {
+            base: snora::design::theme(&tokens),
             tokens,
         }
     }
@@ -743,30 +797,53 @@ mod tests {
         }
     }
 
-    /// RFC-071 Amendment A1 D13 item 3: **the** contrast suite — one test
-    /// covering every colour knotra draws text or symbols with, against
-    /// every surface it can appear on, at the floor its own category of use
-    /// carries. Earlier tests in this file each check one role against one
-    /// or a few surfaces, for their own reason; this one exists so a reader
-    /// (and a reviewer) can find every floor in one place, and so a role
-    /// that falls short stops here, with its own name, rather than passing
+    /// RFC-071 Amendment A1 D13 item 3, extended by RFC-070 D4: **the**
+    /// contrast suite — one test covering every colour knotra draws text or
+    /// symbols with, against every surface it can appear on, at the floor
+    /// its own category of use carries — now across all four themes, the
+    /// two high-contrast presets held to D4's stricter floors. Earlier
+    /// tests in this file each check one role against one or a few
+    /// surfaces, for their own reason; this one exists so a reader (and a
+    /// reviewer) can find every floor in one place, and so a role that
+    /// falls short stops here, with its own name, rather than passing
     /// silently because some narrower pre-existing test happened not to
     /// cover that particular pairing.
     ///
     /// **A shortfall here is never adjusted silently.** `snora`'s palette is
     /// an upstream dependency; a role that comes in short is an upstream
-    /// matter (D13 item 3), not a token this crate is allowed to override.
+    /// matter (D13 item 3 / RFC-070 D4), not a token this crate is allowed
+    /// to override — RFC-070's own "out of scope" names this explicitly: a
+    /// preset short of a floor goes to the snora team, never into a knotra
+    /// override.
     #[test]
     fn the_contrast_suite_covers_every_colour_knotra_draws_text_or_symbols_with() {
         use crate::widget::Tone;
 
         /// 1.4.6-strength floor for the text a user reads to understand or
-        /// act: names, statuses, messages, headings.
+        /// act: names, statuses, messages, headings. RFC-070 D4: the same
+        /// 7:1 in every theme — content text was never the floor D4 raises.
         const CONTENT_TEXT: f32 = 7.0;
 
-        for (theme_name, theme) in [
-            ("light", KnotraTheme::light()),
-            ("dark", KnotraTheme::dark()),
+        // RFC-070 D4: the two floors D4 raises for the high-contrast
+        // themes, each theme carrying its own pair rather than one knotra
+        // constant plus a per-theme override — a high-contrast preset that
+        // fails its own stricter floor is exactly the "stop and report"
+        // case D4 names, not a reason to special-case the assertion.
+        for (theme_name, theme, control_label_floor, non_text_floor) in [
+            ("light", KnotraTheme::light(), AA_NORMAL, AA_LARGE),
+            ("dark", KnotraTheme::dark(), AA_NORMAL, AA_LARGE),
+            (
+                "high_contrast_light",
+                KnotraTheme::high_contrast_light(),
+                CONTENT_TEXT,
+                AA_NORMAL,
+            ),
+            (
+                "high_contrast_dark",
+                KnotraTheme::high_contrast_dark(),
+                CONTENT_TEXT,
+                AA_NORMAL,
+            ),
         ] {
             let p = &theme.tokens.palette;
             let surfaces: [(&str, snora::design::Color); 3] = [
@@ -775,8 +852,8 @@ mod tests {
                 ("surface_raised", p.surface_raised),
             ];
 
-            // Content text (7:1): text_primary, text_secondary — never
-            // text_muted, which this RFC scopes to placeholders and
+            // Content text (7:1 in every theme): text_primary, text_secondary
+            // — never text_muted, which this RFC scopes to placeholders and
             // unavailable-control labels only (items 2/3 below), not to
             // anything a user reads to understand or act.
             for (text_label, text_color) in [
@@ -793,15 +870,15 @@ mod tests {
                 }
             }
 
-            // Labels of controls you can press (4.5:1): accent as text
-            // (links, ghost/secondary labels), and each fill's own
-            // `*_text` against its fill.
+            // Labels of controls you can press (4.5:1 normal, 7:1 HC —
+            // RFC-070 D4): accent as text (links, ghost/secondary labels),
+            // and each fill's own `*_text` against its fill.
             for (surface_label, surface_color) in surfaces {
                 let ratio = snora::design::contrast::contrast_ratio(p.accent, surface_color);
                 assert!(
-                    ratio >= AA_NORMAL,
+                    ratio >= control_label_floor,
                     "{theme_name} accent (as a pressable label) on {surface_label}: \
-                     {ratio:.2}:1 is below the required {AA_NORMAL}:1"
+                     {ratio:.2}:1 is below the required {control_label_floor}:1"
                 );
             }
             for (fill_label, fill, fill_text) in [
@@ -810,46 +887,48 @@ mod tests {
             ] {
                 let ratio = snora::design::contrast::contrast_ratio(fill_text, fill);
                 assert!(
-                    ratio >= AA_NORMAL,
+                    ratio >= control_label_floor,
                     "{theme_name} {fill_label}_text on {fill_label}: {ratio:.2}:1 \
-                     is below the required {AA_NORMAL}:1"
+                     is below the required {control_label_floor}:1"
                 );
             }
 
-            // Labels of unavailable controls (4.5:1, D13 item 1): a
-            // disabled button has no fill, so its `text_muted` label sits
-            // directly on whichever surface is behind the button.
-            // Placeholders (4.5:1, D6): `text_muted` on the field's own
-            // `surface` fill — the same token, the same floor, the same
-            // pairing a disabled label on a surface-backed area already
-            // covers, stated here under its own name too.
+            // Labels of unavailable controls (4.5:1 normal, 7:1 HC — D13
+            // item 1 / RFC-070 D4): a disabled button has no fill, so its
+            // `text_muted` label sits directly on whichever surface is
+            // behind the button. Placeholders (same floor, D6): `text_muted`
+            // on the field's own `surface` fill — the same token, the same
+            // floor, the same pairing a disabled label on a surface-backed
+            // area already covers, stated here under its own name too.
             for (surface_label, surface_color) in surfaces {
                 let ratio = snora::design::contrast::contrast_ratio(p.text_muted, surface_color);
                 assert!(
-                    ratio >= AA_NORMAL,
+                    ratio >= control_label_floor,
                     "{theme_name} text_muted (disabled label / placeholder) on \
-                     {surface_label}: {ratio:.2}:1 is below the required {AA_NORMAL}:1"
+                     {surface_label}: {ratio:.2}:1 is below the required \
+                     {control_label_floor}:1"
                 );
             }
 
             // Lines, outlines, the focus ring, a badge against the page
-            // (3:1, non-text, SC 1.4.11): border and every tone's own badge
-            // fill, each against every surface it can sit on.
+            // (3:1 normal, 4.5:1 HC, non-text, SC 1.4.11 / RFC-070 D4):
+            // border and every tone's own badge fill, each against every
+            // surface it can sit on.
             for (surface_label, surface_color) in surfaces {
                 let ratio = snora::design::contrast::contrast_ratio(p.border, surface_color);
                 assert!(
-                    ratio >= AA_LARGE,
+                    ratio >= non_text_floor,
                     "{theme_name} border on {surface_label}: {ratio:.2}:1 \
-                     is below the required {AA_LARGE}:1 non-text boundary floor"
+                     is below the required {non_text_floor}:1 non-text boundary floor"
                 );
                 let ring_ratio = snora::design::contrast::contrast_ratio(
                     theme.tokens.focus.ring_color,
                     surface_color,
                 );
                 assert!(
-                    ring_ratio >= AA_LARGE,
+                    ring_ratio >= non_text_floor,
                     "{theme_name} focus ring on {surface_label}: {ring_ratio:.2}:1 \
-                     is below the required {AA_LARGE}:1 non-text boundary floor"
+                     is below the required {non_text_floor}:1 non-text boundary floor"
                 );
                 for (tone_label, tone) in [
                     ("Success", Tone::Success),
@@ -861,10 +940,10 @@ mod tests {
                     let badge_ratio =
                         snora::design::contrast::contrast_ratio(from_iced(badge_bg), surface_color);
                     assert!(
-                        badge_ratio >= AA_LARGE,
+                        badge_ratio >= non_text_floor,
                         "{theme_name} Tone::{tone_label} badge on {surface_label}: \
-                         {badge_ratio:.2}:1 is below the required {AA_LARGE}:1 non-text \
-                         boundary floor"
+                         {badge_ratio:.2}:1 is below the required {non_text_floor}:1 \
+                         non-text boundary floor"
                     );
                 }
             }

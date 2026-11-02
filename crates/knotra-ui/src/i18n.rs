@@ -733,6 +733,9 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.theme_label", "Theme");
     m.insert("settings.theme_dark", "Dark");
     m.insert("settings.theme_light", "Light");
+    // RFC-070 D5.
+    m.insert("settings.theme_high_contrast_light", "High contrast light");
+    m.insert("settings.theme_high_contrast_dark", "High contrast dark");
     // RFC-038 Stage 3: trimmed from "Background refresh (seconds; 0 =
     // manual)" — validated_field's own `unit` slot now carries "seconds"
     // (settings.unit_seconds), so repeating it in the label would show it
@@ -765,10 +768,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // successful save.
     m.insert("settings.saved_ok", "Settings saved.");
     m.insert("settings.save_error", "Could not save settings:");
-    // "Active: {value}" prefix (RFC-038 Stage 1 §2) — shared by the locale
-    // and theme rows; {value} itself is `Locale`'s own `Display` (an
-    // endonym, not translated) or an existing `settings.theme_*` key.
-    m.insert("settings.active_prefix", "Active:");
     // File-system monitoring section (RFC-038 Stage 1 §2)
     m.insert("settings.section.fs_watch", "File-system Monitoring");
     m.insert(
@@ -1548,6 +1547,15 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.theme_label", "テーマ");
     m.insert("settings.theme_dark", "ダーク");
     m.insert("settings.theme_light", "ライト");
+    // RFC-070 D5.
+    m.insert(
+        "settings.theme_high_contrast_light",
+        "ハイコントラスト（ライト）",
+    );
+    m.insert(
+        "settings.theme_high_contrast_dark",
+        "ハイコントラスト（ダーク）",
+    );
     m.insert(
         "settings.refresh_interval_label",
         "バックグラウンド更新（0 = 手動のみ）",
@@ -1571,7 +1579,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.save", "設定を保存");
     m.insert("settings.saved_ok", "設定を保存しました。");
     m.insert("settings.save_error", "設定を保存できませんでした:");
-    m.insert("settings.active_prefix", "現在:");
     m.insert("settings.section.fs_watch", "ファイルシステム監視");
     m.insert(
         "settings.fs_watch_enable_label",

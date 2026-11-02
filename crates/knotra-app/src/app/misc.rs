@@ -117,13 +117,9 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             state.config.locale = l;
             state.catalog = knotra_ui::i18n::Catalog::for_locale(l);
         }
-        SettingsMessage::ThemeChanged(dark) => {
-            state.config.dark_theme = dark;
-            state.theme = if dark {
-                knotra_ui::KnotraTheme::dark()
-            } else {
-                knotra_ui::KnotraTheme::light()
-            };
+        SettingsMessage::ThemeChanged(choice) => {
+            state.config.theme = choice;
+            state.theme = knotra_ui::KnotraTheme::from_choice(choice);
         }
         SettingsMessage::RefreshIntervalChanged(s) => {
             // 0 is a valid value here (means manual refresh only) — any

@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — high-contrast themes
+
+Settings → Theme now also offers "High contrast light" and "High contrast dark": black and
+white, with strong outlines and a thicker focus outline, for anyone who finds the normal
+themes hard to read. Your current theme is kept.
+
 ### Changed — the dashboard and History line up, and rows are easier to tell apart
 
 On a wide window, the project list now starts at the same left edge as the controls above

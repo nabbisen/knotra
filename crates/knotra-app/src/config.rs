@@ -4,7 +4,7 @@
 //! Workspace definitions live in `~/.config/knotra/workspaces/`.
 //! Operation history lives in `~/.local/share/knotra/history/`.
 
-use knotra_ui::i18n::Locale;
+use knotra_ui::{ThemeChoice, i18n::Locale};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -31,8 +31,11 @@ pub enum DashboardSort {
 pub struct AppConfig {
     /// UI display locale.
     pub locale: Locale,
-    /// Use dark theme when true.
-    pub dark_theme: bool,
+    /// RFC-070 D1: replaces `dark_theme: bool`. `load_config` resolves an
+    /// older file's `dark_theme` into this field before the normal typed
+    /// parse runs — see `load_config`'s own doc comment — so this field
+    /// itself never needs to know the old key existed.
+    pub theme: ThemeChoice,
     /// Background refresh interval in seconds (0 = manual only).
     pub refresh_interval_secs: u32,
     /// Maximum concurrent repository status reads.
@@ -64,7 +67,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         AppConfig {
             locale: Locale::En,
-            dark_theme: true,
+            theme: ThemeChoice::default(),
             refresh_interval_secs: 60,
             max_concurrent_reads: 8,
             external_editor: None,
@@ -166,6 +169,63 @@ impl AppPaths {
     }
 }
 
+/// RFC-070 D1: resolves `theme`/`dark_theme` in a raw, already-parsed TOML
+/// table before the normal typed parse runs, so `AppConfig::theme` itself
+/// can stay a plain, strictly-typed field with no knowledge of the
+/// compatibility rule. Mutates `table` in place — removes `dark_theme`
+/// unconditionally (a stray key an older save left behind, never written
+/// again after this loads and the file is next saved) and leaves `theme`
+/// set to a value that always parses.
+///
+/// - `theme` present and valid: wins, untouched.
+/// - `theme` present but unrecognized: replaced with the default, and a
+///   warning is returned — every *other* field in the same file still
+///   loads normally, since this runs before the typed parse, not as a
+///   side effect of it failing.
+/// - `theme` absent, `dark_theme` present: maps `true`/`false` to
+///   `Dark`/`Light`.
+/// - Neither present: the default.
+fn resolve_theme_key(
+    table: &mut toml::value::Table,
+    config_path: &std::path::Path,
+) -> Option<String> {
+    let raw_theme = table.remove("theme");
+    let raw_dark_theme = table.remove("dark_theme").and_then(|v| v.as_bool());
+
+    let (resolved, warning) = match raw_theme {
+        Some(value) => {
+            let shown = value
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| value.to_string());
+            match value.try_into::<ThemeChoice>() {
+                Ok(choice) => (choice, None),
+                Err(_) => (
+                    ThemeChoice::default(),
+                    Some(format!(
+                        "Unknown theme {shown:?} in config.toml (using default); Path: {}",
+                        config_path.display()
+                    )),
+                ),
+            }
+        }
+        None => (
+            match raw_dark_theme {
+                Some(true) => ThemeChoice::Dark,
+                Some(false) => ThemeChoice::Light,
+                None => ThemeChoice::default(),
+            },
+            None,
+        ),
+    };
+
+    table.insert(
+        "theme".to_owned(),
+        toml::Value::try_from(resolved).expect("ThemeChoice always serializes to a TOML string"),
+    );
+    warning
+}
+
 /// Load configuration from disk, falling back to defaults on any error.
 ///
 /// A missing `config.toml` is "no config yet" only once the directory that
@@ -176,17 +236,34 @@ impl AppPaths {
 /// plain file can report the same `NotFound` kind reading `config.toml`
 /// would report if the directory had simply never been created. A blocked
 /// directory instead takes the "cannot read" path below, message and all.
+///
+/// RFC-070 D1: the text is parsed into a raw `toml::Table` first, so
+/// [`resolve_theme_key`] can run its compatibility/validation step on the
+/// `theme`/`dark_theme` keys before the normal typed parse — a TOML-syntax
+/// error (the table itself cannot be parsed) and a field-shape error (some
+/// *other* field, e.g. `dashboard_grouping`, holds a value `AppConfig`
+/// cannot deserialize) share the same "config.toml parse error" message,
+/// unchanged from before this RFC; only `theme` gets its own, narrower
+/// fallback.
 pub fn load_config(paths: &AppPaths) -> (AppConfig, Option<String>) {
+    let parse_error = |e: &dyn std::fmt::Display| -> (AppConfig, Option<String>) {
+        let msg = format!(
+            "config.toml parse error (using defaults): {e}\nPath: {}",
+            paths.config_file.display()
+        );
+        (AppConfig::default(), Some(msg))
+    };
+
     match std::fs::read_to_string(&paths.config_file) {
-        Ok(text) => match toml::from_str::<AppConfig>(&text) {
-            Ok(cfg) => (cfg, None),
-            Err(e) => {
-                let msg = format!(
-                    "config.toml parse error (using defaults): {e}\nPath: {}",
-                    paths.config_file.display()
-                );
-                (AppConfig::default(), Some(msg))
+        Ok(text) => match text.parse::<toml::value::Table>() {
+            Ok(mut table) => {
+                let theme_warning = resolve_theme_key(&mut table, &paths.config_file);
+                match table.try_into::<AppConfig>() {
+                    Ok(cfg) => (cfg, theme_warning),
+                    Err(e) => parse_error(&e),
+                }
             }
+            Err(e) => parse_error(&e),
         },
         Err(e)
             if e.kind() == std::io::ErrorKind::NotFound
@@ -304,7 +381,7 @@ mod tests {
             loaded.refresh_interval_secs,
             AppConfig::default().refresh_interval_secs
         );
-        assert_eq!(loaded.dark_theme, AppConfig::default().dark_theme);
+        assert_eq!(loaded.theme, AppConfig::default().theme);
     }
 
     /// Task 083: a config directory blocked by a plain file must not read
@@ -328,12 +405,18 @@ mod tests {
             loaded.refresh_interval_secs,
             AppConfig::default().refresh_interval_secs
         );
-        assert_eq!(loaded.dark_theme, AppConfig::default().dark_theme);
+        assert_eq!(loaded.theme, AppConfig::default().theme);
     }
 
     /// Task 102: `last_project_parent` is new. A `config.toml` written before
     /// it existed has no such key at all — `#[serde(default)]` must still
     /// load it cleanly, with the field empty, not as a parse error.
+    ///
+    /// RFC-070 D1: also this RFC's own `dark_theme = true` → `Dark`
+    /// compatibility case — the same file this test already wrote before
+    /// `theme` existed is exactly an "older file" in D1's sense, so this
+    /// test carries both assertions rather than a second file being written
+    /// for the same scenario.
     #[test]
     fn load_config_without_last_project_parent_key_loads_it_as_none() {
         let tmp = tempfile::TempDir::new().expect("tempdir");
@@ -345,6 +428,112 @@ mod tests {
 
         assert_eq!(warning, None);
         assert_eq!(loaded.last_project_parent, None);
-        assert!(loaded.dark_theme);
+        assert_eq!(loaded.theme, ThemeChoice::Dark);
+    }
+
+    /// RFC-070 D1: the other half of the `dark_theme` compatibility
+    /// mapping — `false` maps to `Light`, not merely "not `Dark`" (a
+    /// distinction worth its own test: a bug that always produced `Light`
+    /// regardless of `dark_theme`'s value would pass a test that only
+    /// checked `true`).
+    #[test]
+    fn load_config_with_only_dark_theme_false_maps_to_light() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths::under(tmp.path().to_path_buf());
+        std::fs::create_dir_all(paths.config_file.parent().unwrap()).expect("config dir");
+        std::fs::write(&paths.config_file, "dark_theme = false\n").expect("older config.toml");
+
+        let (loaded, warning) = load_config(&paths);
+
+        assert_eq!(warning, None);
+        assert_eq!(loaded.theme, ThemeChoice::Light);
+    }
+
+    /// RFC-070 D1: `theme` wins when both keys are present — an older
+    /// `dark_theme` left behind by an earlier save must not override a
+    /// `theme` the user has since explicitly chosen (`save_config` itself
+    /// never writes both, but a hand-edited or partially-migrated file
+    /// could).
+    #[test]
+    fn load_config_prefers_theme_over_a_present_dark_theme() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths::under(tmp.path().to_path_buf());
+        std::fs::create_dir_all(paths.config_file.parent().unwrap()).expect("config dir");
+        std::fs::write(
+            &paths.config_file,
+            "theme = \"high_contrast_light\"\ndark_theme = true\n",
+        )
+        .expect("mixed-key config.toml");
+
+        let (loaded, warning) = load_config(&paths);
+
+        assert_eq!(warning, None);
+        assert_eq!(loaded.theme, ThemeChoice::HighContrastLight);
+    }
+
+    /// RFC-070 D1: an unrecognized `theme` value falls back to the
+    /// default, with a warning — through `load_config`'s existing
+    /// `(value, Option<String>)` shape, not a hard parse failure that would
+    /// also discard every other field in the same file. `refresh_interval_
+    /// secs` here is the proof: a real, non-default value the user chose,
+    /// which must still load even though `theme` itself did not.
+    #[test]
+    fn load_config_with_an_unknown_theme_value_falls_back_with_a_warning() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths::under(tmp.path().to_path_buf());
+        std::fs::create_dir_all(paths.config_file.parent().unwrap()).expect("config dir");
+        std::fs::write(
+            &paths.config_file,
+            "theme = \"neon\"\nrefresh_interval_secs = 42\n",
+        )
+        .expect("config.toml with an unknown theme value");
+
+        let (loaded, warning) = load_config(&paths);
+
+        let warning = warning.expect("an unknown theme value must be reported");
+        assert!(warning.contains("neon"), "{warning:?}");
+        assert_eq!(loaded.theme, AppConfig::default().theme);
+        assert_eq!(loaded.refresh_interval_secs, 42);
+    }
+
+    /// RFC-070 D1: every saved form round-trips — `save_config` then
+    /// `load_config` returns the same `ThemeChoice`, for each of the four.
+    #[test]
+    fn every_theme_choice_round_trips_through_save_and_load() {
+        for choice in [
+            ThemeChoice::Light,
+            ThemeChoice::Dark,
+            ThemeChoice::HighContrastLight,
+            ThemeChoice::HighContrastDark,
+        ] {
+            let tmp = tempfile::TempDir::new().expect("tempdir");
+            let paths = AppPaths::under(tmp.path().to_path_buf());
+            let config = AppConfig {
+                theme: choice,
+                ..AppConfig::default()
+            };
+
+            save_config(&config, &paths).expect("save_config");
+            let (loaded, warning) = load_config(&paths);
+
+            assert_eq!(warning, None, "{choice:?}: {warning:?}");
+            assert_eq!(loaded.theme, choice);
+        }
+    }
+
+    /// RFC-070 D1: `save_config` writes `theme` only — an older
+    /// `dark_theme` key never reappears once a file has been through one
+    /// save, even though the saved form happens to still parse as valid
+    /// TOML if it did.
+    #[test]
+    fn save_config_writes_theme_only_not_dark_theme() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths::under(tmp.path().to_path_buf());
+
+        save_config(&AppConfig::default(), &paths).expect("save_config");
+        let text = std::fs::read_to_string(&paths.config_file).expect("read saved config.toml");
+
+        assert!(text.contains("theme = \"dark\""), "{text:?}");
+        assert!(!text.contains("dark_theme"), "{text:?}");
     }
 }
