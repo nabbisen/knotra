@@ -947,6 +947,23 @@ mod tests {
                     );
                 }
             }
+
+            // RFC-070 Amendment A2 item 3: the ring a focused text field
+            // actually draws (`ring_color_for`'s choice, not necessarily
+            // the raw `focus.ring_color` above) against the field's own
+            // background (`surface` — the only background `text_input_style`
+            // ever gives a field, confirmed by reading that function).
+            let field_ring_color = crate::widget::ring::ring_color_for(
+                &theme.tokens,
+                Some(iced::Background::Color(to_iced(p.surface))),
+            );
+            let field_ring_ratio =
+                snora::design::contrast::contrast_ratio(from_iced(field_ring_color), p.surface);
+            assert!(
+                field_ring_ratio >= non_text_floor,
+                "{theme_name} a focused field's ring on surface: {field_ring_ratio:.2}:1 \
+                 is below the required {non_text_floor}:1 non-text boundary floor"
+            );
         }
     }
 }

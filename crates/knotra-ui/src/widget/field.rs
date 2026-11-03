@@ -22,6 +22,21 @@ fn to_iced(color: snora::design::Color) -> iced::Color {
 /// border, selection, the icon slot) comes from the active theme's tokens
 /// too, so the field restyles with RFC-070's high-contrast presets like
 /// every other control, rather than keeping iced's own hard-coded default.
+///
+/// **RFC-070 Amendment A2: focus is the ring, not a border recolour.**
+/// Before A2, `Focused` only swapped the 1px border's colour to `accent` —
+/// in HC dark, `accent` and `border` are both near white, so a keyboard
+/// user could not see which field had focus (WCAG 2.4.7). `Focused` now
+/// draws [`super::ring::ring_color_for`]'s choice at `tokens.focus.ring_width`
+/// (2px normal, 3px HC) — the same ring every other control
+/// (`buttons::style::with_focus_ring`, `select::menu_style`) already draws.
+///
+/// **A2: `Disabled` stays readable.** Before A2, the background and the
+/// value both faded to 50% opacity — the same faint-unavailable-control
+/// defect RFC-071 Amendment A1 D13 fixed for buttons, never applied here.
+/// `Disabled` now keeps full opacity throughout: `value` moves to
+/// `text_muted` (full alpha) rather than a faded `text_primary`, and the
+/// border and background are untouched, same as `Active`.
 pub fn text_input_style(
     tokens: &Tokens,
     status: iced::widget::text_input::Status,
@@ -58,20 +73,14 @@ pub fn text_input_style(
         },
         Status::Focused { .. } => Style {
             border: Border {
-                color: accent,
+                color: super::ring::ring_color_for(tokens, Some(active.background)),
+                width: tokens.focus.ring_width,
                 ..active.border
             },
             ..active
         },
         Status::Disabled => Style {
-            background: Background::Color(Color {
-                a: 0.5,
-                ..background
-            }),
-            value: Color {
-                a: 0.5,
-                ..active.value
-            },
+            value: to_iced(tokens.palette.text_muted),
             ..active
         },
     }
@@ -264,7 +273,9 @@ fn shows_error(error: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::shows_error;
+    use super::{shows_error, text_input_style};
+    use iced::widget::text_input::Status;
+    use snora::design::Tokens;
 
     /// The one decision `validated_field` makes about its error line:
     /// show it exactly when the caller supplied one. RFC-038 R4 — proven
@@ -275,5 +286,82 @@ mod tests {
     fn error_shows_whenever_one_is_given_and_never_otherwise() {
         assert!(shows_error(Some("refresh interval must be a number")));
         assert!(!shows_error(None));
+    }
+
+    fn all_four_themes() -> [(&'static str, Tokens); 4] {
+        [
+            ("light", Tokens::light()),
+            ("dark", Tokens::dark()),
+            ("high_contrast_light", Tokens::high_contrast_light()),
+            ("high_contrast_dark", Tokens::high_contrast_dark()),
+        ]
+    }
+
+    /// RFC-070 Amendment A2 item 1: a focused field draws the same ring
+    /// every other control does — width `tokens.focus.ring_width` (2px
+    /// normal, 3px HC), always wider than the unfocused/active 1px border.
+    #[test]
+    fn focused_border_width_is_the_rings_width_in_every_theme() {
+        for (theme_name, tokens) in all_four_themes() {
+            let active = text_input_style(&tokens, Status::Active);
+            let focused = text_input_style(&tokens, Status::Focused { is_hovered: false });
+
+            assert_eq!(
+                focused.border.width, tokens.focus.ring_width,
+                "{theme_name}: focused border width must equal the ring width"
+            );
+            assert!(
+                focused.border.width > active.border.width,
+                "{theme_name}: focused width {} must exceed the unfocused width {}",
+                focused.border.width,
+                active.border.width
+            );
+        }
+    }
+
+    /// RFC-070 Amendment A2 item 1: focus is never colour alone — the width
+    /// change above already guarantees this (2px/3px vs. 1px), asserted
+    /// here directly as its own requirement rather than left to follow
+    /// from the width test by implication.
+    #[test]
+    fn focused_style_differs_from_unfocused_by_colour_or_width_in_every_theme() {
+        for (theme_name, tokens) in all_four_themes() {
+            let active = text_input_style(&tokens, Status::Active);
+            let focused = text_input_style(&tokens, Status::Focused { is_hovered: false });
+
+            assert!(
+                focused.border.color != active.border.color
+                    || focused.border.width != active.border.width,
+                "{theme_name}: focused border must differ from unfocused by colour or width"
+            );
+        }
+    }
+
+    /// RFC-070 Amendment A2 item 2 (RFC-071 Amendment A1 D13, applied to
+    /// fields): an unavailable field's value is `text_muted`, at full
+    /// opacity — never the pre-A2 faded `text_primary` at alpha 0.5. The
+    /// background is likewise untouched (same as `Active`), so neither the
+    /// fill nor the text dims.
+    #[test]
+    fn disabled_value_is_text_muted_at_full_opacity_in_every_theme() {
+        for (theme_name, tokens) in all_four_themes() {
+            let active = text_input_style(&tokens, Status::Active);
+            let disabled = text_input_style(&tokens, Status::Disabled);
+            let expected_value =
+                snora::design::style::color::to_iced_color(tokens.palette.text_muted);
+
+            assert_eq!(
+                disabled.value, expected_value,
+                "{theme_name}: disabled value must be text_muted"
+            );
+            assert_eq!(
+                disabled.value.a, 1.0,
+                "{theme_name}: disabled value must be at full opacity"
+            );
+            assert_eq!(
+                disabled.background, active.background,
+                "{theme_name}: disabled background must not fade"
+            );
+        }
     }
 }
