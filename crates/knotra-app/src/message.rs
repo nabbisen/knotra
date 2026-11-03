@@ -179,14 +179,22 @@ pub enum BackgroundMessage {
         lease_id: OperationLeaseId,
         log: OperationLog,
     },
+    /// Task 103: `progress` is boxed — `SmartPullProgress` embeds a
+    /// `ProjectOperationResult` by value, so it grew with that struct too,
+    /// and was already `Message`'s actual size driver (confirmed by
+    /// measuring `std::mem::size_of` directly). See
+    /// `BackgroundMessage::ConflictOperationCompleted`'s own doc comment
+    /// for why a targeted box here, not `Message::Background` as a whole.
     SmartPullProjectCompleted {
         lease_id: OperationLeaseId,
-        progress: SmartPullProgress,
+        progress: Box<SmartPullProgress>,
     },
+    /// Task 103: `result` is boxed, same reasoning as
+    /// `ConflictOperationCompleted`'s own doc comment.
     ActivityFetchRetryProjectCompleted {
         lease_id: OperationLeaseId,
         operation_id: OperationId,
-        result: knotra_vcs::model::operation::ProjectOperationResult,
+        result: Box<knotra_vcs::model::operation::ProjectOperationResult>,
     },
     SmartPullRetryStatusReady {
         request_id: RetryPreparationId,
@@ -199,9 +207,18 @@ pub enum BackgroundMessage {
     /// Conflict file list loaded.
     ConflictFilesLoaded(knotra_vcs::ProjectConflictDetail),
     /// Conflict mutation completed, with refreshed conflict state.
+    ///
+    /// Task 103: `result` is boxed — `ProjectOperationResult` grew by one
+    /// field (`project_name`), which pushed `Message`'s own largest-vs-
+    /// second-largest variant gap over clippy's `large_enum_variant`
+    /// threshold. Boxing just this one field (the actual size driver,
+    /// confirmed by measuring `std::mem::size_of` directly rather than
+    /// guessing) fixes it without boxing the whole `BackgroundMessage`
+    /// payload, which `Message::Background`'s ~40 call sites would have
+    /// made a far larger change for the same result.
     ConflictOperationCompleted {
         lease_id: OperationLeaseId,
-        result: knotra_vcs::model::operation::ProjectOperationResult,
+        result: Box<knotra_vcs::model::operation::ProjectOperationResult>,
         detail: knotra_vcs::ProjectConflictDetail,
     },
     /// Changelog draft generated.
@@ -227,9 +244,14 @@ pub enum BackgroundMessage {
         lease_id: OperationLeaseId,
         result: FreezeResult,
     },
+    /// Task 103: `result` is boxed, same reasoning as
+    /// `ConflictOperationCompleted`'s own doc comment —
+    /// `ContextSwitchResult` also embeds a `ProjectOperationResult` by
+    /// value (`operation_result`), and was the actual remaining size
+    /// driver once the three sibling variants above were boxed.
     ContextSwitchDone {
         lease_id: OperationLeaseId,
-        result: ContextSwitchResult,
+        result: Box<ContextSwitchResult>,
     },
     /// Recent-commits list loaded for the detail panel (RFC-039 D4).
     RecentCommitsLoaded(knotra_vcs::RecentCommits),

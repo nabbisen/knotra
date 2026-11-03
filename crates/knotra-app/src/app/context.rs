@@ -34,6 +34,7 @@ fn context_switch_disabled_reason(
 fn blocked_context_switch_result(project: &Project, reason: String) -> ProjectOperationResult {
     ProjectOperationResult {
         project_id: project.id.clone(),
+        project_name: Some(project.name.clone()),
         outcome: ProjectOperationOutcome::Failed,
         success: false,
         skip_reason: None,
@@ -161,7 +162,10 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
                     }
                 },
                 move |result| {
-                    Message::Background(BackgroundMessage::ContextSwitchDone { lease_id, result })
+                    Message::Background(BackgroundMessage::ContextSwitchDone {
+                        lease_id,
+                        result: Box::new(result),
+                    })
                 },
             )
         }

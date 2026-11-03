@@ -74,6 +74,11 @@ fn make_operation_result(
     let success = outcome != ProjectOperationOutcome::Failed;
     ProjectOperationResult {
         project_id,
+        // Task 103: this generic fixture is shared by tests that are not
+        // about project naming at all — `None` (not an empty string)
+        // honestly says "this synthetic result never recorded one", the
+        // same shape a genuinely pre-Task-103 log carries.
+        project_name: None,
         outcome,
         success,
         skip_reason: None,
@@ -3697,11 +3702,12 @@ fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
         &mut state,
         Message::Background(BackgroundMessage::SmartPullProjectCompleted {
             lease_id,
-            progress: SmartPullProgress {
+            progress: Box::new(SmartPullProgress {
                 project_id: project.id.clone(),
                 project_name: project.name.clone(),
                 result: ProjectOperationResult {
                     project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
                     outcome: ProjectOperationOutcome::Skipped,
                     success: true,
                     skip_reason: Some("retry:not_in_active_workspace".to_owned()),
@@ -3712,7 +3718,7 @@ fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
                     error_message: None,
                 },
                 recovery_hint: None,
-            },
+            }),
         }),
     );
 
@@ -4704,8 +4710,9 @@ fn conflict_operation_completion_success_refreshes_browsing_detail() {
         &mut state,
         Message::Background(BackgroundMessage::ConflictOperationCompleted {
             lease_id,
-            result: ProjectOperationResult {
+            result: Box::new(ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Succeeded,
                 success: true,
                 skip_reason: None,
@@ -4714,7 +4721,7 @@ fn conflict_operation_completion_success_refreshes_browsing_detail() {
                 stderr: String::new(),
                 exit_code: Some(0),
                 error_message: None,
-            },
+            }),
             detail,
         }),
     );
@@ -4748,8 +4755,9 @@ fn conflict_operation_completion_failure_keeps_panel_error_visible() {
         &mut state,
         Message::Background(BackgroundMessage::ConflictOperationCompleted {
             lease_id,
-            result: ProjectOperationResult {
+            result: Box::new(ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -4758,7 +4766,7 @@ fn conflict_operation_completion_failure_keeps_panel_error_visible() {
                 stderr: "failed".to_owned(),
                 exit_code: Some(1),
                 error_message: Some("failed".to_owned()),
-            },
+            }),
             detail,
         }),
     );
@@ -4982,7 +4990,10 @@ fn fetch_retry_records_ineligible_source_target_as_skipped() {
         Message::Background(BackgroundMessage::ActivityFetchRetryProjectCompleted {
             lease_id: run.lease_id,
             operation_id: run.operation_id,
-            result: make_operation_result(project.id, ProjectOperationOutcome::Succeeded),
+            result: Box::new(make_operation_result(
+                project.id,
+                ProjectOperationOutcome::Succeeded,
+            )),
         }),
     );
 

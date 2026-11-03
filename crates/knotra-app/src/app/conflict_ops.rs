@@ -158,7 +158,7 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
                 move |(result, detail)| {
                     Message::Background(BackgroundMessage::ConflictOperationCompleted {
                         lease_id,
-                        result,
+                        result: Box::new(result),
                         detail,
                     })
                 },
@@ -221,7 +221,7 @@ pub(super) fn handle_conflict_ops(state: &mut AppState, msg: ConflictOpsMessage)
                 move |(result, detail)| {
                     Message::Background(BackgroundMessage::ConflictOperationCompleted {
                         lease_id,
-                        result,
+                        result: Box::new(result),
                         detail,
                     })
                 },

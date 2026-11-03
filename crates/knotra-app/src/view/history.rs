@@ -129,7 +129,7 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
                     .to_lowercase()
                     .contains(&q)
                 || log.result.per_project.iter().any(|p| {
-                    p.project_id.to_string().contains(&q)
+                    project_name_matches_search(state, p, &q)
                         || p.stdout.to_lowercase().contains(&q)
                         || p.stderr.to_lowercase().contains(&q)
                 })
@@ -290,7 +290,10 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens))
         )
-        .on_press(Message::CopyToClipboard(export_text(result)))
+        .on_press(Message::CopyToClipboard(export_text(
+            result,
+            &copied_log_names(state, result)
+        )))
         .style({
             let t = tokens.clone();
             move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
@@ -323,6 +326,74 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     // unused clone of `operation_id`) is gone here as a natural consequence
     // of this rewrite, not a separate cleanup.
     record_row(summary.into(), detail)
+}
+
+// ---------------------------------------------------------------------------
+// Project name resolution (Task 103)
+// ---------------------------------------------------------------------------
+
+/// Task 103: what History calls a project named in a logged
+/// `ProjectOperationResult` — one resolver, used by all three display sites
+/// (details, the copied log, search) and by nothing else. Each caller
+/// decides how to draw its own case; this only decides *which* case.
+enum ProjectNameResolution {
+    /// The log's own stored name — the common case for any entry logged by
+    /// this version of knotra or later.
+    Stored(String),
+    /// No stored name (an entry logged before this field existed), but a
+    /// project with this id is still registered in some workspace — its
+    /// name as of right now, which may differ from what it was called when
+    /// the operation ran.
+    Current(String),
+    /// No stored name, and no project with this id in any workspace today.
+    Removed,
+}
+
+fn resolve_project_name(
+    state: &AppState,
+    pr: &knotra_vcs::model::operation::ProjectOperationResult,
+) -> ProjectNameResolution {
+    if let Some(name) = &pr.project_name {
+        ProjectNameResolution::Stored(name.clone())
+    } else if let Some(name) = state.find_project_name(&pr.project_id) {
+        ProjectNameResolution::Current(name)
+    } else {
+        ProjectNameResolution::Removed
+    }
+}
+
+/// Task 103: History search's own use of [`resolve_project_name`] —
+/// matches the stored and the current name, case-insensitively, never the
+/// id (which no screen shows any more). `Removed` has no name text to
+/// search by design (its own catalog label is translated UI chrome, not
+/// something a user would type to find it). `q` is already lower-cased by
+/// the caller.
+fn project_name_matches_search(
+    state: &AppState,
+    pr: &knotra_vcs::model::operation::ProjectOperationResult,
+    q: &str,
+) -> bool {
+    match resolve_project_name(state, pr) {
+        ProjectNameResolution::Stored(name) | ProjectNameResolution::Current(name) => {
+            name.to_lowercase().contains(q)
+        }
+        ProjectNameResolution::Removed => false,
+    }
+}
+
+/// Task 103: the details view's own use of [`resolve_project_name`] — a
+/// name when there is one, `history.removed_project` (translated) when
+/// there is not. Pulled out as its own pure function so this one line of
+/// policy (which text each case shows) is directly testable, the same
+/// reason `shows_error`/`u32_field_error` exist in other view modules.
+fn detail_project_name(
+    state: &AppState,
+    pr: &knotra_vcs::model::operation::ProjectOperationResult,
+) -> String {
+    match resolve_project_name(state, pr) {
+        ProjectNameResolution::Stored(name) | ProjectNameResolution::Current(name) => name,
+        ProjectNameResolution::Removed => state.t("history.removed_project").to_owned(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -377,8 +448,9 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
             ProjectOperationOutcome::Failed => "✗",
             ProjectOperationOutcome::Skipped => "-",
         };
+        let name = detail_project_name(state, pr);
         rows.push(
-            text(format!("  {icon} {}", pr.project_id))
+            text(format!("  {icon} {name}"))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens))
                 .into(),
@@ -480,7 +552,32 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
 /// such an entry was logged, same as the on-screen path's
 /// `skip_reason_display` fallback (`view.rs`) — RFC-046 D4's deliberate
 /// compatibility with pre-fix records, not a live defect.
-fn export_text(result: &OperationResult) -> String {
+/// Task 103: resolves each `result.per_project` entry's display name for
+/// [`export_text`] — computed here, where `state` is available, rather
+/// than inside `export_text` itself, which must not gain an `&AppState`
+/// parameter (see its own doc comment, R7a). "Removed project" is a literal
+/// English string by the same existing exemption the rest of the copied
+/// log already relies on — the export is English by design, so this is not
+/// routed through `state.t()`. One name per `result.per_project`, same
+/// order, same length.
+fn copied_log_names(state: &AppState, result: &OperationResult) -> Vec<String> {
+    result
+        .per_project
+        .iter()
+        .map(|pr| match resolve_project_name(state, pr) {
+            ProjectNameResolution::Stored(name) | ProjectNameResolution::Current(name) => name,
+            ProjectNameResolution::Removed => "Removed project".to_owned(),
+        })
+        .collect()
+}
+
+/// `names` is [`copied_log_names`]'s output — one entry per
+/// `result.per_project`, same order — kept as a parameter rather than
+/// resolved inside this function because `export_text` itself must not
+/// gain an `&AppState` parameter (see this function's own doc comment
+/// above, R7a); the caller resolves names where `state` is available and
+/// hands the plain strings in.
+fn export_text(result: &OperationResult, names: &[String]) -> String {
     let kind = result.kind.to_string();
     let ts = result
         .started_at
@@ -489,13 +586,13 @@ fn export_text(result: &OperationResult) -> String {
     let status = summarise_status(result);
     let status_text = format!("{} {}", status.glyph, status.label_en);
     let mut text_parts = vec![format!("# {} — {} — {}", kind, ts, status_text)];
-    for pr in &result.per_project {
+    for (pr, name) in result.per_project.iter().zip(names) {
         let ok = match pr.effective_outcome() {
             ProjectOperationOutcome::Succeeded => "ok",
             ProjectOperationOutcome::Failed => "FAILED",
             ProjectOperationOutcome::Skipped => "SKIPPED",
         };
-        text_parts.push(format!("  {} [{}]", pr.project_id, ok));
+        text_parts.push(format!("  {name} ({}) [{}]", pr.project_id, ok));
         if let Some(reason) = &pr.skip_reason {
             text_parts.push(format!("    {}", reason));
         }
@@ -585,6 +682,7 @@ mod tests {
         operation::{OperationId, OperationKind, ProjectOperationResult},
         project::ProjectId,
     };
+    use knotra_vcs::{Project, Workspace};
 
     use super::*;
 
@@ -605,9 +703,10 @@ mod tests {
         }
     }
 
-    fn succeeded_project(id: ProjectId) -> ProjectOperationResult {
+    fn succeeded_project(id: ProjectId, name: &str) -> ProjectOperationResult {
         ProjectOperationResult {
             project_id: id,
+            project_name: Some(name.to_owned()),
             outcome: ProjectOperationOutcome::Succeeded,
             success: true,
             skip_reason: None,
@@ -619,9 +718,10 @@ mod tests {
         }
     }
 
-    fn failed_project(id: ProjectId) -> ProjectOperationResult {
+    fn failed_project(id: ProjectId, name: &str) -> ProjectOperationResult {
         ProjectOperationResult {
             project_id: id,
+            project_name: Some(name.to_owned()),
             outcome: ProjectOperationOutcome::Failed,
             success: false,
             skip_reason: None,
@@ -633,9 +733,14 @@ mod tests {
         }
     }
 
-    fn skipped_project(id: ProjectId, skip_reason: Option<String>) -> ProjectOperationResult {
+    fn skipped_project(
+        id: ProjectId,
+        name: &str,
+        skip_reason: Option<String>,
+    ) -> ProjectOperationResult {
         ProjectOperationResult {
             project_id: id,
+            project_name: Some(name.to_owned()),
             outcome: ProjectOperationOutcome::Skipped,
             success: true,
             skip_reason,
@@ -653,9 +758,9 @@ mod tests {
     #[test]
     fn export_text_reports_a_successful_entry_in_english() {
         let id = ProjectId::new();
-        let result = sample_result(vec![succeeded_project(id.clone())], false, None);
+        let result = sample_result(vec![succeeded_project(id.clone(), "dirty-1")], false, None);
 
-        let text = export_text(&result);
+        let text = export_text(&result, &["dirty-1".to_owned()]);
 
         assert!(
             text.starts_with("# Fetch — "),
@@ -666,8 +771,8 @@ mod tests {
             "expected the fixed English status label, got: {text}"
         );
         assert!(
-            text.contains(&format!("{id} [ok]")),
-            "expected the project id with its outcome tag, got: {text}"
+            text.contains(&format!("dirty-1 ({id}) [ok]")),
+            "expected the project's name, then its id in parens, then its outcome tag, got: {text}"
         );
         assert!(
             text.contains("$ git fetch"),
@@ -682,10 +787,14 @@ mod tests {
     #[test]
     fn export_text_emits_the_skip_reason_code_verbatim() {
         let id = ProjectId::new();
-        let skipped = skipped_project(id, Some("retry:not_in_active_workspace".to_owned()));
+        let skipped = skipped_project(
+            id,
+            "clean-1",
+            Some("retry:not_in_active_workspace".to_owned()),
+        );
         let result = sample_result(vec![skipped], false, None);
 
-        let text = export_text(&result);
+        let text = export_text(&result, &["clean-1".to_owned()]);
 
         assert!(
             text.contains("retry:not_in_active_workspace"),
@@ -701,6 +810,7 @@ mod tests {
         let id = ProjectId::new();
         let failed = ProjectOperationResult {
             project_id: id,
+            project_name: Some("ahead-1".to_owned()),
             outcome: ProjectOperationOutcome::Failed,
             success: false,
             skip_reason: None,
@@ -712,7 +822,7 @@ mod tests {
         };
         let result = sample_result(vec![failed], false, None);
 
-        let text = export_text(&result);
+        let text = export_text(&result, &["ahead-1".to_owned()]);
 
         assert!(
             text.contains("fatal: could not read remote"),
@@ -747,23 +857,26 @@ mod tests {
         let cases: Vec<(&str, OperationResult, &str)> = vec![
             (
                 "rolled back",
-                sample_result(vec![succeeded_project(id.clone())], true, Some(true)),
+                sample_result(vec![succeeded_project(id.clone(), "p")], true, Some(true)),
                 "history.rollback_note",
             ),
             (
                 "rollback failed",
-                sample_result(vec![succeeded_project(id.clone())], true, Some(false)),
+                sample_result(vec![succeeded_project(id.clone(), "p")], true, Some(false)),
                 "history.status_rollback_failed",
             ),
             (
                 "success",
-                sample_result(vec![succeeded_project(id.clone())], false, None),
+                sample_result(vec![succeeded_project(id.clone(), "p")], false, None),
                 "history.status_success",
             ),
             (
                 "partial",
                 sample_result(
-                    vec![succeeded_project(id.clone()), failed_project(id.clone())],
+                    vec![
+                        succeeded_project(id.clone(), "p"),
+                        failed_project(id.clone(), "p"),
+                    ],
                     false,
                     None,
                 ),
@@ -771,12 +884,12 @@ mod tests {
             ),
             (
                 "skipped",
-                sample_result(vec![skipped_project(id.clone(), None)], false, None),
+                sample_result(vec![skipped_project(id.clone(), "p", None)], false, None),
                 "history.status_skipped",
             ),
             (
                 "failed",
-                sample_result(vec![failed_project(id.clone())], false, None),
+                sample_result(vec![failed_project(id.clone(), "p")], false, None),
                 "history.status_failed",
             ),
         ];
@@ -797,5 +910,112 @@ mod tests {
                 summary.label_key
             );
         }
+    }
+
+    // -------------------------------------------------------------------
+    // Task 103: project name resolution.
+    // -------------------------------------------------------------------
+
+    fn state_with_registered_project(project: &Project) -> AppState {
+        let mut state = AppState::new(crate::config::AppConfig::default());
+        let mut workspace = Workspace::new("Demo");
+        workspace.projects.push(project.clone());
+        state.all_workspaces = vec![workspace];
+        state
+    }
+
+    fn result_with_name(
+        project_id: ProjectId,
+        project_name: Option<String>,
+    ) -> ProjectOperationResult {
+        ProjectOperationResult {
+            project_id,
+            project_name,
+            outcome: ProjectOperationOutcome::Succeeded,
+            success: true,
+            skip_reason: None,
+            commands_executed: Vec::new(),
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: Some(0),
+            error_message: None,
+        }
+    }
+
+    /// The resolver's three cases: a stored name wins even when the
+    /// project is also still registered (so a rename since the operation
+    /// ran does not retroactively rewrite history); no stored name falls
+    /// back to the current registered name; neither falls back to removed.
+    #[test]
+    fn resolve_project_name_covers_all_three_cases() {
+        let project = Project::new("current-name", "/tmp/p");
+        let state = state_with_registered_project(&project);
+
+        let stored = result_with_name(project.id.clone(), Some("name-as-logged".to_owned()));
+        assert!(matches!(
+            resolve_project_name(&state, &stored),
+            ProjectNameResolution::Stored(name) if name == "name-as-logged"
+        ));
+
+        let no_stored_name_but_registered = result_with_name(project.id.clone(), None);
+        assert!(matches!(
+            resolve_project_name(&state, &no_stored_name_but_registered),
+            ProjectNameResolution::Current(name) if name == "current-name"
+        ));
+
+        let removed = result_with_name(ProjectId::new(), None);
+        assert!(matches!(
+            resolve_project_name(&state, &removed),
+            ProjectNameResolution::Removed
+        ));
+    }
+
+    /// Details: a removed project shows the translated label, not a blank
+    /// or a raw id.
+    #[test]
+    fn detail_project_name_shows_the_removed_label_when_nothing_resolves() {
+        let state = AppState::new(crate::config::AppConfig::default());
+        let removed = result_with_name(ProjectId::new(), None);
+
+        assert_eq!(
+            detail_project_name(&state, &removed),
+            state.t("history.removed_project")
+        );
+    }
+
+    /// Details: a stored name is shown verbatim.
+    #[test]
+    fn detail_project_name_shows_the_stored_name() {
+        let state = AppState::new(crate::config::AppConfig::default());
+        let result = result_with_name(ProjectId::new(), Some("dirty-1".to_owned()));
+
+        assert_eq!(detail_project_name(&state, &result), "dirty-1");
+    }
+
+    /// Search: matches the stored name case-insensitively, and a removed
+    /// project (no name to search by) never matches.
+    #[test]
+    fn project_name_matches_search_is_case_insensitive_and_never_matches_removed() {
+        let state = AppState::new(crate::config::AppConfig::default());
+        let named = result_with_name(ProjectId::new(), Some("Dirty-1".to_owned()));
+        let removed = result_with_name(ProjectId::new(), None);
+
+        assert!(project_name_matches_search(&state, &named, "dirty"));
+        assert!(!project_name_matches_search(&state, &named, "clean"));
+        assert!(!project_name_matches_search(&state, &removed, "dirty"));
+    }
+
+    /// The copied log: a removed project is named in English, by its own
+    /// exemption (`export_text`'s own doc comment) — not the translated
+    /// catalog key `detail_project_name` uses.
+    #[test]
+    fn copied_log_names_uses_removed_project_in_english() {
+        let state = AppState::new(crate::config::AppConfig::default());
+        let result = sample_result(vec![result_with_name(ProjectId::new(), None)], false, None);
+
+        assert_eq!(
+            copied_log_names(&state, &result),
+            vec!["Removed project".to_owned()]
+        );
     }
 }

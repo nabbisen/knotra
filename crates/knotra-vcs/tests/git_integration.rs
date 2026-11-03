@@ -442,6 +442,9 @@ async fn mark_resolved_stages_conflicted_file() {
         "mark_resolved failed: {:?}",
         result.error_message
     );
+    // Task 103: the real git backend path sets `project_name`, not just the
+    // app-level construction sites.
+    assert_eq!(result.project_name.as_deref(), Some("test-repo"));
 
     let output = git_command(&["diff", "--cached", "--name-only"], dir.path())
         .output()
@@ -535,6 +538,9 @@ async fn tag_create_and_delete_roundtrip() {
         "tag_create failed: {:?}",
         create_result.error_message
     );
+    // Task 103: `tag_create`'s own `run_git`-style precomputed-local path
+    // sets `project_name` too, not only the simpler direct-`project` sites.
+    assert_eq!(create_result.project_name.as_deref(), Some("test-repo"));
 
     // Verify via validate.
     use std::collections::HashSet;

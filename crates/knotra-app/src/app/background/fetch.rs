@@ -44,7 +44,11 @@ pub(super) fn activity_fetch_retry_project_completed(
     }
 
     let mut per_project = run.completed;
-    per_project.extend(run.exclusions.iter().map(skipped_retry_result));
+    per_project.extend(
+        run.exclusions
+            .iter()
+            .map(|e| skipped_retry_result(state, e)),
+    );
     let log = OperationLog {
         result: OperationResult {
             operation_id: run.operation_id,

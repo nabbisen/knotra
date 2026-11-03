@@ -706,6 +706,8 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "The history folder could not be read.",
     );
     m.insert("history.copy_log", "Copy log");
+    // Task 103.
+    m.insert("history.removed_project", "Removed project");
     m.insert("history.commands_header", "Commands");
     m.insert("history.recovery_header", "Recovery steps");
     m.insert("history.rollback_note", "Rolled back");
@@ -1532,6 +1534,8 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "履歴フォルダーを読み込めませんでした。",
     );
     m.insert("history.copy_log", "ログをコピー");
+    // Task 103.
+    m.insert("history.removed_project", "削除済みのプロジェクト");
     m.insert("history.commands_header", "コマンド");
     m.insert("history.recovery_header", "回復手順");
     m.insert("history.rollback_note", "ロールバック済み");

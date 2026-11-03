@@ -45,6 +45,7 @@ async fn run_git(project: &Project, args: &[&str]) -> ProjectOperationResult {
     let path = project.path.clone();
     let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
     let project_id = project.id.clone();
+    let project_name = project.name.clone();
 
     tokio::task::spawn_blocking(move || {
         let result = Command::new("git")
@@ -56,6 +57,7 @@ async fn run_git(project: &Project, args: &[&str]) -> ProjectOperationResult {
                 let code = output.status.code().unwrap_or(-1);
                 ProjectOperationResult {
                     project_id: project_id.clone(),
+                    project_name: Some(project_name.clone()),
                     outcome: ProjectOperationOutcome::from_success(output.status.success()),
                     success: output.status.success(),
                     skip_reason: None,
@@ -72,6 +74,7 @@ async fn run_git(project: &Project, args: &[&str]) -> ProjectOperationResult {
             }
             Err(e) => ProjectOperationResult {
                 project_id,
+                project_name: Some(project_name),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -86,6 +89,7 @@ async fn run_git(project: &Project, args: &[&str]) -> ProjectOperationResult {
     .await
     .unwrap_or_else(|e| ProjectOperationResult {
         project_id: project.id.clone(),
+        project_name: Some(project.name.clone()),
         outcome: ProjectOperationOutcome::Failed,
         success: false,
         skip_reason: None,
@@ -534,12 +538,15 @@ pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationRe
     let name = tag_name.to_owned();
     let project_id = project.id.clone();
     let project_id2 = project.id.clone();
+    let project_name = project.name.clone();
+    let project_name2 = project.name.clone();
 
     tokio::task::spawn_blocking(move || {
         use endringer_core::backend::VcsBackend;
         match endringer_git::GitBackend::open(&path) {
             Err(e) => ProjectOperationResult {
                 project_id: project_id.clone(),
+                project_name: Some(project_name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -552,6 +559,7 @@ pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationRe
             Ok(backend) => match backend.create_tag(&name) {
                 Ok(()) => ProjectOperationResult {
                     project_id: project_id.clone(),
+                    project_name: Some(project_name.clone()),
                     outcome: ProjectOperationOutcome::Succeeded,
                     success: true,
                     skip_reason: None,
@@ -563,6 +571,7 @@ pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationRe
                 },
                 Err(e) => ProjectOperationResult {
                     project_id,
+                    project_name: Some(project_name),
                     outcome: ProjectOperationOutcome::Failed,
                     success: false,
                     skip_reason: None,
@@ -578,6 +587,7 @@ pub async fn tag_create(project: &Project, tag_name: &str) -> ProjectOperationRe
     .await
     .unwrap_or_else(|e| ProjectOperationResult {
         project_id: project_id2,
+        project_name: Some(project_name2),
         outcome: ProjectOperationOutcome::Failed,
         success: false,
         skip_reason: None,
@@ -599,12 +609,15 @@ pub(crate) async fn tag_create_annotated(
     let msg = message.to_owned();
     let pid = project.id.clone();
     let pid2 = project.id.clone();
+    let pname = project.name.clone();
+    let pname2 = project.name.clone();
 
     tokio::task::spawn_blocking(move || {
         use endringer_core::backend::VcsBackend;
         match endringer_git::GitBackend::open(&path) {
             Err(e) => ProjectOperationResult {
                 project_id: pid,
+                project_name: Some(pname),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -617,6 +630,7 @@ pub(crate) async fn tag_create_annotated(
             Ok(b) => match b.create_annotated_tag(&name, &msg) {
                 Ok(()) => ProjectOperationResult {
                     project_id: pid,
+                    project_name: Some(pname),
                     outcome: ProjectOperationOutcome::Succeeded,
                     success: true,
                     skip_reason: None,
@@ -628,6 +642,7 @@ pub(crate) async fn tag_create_annotated(
                 },
                 Err(e) => ProjectOperationResult {
                     project_id: pid,
+                    project_name: Some(pname),
                     outcome: ProjectOperationOutcome::Failed,
                     success: false,
                     skip_reason: None,
@@ -643,6 +658,7 @@ pub(crate) async fn tag_create_annotated(
     .await
     .unwrap_or_else(|e| ProjectOperationResult {
         project_id: pid2,
+        project_name: Some(pname2),
         outcome: ProjectOperationOutcome::Failed,
         success: false,
         skip_reason: None,
@@ -753,6 +769,7 @@ pub async fn smart_pull(
         return (
             ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Succeeded,
                 success: true,
                 skip_reason: None,
@@ -831,6 +848,7 @@ pub async fn switch_context(
         return (
             ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -861,6 +879,7 @@ pub async fn switch_context(
         }
         _ => ProjectOperationResult {
             project_id: project.id.clone(),
+            project_name: Some(project.name.clone()),
             outcome: ProjectOperationOutcome::Failed,
             success: false,
             skip_reason: None,

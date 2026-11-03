@@ -127,6 +127,7 @@ pub(super) fn freeze_execution_done(
         .iter()
         .map(|r| knotra_vcs::model::operation::ProjectOperationResult {
             project_id: r.project_id.clone(),
+            project_name: Some(r.project_name.clone()),
             outcome: ProjectOperationOutcome::from_success(r.success),
             success: r.success,
             skip_reason: None,

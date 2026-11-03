@@ -97,6 +97,7 @@ impl VcsAdapter {
             Some(VcsKind::Jujutsu) => jj::fetch(project).await,
             None => ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -125,6 +126,7 @@ impl VcsAdapter {
             None => (
                 ProjectOperationResult {
                     project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
                     outcome: ProjectOperationOutcome::Failed,
                     success: false,
                     skip_reason: None,
@@ -175,6 +177,7 @@ impl VcsAdapter {
             return (
                 crate::model::operation::ProjectOperationResult {
                     project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
                     outcome: ProjectOperationOutcome::Failed,
                     success: false,
                     skip_reason: None,
@@ -193,6 +196,7 @@ impl VcsAdapter {
             None => (
                 crate::model::operation::ProjectOperationResult {
                     project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
                     outcome: ProjectOperationOutcome::Failed,
                     success: false,
                     skip_reason: None,
@@ -343,6 +347,7 @@ impl VcsAdapter {
                 Some(VcsKind::Jujutsu) => jj::bookmark_create(project, freeze_name).await,
                 None => crate::model::operation::ProjectOperationResult {
                     project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
                     outcome: ProjectOperationOutcome::Failed,
                     success: false,
                     skip_reason: None,
@@ -411,6 +416,7 @@ impl VcsAdapter {
                 Some(VcsKind::Jujutsu) => jj::bookmark_delete(project, freeze_name).await,
                 None => crate::model::operation::ProjectOperationResult {
                     project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
                     outcome: ProjectOperationOutcome::Failed,
                     success: false,
                     skip_reason: None,
@@ -511,6 +517,7 @@ impl VcsAdapter {
             Some(VcsKind::Git) => git::mark_resolved(project, file_path).await,
             _ => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -529,6 +536,7 @@ impl VcsAdapter {
             Some(VcsKind::Git) => git::abort_merge(project).await,
             _ => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -651,6 +659,7 @@ impl VcsAdapter {
             Some(VcsKind::Git) => git::push_tags(project, tag_name).await,
             _ => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -692,6 +701,7 @@ impl VcsAdapter {
             (Some(VcsKind::Jujutsu), _) => jj::bookmark_create(project, tag_name).await,
             (None, _) => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -718,6 +728,7 @@ impl VcsAdapter {
             Some(VcsKind::Jujutsu) => jj::bookmark_create(project, tag_name).await,
             None => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,
@@ -744,6 +755,7 @@ impl VcsAdapter {
             Some(VcsKind::Jujutsu) => jj::bookmark_delete(project, tag_name).await,
             None => crate::model::operation::ProjectOperationResult {
                 project_id: project.id.clone(),
+                project_name: Some(project.name.clone()),
                 outcome: ProjectOperationOutcome::Failed,
                 success: false,
                 skip_reason: None,

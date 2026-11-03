@@ -666,6 +666,23 @@ impl AppState {
         self.dashboard_display().ordered_selectable_ids
     }
 
+    /// Task 103: a project's *current* name, looked up by id across every
+    /// registered workspace — not only the active one, since a logged
+    /// operation can name a project that now lives in a different
+    /// workspace, or that was moved since. Used both to fill
+    /// `ProjectOperationResult.project_name` at construction time, for a
+    /// site that starts with only an id (`app/background/mod.rs`'s
+    /// `skipped_retry_result`), and as the "current name" branch of
+    /// History's own three-way resolver (`view/history.rs`'s
+    /// `resolve_project_name`).
+    pub fn find_project_name(&self, id: &knotra_vcs::ProjectId) -> Option<String> {
+        self.all_workspaces
+            .iter()
+            .flat_map(|ws| &ws.projects)
+            .find(|p| &p.id == id)
+            .map(|p| p.name.clone())
+    }
+
     /// RFC-071 D5: a status filter chip's own count.
     pub fn status_filter_count(&self, filter: &StatusFilter) -> usize {
         let projects = self

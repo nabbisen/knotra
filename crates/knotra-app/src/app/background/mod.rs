@@ -108,9 +108,13 @@ fn persist_log(log: &OperationLog, state: &mut AppState) {
     state.activity.completed_secs = 0;
 }
 
-fn skipped_retry_result(exclusion: &RetryExclusion) -> ProjectOperationResult {
+/// Task 103: `RetryExclusion` carries only an id — this looks its name up
+/// via `AppState::find_project_name` (across every workspace, not only the
+/// active one) rather than storing an empty string.
+fn skipped_retry_result(state: &AppState, exclusion: &RetryExclusion) -> ProjectOperationResult {
     ProjectOperationResult {
         project_id: exclusion.project_id.clone(),
+        project_name: state.find_project_name(&exclusion.project_id),
         outcome: ProjectOperationOutcome::Skipped,
         success: true,
         skip_reason: Some(exclusion.reason.code().to_owned()),
@@ -132,7 +136,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
             lease_id,
             operation_id,
             result,
-        } => fetch::activity_fetch_retry_project_completed(state, lease_id, operation_id, result),
+        } => fetch::activity_fetch_retry_project_completed(state, lease_id, operation_id, *result),
 
         BackgroundMessage::SmartPullRetryStatusReady {
             request_id,
@@ -152,7 +156,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
         }
 
         BackgroundMessage::SmartPullProjectCompleted { lease_id, progress } => {
-            smart_pull::smart_pull_project_completed(state, lease_id, progress)
+            smart_pull::smart_pull_project_completed(state, lease_id, *progress)
         }
 
         BackgroundMessage::SingleFetchCompleted { lease_id, log } => {
@@ -173,7 +177,7 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
             lease_id,
             result,
             detail,
-        } => conflict::conflict_operation_completed(state, lease_id, result, detail),
+        } => conflict::conflict_operation_completed(state, lease_id, *result, detail),
 
         BackgroundMessage::ChangelogDraftReady { request_id, draft } => {
             status::changelog_draft_ready(state, request_id, draft)
@@ -195,11 +199,45 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
         }
 
         BackgroundMessage::ContextSwitchDone { lease_id, result } => {
-            context_switch::context_switch_done(state, lease_id, result)
+            context_switch::context_switch_done(state, lease_id, *result)
         }
 
         BackgroundMessage::RecentCommitsLoaded(commits) => {
             detail_panel::recent_commits_loaded(state, commits)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use knotra_vcs::{Project, Workspace, model::operation::RetryExclusionReason};
+
+    /// Task 103: `skipped_retry_result` is the one construction site that
+    /// starts with only an id and must look the name up —
+    /// `AppState::find_project_name`, across every workspace, not only the
+    /// active one. Both outcomes it can reach: found, and genuinely absent
+    /// (never an empty string either way).
+    #[test]
+    fn skipped_retry_result_resolves_the_project_name_or_none() {
+        let project = Project::new("dirty-1", "/tmp/dirty-1");
+        let mut workspace = Workspace::new("Demo");
+        workspace.projects.push(project.clone());
+        let mut state = AppState::new(crate::config::AppConfig::default());
+        state.all_workspaces = vec![workspace];
+
+        let found = RetryExclusion {
+            project_id: project.id.clone(),
+            reason: RetryExclusionReason::ProjectPathMissing,
+        };
+        let result = skipped_retry_result(&state, &found);
+        assert_eq!(result.project_name.as_deref(), Some("dirty-1"));
+
+        let missing = RetryExclusion {
+            project_id: knotra_vcs::ProjectId::new(),
+            reason: RetryExclusionReason::NotInActiveWorkspace,
+        };
+        let result = skipped_retry_result(&state, &missing);
+        assert_eq!(result.project_name, None);
     }
 }

@@ -133,6 +133,14 @@ impl ProjectOperationOutcome {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectOperationResult {
     pub project_id: ProjectId,
+    /// Task 103: the project's name as it was when this operation ran —
+    /// History shows this (or, failing that, the project's *current* name
+    /// looked up by `project_id`, or "removed") instead of the bare
+    /// `project_id` a user cannot recognise. `None` only for a log written
+    /// before this field existed; every construction site in the app sets
+    /// `Some`, never an empty string.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_name: Option<String>,
     #[serde(default = "ProjectOperationResult::default_outcome")]
     pub outcome: ProjectOperationOutcome,
     pub success: bool,
@@ -522,6 +530,7 @@ mod tests {
                 finished_at: now,
                 per_project: vec![ProjectOperationResult {
                     project_id: ProjectId::new(),
+                    project_name: Some("test-project".to_owned()),
                     outcome: ProjectOperationOutcome::Skipped,
                     success: true,
                     skip_reason: Some(reason.code().to_owned()),
@@ -546,5 +555,56 @@ mod tests {
                 .and_then(RetryExclusionReason::from_code),
             Some(reason)
         );
+    }
+
+    fn sample_project_operation_result(project_name: Option<String>) -> ProjectOperationResult {
+        ProjectOperationResult {
+            project_id: ProjectId::new(),
+            project_name,
+            outcome: ProjectOperationOutcome::Succeeded,
+            success: true,
+            skip_reason: None,
+            commands_executed: vec!["git fetch".to_owned()],
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: Some(0),
+            error_message: None,
+        }
+    }
+
+    /// Task 103: a new result's `project_name` survives a JSON round trip —
+    /// the common case, any log written from this version of knotra on.
+    #[test]
+    fn project_name_round_trips_when_present() {
+        let result = sample_project_operation_result(Some("dirty-1".to_owned()));
+
+        let json = serde_json::to_string(&result).expect("serialize");
+        let decoded: ProjectOperationResult = serde_json::from_str(&json).expect("deserialize");
+
+        assert_eq!(decoded.project_name.as_deref(), Some("dirty-1"));
+    }
+
+    /// Task 103: a log JSON written before this field existed has no
+    /// `project_name` key at all — `#[serde(default)]` must still load it
+    /// as `None`, not fail to parse and not invent an empty string.
+    #[test]
+    fn a_log_without_the_project_name_key_loads_as_none() {
+        let result = sample_project_operation_result(None);
+        let mut json = serde_json::to_value(&result).expect("serialize to value");
+        // `project_name: None` is already omitted by `skip_serializing_if`
+        // (confirmed by this assertion, not assumed), so removing it again
+        // here is a no-op in practice — kept anyway so this test still
+        // proves the loading behaviour even if that attribute is ever
+        // dropped by accident.
+        assert!(
+            json.get("project_name").is_none(),
+            "a None project_name must already be omitted, not written as null"
+        );
+        json.as_object_mut().expect("object").remove("project_name");
+
+        let decoded: ProjectOperationResult =
+            serde_json::from_value(json).expect("deserialize a pre-Task-103 record");
+
+        assert_eq!(decoded.project_name, None);
     }
 }

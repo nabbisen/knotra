@@ -128,7 +128,7 @@ fn start_activity_fetch_retry(
         Message::Background(BackgroundMessage::ActivityFetchRetryProjectCompleted {
             lease_id,
             operation_id: operation_id.clone(),
-            result,
+            result: Box::new(result),
         })
     })
 }

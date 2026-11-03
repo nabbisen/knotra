@@ -9,6 +9,18 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — History showed a code instead of the project's name
+
+In an entry's details and in a copied log, each project was shown as a long internal code.
+It now shows the project's name, and searching History by a project's name finds its
+entries. Entries recorded before this version show the project's current name, or "Removed
+project" if it is no longer in any workspace.
+
+### Changed — `ProjectOperationResult` records the project's name (`knotra-vcs` crate)
+
+For developers using `knotra-vcs`: the struct gains `project_name: Option<String>`. Code
+that builds it with a struct literal must set the field. Saved logs without it still load.
+
 ### Changed — a new installation starts in the light theme
 
 knotra used to start in the dark theme. It now starts in the light theme, which many people

@@ -160,6 +160,14 @@ pub(super) fn smart_pull_project_completed(
             stderr: String::new(),
         })
         .collect();
+    // Task 103: computed before the `&mut state.sync.phase` match below,
+    // the same reason `retry_outcomes` already is — `skipped_retry_result`
+    // needs `state` immutably (`find_project_name`), which the match's own
+    // mutable borrow would otherwise conflict with.
+    let retry_skipped_results: Vec<_> = retry_exclusions
+        .iter()
+        .map(|e| skipped_retry_result(state, e))
+        .collect();
 
     let mut completed_log: Option<OperationLog> = None;
     let mut completed_lease: Option<OperationLeaseId> = None;
@@ -247,7 +255,7 @@ pub(super) fn smart_pull_project_completed(
 
                 let mut logged_results: Vec<_> =
                     completed.iter().map(|p| p.result.clone()).collect();
-                logged_results.extend(retry_exclusions.iter().map(skipped_retry_result));
+                logged_results.extend(retry_skipped_results);
                 completed_log = Some(OperationLog {
                     result: OperationResult {
                         operation_id: plan.id.clone(),

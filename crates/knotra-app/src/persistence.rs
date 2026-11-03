@@ -292,6 +292,11 @@ mod tests {
                 finished_at: now,
                 per_project: vec![ProjectOperationResult {
                     project_id: knotra_vcs::ProjectId::new(),
+                    // Task 103: `None` deliberately — this test's whole
+                    // point is a record written before a later field
+                    // existed, the same reason `skip_reason` above is
+                    // prose, not a code.
+                    project_name: None,
                     outcome: ProjectOperationOutcome::Skipped,
                     success: true,
                     skip_reason: Some(prose.to_owned()),

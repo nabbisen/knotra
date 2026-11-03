@@ -175,6 +175,7 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
                             project_name: entry.project_name.clone(),
                             result: knotra_vcs::model::operation::ProjectOperationResult {
                                 project_id: entry.project_id,
+                                project_name: Some(entry.project_name.clone()),
                                 outcome: ProjectOperationOutcome::Failed,
                                 success: false,
                                 skip_reason: None,
@@ -194,6 +195,7 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
                             project_name: entry.project_name.clone(),
                             result: knotra_vcs::model::operation::ProjectOperationResult {
                                 project_id: project.id.clone(),
+                                project_name: Some(entry.project_name.clone()),
                                 outcome: ProjectOperationOutcome::Skipped,
                                 success: true,
                                 skip_reason: entry
@@ -236,7 +238,7 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
             Task::run(pull_stream, move |progress| {
                 Message::Background(BackgroundMessage::SmartPullProjectCompleted {
                     lease_id,
-                    progress,
+                    progress: Box::new(progress),
                 })
             })
         }
@@ -313,8 +315,16 @@ fn start_bulk_fetch(
                 .get(&id)
                 .map(|project| project.name.clone())
                 .unwrap_or_else(|| state.t("plain.project").to_owned());
+            // Task 103: looked up across every workspace (`find_project_name`),
+            // not only `project_map` (the active workspace) — a project this
+            // skip names can still be registered elsewhere. Independent of
+            // the `project_name` local above, which exists only to give
+            // `ProjectOutcome` (immediate on-screen feedback, a required
+            // `String`) a human-readable placeholder when the lookup fails;
+            // `None` here is itself a meaningful, representable answer.
             let result = ProjectOperationResult {
                 project_id: id.clone(),
+                project_name: state.find_project_name(&id),
                 outcome: ProjectOperationOutcome::Skipped,
                 success: true,
                 skip_reason: Some(code.to_owned()),
@@ -367,12 +377,12 @@ fn start_bulk_fetch(
     Task::run(project_stream, move |per_project_result| {
         Message::Background(BackgroundMessage::SmartPullProjectCompleted {
             lease_id,
-            progress: SmartPullProgress {
+            progress: Box::new(SmartPullProgress {
                 project_id: per_project_result.project_id.clone(),
                 project_name: String::new(),
                 result: per_project_result,
                 recovery_hint: None,
-            },
+            }),
         })
     })
 }
