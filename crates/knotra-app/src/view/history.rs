@@ -362,23 +362,31 @@ fn resolve_project_name(
     }
 }
 
-/// Task 103: History search's own use of [`resolve_project_name`] —
-/// matches the stored and the current name, case-insensitively, never the
-/// id (which no screen shows any more). `Removed` has no name text to
-/// search by design (its own catalog label is translated UI chrome, not
-/// something a user would type to find it). `q` is already lower-cased by
-/// the caller.
+/// Task 103 Amendment A1: History search matches **both** the stored name
+/// and the project's current name, independently — not
+/// [`resolve_project_name`]'s single answer, which picks the stored name
+/// over the current one whenever a stored name exists (so that a later
+/// rename never rewrites what an entry's own *details* say happened). A
+/// search box has no such reason to prefer one: a project renamed after an
+/// operation must still be found by the name the dashboard shows today, as
+/// well as by the name it had when the operation ran. Both are
+/// case-insensitive; the id is never matched (no screen shows it any
+/// more). A project with neither a stored name nor a current registration
+/// (removed, from an old log) never matches — there is no name text to
+/// search by. `q` is already lower-cased by the caller.
 fn project_name_matches_search(
     state: &AppState,
     pr: &knotra_vcs::model::operation::ProjectOperationResult,
     q: &str,
 ) -> bool {
-    match resolve_project_name(state, pr) {
-        ProjectNameResolution::Stored(name) | ProjectNameResolution::Current(name) => {
-            name.to_lowercase().contains(q)
-        }
-        ProjectNameResolution::Removed => false,
-    }
+    let stored_matches = pr
+        .project_name
+        .as_deref()
+        .is_some_and(|name| name.to_lowercase().contains(q));
+    let current_matches = state
+        .find_project_name(&pr.project_id)
+        .is_some_and(|name| name.to_lowercase().contains(q));
+    stored_matches || current_matches
 }
 
 /// Task 103: the details view's own use of [`resolve_project_name`] — a
@@ -1003,6 +1011,21 @@ mod tests {
         assert!(project_name_matches_search(&state, &named, "dirty"));
         assert!(!project_name_matches_search(&state, &named, "clean"));
         assert!(!project_name_matches_search(&state, &removed, "dirty"));
+    }
+
+    /// Task 103 Amendment A1: a project renamed since the operation ran is
+    /// found by *either* name — the one the entry stored, and the one the
+    /// dashboard shows today — not only whichever `resolve_project_name`
+    /// would pick for display.
+    #[test]
+    fn project_name_matches_search_finds_both_the_stored_and_the_current_name_after_a_rename() {
+        let project = Project::new("new-name", "/tmp/p");
+        let state = state_with_registered_project(&project);
+        let result = result_with_name(project.id.clone(), Some("old-name".to_owned()));
+
+        assert!(project_name_matches_search(&state, &result, "old"));
+        assert!(project_name_matches_search(&state, &result, "new"));
+        assert!(!project_name_matches_search(&state, &result, "other"));
     }
 
     /// The copied log: a removed project is named in English, by its own
