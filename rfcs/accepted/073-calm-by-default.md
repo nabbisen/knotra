@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted |
 | Priority | High - older users meet about twenty controls, four meanings of "check", and developer settings before they meet their projects |
 | Effort | Medium - five stages: fewer things shown, hands and eyes, calm Settings, one word per action, your data |
 | Target | 0.34.0 (`.git-exclude/reviewed/257-older-users-assessment-and-0.34.0-direction.md` §6, `258`, `259`) |
 | Related files | `crates/knotra-app/src/view/{shell,settings,detail_panel,history,command_palette,selection_bar}.rs`, `crates/knotra-app/src/view/dashboard/{mod,toolbar,row,section,empty}.rs`, `crates/knotra-app/src/view/overlays/{freezer,smart_pull}.rs`, `crates/knotra-app/src/{config,state/palette}.rs`, `crates/knotra-ui/src/{i18n,widget/chip,widget/status}.rs`, `docs/src/` |
-| Decided by | - |
+| Decided by | project owner, 2026-11-03 - "Accepted", with D16's texts; D5: remove "Needs a choice" (recommended); D6: keep the labelled palette in the header (recommended) |
 | Related | RFC-071 (type, colour, layout, zoom), RFC-070 (high contrast), RFC-072 (its "your data" half moves here, Review 259 §2), RFC-074 (0.35.0, the flow) |
 
 ## Summary
