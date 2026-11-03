@@ -60,9 +60,11 @@ No HTML, code or URLs; links go in their own fields.
 > installed on your computer, so your existing settings and credentials keep
 > working as they are.
 >
-> knotra is available in English and Japanese, offers light and dark themes, and
-> has keyboard shortcuts for common actions. It is free and open source software,
-> licensed under the Apache License 2.0.
+> knotra is available in English and Japanese. It is built to be easy on the eyes:
+> large, clear text, a colour and a symbol for every status, zoom up to 150 %,
+> light and dark themes and two high-contrast themes, and keyboard shortcuts for
+> common actions. It is free and open source software, licensed under the Apache
+> License 2.0.
 
 ### Screenshots — at least 1, up to 10 for Desktop
 
@@ -107,6 +109,7 @@ Displayed as a bulleted list; do not add your own bullets.
 
 - One dashboard for every repository in your workspace
 - Repositories grouped by what needs your attention
+- Every status shown with a colour, a symbol and words
 - Organize repositories into named workspaces
 - Get latest safely: fast-forward only, and never merges over unsaved work
 - Save release point: tag a release across the projects you choose, with checks first and rollback on failure
@@ -116,7 +119,8 @@ Displayed as a bulleted list; do not add your own bullets.
 - Works with Git and Jujutsu (jj)
 - Local-first: no accounts, no telemetry, nothing sent anywhere
 - English and Japanese
-- Light and dark themes
+- Light and dark themes, and two high-contrast themes
+- Zoom up to 150 %, with large, clear text throughout
 - Keyboard shortcuts for common actions
 
 ### Additional system requirements — up to 11 items each, 200 characters each
@@ -136,6 +140,23 @@ Strongly recommended. If absent, the Store uses the image from the package.
 
 **Leave it blank for the first submission**, as Microsoft instructs. From the
 second submission on, summarise that version's `CHANGELOG.md` section.
+
+**0.33.0**, English:
+
+> Every screen is easier to read. Text is larger and headings are bold. Each status has its
+> own colour and symbol. Lists line up, with clear lines between rows. New: zoom up to 150 %
+> (Settings, or Ctrl+Plus and Ctrl+Minus), and two high-contrast themes. A new installation
+> starts in the light theme. Settings are now saved as soon as you change them. History now
+> names each project instead of showing a code.
+
+**0.33.0**, Japanese:
+
+> すべての画面が読みやすくなりました。文字が大きくなり、見出しは太字になりました。
+> 状態ごとに色と記号を付け、一覧は行ごとに区切り線で見やすくしました。新たに、
+> 最大 150 % の表示倍率（設定、または Ctrl+Plus / Ctrl+Minus）と、2 種類の
+> ハイコントラストのテーマを追加しました。新しくインストールした場合は
+> ライトテーマで始まります。設定は変更した時点で保存されるようになりました。
+> 履歴には、コードではなくプロジェクト名が表示されるようになりました。
 
 ## Not applicable to knotra
 
@@ -174,9 +195,10 @@ including that its terms match the ones the app itself uses.
 > あなたのデータをどこにも送信しません。コンピューターにすでにある Git と
 > Jujutsu を通じて動くため、今の設定や認証情報をそのまま使えます。
 >
-> 英語と日本語に対応し、ライトテーマとダークテーマ、よく使う操作のキーボード
-> ショートカットを備えています。Apache License 2.0 で提供される、無料の
-> オープンソースソフトウェアです。
+> 英語と日本語に対応しています。大きく読みやすい文字、状態ごとの色と記号、最大
+> 150 % の表示倍率、ライト・ダークと 2 種類のハイコントラストのテーマ、よく使う
+> 操作のキーボードショートカットで、目にやさしく使えるようにしています。
+> Apache License 2.0 で提供される、無料のオープンソースソフトウェアです。
 
 ### 短い説明
 
