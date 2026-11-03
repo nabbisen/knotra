@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | Implemented (main: 8f70fdb, b5177ec, 105688d), with handoff Amendments A1 and A2 |
 | Priority | Medium - for users who find the normal themes hard to read; builds on RFC-071's colour roles |
 | Effort | Small - two theme constructors, one setting with a compatible saved form, one Settings control, the contrast suite extended |
 | Target | 0.33.0, after RFC-071 stage 2 is approved (`.git-exclude/reviewed/244-release-plan-0.33.0-scope.md` §7) |

@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the text field you are typing in is easier to see
+
+A field you have clicked or tabbed into now shows the same focus outline as every other
+control, thicker and easier to see. A field you cannot use right now is no longer faded.
+
 ### Added — high-contrast themes
 
 Settings → Theme now also offers "High contrast light" and "High contrast dark": black and
