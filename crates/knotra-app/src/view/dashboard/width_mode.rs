@@ -97,4 +97,27 @@ mod tests {
         assert_eq!(WidthMode::from_width(1279.498), WidthMode::Standard);
         assert_eq!(WidthMode::from_width(1280.0017), WidthMode::Wide);
     }
+
+    /// RFC-071 D11's own worked example: "At 150% on a 1280px window, the
+    /// logical width is 853px, which is compact." `scale_factor` (iced's
+    /// own mechanism, `main.rs`'s `.scale_factor(...)`) divides the
+    /// physical window size to produce the logical size `resize_events()`
+    /// reports (confirmed by reading `iced_winit`'s `conversion::
+    /// window_event`'s `Resized` arm, which calls `new_size.to_logical
+    /// (scale_factor)`) — the same logical size `WindowResized` feeds into
+    /// `AppState::window_width`, which this type classifies. No code is
+    /// needed for `WidthMode` to already get this right; this test is that
+    /// proof, not an assertion added without checking the mechanism it
+    /// relies on.
+    #[test]
+    fn zoom_150_percent_on_a_1280px_window_is_compact() {
+        let physical_width: f32 = 1280.0;
+        let scale_factor: f32 = 150.0 / 100.0;
+        let logical_width = physical_width / scale_factor;
+        assert!(
+            (logical_width - 853.333).abs() < 0.01,
+            "expected ~853.33, got {logical_width}"
+        );
+        assert_eq!(WidthMode::from_width(logical_width), WidthMode::Compact);
+    }
 }

@@ -88,7 +88,7 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         view_max_logs_field(state),
         section_header(tokens, state.t("settings.section.fs_watch")),
         view_fs_watch_section(state),
-        view_save_row(state),
+        view_save_status(state),
         // RFC-071 Amendment A3 D14: a notice, read to understand that a
         // change needs a restart.
         text(state.t("settings.restart_hint"))
@@ -196,7 +196,39 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
     .spacing(8)
     .align_y(Alignment::Center);
 
-    column![locale_row, theme_row].spacing(8).into()
+    // RFC-071 D11/D12: percent labels ("115 %") are numbers, not catalog
+    // text — the RFC's own words for this, matching the Zoom in/out
+    // shortcuts' already-numeric nature.
+    let zoom_options: Vec<(u16, String)> = crate::config::ZOOM_STEPS
+        .iter()
+        .map(|&percent| (percent, format!("{percent} %")))
+        .collect();
+    let zoom_row = row![
+        text(state.t("settings.zoom_label"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+        Space::new().width(Length::Fill),
+        select::pick_list(
+            tokens,
+            zoom_options,
+            Some(state.config.zoom_percent),
+            false,
+            |value| Message::Settings(SettingsMessage::ZoomChanged(value)),
+        ),
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center);
+
+    // RFC-071 Amendment A3 D14: explains what the setting does — read to
+    // understand before changing it, the same category `fs_watch_hint`
+    // below is in.
+    let zoom_help = text(state.t("settings.zoom_help"))
+        .size(snora::design::style::text::body_size(tokens))
+        .line_height(snora::design::style::text::body_line_height(tokens));
+
+    column![locale_row, theme_row, zoom_row, zoom_help]
+        .spacing(8)
+        .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -352,30 +384,25 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
 }
 
 // ---------------------------------------------------------------------------
-// Save row — unchanged from before Stage 3
+// Save status — RFC-071 Amendment A7: every setting is saved when it
+// changes, so there is no button here any more, only a failure message
+// (`persist_config`'s own doc comment, `app/misc.rs`) when the most recent
+// save did not succeed. A successful save shows nothing — a message on
+// every keystroke would be noise, not news.
 // ---------------------------------------------------------------------------
 
-fn view_save_row(state: &AppState) -> Element<'_, Message> {
+fn view_save_status(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    let save_btn = button(text(state.t("settings.save")))
-        .on_press(Message::Settings(SettingsMessage::SaveRequested));
 
-    // RFC-071 Amendment A3 D14: a message, read to confirm the save
-    // happened.
-    let save_msg: Element<'_, Message> = if let Some(ref msg) = state.settings_save_msg {
-        text(msg.as_str())
+    // RFC-071 Amendment A3 D14: an error, read to understand and fix a
+    // problem.
+    match state.settings_save_msg {
+        Some(ref msg) => text(msg.as_str())
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens))
-            .into()
-    } else {
-        Space::new().into()
-    };
-
-    row![save_btn, save_msg]
-        .spacing(12)
-        .align_y(Alignment::Center)
-        .padding([8, 0])
-        .into()
+            .into(),
+        None => Space::new().into(),
+    }
 }
 
 fn section_header<'a>(tokens: &Tokens, label: &'a str) -> Element<'a, Message> {

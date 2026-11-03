@@ -72,7 +72,8 @@ pub(crate) struct Binding {
     action_key: &'static str,
 }
 
-/// RFC D7's own nine rows, in the RFC's own order.
+/// RFC D7's own nine rows, in the RFC's own order, plus RFC-071 stage 4
+/// D11's three zoom rows appended at the end.
 pub(crate) const BINDINGS: &[Binding] = &[
     Binding {
         keys: "Tab / Shift+Tab",
@@ -118,6 +119,22 @@ pub(crate) const BINDINGS: &[Binding] = &[
         keys: "Ctrl+T",
         where_key: "shortcut.where_main_screens",
         action_key: "shortcut.action_save_release_point",
+    },
+    // RFC-071 stage 4 D11.
+    Binding {
+        keys: "Ctrl+Plus / Ctrl+=",
+        where_key: "shortcut.where_main_screens",
+        action_key: "shortcut.action_zoom_in",
+    },
+    Binding {
+        keys: "Ctrl+Minus",
+        where_key: "shortcut.where_main_screens",
+        action_key: "shortcut.action_zoom_out",
+    },
+    Binding {
+        keys: "Ctrl+0",
+        where_key: "shortcut.where_main_screens",
+        action_key: "shortcut.action_zoom_reset",
     },
 ];
 

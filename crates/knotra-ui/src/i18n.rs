@@ -91,10 +91,9 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.all_projects", "All projects");
     m.insert("dashboard.work_area_unknown", "Work area unavailable");
     m.insert("dashboard.resolve", "Choose resolution");
-    m.insert(
-        "dashboard.preference_save_failed",
-        "Dashboard preferences could not be saved.",
-    );
+    // RFC-071 Amendment A7: gone — a dashboard preference's failed save now
+    // shows `settings.save_error` instead, through the same `persist_config`
+    // every setting-changing path uses (`app/misc.rs`).
     m.insert("dashboard.cause.missing_path", "Project folder is missing");
     m.insert("dashboard.cause.conflict", "A resolution choice is needed");
     m.insert(
@@ -736,6 +735,12 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // RFC-070 D5.
     m.insert("settings.theme_high_contrast_light", "High contrast light");
     m.insert("settings.theme_high_contrast_dark", "High contrast dark");
+    // RFC-071 D12.
+    m.insert("settings.zoom_label", "Zoom");
+    m.insert(
+        "settings.zoom_help",
+        "Makes everything in knotra larger or smaller, text included.",
+    );
     // RFC-038 Stage 3: trimmed from "Background refresh (seconds; 0 =
     // manual)" — validated_field's own `unit` slot now carries "seconds"
     // (settings.unit_seconds), so repeating it in the label would show it
@@ -761,12 +766,10 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "settings.restart_hint",
         "Some changes take effect on next launch.",
     );
-    m.insert("settings.save", "Save settings");
-    // RFC-042 D1/R1: referenced by app/misc.rs since before this RFC,
-    // absent from the catalog until now — settings.saved_ok rendered
-    // verbatim in both the Settings panel and the status bar on every
-    // successful save.
-    m.insert("settings.saved_ok", "Settings saved.");
+    // RFC-071 Amendment A7: `settings.save`/`settings.saved_ok` are gone —
+    // there is no "Save settings" button or success flash any more, every
+    // setting is saved when it changes (`app/misc.rs`'s `persist_config`).
+    // The failure message stays; it is the one case a save is still shown.
     m.insert("settings.save_error", "Could not save settings:");
     // File-system monitoring section (RFC-038 Stage 1 §2)
     m.insert("settings.section.fs_watch", "File-system Monitoring");
@@ -864,6 +867,10 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("shortcut.action_check_now", "Check now");
     m.insert("shortcut.action_change_work_area", "Change work area");
     m.insert("shortcut.action_save_release_point", "Save release point");
+    // RFC-071 D12.
+    m.insert("shortcut.action_zoom_in", "Zoom in");
+    m.insert("shortcut.action_zoom_out", "Zoom out");
+    m.insert("shortcut.action_zoom_reset", "Reset zoom");
     m
 }
 
@@ -887,10 +894,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.all_projects", "すべてのプロジェクト");
     m.insert("dashboard.work_area_unknown", "作業場所を確認できません");
     m.insert("dashboard.resolve", "解決方法を選ぶ");
-    m.insert(
-        "dashboard.preference_save_failed",
-        "ダッシュボード設定を保存できませんでした。",
-    );
     m.insert(
         "dashboard.cause.missing_path",
         "プロジェクトのフォルダーが見つかりません",
@@ -1556,6 +1559,12 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "settings.theme_high_contrast_dark",
         "ハイコントラスト（ダーク）",
     );
+    // RFC-071 D12.
+    m.insert("settings.zoom_label", "表示倍率");
+    m.insert(
+        "settings.zoom_help",
+        "文字を含め、knotraの表示全体を拡大・縮小します。",
+    );
     m.insert(
         "settings.refresh_interval_label",
         "バックグラウンド更新（0 = 手動のみ）",
@@ -1576,8 +1585,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "settings.restart_hint",
         "一部の変更は次回起動時に有効になります。",
     );
-    m.insert("settings.save", "設定を保存");
-    m.insert("settings.saved_ok", "設定を保存しました。");
     m.insert("settings.save_error", "設定を保存できませんでした:");
     m.insert("settings.section.fs_watch", "ファイルシステム監視");
     m.insert(
@@ -1643,6 +1650,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "shortcut.action_save_release_point",
         "リリースポイントを保存",
     );
+    // RFC-071 D12.
+    m.insert("shortcut.action_zoom_in", "拡大");
+    m.insert("shortcut.action_zoom_out", "縮小");
+    m.insert("shortcut.action_zoom_reset", "倍率を元に戻す");
     m
 }
 

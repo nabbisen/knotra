@@ -61,6 +61,57 @@ pub struct AppConfig {
     /// Parent of the folder most recently added as a project (Task 102) —
     /// "Browse…" starts there next time, if it still exists.
     pub last_project_parent: Option<PathBuf>,
+    /// RFC-071 D11: iced's application `scale_factor` is `zoom_percent /
+    /// 100`. Always one of [`ZOOM_STEPS`] once loaded — `load_config` snaps
+    /// any other saved value to the nearest step (`nearest_zoom_step`), so
+    /// every other reader of this field can treat it as pre-validated.
+    pub zoom_percent: u16,
+}
+
+/// RFC-071 D11: the only four zoom percentages the app allows, ascending.
+/// `Settings`' own "Zoom" select offers exactly these, in this order, and
+/// [`zoom_step_up`]/[`zoom_step_down`] step through this same list.
+pub const ZOOM_STEPS: [u16; 4] = [100, 115, 130, 150];
+
+/// RFC-071 D11: snaps `value` to the nearest of [`ZOOM_STEPS`] — ties
+/// favour the lower step (the direction closer to 100%, the least visually
+/// disruptive way to round when a saved value cannot be trusted). Used by
+/// `load_config` to recover a `config.toml` whose `zoom_percent` holds a
+/// value outside the allowed set (an older knotra version did not exist to
+/// write one, but a hand-edited file could).
+fn nearest_zoom_step(value: u16) -> u16 {
+    let mut best = ZOOM_STEPS[0];
+    let mut best_diff = (i32::from(best) - i32::from(value)).abs();
+    for &step in &ZOOM_STEPS[1..] {
+        let diff = (i32::from(step) - i32::from(value)).abs();
+        if diff < best_diff {
+            best = step;
+            best_diff = diff;
+        }
+    }
+    best
+}
+
+/// RFC-071 D11: one step up in [`ZOOM_STEPS`], saturating at the top —
+/// `Ctrl+Plus`/`Ctrl+=`.
+#[must_use]
+pub fn zoom_step_up(current: u16) -> u16 {
+    let idx = ZOOM_STEPS
+        .iter()
+        .position(|&s| s == current)
+        .expect("zoom_percent is always one of ZOOM_STEPS once loaded");
+    ZOOM_STEPS[(idx + 1).min(ZOOM_STEPS.len() - 1)]
+}
+
+/// RFC-071 D11: one step down in [`ZOOM_STEPS`], saturating at the bottom —
+/// `Ctrl+Minus`.
+#[must_use]
+pub fn zoom_step_down(current: u16) -> u16 {
+    let idx = ZOOM_STEPS
+        .iter()
+        .position(|&s| s == current)
+        .expect("zoom_percent is always one of ZOOM_STEPS once loaded");
+    ZOOM_STEPS[idx.saturating_sub(1)]
 }
 
 impl Default for AppConfig {
@@ -80,6 +131,7 @@ impl Default for AppConfig {
             dashboard_in_progress_collapsed: false,
             dashboard_all_set_collapsed: true,
             last_project_parent: None,
+            zoom_percent: 100,
         }
     }
 }
@@ -259,7 +311,16 @@ pub fn load_config(paths: &AppPaths) -> (AppConfig, Option<String>) {
             Ok(mut table) => {
                 let theme_warning = resolve_theme_key(&mut table, &paths.config_file);
                 match table.try_into::<AppConfig>() {
-                    Ok(cfg) => (cfg, theme_warning),
+                    Ok(mut cfg) => {
+                        // RFC-071 D11: an older file has no `zoom_percent`
+                        // at all, which `#[serde(default)]` already loads
+                        // as `AppConfig::default()`'s 100 — already one of
+                        // `ZOOM_STEPS`, so this snap is a no-op for it.
+                        // Only a saved value outside the allowed set (a
+                        // hand-edited file) is actually moved.
+                        cfg.zoom_percent = nearest_zoom_step(cfg.zoom_percent);
+                        (cfg, theme_warning)
+                    }
                     Err(e) => parse_error(&e),
                 }
             }
@@ -535,5 +596,93 @@ mod tests {
 
         assert!(text.contains("theme = \"dark\""), "{text:?}");
         assert!(!text.contains("dark_theme"), "{text:?}");
+    }
+
+    // RFC-071 D11: zoom tests.
+
+    #[test]
+    fn zoom_percent_defaults_to_100() {
+        assert_eq!(AppConfig::default().zoom_percent, 100);
+    }
+
+    /// D11: "an older settings file loads as 100" — a file written before
+    /// this field existed has no `zoom_percent` key at all.
+    #[test]
+    fn load_config_without_zoom_percent_key_loads_as_100() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths::under(tmp.path().to_path_buf());
+        std::fs::create_dir_all(paths.config_file.parent().unwrap()).expect("config dir");
+        std::fs::write(&paths.config_file, "theme = \"dark\"\n").expect("older config.toml");
+
+        let (loaded, warning) = load_config(&paths);
+
+        assert_eq!(warning, None);
+        assert_eq!(loaded.zoom_percent, 100);
+    }
+
+    /// D11: "an unknown value loads as the nearest allowed one" — 140 sits
+    /// exactly between 130 and 150 (both 10 away); `nearest_zoom_step`'s own
+    /// documented tie-break (favour the lower step) resolves it to 130, not
+    /// 150 — the case a naive `min_by_key` over `Iterator` would get wrong,
+    /// since `Iterator::min_by_key` returns the *last* minimum on a tie.
+    #[test]
+    fn load_config_with_an_unknown_zoom_percent_snaps_to_the_nearest_step() {
+        let cases: &[(u16, u16)] = &[
+            (0, 100),
+            (107, 100),
+            (108, 115),
+            (140, 130), // exact tie: 130 (favoured) vs 150
+            (999, 150),
+        ];
+        for &(saved, expected) in cases {
+            let tmp = tempfile::TempDir::new().expect("tempdir");
+            let paths = AppPaths::under(tmp.path().to_path_buf());
+            std::fs::create_dir_all(paths.config_file.parent().unwrap()).expect("config dir");
+            std::fs::write(&paths.config_file, format!("zoom_percent = {saved}\n"))
+                .expect("config.toml with an out-of-range zoom_percent");
+
+            let (loaded, warning) = load_config(&paths);
+
+            assert_eq!(warning, None, "zoom_percent={saved}: {warning:?}");
+            assert_eq!(
+                loaded.zoom_percent, expected,
+                "zoom_percent={saved} should snap to {expected}"
+            );
+        }
+    }
+
+    /// D11: every allowed step round-trips through save and load unchanged.
+    #[test]
+    fn every_zoom_step_round_trips_through_save_and_load() {
+        for &step in &ZOOM_STEPS {
+            let tmp = tempfile::TempDir::new().expect("tempdir");
+            let paths = AppPaths::under(tmp.path().to_path_buf());
+            let config = AppConfig {
+                zoom_percent: step,
+                ..AppConfig::default()
+            };
+
+            save_config(&config, &paths).expect("save_config");
+            let (loaded, warning) = load_config(&paths);
+
+            assert_eq!(warning, None, "{step}: {warning:?}");
+            assert_eq!(loaded.zoom_percent, step);
+        }
+    }
+
+    #[test]
+    fn zoom_step_up_steps_through_zoom_steps_and_saturates_at_the_top() {
+        assert_eq!(zoom_step_up(100), 115);
+        assert_eq!(zoom_step_up(115), 130);
+        assert_eq!(zoom_step_up(130), 150);
+        assert_eq!(zoom_step_up(150), 150);
+    }
+
+    #[test]
+    fn zoom_step_down_steps_through_zoom_steps_and_saturates_at_the_bottom() {
+        assert_eq!(zoom_step_down(150), 130);
+        assert_eq!(zoom_step_down(130), 115);
+        assert_eq!(zoom_step_down(115), 100);
+        assert_eq!(zoom_step_down(100), 100);
     }
 }

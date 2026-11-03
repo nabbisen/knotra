@@ -37,7 +37,7 @@ use crate::{
     fs_watcher::fs_watch_subscription,
     message::{
         BackgroundMessage, ContextMessage, FreezerMessage, KeyboardMessage, Message,
-        ShortcutMessage, WorkspaceMessage,
+        SettingsMessage, ShortcutMessage, WorkspaceMessage,
     },
     persistence::{load_recent_logs, load_workspaces},
     state::{AppState, LoadPhase, focus},
@@ -205,6 +205,15 @@ fn shortcut_for(key: &keyboard::Key, modifiers: keyboard::Modifiers) -> Option<S
             // match so the guarded arm claims it before this one.
             "j" | "J" => Some(ShortcutMessage::CardFocusNext),
             "k" | "K" => Some(ShortcutMessage::CardFocusPrevious),
+            // RFC-071 D11: zoom. `+`/`=` are the two spellings a `Ctrl+=`
+            // keypress can arrive as, depending on whether a modifier
+            // (Shift) already turned it into `+` before this handler sees
+            // it — both step zoom up, matching the handoff's own "Ctrl+Plus
+            // (and Ctrl+=)".
+            "+" if ctrl => Some(ShortcutMessage::ZoomIn),
+            "=" if ctrl => Some(ShortcutMessage::ZoomIn),
+            "-" if ctrl => Some(ShortcutMessage::ZoomOut),
+            "0" if ctrl => Some(ShortcutMessage::ZoomReset),
             _ => None,
         },
         _ => None,
@@ -358,6 +367,14 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
                 | ShortcutMessage::FocusSearchBare
                 | ShortcutMessage::CardFocusNext
                 | ShortcutMessage::CardFocusPrevious
+                // RFC-071 D11: zoom "work[s] only when no window is open" —
+                // unlike Refresh/OpenContextOps/OpenFreezer (which act on
+                // the screen behind an open window, Task 095), zoom has no
+                // such exemption, so it is gated the same as the plain
+                // focus-movement shortcuts above it in this list.
+                | ShortcutMessage::ZoomIn
+                | ShortcutMessage::ZoomOut
+                | ShortcutMessage::ZoomReset
         )
     {
         return Task::none();
@@ -451,6 +468,20 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             focus_ops::advance_card_focus(state, focus::Direction::Previous)
         }
         ShortcutMessage::MousePressed => unreachable!("handled above"),
+        // RFC-071 D11: computed here, then dispatched through the same
+        // `SettingsMessage::ZoomChanged` the Settings select itself sends —
+        // one saving path for both, not two copies of "clamp and persist".
+        ShortcutMessage::ZoomIn => {
+            let percent = crate::config::zoom_step_up(state.config.zoom_percent);
+            misc::handle_settings(state, SettingsMessage::ZoomChanged(percent))
+        }
+        ShortcutMessage::ZoomOut => {
+            let percent = crate::config::zoom_step_down(state.config.zoom_percent);
+            misc::handle_settings(state, SettingsMessage::ZoomChanged(percent))
+        }
+        ShortcutMessage::ZoomReset => {
+            misc::handle_settings(state, SettingsMessage::ZoomChanged(100))
+        }
     }
 }
 
@@ -630,7 +661,8 @@ mod tests {
         assert_eq!(shortcut_for_event(event), Some(ShortcutMessage::Close));
     }
 
-    /// RFC-066 D7/R7: the sheet's nine rows, each with an example `(Key,
+    /// RFC-066 D7/R7: the sheet's rows — RFC D7's original nine, plus
+    /// RFC-071 stage 4 D11's three zoom rows — each with an example `(Key,
     /// Modifiers)` and the `ShortcutMessage` it must produce through
     /// `shortcut_for`. A row whose "Keys" column lists more than one key
     /// (e.g. "Tab / Shift+Tab") is exercised at every key it lists, not
@@ -734,12 +766,37 @@ mod tests {
                 ctrl,
                 ShortcutMessage::OpenFreezer,
             ),
+            (
+                9,
+                keyboard::Key::Character("+".into()),
+                ctrl,
+                ShortcutMessage::ZoomIn,
+            ),
+            (
+                9,
+                keyboard::Key::Character("=".into()),
+                ctrl,
+                ShortcutMessage::ZoomIn,
+            ),
+            (
+                10,
+                keyboard::Key::Character("-".into()),
+                ctrl,
+                ShortcutMessage::ZoomOut,
+            ),
+            (
+                11,
+                keyboard::Key::Character("0".into()),
+                ctrl,
+                ShortcutMessage::ZoomReset,
+            ),
         ];
 
         assert_eq!(
             crate::view::shortcuts_overlay::BINDINGS.len(),
-            9,
-            "RFC D7 has nine rows — update `cases` above if this changes"
+            12,
+            "RFC D7's nine rows, plus stage 4 D11's three zoom rows — \
+             update `cases` above if this changes"
         );
 
         let mut covered: Vec<ShortcutMessage> = Vec::new();
@@ -767,6 +824,9 @@ mod tests {
             ShortcutMessage::CardFocusPrevious,
             ShortcutMessage::ArrowDown,
             ShortcutMessage::ArrowUp,
+            ShortcutMessage::ZoomIn,
+            ShortcutMessage::ZoomOut,
+            ShortcutMessage::ZoomReset,
         ];
         for message in &all_producible {
             assert!(

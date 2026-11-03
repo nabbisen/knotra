@@ -9,6 +9,17 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — Zoom
+
+In Settings, "Zoom" makes everything in knotra larger or smaller: 100 %, 115 %, 130 % or
+150 %. Ctrl+Plus, Ctrl+Minus and Ctrl+0 do the same when no window is open.
+
+### Fixed — a theme or language you chose could be forgotten
+
+Settings applied a new theme or language at once, but kept it only if you also pressed
+"Save settings"; closing knotra without it brought the old choice back. Every setting is now
+saved as soon as you change it, and the "Save settings" button is gone.
+
 ### Changed — the text field you are typing in is easier to see
 
 A field you have clicked or tabbed into now shows the same focus outline as every other

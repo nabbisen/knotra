@@ -4,8 +4,8 @@ use crate::config::{AppConfig, AppPaths, DashboardGrouping, DashboardSort, load_
 use crate::message::{
     ActivityMessage, BackgroundMessage, ChangelogMessage, ConflictOpsMessage, ContextMessage,
     DashboardMessage, DetailPanelMessage, FilterMessage, FreezerMessage, KeyboardMessage, Message,
-    PaletteMessage, SelectionMessage, ShortcutMessage, StatusFilter, SyncMessage, TagPushMessage,
-    WorkspaceMessage,
+    PaletteMessage, SelectionMessage, SettingsMessage, ShortcutMessage, StatusFilter, SyncMessage,
+    TagPushMessage, WorkspaceMessage,
 };
 use crate::persistence::{delete_workspace_file, load_workspaces, save_workspace};
 use crate::state::{
@@ -288,10 +288,160 @@ fn dashboard_preference_save_failure_keeps_session_choice_and_warns() {
     );
 
     assert_eq!(state.config.dashboard_grouping, DashboardGrouping::None);
-    assert_eq!(
-        state.status_bar.as_deref(),
-        Some(state.t("dashboard.preference_save_failed"))
+    // RFC-071 Amendment A7: `persist_config` is now the one function every
+    // setting-changing path saves through, including this dashboard one —
+    // its failure message is `settings.save_error`, not the removed
+    // `dashboard.preference_save_failed`, and it shows in both places
+    // `persist_config` writes on failure.
+    let expected = format!("{} ", state.t("settings.save_error"));
+    assert!(
+        state
+            .status_bar
+            .as_deref()
+            .is_some_and(|s| s.starts_with(&expected)),
+        "{:?}",
+        state.status_bar
     );
+    assert_eq!(state.status_bar, state.settings_save_msg);
+}
+
+// ---------------------------------------------------------------------------
+// RFC-071 Amendment A7: every setting is saved when it changes.
+// ---------------------------------------------------------------------------
+
+/// A7 item 1: a select (theme), the file-monitoring switch, and a valid
+/// typed field all reach disk with no "Save settings" step — there is no
+/// such message any more, only the change itself.
+#[test]
+fn every_kind_of_setting_persists_without_a_save_step() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = AppPaths::under(tmp.path().to_path_buf());
+    let mut state = make_state_with_paths(paths.clone());
+
+    dispatch(
+        &mut state,
+        Message::Settings(SettingsMessage::ThemeChanged(
+            knotra_ui::ThemeChoice::HighContrastDark,
+        )),
+    );
+    dispatch(
+        &mut state,
+        Message::Settings(SettingsMessage::ZoomChanged(130)),
+    );
+    dispatch(
+        &mut state,
+        Message::Settings(SettingsMessage::FsWatchEnabledChanged(true)),
+    );
+    dispatch(
+        &mut state,
+        Message::Settings(SettingsMessage::RefreshIntervalChanged("45".to_owned())),
+    );
+    dispatch(
+        &mut state,
+        Message::Settings(SettingsMessage::ExternalEditorChanged(
+            "/usr/bin/nvim".to_owned(),
+        )),
+    );
+
+    assert_eq!(state.settings_save_msg, None, "no failure occurred");
+
+    let (loaded, warning) = load_config(&paths);
+    assert_eq!(warning, None, "{warning:?}");
+    assert_eq!(loaded.theme, knotra_ui::ThemeChoice::HighContrastDark);
+    assert_eq!(loaded.zoom_percent, 130);
+    assert!(loaded.fs_watch_enabled);
+    assert_eq!(loaded.refresh_interval_secs, 45);
+    assert_eq!(loaded.external_editor.as_deref(), Some("/usr/bin/nvim"));
+}
+
+/// A7 item 1: an invalid typed value is applied nowhere — not to
+/// `state.config` (so nothing wrong is live), and not to disk (so a save
+/// is never even attempted for it; the config file is never created by
+/// this dispatch at all). The edit buffer alone shows what was typed, so
+/// the field's own error (`view/settings.rs`'s `positive_usize_field_error`)
+/// has something to render.
+#[test]
+fn an_invalid_number_is_applied_nowhere_and_not_persisted() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let paths = AppPaths::under(tmp.path().to_path_buf());
+    let mut state = make_state_with_paths(paths.clone());
+    let default_max_concurrent = state.config.max_concurrent_reads;
+
+    dispatch(
+        &mut state,
+        Message::Settings(SettingsMessage::MaxConcurrentChanged("0".to_owned())),
+    );
+
+    assert_eq!(state.config.max_concurrent_reads, default_max_concurrent);
+    assert_eq!(state.settings_edit.max_concurrent_reads, "0");
+    assert!(
+        !paths.config_file.exists(),
+        "an invalid value must never reach a save attempt"
+    );
+}
+
+/// A7's refinement (Review 259 §1): a failed save must show in the
+/// activity line *and* in Settings, for a change made from Settings
+/// itself — the case the un-amended handoff already covered.
+#[test]
+fn a_failed_save_from_settings_shows_in_both_places() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let blocked_parent = tmp.path().join("blocked");
+    std::fs::write(&blocked_parent, "not a directory").expect("blocking file");
+    let paths = AppPaths {
+        config_file: blocked_parent.join("config.toml"),
+        workspaces_dir: tmp.path().join("workspaces"),
+        history_dir: tmp.path().join("history"),
+    };
+    let mut state = make_state_with_paths(paths);
+
+    dispatch(
+        &mut state,
+        Message::Settings(SettingsMessage::ThemeChanged(knotra_ui::ThemeChoice::Dark)),
+    );
+
+    // The change still takes effect live — only the save failed.
+    assert_eq!(state.config.theme, knotra_ui::ThemeChoice::Dark);
+    let expected_prefix = format!("{} ", state.t("settings.save_error"));
+    assert!(
+        state
+            .status_bar
+            .as_deref()
+            .unwrap()
+            .starts_with(&expected_prefix)
+    );
+    assert_eq!(state.status_bar, state.settings_save_msg);
+}
+
+/// A7's refinement (Review 259 §1): zoom's shortcuts work *outside*
+/// Settings, so a failed save from one must still reach the activity line
+/// — not only `settings_save_msg`, which nothing would be on screen to
+/// read at the moment a dashboard-bound `Ctrl+Plus` fires.
+#[test]
+fn a_failed_save_from_a_zoom_shortcut_shows_in_the_activity_line() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let blocked_parent = tmp.path().join("blocked");
+    std::fs::write(&blocked_parent, "not a directory").expect("blocking file");
+    let paths = AppPaths {
+        config_file: blocked_parent.join("config.toml"),
+        workspaces_dir: tmp.path().join("workspaces"),
+        history_dir: tmp.path().join("history"),
+    };
+    let mut state = make_state_with_paths(paths);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::ZoomIn));
+
+    // The zoom change still takes effect live — only the save failed.
+    assert_eq!(state.config.zoom_percent, 115);
+    let expected_prefix = format!("{} ", state.t("settings.save_error"));
+    assert!(
+        state
+            .status_bar
+            .as_deref()
+            .unwrap()
+            .starts_with(&expected_prefix)
+    );
+    assert_eq!(state.status_bar, state.settings_save_msg);
 }
 
 #[test]
@@ -4009,6 +4159,27 @@ fn shortcut_refresh_does_nothing_while_a_window_is_open() {
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::Refresh));
 
     assert!(!state.is_refreshing);
+}
+
+/// RFC-071 D11: zoom "work[s] only when no window is open" — unlike
+/// `Refresh`/`OpenContextOps`/`OpenFreezer` (Task 095's exemption, which
+/// let those act on the screen behind an open window), zoom has none, so
+/// all three shortcuts must leave `zoom_percent` untouched while a window
+/// is open.
+#[test]
+fn zoom_shortcuts_do_nothing_while_a_window_is_open() {
+    let mut state = make_state();
+    install_running_freezer(&mut state);
+    let before = state.config.zoom_percent;
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::ZoomIn));
+    assert_eq!(state.config.zoom_percent, before);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::ZoomOut));
+    assert_eq!(state.config.zoom_percent, before);
+
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::ZoomReset));
+    assert_eq!(state.config.zoom_percent, before);
 }
 
 /// RFC-066 D7: `Ctrl+R` now sends the exact message the "Check now" button

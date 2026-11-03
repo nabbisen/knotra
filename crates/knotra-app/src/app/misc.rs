@@ -111,15 +111,31 @@ pub(super) fn handle_history(state: &mut AppState, msg: HistoryMessage) -> Task<
     Task::none()
 }
 
+/// RFC-071 Amendment A7: every setting is saved when it changes — no
+/// separate "Save settings" step. Each arm below applies the change to
+/// `state.config` (and, for a typed field, only when the new text parses
+/// to a valid value — an invalid value is applied nowhere, and the edit
+/// buffer keeps showing exactly what the user typed, same as before this
+/// amendment) and then calls [`persist_config`], the one function every
+/// setting-changing path in this app saves through — this one, zoom's
+/// shortcuts (`app.rs`'s `ShortcutMessage::ZoomIn`/`ZoomOut`/`ZoomReset`,
+/// which dispatch back into this function's `ZoomChanged` arm), and the
+/// dashboard's Group/Sort/collapse (`handle_dashboard` below).
 pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> {
     match msg {
         SettingsMessage::LocaleChanged(l) => {
             state.config.locale = l;
             state.catalog = knotra_ui::i18n::Catalog::for_locale(l);
+            persist_config(state);
         }
         SettingsMessage::ThemeChanged(choice) => {
             state.config.theme = choice;
             state.theme = knotra_ui::KnotraTheme::from_choice(choice);
+            persist_config(state);
+        }
+        SettingsMessage::ZoomChanged(percent) => {
+            state.config.zoom_percent = percent;
+            persist_config(state);
         }
         SettingsMessage::RefreshIntervalChanged(s) => {
             // 0 is a valid value here (means manual refresh only) — any
@@ -128,6 +144,7 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             // last valid value rather than silently coercing.
             if let Ok(n) = s.parse::<u32>() {
                 state.config.refresh_interval_secs = n;
+                persist_config(state);
             }
             state.settings_edit.refresh_interval_secs = s;
         }
@@ -138,6 +155,7 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
                 && n > 0
             {
                 state.config.max_concurrent_reads = n;
+                persist_config(state);
             }
             state.settings_edit.max_concurrent_reads = s;
         }
@@ -148,6 +166,7 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             } else {
                 Some(s.trim().to_owned())
             };
+            persist_config(state);
         }
         SettingsMessage::ExternalMergeToolChanged(s) => {
             state.settings_edit.external_merge_tool = s.clone();
@@ -156,6 +175,7 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             } else {
                 Some(s.trim().to_owned())
             };
+            persist_config(state);
         }
         SettingsMessage::MaxLogEntriesChanged(s) => {
             // Must be > 0 — zero retained log entries isn't a meaningful
@@ -164,32 +184,25 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
                 && n > 0
             {
                 state.config.max_log_entries = n;
+                persist_config(state);
             }
             state.settings_edit.max_log_entries = s;
         }
         SettingsMessage::FsWatchEnabledChanged(v) => {
             state.config.fs_watch_enabled = v;
             if !v {
-                state.settings_save_msg =
-                    Some(state.t("plain.activity.fs_watch_disabled").to_owned());
+                state.status_bar = Some(state.t("plain.activity.fs_watch_disabled").to_owned());
             }
+            persist_config(state);
         }
         SettingsMessage::FsDebounceSecs(s) => {
             // Like the refresh interval, 0 is a legitimate value here.
             if let Ok(n) = s.parse::<u32>() {
                 state.config.fs_debounce_secs = n;
+                persist_config(state);
             }
             state.settings_edit.fs_debounce_secs = s;
         }
-        SettingsMessage::SaveRequested => match save_config(&state.config, &state.paths) {
-            Ok(()) => {
-                state.settings_save_msg = Some(state.t("settings.saved_ok").to_owned());
-                state.status_bar = Some(state.t("settings.saved_ok").to_owned());
-            }
-            Err(e) => {
-                state.settings_save_msg = Some(format!("{} {e}", state.t("settings.save_error")));
-            }
-        },
     }
     Task::none()
 }
@@ -349,12 +362,12 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
     match msg {
         DashboardMessage::GroupingChanged(grouping) => {
             state.config.dashboard_grouping = grouping;
-            persist_dashboard_preferences(state);
+            persist_config(state);
             state.reconcile_selection_with_display();
         }
         DashboardMessage::SortChanged(sort) => {
             state.config.dashboard_sort = sort;
-            persist_dashboard_preferences(state);
+            persist_config(state);
         }
         DashboardMessage::TierToggled(tier) => {
             if state.config.dashboard_grouping == DashboardGrouping::Attention {
@@ -369,7 +382,7 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
                             !state.config.dashboard_all_set_collapsed;
                     }
                 }
-                persist_dashboard_preferences(state);
+                persist_config(state);
                 state.reconcile_selection_with_display();
             }
         }
@@ -383,9 +396,32 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
     Task::none()
 }
 
-fn persist_dashboard_preferences(state: &mut AppState) {
-    if let Err(error) = save_config(&state.config, &state.paths) {
-        tracing::warn!("failed to persist dashboard preferences: {error}");
-        state.status_bar = Some(state.t("dashboard.preference_save_failed").to_owned());
+/// RFC-071 Amendment A7: the one function every setting-changing path in
+/// this app calls to persist `state.config` — originally just dashboard
+/// Group/Sort/collapse (RFC-032, `handle_dashboard` above, under its old
+/// name `persist_dashboard_preferences`), now generalized to Settings'
+/// selects and typed fields (`handle_settings` above) and zoom (stage 4's
+/// Settings select and shortcuts) as well.
+///
+/// A failed save is never silent, and never shown only where the change
+/// happened to come from (A7's refinement, Review 259 §1: zoom's shortcuts
+/// work outside Settings): it replaces both `state.status_bar` (the
+/// activity line, read everywhere) and `state.settings_save_msg`
+/// (`view/settings.rs`, read only while Settings is open) with the same
+/// `settings.save_error`-prefixed text, so a zoom shortcut's failure is
+/// exactly as visible as a Settings field's. A *successful* save shows
+/// nothing in either place — A7's other refinement: a "Settings saved."
+/// flash on every keystroke would be noise, not news — but does clear any
+/// stale `settings_save_msg` a previous failure left behind, so a retry
+/// that works removes the old error rather than leaving it stuck.
+fn persist_config(state: &mut AppState) {
+    match save_config(&state.config, &state.paths) {
+        Ok(()) => state.settings_save_msg = None,
+        Err(error) => {
+            tracing::warn!("failed to persist settings: {error}");
+            let msg = format!("{} {error}", state.t("settings.save_error"));
+            state.settings_save_msg = Some(msg.clone());
+            state.status_bar = Some(msg);
+        }
     }
 }

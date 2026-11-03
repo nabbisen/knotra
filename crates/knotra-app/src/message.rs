@@ -151,6 +151,12 @@ pub enum HistoryMessage {
 pub enum SettingsMessage {
     LocaleChanged(knotra_ui::i18n::Locale),
     ThemeChanged(knotra_ui::ThemeChoice),
+    /// RFC-071 D11: the Settings "Zoom" select, and the zoom shortcuts
+    /// (`app.rs`'s `ShortcutMessage::ZoomIn`/`ZoomOut`/`ZoomReset` all
+    /// dispatch through this same message, having already computed the new
+    /// percent) — one saving path for both, per D11's "saved like every
+    /// other setting".
+    ZoomChanged(u16),
     // RFC-038 Stage 2 §1b: these four carry the raw typed text, not a
     // pre-parsed number — the view previously coerced unparseable input to
     // a magic default (0/1/10/2) at the message boundary, which destroyed
@@ -163,7 +169,6 @@ pub enum SettingsMessage {
     MaxLogEntriesChanged(String),
     FsWatchEnabledChanged(bool),
     FsDebounceSecs(String),
-    SaveRequested,
 }
 
 // --- Background ---
@@ -366,6 +371,13 @@ pub enum ShortcutMessage {
     /// RFC-066 D4: a mouse button pressed anywhere — clears the focus
     /// outline (`AppState::focus_visible`). Never moves focus itself.
     MousePressed,
+    /// RFC-071 D11: `Ctrl+Plus`/`Ctrl+=`. Does nothing while a window is
+    /// open (RFC-066's rule, same gate as `OpenContextOps`/`OpenFreezer`).
+    ZoomIn,
+    /// RFC-071 D11: `Ctrl+Minus`. See [`ShortcutMessage::ZoomIn`].
+    ZoomOut,
+    /// RFC-071 D11: `Ctrl+0`. See [`ShortcutMessage::ZoomIn`].
+    ZoomReset,
 }
 
 // ---------------------------------------------------------------------------

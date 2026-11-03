@@ -36,6 +36,12 @@ fn main() -> iced::Result {
         .title(|_: &state::AppState| String::from("knotra"))
         .subscription(app::subscription)
         .theme(|state: &state::AppState| state.theme.base.clone())
+        // RFC-071 D11: zoom. `AppConfig.zoom_percent` is always one of
+        // `config::ZOOM_STEPS` once loaded (`load_config`'s own
+        // `nearest_zoom_step` snap), so no further validation is needed
+        // here — this reads live every render, so a change takes effect
+        // without a restart.
+        .scale_factor(|state: &state::AppState| f32::from(state.config.zoom_percent) / 100.0)
         .font(knotra_ui::widget::icon::FONT_BYTES)
         .window(iced::window::Settings {
             size: state::INITIAL_WINDOW_SIZE,
