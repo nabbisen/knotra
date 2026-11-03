@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — a new installation starts in the light theme
+
+knotra used to start in the dark theme. It now starts in the light theme, which many people
+find easier to read. If you have already chosen a theme, knotra keeps it.
+
 ### Added — Zoom
 
 In Settings, "Zoom" makes everything in knotra larger or smaller: 100 %, 115 %, 130 % or

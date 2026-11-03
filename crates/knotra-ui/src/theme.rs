@@ -13,11 +13,21 @@ use iced::Color;
 /// (`knotra-app`'s `config.rs`) already use the same `rename_all` for the
 /// same reason: a value a user never sees, read back from their own saved
 /// file.
+///
+/// Task 104: `Light` is the default, not `Dark` — never a recorded design
+/// decision before this, just the shape the very first commit happened to
+/// take. For many older eyes, dark text on a light background is easier to
+/// read: more light reaching the eye, and less blooming of light text
+/// against a dark field for anyone with astigmatism. A user who prefers
+/// dark still chooses it in Settings, and `load_config`'s own
+/// `dark_theme = true` compatibility mapping (RFC-070 D1) means anyone who
+/// already chose it — before or after this change — keeps it; only a
+/// genuinely unconfigured, brand-new installation is affected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ThemeChoice {
-    Light,
     #[default]
+    Light,
     Dark,
     HighContrastLight,
     HighContrastDark,
@@ -183,6 +193,14 @@ impl Default for KnotraTheme {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Task 104: pinned by name, not merely "whatever `#[default]` happens
+    /// to mark" — the whole point of this task is that the default moved,
+    /// so the test must name the value it moved *to*.
+    #[test]
+    fn theme_choice_default_is_light() {
+        assert_eq!(ThemeChoice::default(), ThemeChoice::Light);
+    }
 
     /// `snora_design::contrast::contrast_ratio` takes `snora_design::Color`,
     /// which is deliberately not `iced::Color` (snora-design stays iced-free).

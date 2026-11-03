@@ -445,6 +445,20 @@ mod tests {
         assert_eq!(loaded.theme, AppConfig::default().theme);
     }
 
+    /// Task 104: pinned by name — a brand-new installation (no settings
+    /// file at all) must load `Light`, not merely "the current default"
+    /// (already covered, genericly, by the assertion just above).
+    #[test]
+    fn load_config_with_no_settings_file_loads_as_light() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths::under(tmp.path().to_path_buf()); // config dir never created
+
+        let (loaded, warning) = load_config(&paths);
+
+        assert_eq!(warning, None);
+        assert_eq!(loaded.theme, ThemeChoice::Light);
+    }
+
     /// Task 083: a config directory blocked by a plain file must not read
     /// as "no config yet" — the same ambiguity Tasks 081/082 removed from
     /// `delete_workspace_file` and the two loaders in `persistence.rs`.
@@ -590,8 +604,16 @@ mod tests {
     fn save_config_writes_theme_only_not_dark_theme() {
         let tmp = tempfile::TempDir::new().expect("tempdir");
         let paths = AppPaths::under(tmp.path().to_path_buf());
+        // Task 104: an explicit theme, not `AppConfig::default()` — this
+        // test is about which *key* is written, not which value the
+        // default happens to be, and must not break again the next time
+        // the default theme changes.
+        let config = AppConfig {
+            theme: ThemeChoice::Dark,
+            ..AppConfig::default()
+        };
 
-        save_config(&AppConfig::default(), &paths).expect("save_config");
+        save_config(&config, &paths).expect("save_config");
         let text = std::fs::read_to_string(&paths.config_file).expect("read saved config.toml");
 
         assert!(text.contains("theme = \"dark\""), "{text:?}");
