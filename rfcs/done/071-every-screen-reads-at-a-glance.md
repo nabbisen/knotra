@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | Implemented (main: b0e2a45, bb6eb85, 77f05c4, 4e571a1, 3e55eaa, df98747, 2ec49d3, 94d64be), with handoff Amendments A1–A7 |
 | Priority | High - every user, every screen: the most important text is the smallest, and status has no colour |
 | Effort | Medium to large - four stages, each shippable alone: type, colour roles, layout, zoom |
 | Target | 0.33.0 (`.git-exclude/reviewed/244-release-plan-0.33.0-scope.md` §7) |
