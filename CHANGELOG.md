@@ -9,44 +9,34 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed — History showed a code instead of the project's name
+## [0.33.0] — 2026-11-04
 
-In an entry's details and in a copied log, each project was shown as a long internal code.
-It now shows the project's name, and searching History by a project's name finds its
-entries. Entries recorded before this version show the project's current name, or "Removed
-project" if it is no longer in any workspace.
-
-### Changed — `ProjectOperationResult` records the project's name (`knotra-vcs` crate)
-
-For developers using `knotra-vcs`: the struct gains `project_name: Option<String>`. Code
-that builds it with a struct literal must set the field. Saved logs without it still load.
-
-### Changed — a new installation starts in the light theme
-
-knotra used to start in the dark theme. It now starts in the light theme, which many people
-find easier to read. If you have already chosen a theme, knotra keeps it.
+**Every screen is easier to read: larger, bolder text, a colour and a symbol for every
+status, zoom up to 150 %, and two high-contrast themes.**
 
 ### Added — Zoom
 
 In Settings, "Zoom" makes everything in knotra larger or smaller: 100 %, 115 %, 130 % or
 150 %. Ctrl+Plus, Ctrl+Minus and Ctrl+0 do the same when no window is open.
 
-### Fixed — a theme or language you chose could be forgotten
-
-Settings applied a new theme or language at once, but kept it only if you also pressed
-"Save settings"; closing knotra without it brought the old choice back. Every setting is now
-saved as soon as you change it, and the "Save settings" button is gone.
-
-### Changed — the text field you are typing in is easier to see
-
-A field you have clicked or tabbed into now shows the same focus outline as every other
-control, thicker and easier to see. A field you cannot use right now is no longer faded.
-
 ### Added — high-contrast themes
 
 Settings → Theme now also offers "High contrast light" and "High contrast dark": black and
 white, with strong outlines and a thicker focus outline, for anyone who finds the normal
 themes hard to read. Your current theme is kept.
+
+### Changed — project names, statuses and headings are easier to read
+
+Project names, their status, group headings and History entries were drawn in the smallest
+text on the screen. They now use the normal text size, and names and headings are drawn
+stronger. The smallest text is also slightly larger.
+
+### Changed — each status has its own colour and symbol
+
+A project that needs help now looks different from one that is all set. Each status has a
+coloured symbol beside its words, in the project list and on the filter buttons, which now
+also show how many projects each one matches. Blue now marks only what you can click or
+press, and on History an entry's buttons are no longer both highlighted.
 
 ### Changed — the dashboard and History line up, and rows are easier to tell apart
 
@@ -56,22 +46,36 @@ describe. Items in a list, on these screens and inside windows, are separated by
 lines. The header's "Check now", command palette and Settings now show their names, and
 the dashboard's second "Check now" button is gone: the one in the header does the same.
 
-### Changed — each status has its own colour and symbol
+### Changed — a new installation starts in the light theme
 
-A project that needs help now looks different from one that is all set. Each status has a
-coloured symbol beside its words, in the project list and on the filter buttons, which now
-also show how many projects each one matches. Blue now marks only what you can click or
-press, and on History an entry's buttons are no longer both highlighted.
+knotra used to start in the dark theme. It now starts in the light theme, which many people
+find easier to read. If you have already chosen a theme, knotra keeps it.
+
+### Changed — buttons you cannot use right now are easier to read
+
+Their names were drawn so faintly that they were hard to read. They are now shown in
+readable grey, without their colour, next to the reason they are unavailable.
+
+### Changed — the text field you are typing in is easier to see
+
+A field you have clicked or tabbed into now shows the same focus outline as every other
+control, thicker and easier to see. A field you cannot use right now is no longer faded.
 
 ### Changed — the hint in an empty search box is easier to read
 
 It was drawn so faintly that it was hard to see. It is now readable, and still lighter than
 what you type.
 
-### Changed — buttons you cannot use right now are easier to read
+### Changed — "Add project folder" opens where you last added a project
 
-Their names were drawn so faintly that they were hard to read. They are now shown in
-readable grey, without their colour, next to the reason they are unavailable.
+"Browse…" now opens the folder picker in the folder that holds the project you added most
+recently, so adding several projects from one place takes fewer steps. If that folder no
+longer exists, the picker opens as before. The picker's title is now shown in Japanese too.
+
+### Changed — `ProjectOperationResult` records the project's name (`knotra-vcs` crate)
+
+For developers using `knotra-vcs`: the struct gains `project_name: Option<String>`. Code
+that builds it with a struct literal must set the field. Saved logs without it still load.
 
 ### Removed — `StatusColor` and unused layout constants from the `knotra-ui` crate
 
@@ -80,17 +84,18 @@ that no theme could change. Status colours now come from the theme's palette. Th
 `CARD_RADIUS`, `CARD_GAP`, `CARD_PADDING`, `CARD_MIN_WIDTH` and `SIDEBAR_WIDTH`, left over
 from an earlier layout, are removed as well.
 
-### Changed — project names, statuses and headings are easier to read
+### Fixed — a theme or language you chose could be forgotten
 
-Project names, their status, group headings and History entries were drawn in the smallest
-text on the screen. They now use the normal text size, and names and headings are drawn
-stronger. The smallest text is also slightly larger.
+Settings applied a new theme or language at once, but kept it only if you also pressed
+"Save settings"; closing knotra without it brought the old choice back. Every setting is now
+saved as soon as you change it, and the "Save settings" button is gone.
 
-### Changed — "Add project folder" opens where you last added a project
+### Fixed — History showed a code instead of the project's name
 
-"Browse…" now opens the folder picker in the folder that holds the project you added most
-recently, so adding several projects from one place takes fewer steps. If that folder no
-longer exists, the picker opens as before. The picker's title is now shown in Japanese too.
+In an entry's details and in a copied log, each project was shown as a long internal code.
+It now shows the project's name, and searching History by a project's name finds its
+entries. Entries recorded before this version show the project's current name, or "Removed
+project" if it is no longer in any workspace.
 
 ## [0.32.1] — 2026-10-29
 
