@@ -14,7 +14,7 @@ use crate::{
         AppState,
         dashboard::{
             DashboardCause, DashboardEntry, DashboardTier, ProgressKind, badge_for_all_set,
-            badge_for_cause, badge_for_progress,
+            badge_for_cause, badge_for_progress, workspace_has_mixed_vcs_kinds,
         },
         focus::FocusTarget,
     },
@@ -338,7 +338,11 @@ fn view_standard_row<'a>(
         identity = identity.push(checkbox_element);
     }
     let mut identity_details = column![name].spacing(2);
-    if entry.tier == DashboardTier::NeedsHelp {
+    // RFC-073 D3: the kind label tells something only when the workspace
+    // holds both Git and Jujutsu projects.
+    if entry.tier == DashboardTier::NeedsHelp
+        && workspace_has_mixed_vcs_kinds(state.workspace_status.as_ref())
+    {
         let vcs = entry
             .status
             .map(|status| status.identity.vcs_kind.to_string())
@@ -469,13 +473,18 @@ fn view_compact_row<'a>(
 /// less (RFC-032 R10).
 fn compact_status_line(state: &AppState, entry: &DashboardEntry<'_>, work_area: &str) -> String {
     match entry.tier {
-        DashboardTier::NeedsHelp => {
+        // RFC-073 D3: the kind label tells something only when the
+        // workspace holds both Git and Jujutsu projects.
+        DashboardTier::NeedsHelp
+            if workspace_has_mixed_vcs_kinds(state.workspace_status.as_ref()) =>
+        {
             let vcs = entry
                 .status
                 .map(|status| status.identity.vcs_kind.to_string())
                 .unwrap_or_else(|| state.t("status.unknown").to_owned());
             format!("{vcs} · {}", cause_label(state, entry.cause))
         }
+        DashboardTier::NeedsHelp => cause_label(state, entry.cause).to_owned(),
         DashboardTier::InProgress => {
             let count = entry
                 .relevant_count

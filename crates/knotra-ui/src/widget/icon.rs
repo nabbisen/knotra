@@ -74,9 +74,10 @@ pub fn refresh() -> snora::Icon {
     snora::lucide::RefreshCw.into()
 }
 
-/// Command palette.
+/// Command palette. RFC-073 D6: a neutral `Search` glyph, not the
+/// macOS-only "⌘" `Command` symbol this replaced.
 pub fn command_palette() -> snora::Icon {
-    snora::lucide::Command.into()
+    snora::lucide::Search.into()
 }
 
 /// Close / dismiss.

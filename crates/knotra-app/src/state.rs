@@ -536,11 +536,13 @@ pub struct AppState {
     /// which is exactly what `width_mode` moving into `AppState` was about
     /// keyboard/render parity, not about growing further).
     pub dashboard_toolbar_overflow_open: bool,
-    /// RFC-035 R8/Handoff 028 Ruling 6.1: whether the compact toolbar's
-    /// grouping/sorting selector disclosure (`▾`) is open. Same
-    /// ignored-outside-compact, not-cleared-on-resize shape as
-    /// `dashboard_toolbar_overflow_open`.
-    pub dashboard_toolbar_selectors_open: bool,
+    /// RFC-035 R8/Handoff 028 Ruling 6.1, renamed by RFC-073 D2: whether the
+    /// "Arrange" disclosure (`▾` in compact, a labelled control in
+    /// standard/wide) holding the grouping/sorting selects is open. Same
+    /// ignored-outside-its-own-width-mode-rendering, not-cleared-on-resize
+    /// shape as `dashboard_toolbar_overflow_open` — both bands share one
+    /// flag since only one is ever rendered at a time.
+    pub dashboard_arrange_open: bool,
     /// A recently removed project eligible for undo (cleared by next action or timeout).
     pub recent_removal: Option<UndoableRemoval>,
     // ------------------------------------------------------------------
@@ -632,7 +634,7 @@ impl AppState {
             selection_mode: false,
             show_op_details: false,
             dashboard_toolbar_overflow_open: false,
-            dashboard_toolbar_selectors_open: false,
+            dashboard_arrange_open: false,
             recent_removal: None,
             dashboard_focus: None,
             overlay_focus: None,

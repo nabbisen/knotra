@@ -87,6 +87,8 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.sorting", "Sort");
     m.insert("dashboard.sorting.recommended", "Needs help first");
     m.insert("dashboard.sorting.name", "Name A-Z");
+    // RFC-073 D2: Group and Sort move into one "Arrange" menu.
+    m.insert("dashboard.arrange", "Arrange");
     m.insert("dashboard.clear_filters", "Clear filters");
     m.insert("dashboard.all_projects", "All projects");
     m.insert("dashboard.work_area_unknown", "Work area unavailable");
@@ -130,7 +132,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("filter.behind", "Updates available");
     m.insert("filter.ahead", "Local commits");
     m.insert("filter.dirty", "Unsaved work");
-    m.insert("filter.conflict", "Needs a choice");
     m.insert("filter.needs_help", "Needs help");
     // Group labels
     m.insert("group.ungrouped", "(Ungrouped)");
@@ -664,7 +665,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("palette.action.clear_selection", "Clear selection");
     m.insert("palette.action.open_settings", "Open settings");
     m.insert("palette.action.open_history", "Open history");
-    m.insert("palette.action.toggle_theme", "Toggle theme");
     m.insert("palette.action.refresh", "Refresh dashboard");
     m.insert("palette.action.shortcuts", "Show keyboard shortcuts");
     m.insert("palette.disabled.no_workspace", "Open a workspace first.");
@@ -729,6 +729,9 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.section.display", "Display");
     m.insert("settings.section.refresh", "Refresh & performance");
     m.insert("settings.section.tools", "External tools");
+    // RFC-073 D4: workspace creation/rename/removal move here from the
+    // header switcher's menu.
+    m.insert("settings.section.workspaces", "Workspaces");
     m.insert("settings.section.logs", "Logs");
     m.insert("settings.locale_label", "Language");
     m.insert("settings.theme_label", "Theme");
@@ -892,6 +895,8 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.sorting", "並び順");
     m.insert("dashboard.sorting.recommended", "おすすめ");
     m.insert("dashboard.sorting.name", "名前");
+    // RFC-073 D2: Group and Sort move into one "Arrange" menu.
+    m.insert("dashboard.arrange", "並べ方");
     m.insert("dashboard.clear_filters", "絞り込みを解除");
     m.insert("dashboard.all_projects", "すべてのプロジェクト");
     m.insert("dashboard.work_area_unknown", "作業場所を確認できません");
@@ -932,7 +937,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("filter.behind", "更新あり");
     m.insert("filter.ahead", "ローカルのコミット");
     m.insert("filter.dirty", "作業中の変更");
-    m.insert("filter.conflict", "選択が必要");
     m.insert("filter.needs_help", "対応が必要");
     // Group labels
     m.insert("group.ungrouped", "(グループなし)");
@@ -1499,7 +1503,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("palette.action.clear_selection", "選択を解除");
     m.insert("palette.action.open_settings", "設定を開く");
     m.insert("palette.action.open_history", "履歴を開く");
-    m.insert("palette.action.toggle_theme", "テーマを切り替え");
     m.insert("palette.action.refresh", "ダッシュボードを更新");
     m.insert("palette.action.shortcuts", "キーボードショートカットを表示");
     m.insert(
@@ -1549,6 +1552,9 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.section.display", "表示");
     m.insert("settings.section.refresh", "更新とパフォーマンス");
     m.insert("settings.section.tools", "外部ツール");
+    // RFC-073 D4: workspace creation/rename/removal move here from the
+    // header switcher's menu.
+    m.insert("settings.section.workspaces", "ワークスペース");
     m.insert("settings.section.logs", "ログ");
     m.insert("settings.locale_label", "言語");
     m.insert("settings.theme_label", "テーマ");

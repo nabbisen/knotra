@@ -97,11 +97,18 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
     let dashboard_active = matches!(state.screen, Screen::Dashboard);
     let history_active = matches!(state.screen, Screen::History);
 
-    vec![
-        (
+    // RFC-073 D4: with one workspace the switcher renders as plain text,
+    // not a button — so it is not a Tab stop either (the same "a target
+    // must correspond to an actually-rendered control" rule D1 applies to
+    // the dashboard toolbar).
+    let mut order: FocusOrder<Message> = Vec::new();
+    if state.all_workspaces.len() > 1 {
+        order.push((
             FocusTarget::control(focus_target::WORKSPACE_SWITCHER),
             Some(Message::Workspace(WorkspaceMessage::SwitcherToggled)),
-        ),
+        ));
+    }
+    order.extend(vec![
         (
             FocusTarget::control(focus_target::NAV_DASHBOARD),
             (!dashboard_active).then_some(Message::Navigate(Screen::Dashboard)),
@@ -123,7 +130,8 @@ pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
             FocusTarget::control(focus_target::SETTINGS),
             Some(Message::Navigate(Screen::Settings)),
         ),
-    ]
+    ]);
+    order
 }
 
 /// Height of the persistent shell bar (RFC-033 D7: 48-52px). Also used to
@@ -138,47 +146,45 @@ const SWITCHER_WIDTH: f32 = 260.0;
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
 
-    let attention = state
-        .dashboard_display()
-        .sections
-        .iter()
-        .flat_map(|section| section.entries.iter())
-        .filter(|entry| entry.tier == crate::state::dashboard::DashboardTier::NeedsHelp)
-        .count();
-
     let workspace_name = state
         .workspace
         .as_ref()
         .map(|ws| ws.name.as_str())
         .unwrap_or_else(|| state.t("dashboard.no_workspace"));
 
-    let switcher_label = if attention > 0 {
-        format!("{workspace_name} ({attention})")
+    // RFC-073 D4: with one workspace, its name is plain text, not a menu;
+    // the switcher (switch/create/rename/delete) appears only with two or
+    // more. The unlabelled attention count that used to follow the name
+    // is gone — the "Needs help" chip already says it.
+    let workspace_header: Element<'_, Message> = if state.all_workspaces.len() > 1 {
+        button(
+            row![
+                text(workspace_name.to_owned())
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+                widget::icon::icon_element(&icon::chevron_down()),
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center),
+        )
+        .on_press(Message::Workspace(WorkspaceMessage::SwitcherToggled))
+        .style({
+            let t = tokens.clone();
+            let focused = crate::app::ring(
+                state,
+                &FocusTarget::control(focus_target::WORKSPACE_SWITCHER),
+            );
+            move |_theme, status| {
+                widget::style::with_focus_ring(&t, focused, widget::style::ghost(&t, status))
+            }
+        })
+        .into()
     } else {
-        workspace_name.to_owned()
+        text(workspace_name.to_owned())
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens))
+            .into()
     };
-
-    let switcher_trigger = button(
-        row![
-            text(switcher_label)
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-            widget::icon::icon_element(&icon::chevron_down()),
-        ]
-        .spacing(6)
-        .align_y(Alignment::Center),
-    )
-    .on_press(Message::Workspace(WorkspaceMessage::SwitcherToggled))
-    .style({
-        let t = tokens.clone();
-        let focused = crate::app::ring(
-            state,
-            &FocusTarget::control(focus_target::WORKSPACE_SWITCHER),
-        );
-        move |_theme, status| {
-            widget::style::with_focus_ring(&t, focused, widget::style::ghost(&t, status))
-        }
-    });
 
     let dashboard_active = matches!(state.screen, Screen::Dashboard);
     let history_active = matches!(state.screen, Screen::History);
@@ -269,7 +275,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
 
     let bar = row![
-        switcher_trigger,
+        workspace_header,
         nav_button(
             state.t("nav.dashboard"),
             dashboard_active,

@@ -8,7 +8,10 @@
 //! one-directional edge; this module must not depend on `misc.rs`.
 
 use iced::Task;
-use knotra_vcs::model::{project::Project, workspace::Workspace};
+use knotra_vcs::model::{
+    project::Project,
+    workspace::{Workspace, WorkspaceId},
+};
 
 use super::shared;
 use crate::{
@@ -34,6 +37,47 @@ fn persist_config(state: &AppState) {
     if let Err(e) = save_config(&state.config, &state.paths) {
         tracing::warn!("failed to save config: {e}");
     }
+}
+
+/// RFC-073 D4: shared by `RenameWorkspaceDialogOpened` (always the active
+/// workspace, from the header switcher or the palette) and
+/// `RenameWorkspaceDialogOpenedFor` (any workspace, from Settings'
+/// "Workspaces" section) — the dialog itself is unchanged either way.
+fn open_rename_dialog(state: &mut AppState, workspace_id: WorkspaceId) {
+    state.workspace_mgr.switcher_open = false;
+    let current_name = state
+        .all_workspaces
+        .iter()
+        .find(|ws| ws.id == workspace_id)
+        .map(|ws| ws.name.clone())
+        .unwrap_or_default();
+    state.workspace_mgr.rename_dialog = Some(RenameWorkspaceDialog {
+        workspace_id,
+        new_name: current_name,
+        error: None,
+    });
+}
+
+/// RFC-073 D4: the delete-confirmation counterpart of
+/// [`open_rename_dialog`] — same dialog, any workspace.
+fn open_delete_dialog(state: &mut AppState, workspace_id: WorkspaceId) {
+    state.workspace_mgr.switcher_open = false;
+    let Some(ws) = state.all_workspaces.iter().find(|ws| ws.id == workspace_id) else {
+        return;
+    };
+    let workspace_name = ws.name.clone();
+    let project_count = ws.projects.len();
+    let error = if state.all_workspaces.len() <= 1 {
+        Some(state.t("workspace.delete.disabled_last").to_owned())
+    } else {
+        None
+    };
+    state.workspace_mgr.confirm_delete = Some(DeleteWorkspaceDialog {
+        workspace_id,
+        workspace_name,
+        project_count,
+        error,
+    });
 }
 
 /// Task 102: the folder "Browse…" should start in — `None` if nothing is
@@ -320,15 +364,15 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
 
         WorkspaceMessage::RenameWorkspaceDialogOpened => {
             state.workspace_mgr.switcher_open = false;
-            let current = state
-                .workspace
-                .as_ref()
-                .map(|ws| ws.name.clone())
-                .unwrap_or_default();
-            state.workspace_mgr.rename_dialog = Some(RenameWorkspaceDialog {
-                new_name: current,
-                error: None,
-            });
+            if let Some(id) = state.workspace.as_ref().map(|ws| ws.id.clone()) {
+                open_rename_dialog(state, id);
+            }
+            Task::none()
+        }
+        // RFC-073 D4: Settings' "Workspaces" section opens the same
+        // dialog for any listed workspace, not only the active one.
+        WorkspaceMessage::RenameWorkspaceDialogOpenedFor(id) => {
+            open_rename_dialog(state, id);
             Task::none()
         }
         WorkspaceMessage::RenameWorkspaceNameChanged(s) => {
@@ -339,18 +383,14 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
             Task::none()
         }
         WorkspaceMessage::RenameWorkspaceConfirmed => {
-            let raw_name = state
-                .workspace_mgr
-                .rename_dialog
-                .as_ref()
-                .map(|d| d.new_name.clone())
-                .unwrap_or_default();
+            let Some(dialog) = state.workspace_mgr.rename_dialog.clone() else {
+                return Task::none();
+            };
 
-            let current_id = state.workspace.as_ref().map(|ws| ws.id.clone());
             let name = match validate_workspace_name(
-                &raw_name,
+                &dialog.new_name,
                 &state.all_workspaces,
-                current_id.as_ref(),
+                Some(&dialog.workspace_id),
             ) {
                 Ok(name) => name,
                 Err(err) => {
@@ -362,10 +402,14 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 }
             };
 
-            let mut renamed = match state.workspace.clone() {
-                Some(ws) => ws,
-                None => return Task::none(),
+            let Some(idx) = state
+                .all_workspaces
+                .iter()
+                .position(|ws| ws.id == dialog.workspace_id)
+            else {
+                return Task::none();
             };
+            let mut renamed = state.all_workspaces[idx].clone();
             renamed.name = name;
             if let Err(e) = save_workspace(&renamed, &state.paths) {
                 let msg = format!("{} {e}", state.t("workspace.error.save_failed"));
@@ -375,10 +419,10 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 return Task::none();
             }
 
-            state.workspace = Some(renamed.clone());
-            if let Some(entry) = state.all_workspaces.get_mut(state.active_workspace_idx) {
-                *entry = renamed;
+            if state.workspace.as_ref().map(|ws| &ws.id) == Some(&renamed.id) {
+                state.workspace = Some(renamed.clone());
             }
+            state.all_workspaces[idx] = renamed;
             state.workspace_mgr.rename_dialog = None;
             Task::none()
         }
@@ -388,27 +432,15 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
         }
 
         WorkspaceMessage::DeleteWorkspaceRequested => {
-            state.workspace_mgr.switcher_open = false;
-            if state.all_workspaces.len() <= 1 {
-                if let Some(ws) = state.workspace.as_ref() {
-                    state.workspace_mgr.confirm_delete = Some(DeleteWorkspaceDialog {
-                        workspace_id: ws.id.clone(),
-                        workspace_name: ws.name.clone(),
-                        project_count: ws.projects.len(),
-                        error: Some(state.t("workspace.delete.disabled_last").to_owned()),
-                    });
-                }
-                return Task::none();
+            if let Some(id) = state.workspace.as_ref().map(|ws| ws.id.clone()) {
+                open_delete_dialog(state, id);
             }
-
-            if let Some(ws) = state.workspace.as_ref() {
-                state.workspace_mgr.confirm_delete = Some(DeleteWorkspaceDialog {
-                    workspace_id: ws.id.clone(),
-                    workspace_name: ws.name.clone(),
-                    project_count: ws.projects.len(),
-                    error: None,
-                });
-            }
+            Task::none()
+        }
+        // RFC-073 D4: Settings' "Workspaces" section opens the same
+        // confirmation for any listed workspace, not only the active one.
+        WorkspaceMessage::DeleteWorkspaceRequestedFor(id) => {
+            open_delete_dialog(state, id);
             Task::none()
         }
         WorkspaceMessage::DeleteWorkspaceConfirmed => {

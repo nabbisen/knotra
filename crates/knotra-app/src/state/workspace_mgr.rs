@@ -26,6 +26,11 @@ pub struct CreateWorkspaceDialog {
 
 #[derive(Debug, Clone)]
 pub struct RenameWorkspaceDialog {
+    /// RFC-073 D4: which workspace this dialog renames — the active one
+    /// when opened from the header switcher or the palette, but any
+    /// workspace when opened from Settings' "Workspaces" section, which
+    /// lists every workspace, not only the active one.
+    pub workspace_id: WorkspaceId,
     pub new_name: String,
     pub error: Option<String>,
 }

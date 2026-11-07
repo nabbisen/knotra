@@ -22,7 +22,7 @@ use knotra_ui::i18n::Locale;
 use knotra_ui::widget::{Tokens, WIDE_CONTENT_WIDTH, select, strong, validated_field};
 
 use crate::{
-    message::{Message, SettingsMessage},
+    message::{Message, SettingsMessage, WorkspaceMessage},
     state::AppState,
     view::dashboard::WidthMode,
 };
@@ -84,6 +84,8 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
             mode,
             vec![view_editor_field(state), view_merge_tool_field(state)]
         ),
+        section_header(tokens, state.t("settings.section.workspaces")),
+        view_workspaces_section(state),
         section_header(tokens, state.t("settings.section.logs")),
         view_max_logs_field(state),
         section_header(tokens, state.t("settings.section.fs_watch")),
@@ -229,6 +231,81 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
     column![locale_row, theme_row, zoom_row, zoom_help]
         .spacing(8)
         .into()
+}
+
+// ---------------------------------------------------------------------------
+// Workspaces section (RFC-073 D4) — creation, rename and removal move here
+// from the header switcher's menu, built from the existing dialogs and
+// texts (`workspace_mgr.rs`/`workspace_manager.rs` are unchanged; only
+// these buttons' entry points are new). The palette's own workspace
+// actions stay exactly as they were.
+// ---------------------------------------------------------------------------
+
+fn view_workspaces_section(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
+    let can_delete = state.all_workspaces.len() > 1;
+
+    let mut list = column![].spacing(8);
+    for ws in &state.all_workspaces {
+        let rename_btn = button(
+            text(state.t("workspace.rename.short"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        )
+        .on_press(Message::Workspace(
+            WorkspaceMessage::RenameWorkspaceDialogOpenedFor(ws.id.clone()),
+        ));
+
+        let remove_btn = button(
+            text(state.t("workspace.delete.short"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        )
+        .on_press_maybe(can_delete.then_some(Message::Workspace(
+            WorkspaceMessage::DeleteWorkspaceRequestedFor(ws.id.clone()),
+        )));
+
+        // RFC-073 D4: "Remove ... stays unavailable for the last
+        // workspace, with its existing reason" — the same
+        // `workspace.delete.disabled_last` text the delete dialog itself
+        // falls back to when the last workspace is somehow targeted.
+        let remove: Element<'_, Message> = if can_delete {
+            remove_btn.into()
+        } else {
+            column![
+                remove_btn,
+                text(state.t("workspace.delete.disabled_last"))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
+            ]
+            .spacing(4)
+            .into()
+        };
+
+        list = list.push(
+            row![
+                text(ws.name.clone())
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+                Space::new().width(Length::Fill),
+                rename_btn,
+                remove,
+            ]
+            .spacing(8)
+            .align_y(Alignment::Center),
+        );
+    }
+
+    let add_workspace = button(
+        text(state.t("plain.add_workspace"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    )
+    .on_press(Message::Workspace(
+        WorkspaceMessage::CreateWorkspaceDialogOpened,
+    ));
+
+    column![list, add_workspace].spacing(12).into()
 }
 
 // ---------------------------------------------------------------------------

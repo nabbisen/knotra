@@ -12,7 +12,6 @@ use crate::{
 pub enum PaletteAvailability {
     Enabled,
     Disabled(&'static str),
-    Hidden,
 }
 
 // RFC-052 R4: justified, confirmed by testing — removing this produces
@@ -139,12 +138,6 @@ const ACTIONS: &[PaletteAction] = &[
         dispatch: |_| Some(Message::Navigate(Screen::History)),
     },
     PaletteAction {
-        id: "action.toggle_theme",
-        label_key: "palette.action.toggle_theme",
-        availability: |_| PaletteAvailability::Hidden,
-        dispatch: |_| None,
-    },
-    PaletteAction {
         id: "action.refresh",
         label_key: "palette.action.refresh",
         availability: |_| PaletteAvailability::Enabled,
@@ -186,12 +179,8 @@ fn selection_exactly_one_unless_busy(state: &AppState) -> PaletteAvailability {
 }
 
 #[cfg(test)]
-pub(crate) fn visible_action_ids(state: &AppState) -> Vec<&'static str> {
-    ACTIONS
-        .iter()
-        .filter(|action| !matches!((action.availability)(state), PaletteAvailability::Hidden))
-        .map(|action| action.id)
-        .collect()
+pub(crate) fn visible_action_ids(_state: &AppState) -> Vec<&'static str> {
+    ACTIONS.iter().map(|action| action.id).collect()
 }
 
 pub fn update_results(state: &mut AppState) {
@@ -200,9 +189,6 @@ pub fn update_results(state: &mut AppState) {
 
     for action in ACTIONS {
         let availability = (action.availability)(state);
-        if matches!(availability, PaletteAvailability::Hidden) {
-            continue;
-        }
         let label = state.t(action.label_key).to_owned();
         if matches_query(&q, &label) || matches_query(&q, action.id) {
             entries.push(PaletteEntry {
@@ -300,13 +286,12 @@ fn dispatch_action(state: &AppState, payload: &str) -> PaletteDispatch {
             .map(PaletteDispatch::Dispatched)
             .unwrap_or(PaletteDispatch::Noop),
         PaletteAvailability::Disabled(reason) => PaletteDispatch::Disabled(reason),
-        PaletteAvailability::Hidden => PaletteDispatch::Noop,
     }
 }
 
 fn disabled_reason(availability: PaletteAvailability) -> Option<&'static str> {
     match availability {
-        PaletteAvailability::Enabled | PaletteAvailability::Hidden => None,
+        PaletteAvailability::Enabled => None,
         PaletteAvailability::Disabled(reason) => Some(reason),
     }
 }

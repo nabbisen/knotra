@@ -9,6 +9,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the dashboard shows less at once
+
+With no projects yet, the dashboard shows only how to add your first one. "Group" and
+"Sort" are now together under "Arrange". A project's kind (Git or Jujutsu) is shown only
+when both kinds are in the workspace. With a single workspace, its name is no longer a menu;
+workspaces are created, renamed and removed in Settings. The "Needs a choice" filter is gone:
+those projects are all under "Needs help", each with its reason.
+
 ## [0.33.0] — 2026-11-04
 
 **Every screen is easier to read: larger, bolder text, a colour and a symbol for every

@@ -152,6 +152,7 @@ mod tests {
         // that, not just picking the `dialog` slot over the `sheet` slot.
         let mut s = state();
         s.workspace_mgr.rename_dialog = Some(crate::state::workspace_mgr::RenameWorkspaceDialog {
+            workspace_id: knotra_vcs::model::workspace::WorkspaceId::new(),
             new_name: "x".to_owned(),
             error: None,
         });

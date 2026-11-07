@@ -389,8 +389,8 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
         DashboardMessage::ToolbarOverflowToggled => {
             state.dashboard_toolbar_overflow_open = !state.dashboard_toolbar_overflow_open;
         }
-        DashboardMessage::ToolbarSelectorsToggled => {
-            state.dashboard_toolbar_selectors_open = !state.dashboard_toolbar_selectors_open;
+        DashboardMessage::ArrangeToggled => {
+            state.dashboard_arrange_open = !state.dashboard_arrange_open;
         }
     }
     Task::none()

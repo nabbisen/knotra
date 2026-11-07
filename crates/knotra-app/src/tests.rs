@@ -911,7 +911,14 @@ fn activate_focused_with_hidden_ring_reveals_it_without_pressing() {
 /// as a side effect.
 #[test]
 fn activate_focused_with_visible_ring_would_press_the_target() {
-    let state = make_state();
+    let mut state = make_state();
+    // RFC-073 D4: the switcher is only a Tab stop with two or more
+    // workspaces.
+    install_workspaces(
+        &mut state,
+        vec![Workspace::new("Main"), Workspace::new("Other")],
+        0,
+    );
     let order = crate::view::shell::focus_order(&state);
     assert!(matches!(
         focus::activation_message(&order, Some(&shell_switcher_target())),
@@ -3085,20 +3092,6 @@ fn palette_changelog_action_is_disabled_until_projects_are_selected() {
         .find(|entry| entry.payload == "action.changelog_selected")
         .expect("changelog palette action is listed");
     assert_eq!(entry.disabled_reason_key, Some("plain.disabled.choose_one"));
-}
-
-#[test]
-fn palette_toggle_theme_action_is_not_listed() {
-    let mut state = make_state();
-    state.palette.query = "toggle theme".to_owned();
-    crate::state::palette::update_results(&mut state);
-    assert!(
-        state
-            .palette
-            .results
-            .iter()
-            .all(|entry| entry.payload != "action.toggle_theme")
-    );
 }
 
 #[test]

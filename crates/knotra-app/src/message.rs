@@ -81,10 +81,17 @@ pub enum WorkspaceMessage {
     CreateWorkspaceConfirmed,
     CreateWorkspaceCancelled,
     RenameWorkspaceDialogOpened,
+    /// RFC-073 D4: Settings' "Workspaces" section lists every workspace,
+    /// not only the active one — this opens the same rename dialog, for
+    /// the named workspace rather than always the active one.
+    RenameWorkspaceDialogOpenedFor(WorkspaceId),
     RenameWorkspaceNameChanged(String),
     RenameWorkspaceConfirmed,
     RenameWorkspaceCancelled,
     DeleteWorkspaceRequested,
+    /// RFC-073 D4: the Settings-section counterpart of
+    /// `RenameWorkspaceDialogOpenedFor` — same dialog, any workspace.
+    DeleteWorkspaceRequestedFor(WorkspaceId),
     DeleteWorkspaceConfirmed,
     DeleteWorkspaceCancelled,
 }
@@ -265,13 +272,16 @@ pub enum FilterMessage {
     AllFiltersCleared,
 }
 
+// RFC-073 D5: `Conflict` is gone — every project needing a resolution
+// choice already needs help (`DashboardCause::Conflict` still carries
+// that reason on the "Needs help" row itself; only the chip/filter that
+// duplicated it as its own meaning is removed).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatusFilter {
     AllSet,
     Behind,
     Ahead,
     Dirty,
-    Conflict,
     NeedsHelp,
 }
 impl StatusFilter {
@@ -281,7 +291,6 @@ impl StatusFilter {
             StatusFilter::Behind => "filter.behind",
             StatusFilter::Ahead => "filter.ahead",
             StatusFilter::Dirty => "filter.dirty",
-            StatusFilter::Conflict => "filter.conflict",
             StatusFilter::NeedsHelp => "filter.needs_help",
         }
     }
@@ -294,8 +303,9 @@ pub enum DashboardMessage {
     TierToggled(crate::state::dashboard::DashboardTier),
     /// RFC-035 R8/Handoff 028 Ruling 6.1: compact toolbar's chip overflow (`⋯`).
     ToolbarOverflowToggled,
-    /// RFC-035 R8/Handoff 028 Ruling 6.1: compact toolbar's selector disclosure (`▾`).
-    ToolbarSelectorsToggled,
+    /// RFC-035 R8/Handoff 028 Ruling 6.1, renamed by RFC-073 D2: the
+    /// "Arrange" disclosure holding the grouping/sorting selects.
+    ArrangeToggled,
 }
 
 // --- Conflict resolution ---

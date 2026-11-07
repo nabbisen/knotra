@@ -49,7 +49,11 @@ pub(crate) use width_mode::WidthMode;
 /// dedicated test asserts the two ID sequences are identical.
 pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
     let display = state.dashboard_display();
-    let mut order = toolbar::focus_order(state, state.width_mode);
+    let mut order = if has_no_projects(state) {
+        Vec::new()
+    } else {
+        toolbar::focus_order(state, state.width_mode)
+    };
 
     for section in &display.sections {
         if let DashboardSectionKey::Tier(tier) = section.key
@@ -140,9 +144,15 @@ pub fn card_focus_order(state: &AppState) -> FocusOrder<Message> {
 /// reversed from a `responsive` measurement to a state field by Handoff 029
 /// — see `width_mode.rs`'s module doc for the full history).
 pub fn view(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
-    let mut body = column![view_header(state), view_toolbar(state, mode)]
-        .height(Length::Fill)
-        .spacing(4);
+    let mut body = column![view_header(state)].height(Length::Fill).spacing(4);
+    // RFC-073 D1: with no projects in the active workspace, neither the
+    // toolbar (chips, Arrange, Search, Select) nor the selection bar (whose
+    // only entry point is the toolbar's Select button) is drawn — only the
+    // welcome block (`view_body`'s own `empty_workspace`/
+    // `view_without_workspace`) remains.
+    if !has_no_projects(state) {
+        body = body.push(view_toolbar(state, mode));
+    }
     body = body.push(scrollable(view_body(state, mode)).height(Length::Fill));
 
     // RFC-071 Amendment A3 D14: a status message — `body`.
@@ -180,16 +190,24 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
     .into()
 }
 
+/// RFC-073 D1: true with no active workspace, or a workspace with no
+/// projects yet — the two cases `view_body` itself already distinguishes
+/// to pick a welcome screen, collapsed here into the single "is there
+/// nothing to filter, arrange, or search over" question `view` and
+/// `focus_order` ask before drawing the toolbar.
+fn has_no_projects(state: &AppState) -> bool {
+    state
+        .workspace
+        .as_ref()
+        .is_none_or(|workspace| workspace.projects.is_empty())
+}
+
 fn view_body(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     if state.workspace.is_none() {
         return view_without_workspace(state);
     }
 
-    let projects_empty = state
-        .workspace
-        .as_ref()
-        .is_none_or(|workspace| workspace.projects.is_empty());
-    if projects_empty {
+    if has_no_projects(state) {
         return empty_workspace(state);
     }
 

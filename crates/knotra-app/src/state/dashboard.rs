@@ -59,13 +59,13 @@ pub struct DashboardEntry<'a> {
 // `DashboardCause` or `ProgressKind` variant fails to compile without a
 // tone and a symbol, rather than silently rendering with neither.
 
-/// A chip's badge. Every `StatusFilter` variant is one of D3's five rows:
-/// `NeedsHelp`/`Conflict` both read "Needs help"/"Needs a choice" and share
-/// `danger`; the rest are each their own row.
+/// A chip's badge. Every `StatusFilter` variant is one of D3's five rows
+/// (RFC-073 D5 removed the sixth, `Conflict` — "Needs a choice" duplicated
+/// `NeedsHelp`'s own meaning), each its own row.
 #[must_use]
 pub fn badge_for_filter(filter: &StatusFilter) -> (Tone, snora::Icon) {
     match filter {
-        StatusFilter::NeedsHelp | StatusFilter::Conflict => (Tone::Danger, symbol::alert()),
+        StatusFilter::NeedsHelp => (Tone::Danger, symbol::alert()),
         StatusFilter::Dirty => (Tone::Warning, symbol::unsaved()),
         StatusFilter::Behind => (Tone::Info, symbol::updates_available()),
         StatusFilter::Ahead => (Tone::Info, symbol::local_commits()),
@@ -343,14 +343,27 @@ fn matches_status_filter(entry: &DashboardEntry<'_>, filter: &StatusFilter) -> b
                     .status
                     .is_some_and(|status| status.working_tree.is_dirty())
         }
-        StatusFilter::Conflict => {
-            usable_status_facts
-                && entry
-                    .status
-                    .is_some_and(|status| status.conflict.has_conflict)
-        }
         StatusFilter::NeedsHelp => entry.tier == DashboardTier::NeedsHelp,
     }
+}
+
+/// RFC-073 D3: whether the active workspace holds both Git and Jujutsu
+/// projects — the only time a row's VCS-kind label ("Git" / "jj") tells
+/// the viewer something a single-kind workspace wouldn't already imply.
+/// `None` (no status snapshot yet) counts as not-mixed, the same as an
+/// empty workspace: there is nothing yet to call "mixed".
+#[must_use]
+pub fn workspace_has_mixed_vcs_kinds(workspace_status: Option<&WorkspaceStatus>) -> bool {
+    let projects = workspace_status
+        .map(|status| status.projects.as_slice())
+        .unwrap_or(&[]);
+    let has_git = projects
+        .iter()
+        .any(|p| p.identity.vcs_kind == knotra_vcs::VcsKind::Git);
+    let has_jujutsu = projects
+        .iter()
+        .any(|p| p.identity.vcs_kind == knotra_vcs::VcsKind::Jujutsu);
+    has_git && has_jujutsu
 }
 
 fn attention_sections<'a>(
@@ -588,7 +601,7 @@ mod tests {
         let mut cases = Vec::new();
         cases.push((
             entry_for(&project, Some(&observed), true),
-            [false, false, false, false, false, true],
+            [false, false, false, false, true],
         ));
 
         let mut missing_with_stale_conflict = observed.clone();
@@ -599,51 +612,48 @@ mod tests {
             missing_conflict_entry.cause,
             Some(DashboardCause::MissingPath)
         );
-        cases.push((
-            missing_conflict_entry,
-            [false, false, false, false, false, true],
-        ));
+        cases.push((missing_conflict_entry, [false, false, false, false, true]));
 
         let mut conflict = observed.clone();
         conflict.conflict.has_conflict = true;
         cases.push((
             entry_for(&project, Some(&conflict), false),
-            [false, true, true, true, true, true],
+            [false, true, true, true, true],
         ));
 
         let mut detection = observed.clone();
         detection.conflict.detection_unavailable = true;
         cases.push((
             entry_for(&project, Some(&detection), false),
-            [false, true, true, true, false, true],
+            [false, true, true, true, true],
         ));
 
         let mut read = observed.clone();
         read.read_error = Some("failed".to_owned());
         cases.push((
             entry_for(&project, Some(&read), false),
-            [false, false, false, false, false, true],
+            [false, false, false, false, true],
         ));
 
         let mut detached = observed.clone();
         detached.context.as_mut().expect("context").is_detached = true;
         cases.push((
             entry_for(&project, Some(&detached), false),
-            [false, true, true, true, false, true],
+            [false, true, true, true, true],
         ));
         cases.push((
             entry_for(&project, None, false),
-            [false, false, false, false, false, true],
+            [false, false, false, false, true],
         ));
         cases.push((
             entry_for(&project, Some(&observed), false),
-            [false, true, true, true, false, false],
+            [false, true, true, true, false],
         ));
 
         let clean = status(&project);
         cases.push((
             entry_for(&project, Some(&clean), false),
-            [true, false, false, false, false, false],
+            [true, false, false, false, false],
         ));
 
         let filters = [
@@ -651,7 +661,6 @@ mod tests {
             StatusFilter::Behind,
             StatusFilter::Ahead,
             StatusFilter::Dirty,
-            StatusFilter::Conflict,
             StatusFilter::NeedsHelp,
         ];
         for (entry, expected) in cases {
@@ -821,11 +830,10 @@ mod tests {
     }
 
     /// RFC-071 D3/Amendment A4: every chip's tone, matching the table's
-    /// five rows — `NeedsHelp`/`Conflict` share `danger`.
+    /// five rows (RFC-073 D5 removed `Conflict`, the sixth).
     #[test]
     fn badge_for_filter_matches_d3s_table() {
         assert_eq!(badge_for_filter(&StatusFilter::NeedsHelp).0, Tone::Danger);
-        assert_eq!(badge_for_filter(&StatusFilter::Conflict).0, Tone::Danger);
         assert_eq!(badge_for_filter(&StatusFilter::Dirty).0, Tone::Warning);
         assert_eq!(badge_for_filter(&StatusFilter::Behind).0, Tone::Info);
         assert_eq!(badge_for_filter(&StatusFilter::Ahead).0, Tone::Info);
@@ -846,6 +854,38 @@ mod tests {
         ] {
             assert_eq!(badge_for_cause(cause).0, Tone::Danger, "{cause:?}");
         }
+    }
+
+    /// RFC-073 D3: the kind label tells something only when the workspace
+    /// holds both Git and Jujutsu — not for no status at all, not for one
+    /// kind alone, not for the same kind twice.
+    #[test]
+    fn workspace_has_mixed_vcs_kinds_requires_both_kinds_present() {
+        let git_project = project(1, "git-repo", None);
+        let mut git_status = status(&git_project);
+        git_status.identity.vcs_kind = VcsKind::Git;
+
+        let other_git_project = project(2, "other-git-repo", None);
+        let mut other_git_status = status(&other_git_project);
+        other_git_status.identity.vcs_kind = VcsKind::Git;
+
+        let jj_project = project(3, "jj-repo", None);
+        let mut jj_status = status(&jj_project);
+        jj_status.identity.vcs_kind = VcsKind::Jujutsu;
+
+        assert!(!workspace_has_mixed_vcs_kinds(None));
+
+        let git_only = WorkspaceStatus {
+            projects: vec![git_status.clone(), other_git_status],
+            last_refresh: None,
+        };
+        assert!(!workspace_has_mixed_vcs_kinds(Some(&git_only)));
+
+        let mixed = WorkspaceStatus {
+            projects: vec![git_status, jj_status],
+            last_refresh: None,
+        };
+        assert!(workspace_has_mixed_vcs_kinds(Some(&mixed)));
     }
 
     /// RFC-071 D3 / Review 250 §3: `Uncommitted`/`Untracked` are both
