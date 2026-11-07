@@ -1,5 +1,14 @@
 [graph]
 all-features = true
+# Check only the targets knotra is built and shipped for (release.yaml's
+# build matrix). A dependency reachable only on another target, such as
+# wasm32, is never compiled into a knotra package. Keep this list in step
+# with the matrix.
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+]
 
 [advisories]
 yanked = "deny"
