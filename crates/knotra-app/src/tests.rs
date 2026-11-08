@@ -5511,3 +5511,19 @@ fn smart_pull_retry_escape_releases_lease_and_ignores_late_completion() {
     assert!(matches!(state.sync.phase, SyncPhase::Idle));
     assert_eq!(state.active_modal, ActiveModal::None);
 }
+
+/// RFC-068 D4/D5: `main.rs`'s `APP_ID` (the Wayland app ID / X11 class set
+/// on Linux) and `packaging/linux/<APP_ID>.desktop`'s own basename are one
+/// constant used in two places — proven here by reading the real file from
+/// disk, not by repeating the same literal twice.
+#[test]
+fn app_id_matches_the_desktop_file_name() {
+    let desktop_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packaging/linux")
+        .join(format!("{}.desktop", crate::APP_ID));
+    assert!(
+        desktop_file.is_file(),
+        "expected {} to exist, named after APP_ID",
+        desktop_file.display()
+    );
+}

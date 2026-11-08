@@ -22,6 +22,12 @@ mod view;
 #[cfg(test)]
 mod tests;
 
+/// RFC-068 D4/D5: the Wayland app ID / X11 window class this window reports
+/// on Linux, matching `packaging/linux/<APP_ID>.desktop`'s own basename —
+/// one constant for both, so they cannot silently drift apart. Checked by
+/// `tests::app_id_matches_the_desktop_file_name`.
+const APP_ID: &str = "io.github.nabbisen.knotra";
+
 fn main() -> iced::Result {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -30,7 +36,7 @@ fn main() -> iced::Result {
         )
         .init();
 
-    tracing::info!("knotra v0.2.0 starting");
+    tracing::info!("knotra v{} starting", env!("CARGO_PKG_VERSION"));
 
     iced::application(app::init, app::update, app::view)
         .title(|_: &state::AppState| String::from("knotra"))
@@ -46,6 +52,11 @@ fn main() -> iced::Result {
         .window(iced::window::Settings {
             size: state::INITIAL_WINDOW_SIZE,
             min_size: Some(iced::Size::new(800.0, 600.0)),
+            #[cfg(target_os = "linux")]
+            platform_specific: iced::window::settings::PlatformSpecific {
+                application_id: APP_ID.to_owned(),
+                ..Default::default()
+            },
             ..iced::window::Settings::default()
         })
         .run()
