@@ -11,8 +11,9 @@ repository.workspace    = true
 keywords.workspace      = true
 categories.workspace    = true
 
-# Checks the repository's Store manifest, which is not part of this crate.
-exclude = ["tests/store_manifest_version.rs"]
+# Checks the repository's Store manifest and Linux metainfo, neither of
+# which is part of this crate.
+exclude = ["tests/store_manifest_version.rs", "tests/metainfo_version.rs"]
 
 [[bin]]
 name    = "knotra"
