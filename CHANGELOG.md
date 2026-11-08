@@ -9,6 +9,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — knotra appears in your Linux desktop's menu, with its icon
+
+The Linux download now includes a desktop entry, an icon and a software-centre description,
+and knotra's window tells the desktop which app it is, so docks and task switchers show its
+icon. Package maintainers can install the files from the archive's `share/` folder as they
+are.
+
 ### Changed — the dashboard shows less at once
 
 With no projects yet, the dashboard shows only how to add your first one. "Group" and

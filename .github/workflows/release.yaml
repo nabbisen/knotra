@@ -259,6 +259,18 @@ jobs:
           cp "target/${{ matrix.target }}/release/${BIN_NAME}${{ matrix.bin_ext }}" dist/
           cp LICENSE NOTICE README.md dist/
 
+      # RFC-068 D5/Task 106, Linux only: a `share/` layout a PKGBUILD (or
+      # any other packaging script) can copy into `/usr/share` as is, so
+      # the installed app gets a menu entry, a software-centre listing and
+      # an icon without the packager writing their own.
+      - name: Stage Linux desktop integration files
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist/share/applications dist/share/metainfo dist/share/icons/hicolor/scalable/apps
+          cp packaging/linux/io.github.nabbisen.knotra.desktop dist/share/applications/
+          cp packaging/linux/io.github.nabbisen.knotra.metainfo.xml dist/share/metainfo/
+          cp packaging/linux/icons/io.github.nabbisen.knotra.svg dist/share/icons/hicolor/scalable/apps/
+
       - name: Create archive (tar.gz)
         if: matrix.archive_ext == '.tar.gz'
         run: tar czf "${ASSET}" -C dist .
