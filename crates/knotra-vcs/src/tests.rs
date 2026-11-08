@@ -81,5 +81,5 @@ fn project_status_unhealthy_when_behind() {
 #[test]
 fn vcs_kind_display() {
     assert_eq!(VcsKind::Git.to_string(), "Git");
-    assert_eq!(VcsKind::Jujutsu.to_string(), "jj");
+    assert_eq!(VcsKind::Jujutsu.to_string(), "Jujutsu");
 }

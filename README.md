@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/github/license/nabbisen/knotra)](https://github.com/nabbisen/knotra/blob/main/LICENSE)
 
-A VCS-agnostic tool for inspecting, organizing, and visualizing changes. Git and jj supported.
+A VCS-agnostic tool for inspecting, organizing, and visualizing changes. Git and Jujutsu supported.
 
 ![knotra's dashboard, grouping six repositories by what needs attention: one needing a merge resolution, three in progress with unsaved work, local commits, or an available update, and two up to date](https://raw.githubusercontent.com/nabbisen/knotra/main/docs/src/images/dashboard.png)
 

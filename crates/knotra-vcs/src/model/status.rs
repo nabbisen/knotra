@@ -12,10 +12,13 @@ pub enum VcsKind {
 }
 
 impl std::fmt::Display for VcsKind {
+    // Review 268: "Jujutsu" is the name, as "Git" is a name; `jj` is only
+    // the command. On-screen text only — the saved variant name (serde's
+    // `Jujutsu`) is unaffected.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             VcsKind::Git => write!(f, "Git"),
-            VcsKind::Jujutsu => write!(f, "jj"),
+            VcsKind::Jujutsu => write!(f, "Jujutsu"),
         }
     }
 }

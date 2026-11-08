@@ -16,6 +16,12 @@ and knotra's window tells the desktop which app it is, so docks and task switche
 icon. Package maintainers can install the files from the archive's `share/` folder as they
 are.
 
+### Changed — Jujutsu projects are labelled "Jujutsu"
+
+Where knotra shows a project's kind, a Jujutsu project now reads "Jujutsu", as a Git project
+reads "Git"; it used to read "jj". For developers using `knotra-vcs`: `VcsKind::Jujutsu`
+displays as `Jujutsu`.
+
 ### Changed — the dashboard shows less at once
 
 With no projects yet, the dashboard shows only how to add your first one. "Group" and
