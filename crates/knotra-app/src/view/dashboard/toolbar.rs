@@ -20,7 +20,9 @@
 
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Padding};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, chip, icon, select, style};
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, Tokens, centered_button_label, centered_button_row, chip, icon, select, style,
+};
 
 use crate::{
     config::{DashboardGrouping, DashboardSort},
@@ -330,10 +332,14 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
         is_focused(state, focus_target::SELECT_MODE),
     );
 
+    // RFC-073 Amendment A2: aligned to the top (`Start`, not `Center`), so
+    // "Select"'s own reason line (rendered beneath it when disabled) grows
+    // the row's height without dropping "Arrange" and Search out of line
+    // with "Select"'s own top edge.
     let mut controls = column![
         row![arrange, search, clear, select]
             .spacing(6)
-            .align_y(Alignment::Center)
+            .align_y(Alignment::Start)
     ]
     .spacing(5);
 
@@ -371,24 +377,21 @@ fn arrange_button<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Messa
     } else {
         icon::chevron_down()
     };
-    // `header_control`'s own shape (`knotra-ui/src/widget/buttons.rs`): an
-    // icon+text row can't go through `centered_button_label` (a `Text`-only
-    // helper), so the row itself is given `Length::Fill`/`align_y(Center)`
-    // to centre within the button, with the button's own fixed height
-    // spelled `Length::Fixed(BUTTON_HEIGHT)` rather than the bare constant
-    // `button_label_guard.rs` scans for — the same escape that helper
-    // already uses, not a new one invented here.
-    button(
+    // RFC-073 Amendment A2: `centered_button_row` is `centered_button_label`
+    // for a `Row` — an icon+text row can't go through the `Text`-only
+    // helper, so this centres the row itself, the same way
+    // `header_control` does. The button's own fixed height is spelled
+    // `Length::Fixed(BUTTON_HEIGHT)`; `button_label_guard` now treats that
+    // the same as the bare constant it always scanned for.
+    button(centered_button_row(
         row![
             text(state.t("dashboard.arrange"))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
             icon::icon_element(&chevron),
         ]
-        .spacing(6)
-        .align_y(Alignment::Center)
-        .height(Length::Fill),
-    )
+        .spacing(6),
+    ))
     .height(Length::Fixed(BUTTON_HEIGHT))
     .padding([0, 18])
     .on_press(Message::Dashboard(DashboardMessage::ArrangeToggled))
@@ -543,10 +546,11 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         is_focused(state, focus_target::SELECT_MODE),
     );
 
+    // RFC-073 Amendment A2: top-aligned, same reason as the standard band.
     let mut controls = column![
         row![search, arrange_trigger, select]
             .spacing(6)
-            .align_y(Alignment::Center)
+            .align_y(Alignment::Start)
     ]
     .spacing(5);
 

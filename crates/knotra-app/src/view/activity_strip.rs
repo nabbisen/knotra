@@ -166,14 +166,22 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                             source_operation_id: source_operation_id.clone(),
                         }),
                     );
-                    content = content.push(
+                    content = content.push({
+                        // RFC-073 Amendment A2: styled like this strip's own
+                        // Undo/Dismiss above — `secondary`, unwired
+                        // (`is_focused: false`), the strip sits outside the
+                        // `Layer`/`layer_focus` system entirely.
+                        let t = tokens.clone();
                         button(
                             text(label)
                                 .size(snora::design::style::text::body_size(tokens))
                                 .line_height(snora::design::style::text::body_line_height(tokens)),
                         )
-                        .on_press_maybe(retry),
-                    );
+                        .on_press_maybe(retry)
+                        .style(move |_theme, status| {
+                            style::with_focus_ring(&t, false, style::secondary(&t, status))
+                        })
+                    });
                     if state.operation_interlock.is_busy() {
                         content = content.push(
                             text(state.t("plain.activity.busy"))

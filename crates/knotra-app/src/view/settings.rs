@@ -454,6 +454,9 @@ fn positive_usize_field_error(s: &str) -> Option<&'static str> {
 
 fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
+    // RFC-073 Amendment A2: `secondary` — a toggle, not the section's sole
+    // action; its current state is the label's own text, not the fill.
+    let t = tokens.clone();
     column![
         labeled_row(
             tokens,
@@ -466,6 +469,9 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
             .on_press(Message::Settings(SettingsMessage::FsWatchEnabledChanged(
                 !state.config.fs_watch_enabled
             )))
+            .style(move |_theme, status| {
+                style::with_focus_ring(&t, false, style::secondary(&t, status))
+            })
             .into(),
         ),
         // RFC-038 Stage 1 §9: this sentence names `.git/HEAD` and "index" —

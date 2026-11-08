@@ -4,6 +4,8 @@ mod app;
 mod atomic_write;
 #[cfg(test)]
 mod button_label_guard;
+#[cfg(test)]
+mod button_style_guard;
 mod config;
 mod fs_watcher;
 mod message;

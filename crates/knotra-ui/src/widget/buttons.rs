@@ -43,6 +43,19 @@ pub fn centered_button_label<'a>(
         .align_y(iced::alignment::Vertical::Center)
 }
 
+/// The same centring [`centered_button_label`] gives a bare `Text`, for a
+/// `Row` instead — `header_control`'s own construction (icon beside text),
+/// generalized (RFC-073 Amendment A2) so every icon-and-text fixed-height
+/// button shares one helper rather than each hand-rolling the same two
+/// calls.
+#[must_use]
+pub fn centered_button_row<'a, Message: 'a>(
+    row: iced::widget::Row<'a, Message, iced::Theme, iced::Renderer>,
+) -> iced::widget::Row<'a, Message, iced::Theme, iced::Renderer> {
+    row.height(Length::Fill)
+        .align_y(iced::alignment::Vertical::Center)
+}
+
 /// A token-aware, focus-ring-capable button that shows a plain-text reason
 /// beneath it when disabled — the composition the deleted `guided_button`
 /// used to provide, built on the semantic style vocabulary instead of the
@@ -381,12 +394,12 @@ pub fn icon_button_maybe<'a, Message: Clone + 'a>(
     on_press: Option<Message>,
     is_focused: bool,
 ) -> Element<'a, Message> {
-    use iced::widget::{button, text, tooltip};
+    use iced::widget::{button, row, text, tooltip};
 
     let t = tokens.clone();
-    let btn = button(icon_element(icon))
-        .width(Length::Fixed(BUTTON_HEIGHT))
+    let btn = button(centered_button_row(row![icon_element(icon)]))
         .height(Length::Fixed(BUTTON_HEIGHT))
+        .width(Length::Fixed(BUTTON_HEIGHT))
         .on_press_maybe(on_press)
         .style(move |_theme, status| {
             style::with_focus_ring(&t, is_focused, style::ghost(&t, status))
@@ -423,24 +436,21 @@ pub fn header_control<'a, Message: Clone + 'a>(
     use iced::widget::{button, row, text};
 
     let t = tokens.clone();
-    let content = row![
-        icon_element_sized(icon, 16.0),
-        text(label.into())
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ]
-    .spacing(6)
-    .align_y(iced::Alignment::Center)
-    .height(Length::Fill);
 
-    button(content)
-        .height(Length::Fixed(SMALL_BUTTON_HEIGHT))
-        .padding([0, 12])
-        .on_press_maybe(on_press)
-        .style(move |_theme, status| {
-            style::with_focus_ring(&t, is_focused, style::ghost(&t, status))
-        })
-        .into()
+    button(centered_button_row(
+        row![
+            icon_element_sized(icon, 16.0),
+            text(label.into())
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ]
+        .spacing(6),
+    ))
+    .height(Length::Fixed(SMALL_BUTTON_HEIGHT))
+    .padding([0, 12])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style::ghost(&t, status)))
+    .into()
 }
 
 #[cfg(test)]

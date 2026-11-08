@@ -22,8 +22,9 @@ pub mod select;
 pub mod status;
 
 pub use buttons::{
-    centered_button_label, current_or, danger, danger_maybe, ghost, ghost_maybe, header_control,
-    icon_button_maybe, primary, primary_maybe, reasoned, secondary, secondary_maybe, style,
+    centered_button_label, centered_button_row, current_or, danger, danger_maybe, ghost,
+    ghost_maybe, header_control, icon_button_maybe, primary, primary_maybe, reasoned, secondary,
+    secondary_maybe, style,
 };
 pub use checkbox::checkbox;
 pub use field::{guided_field, guided_field_focused, text_input_style, validated_field};

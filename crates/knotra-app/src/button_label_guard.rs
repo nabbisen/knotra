@@ -137,6 +137,15 @@ mod tests {
             let dot = search_from + rel;
             let after_paren = dot + ".height(".len();
             let rest = source[after_paren..].trim_start();
+            // RFC-073 Amendment A2: `Length::Fixed(...)` wraps either
+            // constant exactly as validly as the bare form, and is
+            // indistinguishable from it once rendered — `.height(Length::Fixed(BUTTON_HEIGHT))`
+            // must be recognised the same as `.height(BUTTON_HEIGHT)`, one
+            // extra closing paren and all.
+            let (rest, wrapped) = match rest.strip_prefix("Length::Fixed(") {
+                Some(r) => (r.trim_start(), true),
+                None => (rest, false),
+            };
             let rest = rest.strip_prefix("layout::").unwrap_or(rest);
             if rest.starts_with("BUTTON_HEIGHT") || rest.starts_with("SMALL_BUTTON_HEIGHT") {
                 let const_name = if rest.starts_with("SMALL_BUTTON_HEIGHT") {
@@ -145,7 +154,14 @@ mod tests {
                     "BUTTON_HEIGHT"
                 };
                 let after_const = rest[const_name.len()..].trim_start();
-                if after_const.starts_with(')') {
+                let closes = if wrapped {
+                    after_const
+                        .strip_prefix(')')
+                        .is_some_and(|rest| rest.trim_start().starts_with(')'))
+                } else {
+                    after_const.starts_with(')')
+                };
+                if closes {
                     starts.push(dot);
                 }
             }
@@ -223,7 +239,9 @@ mod tests {
     /// for every fixed-height `.height(...)` call, and for each one,
     /// pushes a [`Violation`] into `out` unless it is chained directly off
     /// a `button(...)`/`...::button(...)` call whose own argument span
-    /// contains `centered_button_label(`.
+    /// contains `centered_button_label(` (a bare `Text` label) or
+    /// `centered_button_row(` (RFC-073 Amendment A2: an icon-and-text
+    /// `Row`).
     fn check_source(path: &std::path::Path, clean_source: &str, out: &mut Vec<Violation>) {
         for dot in find_fixed_height_calls(clean_source) {
             let line = clean_source[..dot].matches('\n').count() + 1;
@@ -262,12 +280,12 @@ mod tests {
             }
 
             let args = &clean_source[open_paren + 1..close_paren];
-            if !args.contains("centered_button_label(") {
+            if !args.contains("centered_button_label(") && !args.contains("centered_button_row(") {
                 out.push(Violation {
                     location,
                     reason: "a fixed-height `button(...)`'s content does not go through \
-                             `centered_button_label` — its label will sit at the top \
-                             of the button, not centred",
+                             `centered_button_label`/`centered_button_row` — its label will \
+                             sit at the top of the button, not centred",
                 });
             }
         }
