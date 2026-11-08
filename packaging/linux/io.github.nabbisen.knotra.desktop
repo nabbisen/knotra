@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=knotra
+GenericName=Repository dashboard
+GenericName[ja]=リポジトリダッシュボード
+Comment=See and update all your Git and Jujutsu projects in one place
+Comment[ja]=Git と Jujutsu のプロジェクトをまとめて確認・更新
+Exec=knotra
+Icon=io.github.nabbisen.knotra
+Categories=Development;RevisionControl;
+Keywords=git;jj;jujutsu;vcs;repository;
+StartupWMClass=io.github.nabbisen.knotra
+Terminal=false

@@ -61,6 +61,23 @@ jobs:
             libxkbcommon-dev \
             libgl1-mesa-dev
 
+      # RFC-068 D5/Task 106: the desktop entry and AppStream metainfo this
+      # repository ships (packaging/linux/) must be ones a Linux desktop
+      # and a software centre can actually parse.
+      - name: Install desktop/AppStream validators
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            desktop-file-utils \
+            appstream
+
+      - name: desktop-file-validate
+        run: desktop-file-validate packaging/linux/io.github.nabbisen.knotra.desktop
+
+      - name: appstreamcli validate --strict --no-net
+        run: >-
+          appstreamcli validate --strict --no-net
+          packaging/linux/io.github.nabbisen.knotra.metainfo.xml
+
       # clippy and rustfmt are not in the minimal profile; without this the
       # job fails on the first gate step for a trivial reason.
       - name: Install Rust toolchain

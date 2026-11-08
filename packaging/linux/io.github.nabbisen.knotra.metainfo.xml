@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.nabbisen.knotra</id>
+  <name>knotra</name>
+  <summary>See and update all your Git and Jujutsu projects in one place</summary>
+  <summary xml:lang="ja">Git と Jujutsu のプロジェクトをまとめて確認・更新</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <developer id="io.github.nabbisen">
+    <name>nabbisen</name>
+  </developer>
+  <description>
+    <p>
+      knotra is a desktop dashboard for people who work across many Git and Jujutsu
+      (jj) repositories at once.
+    </p>
+    <p>
+      Instead of opening a terminal in each project to check its state, knotra shows
+      every repository in your workspace on one screen and groups them by what needs
+      your attention: projects that need help, unsaved work, available updates, local
+      commits not yet shared, and decisions waiting for you.
+    </p>
+    <p>
+      From there you can act on many repositories together, with the care that bulk
+      changes need. "Get latest safely" only fast-forwards, so it never creates a merge
+      commit, and it never merges over unsaved work: those repositories are only checked
+      for updates, unless you choose to save the work, get the latest and restore it
+      afterwards. "Save release point" tags a release across the projects you choose,
+      checks each of them first, and rolls back if any step fails. History keeps a
+      per-project record of every operation, so you can see what happened and why. When
+      changes conflict, "Choose resolution" guides you through the choice, and
+      "Generate notes" drafts release notes from your recent commits.
+    </p>
+    <p>
+      knotra is local-first. It has no accounts, no telemetry and no advertising, and
+      it never sends your data anywhere. It works through the Git and Jujutsu already
+      installed on your computer, so your existing settings and credentials keep
+      working as they are.
+    </p>
+    <p>
+      knotra is available in English and Japanese. It is built to be easy on the eyes:
+      large, clear text, a colour and a symbol for every status, zoom up to 150 %,
+      light and dark themes and two high-contrast themes, and keyboard shortcuts for
+      common actions. It is free and open source software, licensed under the Apache
+      License 2.0.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.nabbisen.knotra.desktop</launchable>
+  <url type="homepage">https://github.com/nabbisen/knotra</url>
+  <url type="bugtracker">https://github.com/nabbisen/knotra/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Every repository in your workspace, grouped by what needs your attention.</caption>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/01-dashboard.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The same dashboard in the dark theme.</caption>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/02-dashboard-dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>"Get latest safely" fast-forwards only, and never merges over unsaved work.</caption>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/03-smart-pull.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>"Save release point" checks each project you chose before tagging, and rolls back on failure.</caption>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/04-freezer.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>A per-project history of every operation.</caption>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/05-history.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.33.0" date="2026-11-04">
+      <description>
+        <p>
+          Every screen is easier to read: larger, bolder text, a colour and a symbol for
+          every status, zoom up to 150 %, and two high-contrast themes.
+        </p>
+      </description>
+    </release>
+  </releases>
+</component>
