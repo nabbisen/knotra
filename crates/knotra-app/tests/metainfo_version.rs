@@ -32,6 +32,31 @@ fn release_versions(xml: &str) -> Vec<String> {
     versions
 }
 
+/// Every `<image>...</image>` URL inside `<screenshots>...</screenshots>` —
+/// the same plain substring scanning `release_versions` uses, not an XML
+/// parser for one attribute.
+fn screenshot_image_urls(xml: &str) -> Vec<String> {
+    let mut urls = Vec::new();
+    let Some(section_start) = xml.find("<screenshots>") else {
+        return urls;
+    };
+    let Some(section_len) = xml[section_start..].find("</screenshots>") else {
+        return urls;
+    };
+    let section = &xml[section_start..section_start + section_len];
+
+    let mut rest = section;
+    while let Some(rel) = rest.find("<image>") {
+        let value_start = rel + "<image>".len();
+        let Some(end) = rest[value_start..].find("</image>") else {
+            break;
+        };
+        urls.push(rest[value_start..value_start + end].to_string());
+        rest = &rest[value_start + end..];
+    }
+    urls
+}
+
 #[test]
 fn metainfo_newest_release_matches_the_crate() {
     let crate_version = env!("CARGO_PKG_VERSION");
@@ -52,4 +77,36 @@ fn metainfo_newest_release_matches_the_crate() {
         "{REPO_RELATIVE_PATH}'s newest <release> is {newest} but the crate is \
          {crate_version} - add a new <release> entry with release prep"
     );
+}
+
+/// Task 106 Amendment A1: the screenshot links belong to the same release
+/// as the newest `<release>` entry — never left behind, and never pointing
+/// at a tag that does not exist yet.
+#[test]
+fn metainfo_screenshot_links_follow_the_newest_release() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../")
+        .join(REPO_RELATIVE_PATH);
+    let xml = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("could not read {}: {e}", path.display()));
+
+    let versions = release_versions(&xml);
+    let newest = versions
+        .first()
+        .unwrap_or_else(|| panic!("{REPO_RELATIVE_PATH} has no <release version=\"...\"> entry"));
+    let needle = format!("/knotra/{newest}/");
+
+    let urls = screenshot_image_urls(&xml);
+    assert!(
+        !urls.is_empty(),
+        "{REPO_RELATIVE_PATH} has no <image> URL under <screenshots>"
+    );
+
+    for url in &urls {
+        assert!(
+            url.contains(&needle),
+            "{REPO_RELATIVE_PATH}'s screenshot URL {url} does not contain {needle} - move it \
+             to the newest release's tag with release prep"
+        );
+    }
 }

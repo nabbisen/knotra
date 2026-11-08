@@ -51,23 +51,23 @@
   <screenshots>
     <screenshot type="default">
       <caption>Every repository in your workspace, grouped by what needs your attention.</caption>
-      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/01-dashboard.png</image>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.33.0/packaging/windows/screenshots/en/01-dashboard.png</image>
     </screenshot>
     <screenshot>
       <caption>The same dashboard in the dark theme.</caption>
-      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/02-dashboard-dark.png</image>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.33.0/packaging/windows/screenshots/en/02-dashboard-dark.png</image>
     </screenshot>
     <screenshot>
       <caption>"Get latest safely" fast-forwards only, and never merges over unsaved work.</caption>
-      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/03-smart-pull.png</image>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.33.0/packaging/windows/screenshots/en/03-smart-pull.png</image>
     </screenshot>
     <screenshot>
       <caption>"Save release point" checks each project you chose before tagging, and rolls back on failure.</caption>
-      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/04-freezer.png</image>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.33.0/packaging/windows/screenshots/en/04-freezer.png</image>
     </screenshot>
     <screenshot>
       <caption>A per-project history of every operation.</caption>
-      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.34.0/packaging/windows/screenshots/en/05-history.png</image>
+      <image>https://raw.githubusercontent.com/nabbisen/knotra/0.33.0/packaging/windows/screenshots/en/05-history.png</image>
     </screenshot>
   </screenshots>
   <content_rating type="oars-1.1"/>
