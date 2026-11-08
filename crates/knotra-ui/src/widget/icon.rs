@@ -49,6 +49,11 @@ pub fn chevron_down() -> snora::Icon {
     snora::lucide::ChevronDown.into()
 }
 
+/// Disclosure chevron, open state (RFC-073 Amendment A1: "Arrange", open).
+pub fn chevron_up() -> snora::Icon {
+    snora::lucide::ChevronUp.into()
+}
+
 /// Disclosure chevron, collapsed state (expandable sections).
 pub fn chevron_right() -> snora::Icon {
     snora::lucide::ChevronRight.into()

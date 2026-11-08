@@ -20,7 +20,7 @@
 
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Padding};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, chip, select, style};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, chip, icon, select, style};
 
 use crate::{
     config::{DashboardGrouping, DashboardSort},
@@ -361,12 +361,35 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
 fn arrange_button<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Message> {
     let t = tokens.clone();
     let focused = is_focused(state, focus_target::ARRANGE);
-    button(centered_button_label(
-        text(state.t("dashboard.arrange"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
+    // RFC-073 Amendment A1: a chevron follows the label, the same icon
+    // helper and size as the workspace switcher's own disclosure cue
+    // (`shell.rs`'s `switcher_trigger`) — down while closed, up while
+    // open, so "Arrange" shows that it opens something before it is ever
+    // pressed.
+    let chevron = if state.dashboard_arrange_open {
+        icon::chevron_up()
+    } else {
+        icon::chevron_down()
+    };
+    // `header_control`'s own shape (`knotra-ui/src/widget/buttons.rs`): an
+    // icon+text row can't go through `centered_button_label` (a `Text`-only
+    // helper), so the row itself is given `Length::Fill`/`align_y(Center)`
+    // to centre within the button, with the button's own fixed height
+    // spelled `Length::Fixed(BUTTON_HEIGHT)` rather than the bare constant
+    // `button_label_guard.rs` scans for — the same escape that helper
+    // already uses, not a new one invented here.
+    button(
+        row![
+            text(state.t("dashboard.arrange"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+            icon::icon_element(&chevron),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center)
+        .height(Length::Fill),
+    )
+    .height(Length::Fixed(BUTTON_HEIGHT))
     .padding([0, 18])
     .on_press(Message::Dashboard(DashboardMessage::ArrangeToggled))
     .style(move |_theme, status| style::with_focus_ring(&t, focused, style::ghost(&t, status)))
