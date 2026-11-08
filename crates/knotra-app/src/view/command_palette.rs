@@ -15,7 +15,7 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    list,
+    SMALL_BUTTON_HEIGHT, centered_button_label, list,
     overlay::{OverlayWidth, surface},
     style,
 };
@@ -109,11 +109,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 &FocusTarget::control_dynamic(format!("palette.result.{i}")),
             );
             // RFC-071 Amendment A3 D14: a command's own label — `body`.
-            let btn = button(
+            // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — `RESULT_BUTTON_PADDING`'s
+            // `left`/`right` still govern the reason indent below; its
+            // `top`/`bottom` no longer decide the row's height.
+            let btn = button(centered_button_label(
                 text(label)
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
-            )
+            ))
+            .height(SMALL_BUTTON_HEIGHT)
             .on_press_maybe(
                 entry
                     .disabled_reason_key

@@ -59,6 +59,16 @@ impl Tone {
     }
 }
 
+/// The `body` role's own rendered line height in pixels (`size ×
+/// line_height` ratio) — D3's "the line height of the text it precedes",
+/// computed rather than guessed, so a badge and the text beside it share
+/// one vertical rhythm. RFC-073 D9: shared here rather than duplicated in
+/// every file that places a badge beside `body` text.
+#[must_use]
+pub fn body_badge_diameter(tokens: &Tokens) -> f32 {
+    tokens.typography.body.size * tokens.typography.body.line_height
+}
+
 /// A status badge: a filled circle in `tone`'s palette colour, `glyph`
 /// centred inside it in the tone's own `*_text` colour. `line_height` is
 /// the badge's own diameter — the line height of the text it precedes, so
@@ -123,5 +133,11 @@ pub mod symbol {
     #[must_use]
     pub fn all_set() -> snora::Icon {
         snora::lucide::Check.into()
+    }
+
+    /// RFC-073 D9: "skipped" — info, a minus.
+    #[must_use]
+    pub fn skipped() -> snora::Icon {
+        snora::lucide::Minus.into()
     }
 }

@@ -111,6 +111,27 @@ pub fn badge_for_all_set() -> (Tone, snora::Icon) {
     (Tone::Success, symbol::all_set())
 }
 
+/// RFC-073 D9: the one outcome-to-badge mapping used everywhere a
+/// completed per-project operation shows its result outside the dashboard
+/// itself — the ready check (`freezer.rs`), Smart Pull's plan and results,
+/// Change work area's results, and History's entry outcome and per-project
+/// lines — so "success"/"failure"/"skipped" always mean the same colour
+/// and symbol, never a screen-specific glyph. Exhaustive over
+/// `ProjectOperationOutcome`, the same discipline as this file's other
+/// `badge_for_*` functions, even though the type it classifies is not
+/// dashboard-specific.
+#[must_use]
+pub fn badge_for_operation_outcome(
+    outcome: knotra_vcs::model::operation::ProjectOperationOutcome,
+) -> (Tone, snora::Icon) {
+    use knotra_vcs::model::operation::ProjectOperationOutcome;
+    match outcome {
+        ProjectOperationOutcome::Succeeded => (Tone::Success, symbol::all_set()),
+        ProjectOperationOutcome::Failed => (Tone::Danger, symbol::alert()),
+        ProjectOperationOutcome::Skipped => (Tone::Info, symbol::skipped()),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DashboardSectionKey {
     Tier(DashboardTier),

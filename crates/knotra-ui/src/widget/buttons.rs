@@ -16,7 +16,7 @@
 use snora::design::Tokens;
 
 use super::icon::{icon_element, icon_element_sized};
-use super::layout::{BUTTON_HEIGHT, Element, Length, SMALL_BUTTON_HEIGHT};
+use super::layout::{BUTTON_HEIGHT, Element, Length};
 
 /// Centres a button's label text vertically, filling the button's fixed
 /// height.
@@ -125,6 +125,35 @@ fn reason_row_needed(on_press_is_none: bool, reason_is_some: bool) -> bool {
 // Semantic control vocabulary (RFC-034 R6/R7).
 // ---------------------------------------------------------------------------
 
+/// Shared construction for [`primary`]/[`secondary`]/[`ghost`]/[`danger`]
+/// and their `_maybe` variants (RFC-073 Amendment A2/D8) — built locally
+/// rather than delegated to `snora::design::button::*`, which renders
+/// ~27px tall (its own `label`-role text plus iced's 5px default padding),
+/// under D8's 36px floor, with no seam to raise it from outside (the same
+/// "no seam to compose onto a pass-through" `chip.rs`'s own doc comment
+/// already names for this crate). `BUTTON_HEIGHT` (44) and `body`-role
+/// text match [`reasoned`] — the vocabulary these four variants complete.
+fn make_button<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+) -> Element<'a, Message> {
+    use iced::widget::{button, text};
+
+    let t = tokens.clone();
+    button(centered_button_label(
+        text(label.into())
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    ))
+    .height(BUTTON_HEIGHT)
+    .padding([0, 18])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| style_fn(&t, status))
+    .into()
+}
+
 /// Filled accent button — the single strongest action on a surface.
 #[must_use]
 pub fn primary<'a, Message: Clone + 'a>(
@@ -132,7 +161,7 @@ pub fn primary<'a, Message: Clone + 'a>(
     label: impl Into<String>,
     on_press: Message,
 ) -> Element<'a, Message> {
-    snora::design::button::primary(tokens, label, on_press)
+    make_button(tokens, label, Some(on_press), style::primary)
 }
 
 /// Filled accent button with an optional press handler (disabled when `None`).
@@ -142,7 +171,7 @@ pub fn primary_maybe<'a, Message: Clone + 'a>(
     label: impl Into<String>,
     on_press: Option<Message>,
 ) -> Element<'a, Message> {
-    snora::design::button::primary_maybe(tokens, label, on_press)
+    make_button(tokens, label, on_press, style::primary)
 }
 
 /// Outlined accent button — a secondary action alongside a [`primary`].
@@ -152,7 +181,7 @@ pub fn secondary<'a, Message: Clone + 'a>(
     label: impl Into<String>,
     on_press: Message,
 ) -> Element<'a, Message> {
-    snora::design::button::secondary(tokens, label, on_press)
+    make_button(tokens, label, Some(on_press), style::secondary)
 }
 
 /// Outlined accent button with an optional press handler.
@@ -162,7 +191,7 @@ pub fn secondary_maybe<'a, Message: Clone + 'a>(
     label: impl Into<String>,
     on_press: Option<Message>,
 ) -> Element<'a, Message> {
-    snora::design::button::secondary_maybe(tokens, label, on_press)
+    make_button(tokens, label, on_press, style::secondary)
 }
 
 /// Ghost button — no fill or border at rest; ordinary/tertiary action.
@@ -172,7 +201,7 @@ pub fn ghost<'a, Message: Clone + 'a>(
     label: impl Into<String>,
     on_press: Message,
 ) -> Element<'a, Message> {
-    snora::design::button::ghost(tokens, label, on_press)
+    make_button(tokens, label, Some(on_press), style::ghost)
 }
 
 /// Ghost button with an optional press handler.
@@ -182,7 +211,7 @@ pub fn ghost_maybe<'a, Message: Clone + 'a>(
     label: impl Into<String>,
     on_press: Option<Message>,
 ) -> Element<'a, Message> {
-    snora::design::button::ghost_maybe(tokens, label, on_press)
+    make_button(tokens, label, on_press, style::ghost)
 }
 
 /// Danger / destructive button — irreversible actions only (delete, revoke).
@@ -192,7 +221,7 @@ pub fn danger<'a, Message: Clone + 'a>(
     label: impl Into<String>,
     on_press: Message,
 ) -> Element<'a, Message> {
-    snora::design::button::danger(tokens, label, on_press)
+    make_button(tokens, label, Some(on_press), style::danger)
 }
 
 /// Danger button with an optional press handler.
@@ -202,7 +231,7 @@ pub fn danger_maybe<'a, Message: Clone + 'a>(
     label: impl Into<String>,
     on_press: Option<Message>,
 ) -> Element<'a, Message> {
-    snora::design::button::danger_maybe(tokens, label, on_press)
+    make_button(tokens, label, on_press, style::danger)
 }
 
 /// `iced` style functions for the semantic button variants, for callers that
@@ -421,8 +450,10 @@ pub fn icon_button_maybe<'a, Message: Clone + 'a>(
 /// RFC-071 D10: a header control that shows its own name beside its icon
 /// — Refresh, the command palette and Settings, in the standard and wide
 /// bands — rather than relying on [`icon_button_maybe`]'s tooltip alone.
-/// The icon is at least 16px and the control at least `SMALL_BUTTON_HEIGHT`
-/// high. The compact band keeps `icon_button_maybe`'s icon-only-plus-
+/// The icon is at least 16px and the control `BUTTON_HEIGHT` high
+/// (RFC-073 D8: grown from `SMALL_BUTTON_HEIGHT` — the 52px shell bar has
+/// room, and it now matches `icon_button_maybe`'s own compact-band height
+/// exactly). The compact band keeps `icon_button_maybe`'s icon-only-plus-
 /// tooltip form unchanged (D10's own "today's tooltip"); callers choose
 /// between the two per `state.width_mode`, this function does not.
 #[must_use]
@@ -446,7 +477,7 @@ pub fn header_control<'a, Message: Clone + 'a>(
         ]
         .spacing(6),
     ))
-    .height(Length::Fixed(SMALL_BUTTON_HEIGHT))
+    .height(Length::Fixed(BUTTON_HEIGHT))
     .padding([0, 12])
     .on_press_maybe(on_press)
     .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style::ghost(&t, status)))

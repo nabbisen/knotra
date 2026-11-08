@@ -167,16 +167,19 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                         }),
                     );
                     content = content.push({
-                        // RFC-073 Amendment A2: styled like this strip's own
-                        // Undo/Dismiss above — `secondary`, unwired
-                        // (`is_focused: false`), the strip sits outside the
+                        // RFC-073 Amendment A2/D8: styled and sized like
+                        // this strip's own Undo/Dismiss above — `secondary`,
+                        // `SMALL_BUTTON_HEIGHT`, unwired (`is_focused:
+                        // false`), the strip sits outside the
                         // `Layer`/`layer_focus` system entirely.
                         let t = tokens.clone();
-                        button(
+                        button(centered_button_label(
                             text(label)
                                 .size(snora::design::style::text::body_size(tokens))
                                 .line_height(snora::design::style::text::body_line_height(tokens)),
-                        )
+                        ))
+                        .height(SMALL_BUTTON_HEIGHT)
+                        .padding([0, 12])
                         .on_press_maybe(retry)
                         .style(move |_theme, status| {
                             style::with_focus_ring(&t, false, style::secondary(&t, status))
@@ -204,12 +207,15 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             // beside it (when shown) is the row's one mutating action.
             // Not a focus target today (no focus-order wiring exists for
             // the activity strip), so `false` is passed explicitly.
+            // RFC-073 D8: `SMALL_BUTTON_HEIGHT`, matching the retry button.
             content = content.push(
-                button(
+                button(centered_button_label(
                     text(state.t("plain.activity.details"))
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),
-                )
+                ))
+                .height(SMALL_BUTTON_HEIGHT)
+                .padding([0, 12])
                 .on_press(Message::Activity(ActivityMessage::DetailsRequested {
                     operation_id: log.result.operation_id.clone(),
                 }))

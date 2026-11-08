@@ -14,8 +14,9 @@
 
 use snora::design::Tokens;
 
+use super::buttons::centered_button_row;
 use super::icon;
-use super::layout::{Element, Length, strong};
+use super::layout::{BUTTON_HEIGHT, Element, Length, strong};
 
 /// Width tokens for the overlay surface (RFC-034 R8.2: small ~400px,
 /// standard ~520px, large ~680px). The exact pixel value is approximate by
@@ -145,16 +146,23 @@ pub fn surface<'a, Message: Clone + 'a>(
 
     if let Some(close_msg) = on_close {
         let t = tokens.clone();
+        // RFC-073 D8: `BUTTON_HEIGHT`, matching `icon_button_maybe`'s own
+        // icon-only sizing — every dialog's close control routes through
+        // here, so fixing it once fixes every dialog.
         header = header.push(
-            button(icon::icon_element(&icon::close()))
-                .on_press(close_msg)
-                .style(move |_theme, status| {
-                    super::buttons::style::with_focus_ring(
-                        &t,
-                        is_close_focused,
-                        super::buttons::style::ghost(&t, status),
-                    )
-                }),
+            button(centered_button_row(row![
+                icon::icon_element(&icon::close())
+            ]))
+            .height(Length::Fixed(BUTTON_HEIGHT))
+            .width(Length::Fixed(BUTTON_HEIGHT))
+            .on_press(close_msg)
+            .style(move |_theme, status| {
+                super::buttons::style::with_focus_ring(
+                    &t,
+                    is_close_focused,
+                    super::buttons::style::ghost(&t, status),
+                )
+            }),
         );
     }
 

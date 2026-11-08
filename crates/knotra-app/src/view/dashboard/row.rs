@@ -4,7 +4,8 @@
 use iced::widget::{Space, button, column, container, rich_text, row, span, text};
 use iced::{Alignment, Element, Length, Padding};
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, STRONG_FONT, Tokens, centered_button_label, checkbox, status_badge, style,
+    BUTTON_HEIGHT, STRONG_FONT, Tokens, body_badge_diameter, centered_button_label,
+    centered_button_row, checkbox, status_badge, style,
 };
 use knotra_vcs::model::project::Project;
 
@@ -218,15 +219,16 @@ fn name_button<'a>(
         snora::design::style::color::to_iced_color(tokens.palette.text_secondary),
     );
 
-    let content = row![label, cue].spacing(2).align_y(Alignment::Center);
-
     // RFC-071 D8: `left: 0.0` — a plain `button` otherwise opens with
     // `button::DEFAULT_PADDING`'s 10px left inset, which the VCS kind text
     // pushed directly beneath it (`identity_details`, no padding of its
     // own) does not share; without this the name's own glyphs start 10px
     // right of where "Git"/"jj" starts, even though both are meant to line
     // up at the identity column's left edge.
-    button(content)
+    // RFC-073 D8: at least `SMALL_BUTTON_HEIGHT`, here `BUTTON_HEIGHT` — a
+    // project name is the dashboard's single most-clicked target.
+    button(centered_button_row(row![label, cue].spacing(2)))
+        .height(Length::Fixed(BUTTON_HEIGHT))
         .padding(Padding {
             left: 0.0,
             ..button::DEFAULT_PADDING
@@ -313,14 +315,6 @@ fn entry_badge(entry: &DashboardEntry<'_>) -> (knotra_ui::widget::Tone, snora::I
         ),
         DashboardTier::AllSet => badge_for_all_set(),
     }
-}
-
-/// The `body` role's own rendered line height in pixels (`size ×
-/// line_height` ratio) — D3's "the line height of the text it precedes",
-/// computed rather than guessed, so the badge and the text beside it share
-/// one vertical rhythm.
-fn body_badge_diameter(tokens: &Tokens) -> f32 {
-    tokens.typography.body.size * tokens.typography.body.line_height
 }
 
 /// Standard/wide layout (R9): bounded three-track row, unchanged from Stage 3.

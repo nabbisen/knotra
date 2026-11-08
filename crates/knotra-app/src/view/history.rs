@@ -19,13 +19,15 @@ use iced::{
     widget::{Space, button, column, container, row, scrollable, text, text_input},
 };
 use knotra_ui::widget::{
-    Tokens, WIDE_CONTENT_WIDTH, icon, list, record_row, strong, style, text_input_style,
+    SMALL_BUTTON_HEIGHT, Tokens, Tone, WIDE_CONTENT_WIDTH, body_badge_diameter,
+    centered_button_label, centered_button_row, icon, list, record_row, status_badge,
+    status_symbol, strong, style, text_input_style,
 };
 use knotra_vcs::model::operation::{OperationLog, OperationResult, ProjectOperationOutcome};
 
 use crate::{
     message::{HistoryMessage, Message},
-    state::AppState,
+    state::{AppState, dashboard::badge_for_operation_outcome},
     view::dashboard::WidthMode,
 };
 
@@ -213,7 +215,6 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     let expanded = state.history_expanded.contains(&result.operation_id);
 
     let status = summarise_status(result);
-    let status_label = format!("{} {}", status.glyph, state.t(status.label_key));
     let timestamp = result
         .started_at
         .format("%Y-%m-%d %H:%M:%S UTC")
@@ -261,16 +262,29 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
                 .line_height(snora::design::style::text::body_line_height(tokens))
         ),
         Space::new().width(Length::Fill),
-        text(status_label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
+        // RFC-073 D9: `status_badge`, not a plain-text glyph.
+        row![
+            status_badge(
+                tokens,
+                status.badge.0,
+                &status.badge.1,
+                body_badge_diameter(tokens)
+            ),
+            text(state.t(status.label_key))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center),
         // RFC-071 D5: an entry's own actions are not the page's main act —
         // both become `secondary`, not the bare-default (effectively
         // filled) look they had before. Neither is a focus target today
         // (History has no focus-order wiring at all yet), so `false` is
         // passed explicitly rather than left out — the ring ships in case
         // one is ever wired up, same choice Task 100's snackbar made.
-        button(
+        // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a per-entry control in a
+        // potentially long list, the floor rather than `BUTTON_HEIGHT`.
+        button(centered_button_row(
             row![
                 text(toggle_label)
                     .size(snora::design::style::text::body_size(tokens))
@@ -278,18 +292,21 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
                 icon::icon_element(&chevron)
             ]
             .spacing(4)
-            .align_y(Alignment::Center)
-        )
+        ))
+        .height(SMALL_BUTTON_HEIGHT)
+        .padding([0, 10])
         .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle)))
         .style({
             let t = tokens.clone();
             move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
         }),
-        button(
+        button(centered_button_label(
             text(state.t("history.copy_log"))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens))
-        )
+        ))
+        .height(SMALL_BUTTON_HEIGHT)
+        .padding([0, 10])
         .on_press(Message::CopyToClipboard(export_text(
             result,
             &copied_log_names(state, result)
@@ -451,17 +468,24 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
     // result — `body`, including the raw command lines (they are the
     // list's own content, not incidental metadata beside something else).
     for pr in &result.per_project {
-        let icon = match pr.effective_outcome() {
-            ProjectOperationOutcome::Succeeded => "✓",
-            ProjectOperationOutcome::Failed => "✗",
-            ProjectOperationOutcome::Skipped => "-",
-        };
+        // RFC-073 D9: the same badge the dashboard itself uses, not a
+        // screen-specific glyph.
+        let (tone, glyph) = badge_for_operation_outcome(pr.effective_outcome());
         let name = detail_project_name(state, pr);
         rows.push(
-            text(format!("  {icon} {name}"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens))
-                .into(),
+            row![
+                status_badge(tokens, tone, &glyph, body_badge_diameter(tokens)),
+                text(name)
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center)
+            .padding(Padding {
+                left: 14.0,
+                ..Padding::ZERO
+            })
+            .into(),
         );
         if let Some(reason) = &pr.skip_reason {
             rows.push(
@@ -634,6 +658,17 @@ struct StatusSummary {
     glyph: &'static str,
     label_key: &'static str,
     label_en: &'static str,
+    // RFC-073 D9: the on-screen badge — `glyph`/`label_en` stay as they
+    // were, since `export_text` below needs a plain-text indicator, not a
+    // coloured `Element`. "Rolled back" and "Partial" are aggregates
+    // across many projects, not one of `ProjectOperationOutcome`'s three
+    // values, so they are not read from `badge_for_operation_outcome`:
+    // `Rolled back` (the attempt failed, but recovery succeeded) and
+    // `Rollback failed`/`Failed` all get `danger`/alert — the words beside
+    // them, not the symbol, carry which one happened; `Partial` gets its
+    // own `warning` tone, since it is genuinely neither a clean success
+    // nor a clean failure.
+    badge: (Tone, snora::Icon),
 }
 
 fn summarise_status(result: &OperationResult) -> StatusSummary {
@@ -649,12 +684,14 @@ fn summarise_status(result: &OperationResult) -> StatusSummary {
                 glyph: "↩",
                 label_key: "history.rollback_note",
                 label_en: "Rolled back",
+                badge: (Tone::Danger, status_symbol::alert()),
             }
         } else {
             StatusSummary {
                 glyph: "✗",
                 label_key: "history.status_rollback_failed",
                 label_en: "Rollback failed",
+                badge: (Tone::Danger, status_symbol::alert()),
             }
         }
     } else if succeeded > 0 && failed == 0 && skipped == 0 {
@@ -662,24 +699,28 @@ fn summarise_status(result: &OperationResult) -> StatusSummary {
             glyph: "✓",
             label_key: "history.status_success",
             label_en: "Success",
+            badge: (Tone::Success, status_symbol::all_set()),
         }
     } else if failed > 0 && (succeeded > 0 || skipped > 0) {
         StatusSummary {
             glyph: "⚠",
             label_key: "history.status_partial",
             label_en: "Partial",
+            badge: (Tone::Warning, status_symbol::alert()),
         }
     } else if skipped > 0 && failed == 0 {
         StatusSummary {
             glyph: "-",
             label_key: "history.status_skipped",
             label_en: "Skipped",
+            badge: (Tone::Info, status_symbol::skipped()),
         }
     } else {
         StatusSummary {
             glyph: "✗",
             label_key: "history.status_failed",
             label_en: "Failed",
+            badge: (Tone::Danger, status_symbol::alert()),
         }
     }
 }

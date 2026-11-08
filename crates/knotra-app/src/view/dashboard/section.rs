@@ -2,8 +2,8 @@
 //! list of rows beneath it.
 
 use iced::widget::{button, column, container, row, text};
-use iced::{Alignment, Color, Element, Length};
-use knotra_ui::widget::{Tokens, icon, list, strong, style};
+use iced::{Color, Element, Length};
+use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_row, icon, list, strong, style};
 
 use crate::{
     message::{DashboardMessage, Message},
@@ -110,14 +110,17 @@ fn section_header<'a>(
         } else {
             icon::chevron_down()
         };
-        button(
+        // RFC-073 D8: at least `SMALL_BUTTON_HEIGHT`, here `BUTTON_HEIGHT`
+        // — a group toggle is a frequent, full-width target, grouped with
+        // chips/project names/Arrange under the same rule.
+        button(centered_button_row(
             row![
                 strong(text(label).size(snora::design::style::text::title_size(&tokens))),
                 icon::icon_element(&chevron)
             ]
-            .spacing(6)
-            .align_y(Alignment::Center),
-        )
+            .spacing(6),
+        ))
+        .height(Length::Fixed(BUTTON_HEIGHT))
         .width(Length::Fill)
         .on_press(Message::Dashboard(DashboardMessage::TierToggled(tier)))
         .style(move |_theme, status| {

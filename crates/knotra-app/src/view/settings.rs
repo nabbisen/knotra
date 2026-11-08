@@ -19,7 +19,10 @@ use iced::{
 };
 use knotra_ui::ThemeChoice;
 use knotra_ui::i18n::Locale;
-use knotra_ui::widget::{Tokens, WIDE_CONTENT_WIDTH, select, strong, style, validated_field};
+use knotra_ui::widget::{
+    BUTTON_HEIGHT, Tokens, WIDE_CONTENT_WIDTH, centered_button_label, secondary_maybe, select,
+    strong, style, validated_field,
+};
 
 use crate::{
     message::{Message, SettingsMessage, WorkspaceMessage},
@@ -241,40 +244,13 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
 // actions stay exactly as they were.
 // ---------------------------------------------------------------------------
 
-/// RFC-073 Amendment A1: every control in the Workspaces section is
-/// outlined (`style::secondary`), never filled — RFC-071 D5 allows at
-/// most one filled button per area, and Remove's own destructive weight
-/// stays where it already lives, the confirmation dialog's `danger`
-/// button. `is_focused` is `false`: Settings has no RFC-066 `FocusTarget`
-/// wiring today (see `view_display_section`'s own doc comment), so this
-/// is the same honest "unwired" state every other not-yet-wired Settings
-/// control already uses, not a regression from a working ring.
-fn outlined_button<'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    on_press: Option<Message>,
-) -> Element<'a, Message> {
-    let t = tokens.clone();
-    button(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    )
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status)))
-    .into()
-}
-
 fn view_workspaces_section(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     let can_delete = state.all_workspaces.len() > 1;
 
     let mut list = column![].spacing(8);
     for ws in &state.all_workspaces {
-        // Before this amendment: a plain `button(...)` with no `.style(...)`
-        // at all, which iced renders filled with this app's accent colour
-        // (`snora`'s theme-driven default) — visually the same as `primary`.
-        let rename_btn = outlined_button(
+        let rename_btn = secondary_maybe(
             tokens,
             state.t("workspace.rename.short"),
             Some(Message::Workspace(
@@ -282,7 +258,7 @@ fn view_workspaces_section(state: &AppState) -> Element<'_, Message> {
             )),
         );
 
-        let remove_btn = outlined_button(
+        let remove_btn = secondary_maybe(
             tokens,
             state.t("workspace.delete.short"),
             can_delete.then_some(Message::Workspace(
@@ -321,7 +297,7 @@ fn view_workspaces_section(state: &AppState) -> Element<'_, Message> {
         );
     }
 
-    let add_workspace = outlined_button(
+    let add_workspace = secondary_maybe(
         tokens,
         state.t("plain.add_workspace"),
         Some(Message::Workspace(
@@ -456,16 +432,22 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     // RFC-073 Amendment A2: `secondary` — a toggle, not the section's sole
     // action; its current state is the label's own text, not the fill.
+    // RFC-073 D8: `BUTTON_HEIGHT`, matching the Workspaces section's own
+    // buttons on this same screen.
     let t = tokens.clone();
     column![
         labeled_row(
             tokens,
             state.t("settings.fs_watch_enable_label"),
-            button(text(if state.config.fs_watch_enabled {
-                state.t("settings.fs_watch_enabled")
-            } else {
-                state.t("settings.fs_watch_disabled")
-            }))
+            button(centered_button_label(text(
+                if state.config.fs_watch_enabled {
+                    state.t("settings.fs_watch_enabled")
+                } else {
+                    state.t("settings.fs_watch_disabled")
+                }
+            )))
+            .height(Length::Fixed(BUTTON_HEIGHT))
+            .padding([0, 12])
             .on_press(Message::Settings(SettingsMessage::FsWatchEnabledChanged(
                 !state.config.fs_watch_enabled
             )))

@@ -15,13 +15,14 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, column, row, text},
+    widget::{Space, column, container, row, text},
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, SMALL_BUTTON_HEIGHT, Tokens, centered_button_label, current_or, list,
+    BUTTON_HEIGHT, SMALL_BUTTON_HEIGHT, Tokens, body_badge_diameter, centered_button_label,
+    current_or, list,
     overlay::{OverlayWidth, surface},
-    reasoned, style,
+    reasoned, status_badge, style,
 };
 use knotra_vcs::{
     ProjectId, model::operation::ProjectOperationOutcome, model::operation::SmartPullDisposition,
@@ -31,6 +32,7 @@ use crate::{
     message::{Message, SyncMessage},
     state::{
         AppState,
+        dashboard::badge_for_operation_outcome,
         focus::{FocusTarget, LayerFocus},
     },
 };
@@ -470,22 +472,23 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
             let mut result_rows: Vec<Element<'_, Message>> = completed
                 .iter()
                 .map(|p| {
-                    let (icon, msg) = match p.result.effective_outcome() {
-                        ProjectOperationOutcome::Succeeded => {
-                            ("✓", state.t("plain.get_latest.done_row"))
-                        }
+                    // RFC-073 D9: `status_badge`, not a plain-text glyph.
+                    let (tone, glyph) = badge_for_operation_outcome(p.result.effective_outcome());
+                    let msg = match p.result.effective_outcome() {
+                        ProjectOperationOutcome::Succeeded => state.t("plain.get_latest.done_row"),
                         ProjectOperationOutcome::Failed => {
-                            ("!", state.t("plain.get_latest.needs_help_row"))
+                            state.t("plain.get_latest.needs_help_row")
                         }
-                        ProjectOperationOutcome::Skipped => {
-                            ("-", state.t("plain.get_latest.skipped_row"))
-                        }
+                        ProjectOperationOutcome::Skipped => state.t("plain.get_latest.skipped_row"),
                     };
                     row![
-                        text(icon)
-                            .size(snora::design::style::text::body_size(tokens))
-                            .line_height(snora::design::style::text::body_line_height(tokens))
-                            .width(Length::Fixed(20.0)),
+                        container(status_badge(
+                            tokens,
+                            tone,
+                            &glyph,
+                            body_badge_diameter(tokens)
+                        ))
+                        .width(Length::Fixed(20.0)),
                         text(&p.project_name)
                             .size(snora::design::style::text::body_size(tokens))
                             .line_height(snora::design::style::text::body_line_height(tokens))
@@ -624,30 +627,35 @@ fn pull_result_view<'a>(
         .per_project
         .iter()
         .map(|pp| {
-            let (icon, msg) = match pp.outcome {
-                ProjectOperationOutcome::Succeeded => ("✓", state.t("plain.get_latest.done_row")),
-                ProjectOperationOutcome::Failed => ("!", state.t("plain.needs_help")),
-                ProjectOperationOutcome::Skipped => (
-                    "-",
-                    // RFC-046 A1/D6/R10: map a persisted code through the
-                    // catalog rather than rendering it raw — this overlay
-                    // was showing `retry:not_in_active_workspace` verbatim
-                    // beside a translated sentence from another writer
-                    // before this fix. `None` (no reason recorded) keeps
-                    // its own, unrelated fallback below.
+            // RFC-073 D9: `status_badge`, not a plain-text glyph.
+            let (tone, glyph) = badge_for_operation_outcome(pp.outcome.clone());
+            let msg = match pp.outcome {
+                ProjectOperationOutcome::Succeeded => state.t("plain.get_latest.done_row"),
+                ProjectOperationOutcome::Failed => state.t("plain.needs_help"),
+                ProjectOperationOutcome::Skipped =>
+                // RFC-046 A1/D6/R10: map a persisted code through the
+                // catalog rather than rendering it raw — this overlay
+                // was showing `retry:not_in_active_workspace` verbatim
+                // beside a translated sentence from another writer
+                // before this fix. `None` (no reason recorded) keeps
+                // its own, unrelated fallback below.
+                {
                     pp.skip_reason
                         .as_deref()
                         .map(|reason| crate::view::skip_reason_display(state, reason))
-                        .unwrap_or(state.t("plain.get_latest.skipped_row")),
-                ),
+                        .unwrap_or(state.t("plain.get_latest.skipped_row"))
+                }
             };
 
             let mut row_col = column![
                 row![
-                    text(icon)
-                        .size(snora::design::style::text::body_size(tokens))
-                        .line_height(snora::design::style::text::body_line_height(tokens))
-                        .width(Length::Fixed(20.0)),
+                    container(status_badge(
+                        tokens,
+                        tone,
+                        &glyph,
+                        body_badge_diameter(tokens)
+                    ))
+                    .width(Length::Fixed(20.0)),
                     text(&pp.project_name)
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens))

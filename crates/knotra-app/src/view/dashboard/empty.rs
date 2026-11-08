@@ -49,18 +49,25 @@ pub(super) fn empty_workspace(state: &AppState) -> Element<'_, Message> {
 
 pub(super) fn no_matches(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    // RFC-073 Amendment A2: `secondary`, matching the toolbar's own
-    // `clear_filters_button` — a clearing action, not the area's primary one.
+    // RFC-073 Amendment A2/D8: `secondary`, `BUTTON_HEIGHT` — matching the
+    // toolbar's own `clear_filters_button` in both style and size, since
+    // it is the same action.
     let t = tokens.clone();
     container(
         column![
             text(state.t("plain.empty.no_match"))
                 .size(snora::design::style::text::title_size(tokens)),
-            button(text(state.t("dashboard.clear_filters")))
-                .on_press(Message::Filter(FilterMessage::AllFiltersCleared))
-                .style(move |_theme, status| {
-                    style::with_focus_ring(&t, false, style::secondary(&t, status))
-                }),
+            button(centered_button_label(
+                text(state.t("dashboard.clear_filters"))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
+            ))
+            .height(BUTTON_HEIGHT)
+            .padding([0, 12])
+            .on_press(Message::Filter(FilterMessage::AllFiltersCleared))
+            .style(move |_theme, status| {
+                style::with_focus_ring(&t, false, style::secondary(&t, status))
+            }),
         ]
         .spacing(10)
         .align_x(Alignment::Center),

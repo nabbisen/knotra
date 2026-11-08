@@ -43,4 +43,4 @@ pub use snora::design::FocusTokens;
 /// Snora Design token bundle. Re-exported so view-layer signatures can name
 /// `Tokens` without importing `snora::design` directly (RFC-034 R2).
 pub use snora::design::Tokens;
-pub use status::{Tone, status_badge, symbol as status_symbol};
+pub use status::{Tone, body_badge_diameter, status_badge, symbol as status_symbol};

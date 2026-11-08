@@ -12,11 +12,12 @@
 //! `ring_color_for`.
 
 use iced::widget::{Space, button, row, text};
-use iced::{Alignment, Border, Color, Length, Shadow};
+use iced::{Border, Color, Length, Shadow};
 use snora::design::Tokens;
 
+use super::buttons::centered_button_row;
 use super::buttons::style::with_focus_ring;
-use super::layout::Element;
+use super::layout::{BUTTON_HEIGHT, Element};
 use super::status::{Tone, status_badge};
 
 fn to_iced(color: snora::design::Color) -> Color {
@@ -68,29 +69,36 @@ pub fn filter<'a, Message: Clone + 'a>(
     let label_line_height = snora::design::style::text::body_line_height(tokens);
     let diameter = tokens.typography.body.size * tokens.typography.body.line_height;
 
-    let content = row![
-        status_badge(tokens, tone, glyph, diameter),
-        // RFC-071 Amendment A6 §1: a chip's label must never wrap onto a
-        // second line inside the chip — when the chip row itself does not
-        // fit, the row wraps as a whole (see the toolbar's own `.wrap()`),
-        // not the label inside one chip.
-        text(label.into())
-            .size(label_size)
-            .line_height(label_line_height)
-            .wrapping(iced::advanced::text::Wrapping::None),
-        Space::new().width(Length::Fixed(tokens.spacing.xs)),
-        text(count.to_string())
-            .size(label_size)
-            .line_height(label_line_height),
-    ]
-    .spacing(tokens.spacing.xs)
-    .align_y(Alignment::Center);
-
-    button(content)
-        .on_press_maybe(on_toggle.into())
-        .padding([tokens.spacing.xs, tokens.spacing.sm])
-        .style(move |_theme, status| style(&t, selected, count, status, is_focused))
-        .into()
+    // RFC-073 D8: at least `SMALL_BUTTON_HEIGHT`, here `BUTTON_HEIGHT` —
+    // the chip row shares visual rhythm with the toolbar controls row
+    // beneath it (`Arrange`/Search/`Select`, all `BUTTON_HEIGHT`), and
+    // compact mode's own `⋯` overflow trigger beside the visible chips is
+    // already that height. `centered_button_row` keeps the badge/label/
+    // count centred now that the fixed height no longer comes from
+    // padding around tightly-sized content.
+    button(centered_button_row(
+        row![
+            status_badge(tokens, tone, glyph, diameter),
+            // RFC-071 Amendment A6 §1: a chip's label must never wrap onto
+            // a second line inside the chip — when the chip row itself
+            // does not fit, the row wraps as a whole (see the toolbar's
+            // own `.wrap()`), not the label inside one chip.
+            text(label.into())
+                .size(label_size)
+                .line_height(label_line_height)
+                .wrapping(iced::advanced::text::Wrapping::None),
+            Space::new().width(Length::Fixed(tokens.spacing.xs)),
+            text(count.to_string())
+                .size(label_size)
+                .line_height(label_line_height),
+        ]
+        .spacing(tokens.spacing.xs),
+    ))
+    .height(Length::Fixed(BUTTON_HEIGHT))
+    .on_press_maybe(on_toggle.into())
+    .padding([0.0, tokens.spacing.sm])
+    .style(move |_theme, status| style(&t, selected, count, status, is_focused))
+    .into()
 }
 
 /// `pub(crate)` so `theme.rs`'s contrast test can exercise the real

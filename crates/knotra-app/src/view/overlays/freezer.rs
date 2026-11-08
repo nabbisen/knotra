@@ -12,13 +12,14 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, column, row, text},
+    widget::{Space, column, container, row, text},
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused, list,
+    BUTTON_HEIGHT, Tokens, Tone, body_badge_diameter, centered_button_label, guided_field_focused,
+    list,
     overlay::{OverlayWidth, surface},
-    reasoned, style,
+    reasoned, status_badge, status_symbol, style,
 };
 use knotra_vcs::model::operation::{FreezeBlocker, FreezeNote, FreezeOutcome};
 
@@ -261,9 +262,16 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 .entries
                 .iter()
                 .map(|entry| {
-                    let (icon, first_line) = if entry.is_blocked() {
+                    // RFC-073 D9: `status_badge`, not a plain-text glyph —
+                    // blocked is `danger`/alert, ready is `success`/check,
+                    // the same two outcomes `badge_for_operation_outcome`
+                    // gives failure/success, named directly here rather
+                    // than forced through that function's
+                    // `ProjectOperationOutcome` (this is a readiness check,
+                    // not a completed operation's outcome).
+                    let (badge, first_line) = if entry.is_blocked() {
                         (
-                            "!",
+                            (Tone::Danger, status_symbol::alert()),
                             entry
                                 .blockers
                                 .first()
@@ -271,15 +279,21 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                                 .unwrap_or_default(),
                         )
                     } else {
-                        ("✓", state.t("plain.release.row_ready"))
+                        (
+                            (Tone::Success, status_symbol::all_set()),
+                            state.t("plain.release.row_ready"),
+                        )
                     };
 
                     let mut row_col = column![
                         row![
-                            text(icon)
-                                .size(snora::design::style::text::body_size(tokens))
-                                .line_height(snora::design::style::text::body_line_height(tokens))
-                                .width(ICON_COLUMN_WIDTH),
+                            container(status_badge(
+                                tokens,
+                                badge.0,
+                                &badge.1,
+                                body_badge_diameter(tokens)
+                            ))
+                            .width(ICON_COLUMN_WIDTH),
                             text(&entry.project_name)
                                 .size(snora::design::style::text::body_size(tokens))
                                 .line_height(snora::design::style::text::body_line_height(tokens))

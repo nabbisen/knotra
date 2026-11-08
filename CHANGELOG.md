@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — everything you can press is easier to hit, and every status looks the same
+
+Filter buttons, header controls, group headings and project names now have a larger area to
+click. Every window now shows a project's status with the same coloured symbol as the
+dashboard, and the symbol itself is larger.
+
 ### Added — knotra appears in your Linux desktop's menu, with its icon
 
 The Linux download now includes a desktop entry, an icon and a software-centre description,

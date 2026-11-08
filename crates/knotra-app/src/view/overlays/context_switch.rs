@@ -18,9 +18,10 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused, list,
+    BUTTON_HEIGHT, Tokens, Tone, body_badge_diameter, centered_button_label, guided_field_focused,
+    list,
     overlay::{OverlayWidth, surface},
-    reasoned, style,
+    reasoned, status_badge, status_symbol, style,
 };
 use knotra_vcs::ContextTarget;
 
@@ -365,20 +366,32 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
         ),
 
         ContextPhase::Done(result) => {
-            let (title, body) = if result.operation_result.success {
+            // RFC-073 D9: `status_badge` beside the title — this screen
+            // had no status symbol of any kind before (success/failure
+            // were title-text-only); success/check and failure/alert, the
+            // same two outcomes `badge_for_operation_outcome` gives, named
+            // directly here (a single switch has no "skipped" outcome).
+            let (title, body, badge) = if result.operation_result.success {
                 (
                     state.t("plain.switch.done_title"),
                     state.t("plain.no_next_step"),
+                    (Tone::Success, status_symbol::all_set()),
                 )
             } else {
                 (
                     state.t("plain.switch.failed_title"),
                     state.t("plain.switch.failed_hint"),
+                    (Tone::Danger, status_symbol::alert()),
                 )
             };
 
             let mut detail_col = column![
-                text(title).size(snora::design::style::text::title_size(tokens)),
+                row![
+                    status_badge(tokens, badge.0, &badge.1, body_badge_diameter(tokens)),
+                    text(title).size(snora::design::style::text::title_size(tokens)),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Center),
                 // RFC-071 Amendment A3 D14: moved to `body` — same reasoning
                 // as the `Switching` phase above: the target name is this
                 // line's own content, not a detail beside another name.

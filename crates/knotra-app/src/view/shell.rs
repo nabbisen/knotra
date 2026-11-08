@@ -12,7 +12,10 @@ use iced::{
     Alignment, Element, Length,
     widget::{Space, button, column, container, row, text},
 };
-use knotra_ui::widget::{self, Tokens, icon, icon_button_maybe};
+use knotra_ui::widget::{
+    self, BUTTON_HEIGHT, Tokens, centered_button_label, centered_button_row, icon,
+    icon_button_maybe,
+};
 
 use crate::{
     message::{Message, WorkspaceMessage},
@@ -157,16 +160,18 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // more. The unlabelled attention count that used to follow the name
     // is gone — the "Needs help" chip already says it.
     let workspace_header: Element<'_, Message> = if state.all_workspaces.len() > 1 {
-        button(
+        // RFC-073 D8: `BUTTON_HEIGHT` — a header control.
+        button(centered_button_row(
             row![
                 text(workspace_name.to_owned())
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
                 widget::icon::icon_element(&icon::chevron_down()),
             ]
-            .spacing(6)
-            .align_y(Alignment::Center),
-        )
+            .spacing(6),
+        ))
+        .height(Length::Fixed(BUTTON_HEIGHT))
+        .padding([0, 12])
         .on_press(Message::Workspace(WorkspaceMessage::SwitcherToggled))
         .style({
             let t = tokens.clone();
@@ -191,11 +196,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let nav_button = |label: &str, active: bool, target: Screen, tokens: &Tokens, focused: bool| {
         let t = tokens.clone();
-        button(
+        // RFC-073 D8: `BUTTON_HEIGHT` — a header control.
+        button(centered_button_label(
             text(label.to_owned())
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
-        )
+        ))
+        .height(Length::Fixed(BUTTON_HEIGHT))
+        .padding([0, 12])
         .on_press_maybe((!active).then_some(Message::Navigate(target)))
         .style(move |_theme, status| {
             // R12: the current destination must be the *most* salient
@@ -329,13 +337,16 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
             state,
             &FocusTarget::control_dynamic(format!("shell.switcher.workspace.{}", ws.id)),
         );
+        // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a menu row.
         items = items.push(
-            button(
+            button(centered_button_label(
                 text(ws.name.clone())
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
-            )
+            ))
             .width(Length::Fill)
+            .height(widget::SMALL_BUTTON_HEIGHT)
+            .padding([0, 12])
             .on_press_maybe((!is_active).then_some(Message::Workspace(
                 WorkspaceMessage::WorkspaceSwitched(ws.id.clone()),
             )))
@@ -348,12 +359,15 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
     let can_delete = state.all_workspaces.len() > 1;
     let menu_action = |label: &str, msg: Message, tokens: &Tokens, is_focused: bool| {
         let t = tokens.clone();
-        button(
+        // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a menu row.
+        button(centered_button_label(
             text(label.to_owned())
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
-        )
+        ))
         .width(Length::Fill)
+        .height(widget::SMALL_BUTTON_HEIGHT)
+        .padding([0, 12])
         .on_press(msg)
         .style(move |_theme, status| {
             widget::style::with_focus_ring(&t, is_focused, widget::style::ghost(&t, status))
@@ -406,12 +420,15 @@ fn danger_menu_action<'a>(
     is_focused: bool,
 ) -> Element<'a, Message> {
     let t = tokens.clone();
-    button(
+    // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a menu row.
+    button(centered_button_label(
         text(label)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-    )
+    ))
     .width(Length::Fill)
+    .height(widget::SMALL_BUTTON_HEIGHT)
+    .padding([0, 12])
     .on_press_maybe(on_press)
     .style(move |_theme, status| {
         widget::style::with_focus_ring(&t, is_focused, widget::style::danger(&t, status))

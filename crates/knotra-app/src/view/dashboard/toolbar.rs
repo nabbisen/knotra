@@ -634,11 +634,15 @@ fn clear_filters_button<'a>(
 ) -> Element<'a, Message> {
     let t = tokens.clone();
     // RFC-071 Amendment A3 D14: a button label — `body`.
-    button(
+    // RFC-073 D8: `BUTTON_HEIGHT`, matching Arrange/Search/Select in the
+    // same controls row.
+    button(centered_button_label(
         text(label)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-    )
+    ))
+    .height(BUTTON_HEIGHT)
+    .padding([0, 12])
     .on_press(Message::Filter(FilterMessage::AllFiltersCleared))
     .style(move |_theme, status| {
         style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
