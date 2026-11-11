@@ -164,18 +164,19 @@ pub enum SettingsMessage {
     /// percent) — one saving path for both, per D11's "saved like every
     /// other setting".
     ZoomChanged(u16),
-    // RFC-038 Stage 2 §1b: these four carry the raw typed text, not a
-    // pre-parsed number — the view previously coerced unparseable input to
-    // a magic default (0/1/10/2) at the message boundary, which destroyed
-    // the user's input before validation could ever see it. Parsing (and
-    // deciding what counts as valid) now happens in the handler.
-    RefreshIntervalChanged(String),
-    MaxConcurrentChanged(String),
+    // RFC-073 D12: these four now carry the already-valid value selected
+    // from a fixed list (`config.rs`'s own `*_STEPS` arrays) — the same
+    // shape as `ZoomChanged` above, not RFC-038 Stage 2's typed text any
+    // more. There is no unparseable case left to carry or validate.
+    RefreshAutoChanged(u32),
+    MaxConcurrentChanged(usize),
     ExternalEditorChanged(String),
     ExternalMergeToolChanged(String),
-    MaxLogEntriesChanged(String),
+    MaxLogEntriesChanged(usize),
     FsWatchEnabledChanged(bool),
-    FsDebounceSecs(String),
+    FsDebounceSecs(u32),
+    /// RFC-073 D11: Settings' "Advanced" disclosure.
+    AdvancedToggled,
 }
 
 // --- Background ---

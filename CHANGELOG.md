@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — Settings shows what most people use
+
+Settings now shows language, theme, zoom, automatic refresh, your tools and your
+workspaces. Settings for fine-tuning are under "Advanced", closed until you open it. Numbers
+are now chosen from a list instead of typed, and a setting that needs a restart says so.
+
 ### Changed — everything you can press is easier to hit, and every status looks the same
 
 Filter buttons, header controls, group headings and project names now have a larger area to

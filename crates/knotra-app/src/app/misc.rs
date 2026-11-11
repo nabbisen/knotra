@@ -113,14 +113,18 @@ pub(super) fn handle_history(state: &mut AppState, msg: HistoryMessage) -> Task<
 
 /// RFC-071 Amendment A7: every setting is saved when it changes — no
 /// separate "Save settings" step. Each arm below applies the change to
-/// `state.config` (and, for a typed field, only when the new text parses
-/// to a valid value — an invalid value is applied nowhere, and the edit
-/// buffer keeps showing exactly what the user typed, same as before this
-/// amendment) and then calls [`persist_config`], the one function every
+/// `state.config` and then calls [`persist_config`], the one function every
 /// setting-changing path in this app saves through — this one, zoom's
 /// shortcuts (`app.rs`'s `ShortcutMessage::ZoomIn`/`ZoomOut`/`ZoomReset`,
 /// which dispatch back into this function's `ZoomChanged` arm), and the
 /// dashboard's Group/Sort/collapse (`handle_dashboard` below).
+///
+/// RFC-073 D12: `RefreshAutoChanged`/`MaxConcurrentChanged`/
+/// `MaxLogEntriesChanged`/`FsDebounceSecs` now carry an already-valid
+/// value chosen from a fixed list (one of `config.rs`'s own `*_STEPS`
+/// arrays), the same shape `ZoomChanged` already had — RFC-038 Stage 2's
+/// "parse the typed text, keep the edit buffer on failure" dance these four
+/// used to do is gone with the typed fields themselves.
 pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Task<Message> {
     match msg {
         SettingsMessage::LocaleChanged(l) => {
@@ -137,27 +141,13 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             state.config.zoom_percent = percent;
             persist_config(state);
         }
-        SettingsMessage::RefreshIntervalChanged(s) => {
-            // 0 is a valid value here (means manual refresh only) — any
-            // parseable u32 is accepted. On invalid input, the edit buffer
-            // still shows exactly what the user typed; `config` keeps its
-            // last valid value rather than silently coercing.
-            if let Ok(n) = s.parse::<u32>() {
-                state.config.refresh_interval_secs = n;
-                persist_config(state);
-            }
-            state.settings_edit.refresh_interval_secs = s;
+        SettingsMessage::RefreshAutoChanged(secs) => {
+            state.config.refresh_interval_secs = secs;
+            persist_config(state);
         }
-        SettingsMessage::MaxConcurrentChanged(s) => {
-            // Must be > 0 — a concurrency limit of 0 would mean nothing
-            // could ever read, so it's rejected the same as unparseable text.
-            if let Ok(n) = s.parse::<usize>()
-                && n > 0
-            {
-                state.config.max_concurrent_reads = n;
-                persist_config(state);
-            }
-            state.settings_edit.max_concurrent_reads = s;
+        SettingsMessage::MaxConcurrentChanged(n) => {
+            state.config.max_concurrent_reads = n;
+            persist_config(state);
         }
         SettingsMessage::ExternalEditorChanged(s) => {
             state.settings_edit.external_editor = s.clone();
@@ -177,16 +167,9 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             };
             persist_config(state);
         }
-        SettingsMessage::MaxLogEntriesChanged(s) => {
-            // Must be > 0 — zero retained log entries isn't a meaningful
-            // setting, same reasoning as max concurrent reads above.
-            if let Ok(n) = s.parse::<usize>()
-                && n > 0
-            {
-                state.config.max_log_entries = n;
-                persist_config(state);
-            }
-            state.settings_edit.max_log_entries = s;
+        SettingsMessage::MaxLogEntriesChanged(n) => {
+            state.config.max_log_entries = n;
+            persist_config(state);
         }
         SettingsMessage::FsWatchEnabledChanged(v) => {
             state.config.fs_watch_enabled = v;
@@ -195,13 +178,12 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             }
             persist_config(state);
         }
-        SettingsMessage::FsDebounceSecs(s) => {
-            // Like the refresh interval, 0 is a legitimate value here.
-            if let Ok(n) = s.parse::<u32>() {
-                state.config.fs_debounce_secs = n;
-                persist_config(state);
-            }
-            state.settings_edit.fs_debounce_secs = s;
+        SettingsMessage::FsDebounceSecs(secs) => {
+            state.config.fs_debounce_secs = secs;
+            persist_config(state);
+        }
+        SettingsMessage::AdvancedToggled => {
+            state.settings_advanced_open = !state.settings_advanced_open;
         }
     }
     Task::none()

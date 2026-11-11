@@ -239,6 +239,12 @@ pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
 fn update_inner(state: &mut AppState, message: Message) -> Task<Message> {
     match message {
         Message::Navigate(screen) => {
+            // RFC-073 D11: Settings' "Advanced" disclosure is closed on
+            // every visit — not saved, and not left open from a previous
+            // visit within the same run either.
+            if screen == crate::state::Screen::Settings {
+                state.settings_advanced_open = false;
+            }
             state.screen = screen;
             Task::none()
         }

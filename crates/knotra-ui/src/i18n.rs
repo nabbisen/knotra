@@ -733,6 +733,8 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // header switcher's menu.
     m.insert("settings.section.workspaces", "Workspaces");
     m.insert("settings.section.logs", "Logs");
+    // RFC-073 D11.
+    m.insert("settings.section.advanced", "Advanced");
     m.insert("settings.locale_label", "Language");
     m.insert("settings.theme_label", "Theme");
     m.insert("settings.theme_dark", "Dark");
@@ -746,30 +748,35 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "settings.zoom_help",
         "Makes everything in knotra larger or smaller, text included.",
     );
-    // RFC-038 Stage 3: trimmed from "Background refresh (seconds; 0 =
-    // manual)" — validated_field's own `unit` slot now carries "seconds"
-    // (settings.unit_seconds), so repeating it in the label would show it
-    // twice. The "0 = manual" clarification stays; it isn't redundant with
-    // anything else on screen.
-    m.insert(
-        "settings.refresh_interval_label",
-        "Background refresh (0 = manual)",
-    );
+    // RFC-073 D12: replaces `settings.refresh_interval_label` — a select
+    // now ("Off"/"Every 30 seconds"/…, D16), not a typed number with a
+    // "(0 = manual)" clarification baked into the label; "Off" says that
+    // directly.
+    m.insert("settings.refresh_auto_label", "Refresh automatically");
+    m.insert("settings.choice.off", "Off");
+    m.insert("settings.choice.every_30s", "Every 30 seconds");
+    m.insert("settings.choice.every_1m", "Every minute");
+    m.insert("settings.choice.every_5m", "Every 5 minutes");
+    m.insert("settings.choice.every_15m", "Every 15 minutes");
     m.insert("settings.unit_seconds", "seconds");
-    m.insert("settings.error.invalid_number", "Enter a number.");
-    m.insert(
-        "settings.error.invalid_positive_number",
-        "Enter a number greater than 0.",
-    );
-    m.insert("settings.max_concurrent_label", "Max concurrent reads");
+    // RFC-073 D12 (D16): "Max concurrent reads" → "Simultaneous reads" —
+    // plainer, and no longer paired with the typed-number label it used to
+    // explain.
+    m.insert("settings.max_concurrent_label", "Simultaneous reads");
     m.insert("settings.editor_label", "External editor path");
     m.insert("settings.editor_hint", "/usr/bin/nvim (optional)");
     m.insert("settings.merge_tool_label", "Comparison tool path");
     m.insert("settings.merge_tool_hint", "/usr/bin/meld (optional)");
-    m.insert("settings.max_logs_label", "Max operation log entries");
+    // RFC-073 D12 (D16): "Max operation log entries" → "Operation log
+    // size".
+    m.insert("settings.max_logs_label", "Operation log size");
+    // RFC-073 D13: replaces the general `settings.restart_hint` — carried
+    // under the one setting that actually needs a restart
+    // (`config.rs`'s own doc comment on `max_log_entries` has the reason),
+    // not a blanket "some changes" with no way to tell which.
     m.insert(
-        "settings.restart_hint",
-        "Some changes take effect on next launch.",
+        "settings.needs_restart",
+        "Takes effect after you restart knotra.",
     );
     // RFC-071 Amendment A7: `settings.save`/`settings.saved_ok` are gone —
     // there is no "Save settings" button or success flash any more, every
@@ -1556,6 +1563,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     // header switcher's menu.
     m.insert("settings.section.workspaces", "ワークスペース");
     m.insert("settings.section.logs", "ログ");
+    m.insert("settings.section.advanced", "詳細設定");
     m.insert("settings.locale_label", "言語");
     m.insert("settings.theme_label", "テーマ");
     m.insert("settings.theme_dark", "ダーク");
@@ -1575,25 +1583,22 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "settings.zoom_help",
         "文字を含め、knotraの表示全体を拡大・縮小します。",
     );
-    m.insert(
-        "settings.refresh_interval_label",
-        "バックグラウンド更新（0 = 手動のみ）",
-    );
+    m.insert("settings.refresh_auto_label", "自動で再読み込み");
+    m.insert("settings.choice.off", "オフ");
+    m.insert("settings.choice.every_30s", "30秒ごと");
+    m.insert("settings.choice.every_1m", "1分ごと");
+    m.insert("settings.choice.every_5m", "5分ごと");
+    m.insert("settings.choice.every_15m", "15分ごと");
     m.insert("settings.unit_seconds", "秒");
-    m.insert("settings.error.invalid_number", "数値を入力してください。");
-    m.insert(
-        "settings.error.invalid_positive_number",
-        "0より大きい数値を入力してください。",
-    );
-    m.insert("settings.max_concurrent_label", "最大同時読み込み数");
+    m.insert("settings.max_concurrent_label", "同時に読み込む数");
     m.insert("settings.editor_label", "外部エディタのパス");
     m.insert("settings.editor_hint", "/usr/bin/nvim （任意）");
     m.insert("settings.merge_tool_label", "比較ツールのパス");
     m.insert("settings.merge_tool_hint", "/usr/bin/meld （任意）");
-    m.insert("settings.max_logs_label", "操作ログの最大保持数");
+    m.insert("settings.max_logs_label", "操作ログの保持数");
     m.insert(
-        "settings.restart_hint",
-        "一部の変更は次回起動時に有効になります。",
+        "settings.needs_restart",
+        "knotra を再起動すると反映されます。",
     );
     m.insert("settings.save_error", "設定を保存できませんでした:");
     m.insert("settings.section.fs_watch", "ファイルシステム監視");

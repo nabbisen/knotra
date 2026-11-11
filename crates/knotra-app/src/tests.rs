@@ -339,7 +339,7 @@ fn every_kind_of_setting_persists_without_a_save_step() {
     );
     dispatch(
         &mut state,
-        Message::Settings(SettingsMessage::RefreshIntervalChanged("45".to_owned())),
+        Message::Settings(SettingsMessage::RefreshAutoChanged(900)),
     );
     dispatch(
         &mut state,
@@ -355,34 +355,8 @@ fn every_kind_of_setting_persists_without_a_save_step() {
     assert_eq!(loaded.theme, knotra_ui::ThemeChoice::HighContrastDark);
     assert_eq!(loaded.zoom_percent, 130);
     assert!(loaded.fs_watch_enabled);
-    assert_eq!(loaded.refresh_interval_secs, 45);
+    assert_eq!(loaded.refresh_interval_secs, 900);
     assert_eq!(loaded.external_editor.as_deref(), Some("/usr/bin/nvim"));
-}
-
-/// A7 item 1: an invalid typed value is applied nowhere — not to
-/// `state.config` (so nothing wrong is live), and not to disk (so a save
-/// is never even attempted for it; the config file is never created by
-/// this dispatch at all). The edit buffer alone shows what was typed, so
-/// the field's own error (`view/settings.rs`'s `positive_usize_field_error`)
-/// has something to render.
-#[test]
-fn an_invalid_number_is_applied_nowhere_and_not_persisted() {
-    let tmp = tempfile::tempdir().expect("tempdir");
-    let paths = AppPaths::under(tmp.path().to_path_buf());
-    let mut state = make_state_with_paths(paths.clone());
-    let default_max_concurrent = state.config.max_concurrent_reads;
-
-    dispatch(
-        &mut state,
-        Message::Settings(SettingsMessage::MaxConcurrentChanged("0".to_owned())),
-    );
-
-    assert_eq!(state.config.max_concurrent_reads, default_max_concurrent);
-    assert_eq!(state.settings_edit.max_concurrent_reads, "0");
-    assert!(
-        !paths.config_file.exists(),
-        "an invalid value must never reach a save attempt"
-    );
 }
 
 /// A7's refinement (Review 259 §1): a failed save must show in the

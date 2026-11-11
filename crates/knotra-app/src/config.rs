@@ -36,19 +36,31 @@ pub struct AppConfig {
     /// parse runs — see `load_config`'s own doc comment — so this field
     /// itself never needs to know the old key existed.
     pub theme: ThemeChoice,
-    /// Background refresh interval in seconds (0 = manual only).
+    /// Background refresh interval in seconds (0 = manual only). RFC-073
+    /// D12: always one of [`REFRESH_AUTO_STEPS`] once loaded, the same
+    /// "select, not a typed number" guarantee D11/D12 give `zoom_percent`'s
+    /// own [`ZOOM_STEPS`] — `load_config` snaps any other saved value to
+    /// the nearest step.
     pub refresh_interval_secs: u32,
-    /// Maximum concurrent repository status reads.
+    /// Maximum concurrent repository status reads. RFC-073 D12: always one
+    /// of [`SIMULTANEOUS_READS_STEPS`] once loaded.
     pub max_concurrent_reads: usize,
     /// Path to the preferred external editor.
     pub external_editor: Option<String>,
     /// Path to the preferred external merge tool.
     pub external_merge_tool: Option<String>,
-    /// Maximum number of operation log entries to keep in memory.
+    /// Maximum number of operation log entries to keep in memory. RFC-073
+    /// D12: always one of [`LOG_SIZE_STEPS`] once loaded. D13: a *larger*
+    /// value needs a restart to take effect — `app.rs::new` loads only this
+    /// many entries from disk at startup (`load_recent_logs`), and nothing
+    /// re-reads disk later to pick up more once that number grows; a
+    /// *smaller* value takes effect immediately, by truncation
+    /// (`app/background/mod.rs`).
     pub max_log_entries: usize,
     /// Enable file-system event monitoring (off by default).
     pub fs_watch_enabled: bool,
     /// Debounce interval in seconds before a FS event triggers a refresh.
+    /// RFC-073 D12: always one of [`FS_DEBOUNCE_STEPS`] once loaded.
     pub fs_debounce_secs: u32,
     /// Dashboard section grouping.
     pub dashboard_grouping: DashboardGrouping,
@@ -112,6 +124,56 @@ pub fn zoom_step_down(current: u16) -> u16 {
         .position(|&s| s == current)
         .expect("zoom_percent is always one of ZOOM_STEPS once loaded");
     ZOOM_STEPS[idx.saturating_sub(1)]
+}
+
+// --- RFC-073 D12: the four number settings, as selects -------------------
+
+/// "Refresh automatically": off, or one of four intervals, in seconds.
+pub const REFRESH_AUTO_STEPS: [u32; 5] = [0, 30, 60, 300, 900];
+
+/// "Simultaneous reads" (was "Max concurrent reads").
+pub const SIMULTANEOUS_READS_STEPS: [usize; 4] = [2, 4, 8, 16];
+
+/// "Operation log size" (was "Max operation log entries").
+pub const LOG_SIZE_STEPS: [usize; 4] = [100, 200, 500, 1000];
+
+/// "Change detection interval" (FS-watch debounce), in seconds.
+pub const FS_DEBOUNCE_STEPS: [u32; 3] = [1, 2, 5];
+
+/// Snaps `value` to the nearest of `steps` (ascending) — ties favour the
+/// lower step, the same rule [`nearest_zoom_step`] uses. Shared by every
+/// `u32`-typed stepped setting D12 adds; `nearest_zoom_step` itself predates
+/// this and is left as its own `u16` function rather than folded in, since
+/// zoom is RFC-071's, not D12's.
+fn nearest_step_u32(steps: &[u32], value: u32) -> u32 {
+    let mut best = steps[0];
+    let mut best_diff = best.abs_diff(value);
+    for &step in &steps[1..] {
+        let diff = step.abs_diff(value);
+        if diff < best_diff {
+            best = step;
+            best_diff = diff;
+        }
+    }
+    best
+}
+
+/// [`nearest_step_u32`], for the two `usize`-typed stepped settings — a
+/// separate function, not a generic one, because `usize` has no portable
+/// lossless conversion to a common signed type `u32` could share (its
+/// width is platform-defined), and both settings' own `AppConfig` fields
+/// are `usize` already, for reasons outside D12's scope to change.
+fn nearest_step_usize(steps: &[usize], value: usize) -> usize {
+    let mut best = steps[0];
+    let mut best_diff = best.abs_diff(value);
+    for &step in &steps[1..] {
+        let diff = step.abs_diff(value);
+        if diff < best_diff {
+            best = step;
+            best_diff = diff;
+        }
+    }
+    best
 }
 
 impl Default for AppConfig {
@@ -319,6 +381,18 @@ pub fn load_config(paths: &AppPaths) -> (AppConfig, Option<String>) {
                         // Only a saved value outside the allowed set (a
                         // hand-edited file) is actually moved.
                         cfg.zoom_percent = nearest_zoom_step(cfg.zoom_percent);
+                        // RFC-073 D12: the same snap, for the four settings
+                        // that became selects. An older file's own defaults
+                        // (60/8/200/2) are already steps, so this is a
+                        // no-op for every file but a hand-edited one.
+                        cfg.refresh_interval_secs =
+                            nearest_step_u32(&REFRESH_AUTO_STEPS, cfg.refresh_interval_secs);
+                        cfg.max_concurrent_reads =
+                            nearest_step_usize(&SIMULTANEOUS_READS_STEPS, cfg.max_concurrent_reads);
+                        cfg.max_log_entries =
+                            nearest_step_usize(&LOG_SIZE_STEPS, cfg.max_log_entries);
+                        cfg.fs_debounce_secs =
+                            nearest_step_u32(&FS_DEBOUNCE_STEPS, cfg.fs_debounce_secs);
                         (cfg, theme_warning)
                     }
                     Err(e) => parse_error(&e),
@@ -559,7 +633,7 @@ mod tests {
         std::fs::create_dir_all(paths.config_file.parent().unwrap()).expect("config dir");
         std::fs::write(
             &paths.config_file,
-            "theme = \"neon\"\nrefresh_interval_secs = 42\n",
+            "theme = \"neon\"\nrefresh_interval_secs = 300\n",
         )
         .expect("config.toml with an unknown theme value");
 
@@ -568,7 +642,12 @@ mod tests {
         let warning = warning.expect("an unknown theme value must be reported");
         assert!(warning.contains("neon"), "{warning:?}");
         assert_eq!(loaded.theme, AppConfig::default().theme);
-        assert_eq!(loaded.refresh_interval_secs, 42);
+        // RFC-073 D12: 300 is already one of `REFRESH_AUTO_STEPS` — this
+        // line proves the theme fallback does not disturb an unrelated,
+        // already-valid field, not anything about the snap itself (see
+        // `load_config_snaps_every_stepped_setting_to_its_nearest_choice`
+        // for that).
+        assert_eq!(loaded.refresh_interval_secs, 300);
     }
 
     /// RFC-070 D1: every saved form round-trips — `save_config` then
@@ -706,5 +785,109 @@ mod tests {
         assert_eq!(zoom_step_down(130), 115);
         assert_eq!(zoom_step_down(115), 100);
         assert_eq!(zoom_step_down(100), 100);
+    }
+
+    // RFC-073 D12: the four stepped settings — "a saved value that is not
+    // a choice loads as the nearest one, ties going downward, the same as
+    // zoom".
+
+    /// The exact-tie case for each of the four, by analogy with zoom's own
+    /// 140→130 case: a value exactly between two steps snaps to the lower
+    /// one.
+    #[test]
+    fn load_config_snaps_every_stepped_setting_to_its_nearest_choice() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths::under(tmp.path().to_path_buf());
+        std::fs::create_dir_all(paths.config_file.parent().unwrap()).expect("config dir");
+        std::fs::write(
+            &paths.config_file,
+            "refresh_interval_secs = 180\nmax_concurrent_reads = 6\nmax_log_entries = 350\nfs_debounce_secs = 4\n",
+        )
+        .expect("config.toml with off-grid values");
+
+        let (loaded, warning) = load_config(&paths);
+
+        assert_eq!(warning, None, "{warning:?}");
+        // 180 is exactly between 60 and 300 (both 120 away): lower wins.
+        assert_eq!(loaded.refresh_interval_secs, 60);
+        // 6 is exactly between 4 and 8 (both 2 away): lower wins.
+        assert_eq!(loaded.max_concurrent_reads, 4);
+        // 350 is closer to 200 (150 away) than to 500 (150 away): exact
+        // tie, lower wins.
+        assert_eq!(loaded.max_log_entries, 200);
+        // 4 is closer to 5 (1 away) than to 2 (2 away).
+        assert_eq!(loaded.fs_debounce_secs, 5);
+    }
+
+    #[test]
+    fn every_refresh_auto_step_round_trips_through_save_and_load() {
+        for &step in &REFRESH_AUTO_STEPS {
+            let tmp = tempfile::TempDir::new().expect("tempdir");
+            let paths = AppPaths::under(tmp.path().to_path_buf());
+            let config = AppConfig {
+                refresh_interval_secs: step,
+                ..AppConfig::default()
+            };
+
+            save_config(&config, &paths).expect("save_config");
+            let (loaded, warning) = load_config(&paths);
+
+            assert_eq!(warning, None, "{step}: {warning:?}");
+            assert_eq!(loaded.refresh_interval_secs, step);
+        }
+    }
+
+    #[test]
+    fn every_simultaneous_reads_step_round_trips_through_save_and_load() {
+        for &step in &SIMULTANEOUS_READS_STEPS {
+            let tmp = tempfile::TempDir::new().expect("tempdir");
+            let paths = AppPaths::under(tmp.path().to_path_buf());
+            let config = AppConfig {
+                max_concurrent_reads: step,
+                ..AppConfig::default()
+            };
+
+            save_config(&config, &paths).expect("save_config");
+            let (loaded, warning) = load_config(&paths);
+
+            assert_eq!(warning, None, "{step}: {warning:?}");
+            assert_eq!(loaded.max_concurrent_reads, step);
+        }
+    }
+
+    #[test]
+    fn every_log_size_step_round_trips_through_save_and_load() {
+        for &step in &LOG_SIZE_STEPS {
+            let tmp = tempfile::TempDir::new().expect("tempdir");
+            let paths = AppPaths::under(tmp.path().to_path_buf());
+            let config = AppConfig {
+                max_log_entries: step,
+                ..AppConfig::default()
+            };
+
+            save_config(&config, &paths).expect("save_config");
+            let (loaded, warning) = load_config(&paths);
+
+            assert_eq!(warning, None, "{step}: {warning:?}");
+            assert_eq!(loaded.max_log_entries, step);
+        }
+    }
+
+    #[test]
+    fn every_fs_debounce_step_round_trips_through_save_and_load() {
+        for &step in &FS_DEBOUNCE_STEPS {
+            let tmp = tempfile::TempDir::new().expect("tempdir");
+            let paths = AppPaths::under(tmp.path().to_path_buf());
+            let config = AppConfig {
+                fs_debounce_secs: step,
+                ..AppConfig::default()
+            };
+
+            save_config(&config, &paths).expect("save_config");
+            let (loaded, warning) = load_config(&paths);
+
+            assert_eq!(warning, None, "{step}: {warning:?}");
+            assert_eq!(loaded.fs_debounce_secs, step);
+        }
     }
 }

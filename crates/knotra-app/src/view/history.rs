@@ -415,7 +415,7 @@ fn project_name_matches_search(
 /// name when there is one, `history.removed_project` (translated) when
 /// there is not. Pulled out as its own pure function so this one line of
 /// policy (which text each case shows) is directly testable, the same
-/// reason `shows_error`/`u32_field_error` exist in other view modules.
+/// reason `shows_error` (`knotra-ui`'s own field module) exists.
 fn detail_project_name(
     state: &AppState,
     pr: &knotra_vcs::model::operation::ProjectOperationResult,

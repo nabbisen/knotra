@@ -128,25 +128,23 @@ pub enum LoadPhase {
 
 /// Temporary edit buffer for the Settings screen.
 /// Mirrors `AppConfig` but stores text fields as raw Strings for input widgets.
+///
+/// RFC-073 D12: `refresh_interval_secs`/`max_concurrent_reads`/
+/// `max_log_entries`/`fs_debounce_secs` are gone from here — each is a
+/// select now, drawn straight from `state.config`'s own value (the same
+/// way `zoom_percent`/`theme`/`locale` already were), with no typed text
+/// to buffer or validate.
 #[derive(Debug, Clone)]
 pub struct SettingsEdit {
-    pub refresh_interval_secs: String,
-    pub max_concurrent_reads: String,
     pub external_editor: String,
     pub external_merge_tool: String,
-    pub max_log_entries: String,
-    pub fs_debounce_secs: String,
 }
 
 impl SettingsEdit {
     pub fn from_config(cfg: &AppConfig) -> Self {
         SettingsEdit {
-            refresh_interval_secs: cfg.refresh_interval_secs.to_string(),
-            max_concurrent_reads: cfg.max_concurrent_reads.to_string(),
             external_editor: cfg.external_editor.clone().unwrap_or_default(),
             external_merge_tool: cfg.external_merge_tool.clone().unwrap_or_default(),
-            max_log_entries: cfg.max_log_entries.to_string(),
-            fs_debounce_secs: cfg.fs_debounce_secs.to_string(),
         }
     }
 }
@@ -543,6 +541,11 @@ pub struct AppState {
     /// shape as `dashboard_toolbar_overflow_open` — both bands share one
     /// flag since only one is ever rendered at a time.
     pub dashboard_arrange_open: bool,
+    /// RFC-073 D11: whether Settings' "Advanced" disclosure is open.
+    /// **Not saved** — `app.rs`'s `Message::Navigate` resets this to
+    /// `false` every time Settings is entered, so it is always closed on
+    /// a fresh visit, the same as this field's own default.
+    pub settings_advanced_open: bool,
     /// A recently removed project eligible for undo (cleared by next action or timeout).
     pub recent_removal: Option<UndoableRemoval>,
     // ------------------------------------------------------------------
@@ -635,6 +638,7 @@ impl AppState {
             show_op_details: false,
             dashboard_toolbar_overflow_open: false,
             dashboard_arrange_open: false,
+            settings_advanced_open: false,
             recent_removal: None,
             dashboard_focus: None,
             overlay_focus: None,

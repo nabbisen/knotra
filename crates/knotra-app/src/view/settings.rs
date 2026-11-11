@@ -1,17 +1,25 @@
 //! Settings view — all user-configurable preferences.
 //!
-//! RFC-038 Stage 3: the six text/number fields are migrated onto
-//! `validated_field` (Stage 2), and the form is laid out per D4 — two
-//! columns at Standard/Wide width, stacked to one at Compact, reusing
-//! `dashboard`'s existing `WidthMode` (`view/dashboard/width_mode.rs`)
-//! rather than inventing a second responsive mechanism for one screen.
+//! RFC-038 Stage 3: originally six text/number fields on `validated_field`
+//! (Stage 2), the form laid out per D4 — two columns at Standard/Wide
+//! width, stacked to one at Compact, reusing `dashboard`'s existing
+//! `WidthMode` (`view/dashboard/width_mode.rs`) rather than inventing a
+//! second responsive mechanism for one screen.
+//!
+//! RFC-073 D11–D13: four of those six became selects (`REFRESH_AUTO_STEPS`/
+//! `SIMULTANEOUS_READS_STEPS`/`LOG_SIZE_STEPS`/`FS_DEBOUNCE_STEPS`, all
+//! `config.rs`) — "nothing can be typed half-way, so no unintended value is
+//! ever applied or saved" — leaving `validated_field` to the two path
+//! fields (editor, merge tool) that remain genuinely free text. D11 also
+//! moves what most people never touch (Simultaneous reads, Operation log
+//! size, File-system monitoring) under a closed-by-default "Advanced"
+//! disclosure (`view_advanced_section`); D4's two-column `field_grid` below
+//! is unchanged by either.
 //!
 //! Per Handoff 050 §1: `validated_field` deliberately has no width
-//! parameter (Stage 2's own decision, re-affirmed here after measuring the
-//! six fields' current widths — 80px for the four numeric ones, 350px for
-//! the two path ones). In a two-column grid the **cell** decides width, so
-//! numeric and path fields become equal width within their column; that is
-//! the point of D4, not a casualty of it.
+//! parameter (Stage 2's own decision). In a two-column grid the **cell**
+//! decides width, so numeric and path fields become equal width within
+//! their column; that is the point of D4, not a casualty of it.
 
 use iced::{
     Alignment, Element, Length, Padding,
@@ -20,8 +28,8 @@ use iced::{
 use knotra_ui::ThemeChoice;
 use knotra_ui::i18n::Locale;
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, WIDE_CONTENT_WIDTH, centered_button_label, secondary_maybe, select,
-    strong, style, validated_field,
+    BUTTON_HEIGHT, Tokens, WIDE_CONTENT_WIDTH, centered_button_label, centered_button_row, icon,
+    secondary_maybe, select, strong, style, validated_field,
 };
 
 use crate::{
@@ -71,17 +79,14 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     let mode = state.width_mode;
 
+    // RFC-073 D11: Settings shows what most people use; Simultaneous
+    // reads, Operation log size and File-system monitoring move under
+    // "Advanced" (`view_advanced_section`), closed by default.
     let form = column![
         section_header(tokens, state.t("settings.section.display")),
         view_display_section(state),
         section_header(tokens, state.t("settings.section.refresh")),
-        field_grid(
-            mode,
-            vec![
-                view_refresh_interval_field(state),
-                view_max_concurrent_field(state),
-            ],
-        ),
+        view_refresh_auto_field(state),
         section_header(tokens, state.t("settings.section.tools")),
         field_grid(
             mode,
@@ -89,16 +94,8 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
         ),
         section_header(tokens, state.t("settings.section.workspaces")),
         view_workspaces_section(state),
-        section_header(tokens, state.t("settings.section.logs")),
-        view_max_logs_field(state),
-        section_header(tokens, state.t("settings.section.fs_watch")),
-        view_fs_watch_section(state),
+        view_advanced_section(state),
         view_save_status(state),
-        // RFC-071 Amendment A3 D14: a notice, read to understand that a
-        // change needs a restart.
-        text(state.t("settings.restart_hint"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
     ]
     .spacing(16)
     .width(Length::Fill)
@@ -309,52 +306,112 @@ fn view_workspaces_section(state: &AppState) -> Element<'_, Message> {
 }
 
 // ---------------------------------------------------------------------------
-// Validated fields (RFC-038 D1/Stage 2, migrated here in Stage 3)
+// Stepped settings (RFC-038 D1/Stage 2's `validated_field`s, replaced by
+// RFC-073 D12's selects below — `view_editor_field`/`view_merge_tool_field`
+// further down are the two that stayed on `validated_field`)
 // ---------------------------------------------------------------------------
 
-fn view_refresh_interval_field(state: &AppState) -> Element<'_, Message> {
+/// RFC-073 D12: a select, not a typed field — "Off" or one of four named
+/// intervals, D16's own labels, mapped to `config.rs`'s `REFRESH_AUTO_STEPS`
+/// seconds values.
+fn view_refresh_auto_field(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    let value = &state.settings_edit.refresh_interval_secs;
-    let error = u32_field_error(value).map(|key| state.t(key));
-    validated_field(
-        tokens,
-        state.t("settings.refresh_interval_label"),
-        "60",
-        value,
-        Some(state.t("settings.unit_seconds")),
-        |s| Message::Settings(SettingsMessage::RefreshIntervalChanged(s)),
-        error,
-    )
+    let options: Vec<(u32, String)> = crate::config::REFRESH_AUTO_STEPS
+        .iter()
+        .map(|&secs| (secs, refresh_auto_choice_label(state, secs).to_owned()))
+        .collect();
+    row![
+        text(state.t("settings.refresh_auto_label"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+        Space::new().width(Length::Fill),
+        select::pick_list(
+            tokens,
+            options,
+            Some(state.config.refresh_interval_secs),
+            false,
+            |value| Message::Settings(SettingsMessage::RefreshAutoChanged(value)),
+        ),
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center)
+    .into()
 }
 
+/// The catalog label for one of [`crate::config::REFRESH_AUTO_STEPS`]'s
+/// five values — an exhaustive match, not a formula, since these five are
+/// named choices (D16), not plain numbers.
+fn refresh_auto_choice_label(state: &AppState, secs: u32) -> &str {
+    match secs {
+        0 => state.t("settings.choice.off"),
+        30 => state.t("settings.choice.every_30s"),
+        60 => state.t("settings.choice.every_1m"),
+        300 => state.t("settings.choice.every_5m"),
+        900 => state.t("settings.choice.every_15m"),
+        _ => unreachable!("REFRESH_AUTO_STEPS only contains these five values"),
+    }
+}
+
+/// RFC-073 D12: a select of plain numbers — "a plain number needs no
+/// catalog text" — over `config.rs`'s `SIMULTANEOUS_READS_STEPS`.
 fn view_max_concurrent_field(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    let value = &state.settings_edit.max_concurrent_reads;
-    let error = positive_usize_field_error(value).map(|key| state.t(key));
-    validated_field(
-        tokens,
-        state.t("settings.max_concurrent_label"),
-        "8",
-        value,
-        None,
-        |s| Message::Settings(SettingsMessage::MaxConcurrentChanged(s)),
-        error,
-    )
+    let options: Vec<(usize, String)> = crate::config::SIMULTANEOUS_READS_STEPS
+        .iter()
+        .map(|&n| (n, n.to_string()))
+        .collect();
+    row![
+        text(state.t("settings.max_concurrent_label"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+        Space::new().width(Length::Fill),
+        select::pick_list(
+            tokens,
+            options,
+            Some(state.config.max_concurrent_reads),
+            false,
+            |value| Message::Settings(SettingsMessage::MaxConcurrentChanged(value)),
+        ),
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center)
+    .into()
 }
 
+/// RFC-073 D12: a select of plain numbers over `config.rs`'s
+/// `LOG_SIZE_STEPS`. D13: the one setting that needs a restart to take
+/// full effect — `config.rs`'s own doc comment on `max_log_entries` has
+/// the reason — so `settings.needs_restart` sits under it.
 fn view_max_logs_field(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    let value = &state.settings_edit.max_log_entries;
-    let error = positive_usize_field_error(value).map(|key| state.t(key));
-    validated_field(
-        tokens,
-        state.t("settings.max_logs_label"),
-        "200",
-        value,
-        None,
-        |s| Message::Settings(SettingsMessage::MaxLogEntriesChanged(s)),
-        error,
-    )
+    let options: Vec<(usize, String)> = crate::config::LOG_SIZE_STEPS
+        .iter()
+        .map(|&n| (n, n.to_string()))
+        .collect();
+    let field = row![
+        text(state.t("settings.max_logs_label"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+        Space::new().width(Length::Fill),
+        select::pick_list(
+            tokens,
+            options,
+            Some(state.config.max_log_entries),
+            false,
+            |value| Message::Settings(SettingsMessage::MaxLogEntriesChanged(value)),
+        ),
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center);
+
+    column![
+        field,
+        text(state.t("settings.needs_restart"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    ]
+    .spacing(4)
+    .into()
 }
 
 fn view_editor_field(state: &AppState) -> Element<'_, Message> {
@@ -383,49 +440,97 @@ fn view_merge_tool_field(state: &AppState) -> Element<'_, Message> {
     )
 }
 
+/// RFC-073 D12: a select over `config.rs`'s `FS_DEBOUNCE_STEPS` — each
+/// option's own label carries the existing `settings.unit_seconds` suffix
+/// baked in (`"2 seconds"`), since a `select` has no separate unit slot the
+/// way `validated_field`'s own `unit` parameter did.
 fn view_fs_debounce_field(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    let value = &state.settings_edit.fs_debounce_secs;
-    let error = u32_field_error(value).map(|key| state.t(key));
-    validated_field(
-        tokens,
-        state.t("settings.fs_watch_interval_label"),
-        "2",
-        value,
-        Some(state.t("settings.unit_seconds")),
-        |s| Message::Settings(SettingsMessage::FsDebounceSecs(s)),
-        error,
-    )
+    let unit = state.t("settings.unit_seconds");
+    let options: Vec<(u32, String)> = crate::config::FS_DEBOUNCE_STEPS
+        .iter()
+        .map(|&secs| (secs, format!("{secs} {unit}")))
+        .collect();
+    row![
+        text(state.t("settings.fs_watch_interval_label"))
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+        Space::new().width(Length::Fill),
+        select::pick_list(
+            tokens,
+            options,
+            Some(state.config.fs_debounce_secs),
+            false,
+            |value| Message::Settings(SettingsMessage::FsDebounceSecs(value)),
+        ),
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center)
+    .into()
 }
 
 // ---------------------------------------------------------------------------
-// Field validity — pure, testable without an `AppState` (RFC-038 §6, by
-// analogy with RFC-042 R3: proven to fail on a planted violation before
-// being trusted; see the review request).
+// Advanced (RFC-073 D11) — Simultaneous reads, Operation log size and
+// File-system monitoring, closed by default and never saved open.
 // ---------------------------------------------------------------------------
 
-/// The error key for a field that accepts any `u32`, including 0 — refresh
-/// interval and FS-watch debounce (`config.rs` documents "0 = manual only"
-/// for the former; the latter's 0 means immediate, the same shape).
-/// `None` when `s` parses.
-fn u32_field_error(s: &str) -> Option<&'static str> {
-    s.parse::<u32>()
-        .is_err()
-        .then_some("settings.error.invalid_number")
-}
+/// A disclosure button (D11/D4's own idiom — `dashboard/section.rs`'s group
+/// toggle) that shows `settings.section.advanced` alone when closed, and
+/// its three settings when open: Simultaneous reads directly beneath it
+/// (self-labeled, the same way `view_display_section`'s rows need no
+/// sub-header of their own), then "Logs" and "File-system Monitoring"
+/// keeping their own existing headers.
+fn view_advanced_section(state: &AppState) -> Element<'_, Message> {
+    let tokens = &state.theme.tokens;
+    let open = state.settings_advanced_open;
 
-/// The error key for a field that must be a `usize` greater than 0 — max
-/// concurrent reads, max log entries. Both `0`s would mean "nothing" (no
-/// reads possible / no logs kept), which is never a meaningful setting, so
-/// `0` is rejected the same as unparseable text. `None` when valid.
-fn positive_usize_field_error(s: &str) -> Option<&'static str> {
-    let valid = s.parse::<usize>().is_ok_and(|n| n > 0);
-    (!valid).then_some("settings.error.invalid_positive_number")
+    // Right reads as "click to open"; down as "already open, contents
+    // below" — the same disclosure idiom `dashboard/section.rs`'s group
+    // toggle and `history.rs`'s entry toggle use.
+    let chevron = if open {
+        icon::chevron_down()
+    } else {
+        icon::chevron_right()
+    };
+
+    // RFC-073 D8: `BUTTON_HEIGHT` — a frequent, full-width target, the same
+    // rule every other pressable row on this screen follows.
+    let header = button(centered_button_row(
+        row![
+            text(state.t("settings.section.advanced"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+            icon::icon_element(&chevron),
+        ]
+        .spacing(6),
+    ))
+    .height(Length::Fixed(BUTTON_HEIGHT))
+    .width(Length::Fill)
+    .on_press(Message::Settings(SettingsMessage::AdvancedToggled))
+    .style({
+        let t = tokens.clone();
+        move |_theme, status| style::with_focus_ring(&t, false, style::ghost(&t, status))
+    });
+
+    if !open {
+        return header.into();
+    }
+
+    column![
+        header,
+        view_max_concurrent_field(state),
+        section_header(tokens, state.t("settings.section.logs")),
+        view_max_logs_field(state),
+        section_header(tokens, state.t("settings.section.fs_watch")),
+        view_fs_watch_section(state),
+    ]
+    .spacing(16)
+    .into()
 }
 
 // ---------------------------------------------------------------------------
 // FS Watch section — enable toggle and hint stay plain (not fields); the
-// debounce interval is the one `validated_field` in this section.
+// debounce interval is the one select in this section.
 // ---------------------------------------------------------------------------
 
 fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
@@ -520,35 +625,20 @@ fn labeled_row<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::{positive_usize_field_error, u32_field_error};
+    use super::refresh_auto_choice_label;
+    use crate::{config::AppConfig, state::AppState};
 
+    /// RFC-073 D12: every one of `REFRESH_AUTO_STEPS`' five values has its
+    /// own named choice — `refresh_auto_choice_label`'s match is an
+    /// `unreachable!()` away from panicking on the sixth, so this proves
+    /// the five that exist today all resolve, rather than trusting the
+    /// match arms by eye.
     #[test]
-    fn u32_field_accepts_zero_and_any_parseable_value() {
-        assert_eq!(u32_field_error("0"), None);
-        assert_eq!(u32_field_error("60"), None);
-        assert_eq!(
-            u32_field_error("abc"),
-            Some("settings.error.invalid_number")
-        );
-        assert_eq!(u32_field_error(""), Some("settings.error.invalid_number"));
-        assert_eq!(u32_field_error("-1"), Some("settings.error.invalid_number"));
-    }
-
-    #[test]
-    fn positive_usize_field_rejects_zero_and_unparseable() {
-        assert_eq!(positive_usize_field_error("8"), None);
-        assert_eq!(positive_usize_field_error("1"), None);
-        assert_eq!(
-            positive_usize_field_error("0"),
-            Some("settings.error.invalid_positive_number")
-        );
-        assert_eq!(
-            positive_usize_field_error("abc"),
-            Some("settings.error.invalid_positive_number")
-        );
-        assert_eq!(
-            positive_usize_field_error(""),
-            Some("settings.error.invalid_positive_number")
-        );
+    fn refresh_auto_choice_label_covers_every_step() {
+        let state = AppState::new(AppConfig::default());
+        for &secs in &crate::config::REFRESH_AUTO_STEPS {
+            let label = refresh_auto_choice_label(&state, secs);
+            assert!(!label.is_empty(), "secs={secs}");
+        }
     }
 }
