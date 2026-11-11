@@ -17,9 +17,10 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, NoticeTone, Tokens, centered_button_label, list, notice,
+    BUTTON_HEIGHT, NoticeTone, Tokens, Tone, body_badge_diameter, centered_button_label, list,
+    notice,
     overlay::{OverlayWidth, surface},
-    reasoned, style,
+    reasoned, status_badge, status_symbol, style,
 };
 use knotra_vcs::{ProjectId, VcsKind};
 
@@ -349,18 +350,12 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                     );
                 }
                 if !result.stdout.is_empty() {
-                    result_col = result_col.push(
-                        text(format!("stdout: {}", result.stdout))
-                            .size(snora::design::style::text::body_size(tokens))
-                            .line_height(snora::design::style::text::body_line_height(tokens)),
-                    );
+                    result_col =
+                        result_col.extend(labelled_lines(tokens, "stdout: ", &result.stdout));
                 }
                 if !result.stderr.is_empty() {
-                    result_col = result_col.push(
-                        text(format!("stderr: {}", result.stderr))
-                            .size(snora::design::style::text::body_size(tokens))
-                            .line_height(snora::design::style::text::body_line_height(tokens)),
-                    );
+                    result_col =
+                        result_col.extend(labelled_lines(tokens, "stderr: ", &result.stderr));
                 }
                 if let Some(error) = &result.error_message {
                     result_col = result_col.push(
@@ -425,13 +420,17 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                             // the button. So the name now has its own
                             // line, full width, wrapping rather than
                             // sharing space with anything:
+                            // RFC-073 handoff Amendment A3 §1: an
+                            // unresolved file is `danger`/alert, the same
+                            // badge vocabulary every other status uses now,
+                            // not a plain-text "!".
                             let line1 = row![
-                                text("!")
-                                    .size(snora::design::style::text::body_size(tokens))
-                                    .line_height(snora::design::style::text::body_line_height(
-                                        tokens
-                                    ))
-                                    .width(Length::Fixed(22.0)),
+                                status_badge(
+                                    tokens,
+                                    Tone::Danger,
+                                    &status_symbol::alert(),
+                                    body_badge_diameter(tokens)
+                                ),
                                 text(&f.path)
                                     .size(snora::design::style::text::body_size(tokens))
                                     .line_height(snora::design::style::text::body_line_height(
@@ -619,6 +618,43 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
         body,
         footer,
     )
+}
+
+/// RFC-073 handoff Amendment A3 §3: `content`'s own lines, the first
+/// carrying `label` and every later one an indent of the same width — a
+/// multi-line `stdout`/`stderr` (Git's "hint: " lines, for one) stays
+/// aligned under the first line instead of starting at this panel's left
+/// edge, the same bug `history.rs`'s stderr preview had. `label` is
+/// `"stdout: "`/`"stderr: "`, both 8 characters, so one indent width serves
+/// either. Split out from [`labelled_lines`] as its own pure function so
+/// the indent rule is testable without building an `Element`.
+fn labelled_line_strings(label: &str, content: &str) -> Vec<String> {
+    let indent = " ".repeat(label.chars().count());
+    content
+        .lines()
+        .enumerate()
+        .map(|(i, line)| {
+            let prefix = if i == 0 { label } else { indent.as_str() };
+            format!("{prefix}{line}")
+        })
+        .collect()
+}
+
+/// [`labelled_line_strings`], each line its own `text`.
+fn labelled_lines<'a>(
+    tokens: &Tokens,
+    label: &'static str,
+    content: &str,
+) -> Vec<Element<'a, Message>> {
+    labelled_line_strings(label, content)
+        .into_iter()
+        .map(|line| {
+            text(line)
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
+                .into()
+        })
+        .collect()
 }
 
 /// A button styled with one of `knotra_ui::widget::style`'s semantic
@@ -823,6 +859,22 @@ mod tests {
     use knotra_vcs::{
         ConflictStatus, RemoteStatus, RepositoryIdentity, WorkingTreeStatus, WorkspaceStatus,
     };
+
+    /// RFC-073 handoff Amendment A3 §3: a two-line stderr — the first line
+    /// carries the label, the second gets an indent of the same width, not
+    /// the left edge.
+    #[test]
+    fn labelled_line_strings_indents_every_line_after_the_first() {
+        let lines =
+            labelled_line_strings("stderr: ", "error: failed to push\nhint: try fetch first");
+        assert_eq!(
+            lines,
+            vec![
+                "stderr: error: failed to push".to_owned(),
+                "        hint: try fetch first".to_owned(),
+            ]
+        );
+    }
 
     fn status_for(project_id: ProjectId, vcs_kind: VcsKind) -> knotra_vcs::ProjectStatus {
         knotra_vcs::ProjectStatus {

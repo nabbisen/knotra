@@ -11,13 +11,13 @@
 
 use iced::{
     Element, Length,
-    widget::{Space, button, column, text, text_input},
+    widget::{Space, button, column, text},
 };
 
 use knotra_ui::widget::{
     SMALL_BUTTON_HEIGHT, centered_button_label, list,
     overlay::{OverlayWidth, surface},
-    style,
+    style, styled_text_input,
 };
 
 use crate::{
@@ -80,16 +80,15 @@ pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
 /// (see `overlay.rs::surface`, unconditional across every caller).
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    let input = {
-        let t = tokens.clone();
-        text_input(state.t("palette.search_placeholder"), &state.palette.query)
-            .id(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
-            .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
-            .padding([8, 12])
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens))
-            .style(move |_theme, status| knotra_ui::widget::text_input_style(&t, status))
-    };
+    // RFC-073 handoff Amendment A3 §2: `BUTTON_HEIGHT` through the shared
+    // builder.
+    let input = styled_text_input(
+        tokens,
+        state.t("palette.search_placeholder"),
+        &state.palette.query,
+    )
+    .id(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
+    .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)));
 
     let results: Vec<Element<'_, Message>> = state
         .palette

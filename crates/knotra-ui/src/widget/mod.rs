@@ -27,7 +27,9 @@ pub use buttons::{
     secondary_maybe, style,
 };
 pub use checkbox::checkbox;
-pub use field::{guided_field, guided_field_focused, text_input_style, validated_field};
+pub use field::{
+    guided_field, guided_field_focused, styled_text_input, text_input_style, validated_field,
+};
 pub use focus::{clear_input_focus, focus_id, focus_input};
 pub use layout::{
     Alignment, BUTTON_HEIGHT, Color, Column, Element, Length, Padding, Row, SMALL_BUTTON_HEIGHT,

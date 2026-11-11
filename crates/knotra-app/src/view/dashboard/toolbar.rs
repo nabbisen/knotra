@@ -18,7 +18,7 @@
 //! accepted between the two compositions' grouping/sorting construction is
 //! gone with it, since both bands now call the same panel builder.
 
-use iced::widget::{Space, button, column, container, row, text, text_input};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Padding};
 use knotra_ui::widget::{
     BUTTON_HEIGHT, Tokens, centered_button_label, centered_button_row, chip, icon, select, style,
@@ -299,17 +299,17 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
     // RFC-073 D2: Group and Sort move into one "Arrange" control.
     let arrange = arrange_button(state, tokens);
 
-    let search = {
-        let t = tokens.clone();
-        text_input(
-            state.t("dashboard.search_placeholder"),
-            &state.filter.search_text,
-        )
-        .id(knotra_ui::widget::focus_id::SEARCH.clone())
-        .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
-        .width(Length::Fixed(220.0))
-        .style(move |_theme, status| knotra_ui::widget::text_input_style(&t, status))
-    };
+    // RFC-073 handoff Amendment A3 §2: `BUTTON_HEIGHT` through the shared
+    // builder — this was the field the capture caught sitting short beside
+    // 44px controls.
+    let search = knotra_ui::widget::styled_text_input(
+        tokens,
+        state.t("dashboard.search_placeholder"),
+        &state.filter.search_text,
+    )
+    .id(knotra_ui::widget::focus_id::SEARCH.clone())
+    .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
+    .width(Length::Fixed(220.0));
 
     let clear: Element<'_, Message> = if state.filter.is_active() {
         clear_filters_button(
@@ -516,17 +516,16 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         chip_area = chip_area.push(overflow_chips);
     }
 
-    let search = {
-        let t = tokens.clone();
-        text_input(
-            state.t("dashboard.search_placeholder"),
-            &state.filter.search_text,
-        )
-        .id(knotra_ui::widget::focus_id::SEARCH.clone())
-        .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
-        .width(Length::Fixed(220.0))
-        .style(move |_theme, status| knotra_ui::widget::text_input_style(&t, status))
-    };
+    // RFC-073 handoff Amendment A3 §2: same shared builder as the standard
+    // band's search field above.
+    let search = knotra_ui::widget::styled_text_input(
+        tokens,
+        state.t("dashboard.search_placeholder"),
+        &state.filter.search_text,
+    )
+    .id(knotra_ui::widget::focus_id::SEARCH.clone())
+    .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
+    .width(Length::Fixed(220.0));
 
     let arrange_trigger = disclosure_button(
         tokens,

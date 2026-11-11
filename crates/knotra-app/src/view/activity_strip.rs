@@ -8,7 +8,9 @@ use iced::{
     widget::{Space, button, container, row, text},
 };
 
-use knotra_ui::widget::{SMALL_BUTTON_HEIGHT, centered_button_label, style};
+use knotra_ui::widget::{
+    SMALL_BUTTON_HEIGHT, body_badge_diameter, centered_button_label, status_badge, style,
+};
 
 use crate::{
     message::{ActivityMessage, Message, WorkspaceMessage},
@@ -104,13 +106,11 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             let succeeded = log.result.successful_projects().len();
             let failed = log.result.failed_projects().len();
             let skipped = log.result.skipped_projects().len();
-            let icon = if failed == 0 {
-                "ⓘ"
-            } else if succeeded == 0 {
-                "✗"
-            } else {
-                "⚠"
-            };
+            // RFC-073 handoff Amendment A3 §1: `history`'s own aggregate
+            // mapping (success / partial, `warning` / failure, with the
+            // rollback cases a plain succeeded/failed/skipped count would
+            // miss), not a second, narrower guess kept beside it.
+            let (tone, glyph) = super::history::aggregate_badge(&log.result);
             // RFC-035 R16/Handoff 030 §4.2: `failed` is now guarded the same
             // way `skipped` already was — a fully successful run no longer
             // prints "0 failed" (`060` finding 4). `succeeded` stays
@@ -131,16 +131,22 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 segments.push(format!("{} {}", skipped, state.t("plain.activity.skipped")));
             }
             let label = format!(
-                "{}  {}: {}",
-                icon,
+                "{}: {}",
                 super::operation_kind_label(state, &log.result.kind),
                 segments.join(", "),
             );
 
             let mut content = row![
-                text(label)
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens)),
+                // RFC-073 D9/handoff Amendment A3 §1: `status_badge`, not a
+                // plain-text glyph baked into the label string.
+                row![
+                    status_badge(tokens, tone, &glyph, body_badge_diameter(tokens)),
+                    text(label)
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Center),
                 Space::new().width(Length::Fill)
             ]
             .spacing(8)

@@ -16,6 +16,8 @@ mod state;
 #[cfg(test)]
 mod suppressions_guard;
 #[cfg(test)]
+mod text_input_height_guard;
+#[cfg(test)]
 mod text_outside_catalog_guard;
 #[cfg(test)]
 mod text_size_guard;

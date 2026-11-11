@@ -16,12 +16,12 @@
 
 use iced::{
     Alignment, Element, Length, Padding,
-    widget::{Space, button, column, container, row, scrollable, text, text_input},
+    widget::{Space, button, column, container, row, scrollable, text},
 };
 use knotra_ui::widget::{
     SMALL_BUTTON_HEIGHT, Tokens, Tone, WIDE_CONTENT_WIDTH, body_badge_diameter,
     centered_button_label, centered_button_row, icon, list, record_row, status_badge,
-    status_symbol, strong, style, text_input_style,
+    status_symbol, strong, style, styled_text_input,
 };
 use knotra_vcs::model::operation::{OperationLog, OperationResult, ProjectOperationOutcome};
 
@@ -73,10 +73,15 @@ fn view_header(state: &AppState) -> Element<'_, Message> {
 
 fn view_toolbar(state: &AppState) -> Element<'_, Message> {
     let tokens = state.theme.tokens.clone();
-    let input = text_input(state.t("history.search_hint"), &state.history_search)
-        .on_input(|s| Message::History(HistoryMessage::SearchChanged(s)))
-        .width(Length::Fill)
-        .style(move |_theme, status| text_input_style(&tokens, status));
+    // RFC-073 handoff Amendment A3 §2: `BUTTON_HEIGHT` through the shared
+    // builder.
+    let input = styled_text_input(
+        &tokens,
+        state.t("history.search_hint"),
+        &state.history_search,
+    )
+    .on_input(|s| Message::History(HistoryMessage::SearchChanged(s)))
+    .width(Length::Fill);
 
     container(input)
         .width(Length::Fill)
@@ -425,6 +430,19 @@ fn detail_project_name(
 // Expanded detail
 // ---------------------------------------------------------------------------
 
+/// RFC-073 handoff Amendment A3 §3: `stderr`'s first `take` lines, each
+/// with its own four-space indent — not the indent prepended once to the
+/// whole joined string, which left every line after the first at the
+/// panel's bare left edge (Git's "hint: " continuation lines, for one).
+fn indented_stderr_preview(stderr: &str, take: usize) -> String {
+    stderr
+        .lines()
+        .take(take)
+        .map(|line| format!("    {line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a, Message> {
     let tokens = &state.theme.tokens;
     let result = &log.result;
@@ -516,9 +534,8 @@ fn view_log_detail<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a
 
         // Stderr excerpt on failure.
         if pr.is_failed() && !pr.stderr.is_empty() {
-            let preview: String = pr.stderr.lines().take(3).collect::<Vec<_>>().join("\n");
             rows.push(
-                text(format!("    {preview}"))
+                text(indented_stderr_preview(&pr.stderr, 3))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens))
                     .into(),
@@ -725,6 +742,16 @@ fn summarise_status(result: &OperationResult) -> StatusSummary {
     }
 }
 
+/// RFC-073 handoff Amendment A3 §1: the same success/partial/failure tone
+/// and icon decision this file already makes for its own entries
+/// (including the rollback cases, which a simple success/failed/skipped
+/// count does not know about), exposed for the activity strip's aggregate
+/// summary — one source of truth for what "partial" means, rather than a
+/// second, narrower guess living beside it.
+pub(crate) fn aggregate_badge(result: &OperationResult) -> (Tone, snora::Icon) {
+    summarise_status(result).badge
+}
+
 #[cfg(test)]
 mod tests {
     use knotra_vcs::model::{
@@ -734,6 +761,24 @@ mod tests {
     use knotra_vcs::{Project, Workspace};
 
     use super::*;
+
+    /// RFC-073 handoff Amendment A3 §3: a two-line stderr — every line
+    /// gets the same four-space indent, not only the first.
+    #[test]
+    fn indented_stderr_preview_indents_every_line() {
+        let preview = indented_stderr_preview("error: failed to push\nhint: try fetch first", 3);
+        assert_eq!(
+            preview,
+            "    error: failed to push\n    hint: try fetch first"
+        );
+    }
+
+    /// `take` still caps how many lines are shown, each one indented.
+    #[test]
+    fn indented_stderr_preview_respects_take() {
+        let preview = indented_stderr_preview("one\ntwo\nthree\nfour", 2);
+        assert_eq!(preview, "    one\n    two");
+    }
 
     fn sample_result(
         per_project: Vec<ProjectOperationResult>,

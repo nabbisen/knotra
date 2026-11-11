@@ -23,13 +23,13 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, centered_button_row, icon, list, record_row,
-    style,
+    BUTTON_HEIGHT, Tokens, body_badge_diameter, centered_button_label, centered_button_row, icon,
+    list, record_row, status_badge, style,
 };
 
 use crate::{
     message::{DetailPanelMessage, Message, ProjectMessage, WorkspaceMessage},
-    state::{AppState, detail_panel::RecentCommitsPhase},
+    state::{AppState, dashboard::badge_for_operation_outcome, detail_panel::RecentCommitsPhase},
 };
 
 /// RFC-071 Amendment A2 commit 2: the label sits on its own line, the value
@@ -181,28 +181,35 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .filter(|log| log.result.per_project.iter().any(|pp| &pp.project_id == id))
         .take(5)
         .map(|log| {
-            let ok = log
+            // RFC-073 handoff Amendment A3 §1: `badge_for_operation_outcome`,
+            // the same exhaustive mapping History's own per-project rows
+            // use — not a screen-specific "✓"/"✗" glyph.
+            let outcome = log
                 .result
                 .per_project
                 .iter()
                 .find(|pp| &pp.project_id == id)
-                .map(|pp| pp.success)
-                .unwrap_or(false);
-            let icon = if ok { "✓" } else { "✗" };
+                .map(|pp| pp.effective_outcome())
+                .unwrap_or(knotra_vcs::model::operation::ProjectOperationOutcome::Failed);
+            let (tone, glyph) = badge_for_operation_outcome(outcome);
             // RFC-048 §2: `operation_kind_label` (`view.rs`), not
             // `log.result.kind`'s raw English `Display` — the fourth
             // consumer, after `activity_strip.rs` and `history.rs`'s two.
             // RFC-071 Amendment A3 D14: list content (a recent-operation
             // entry) — `body`, the same role History gives its own entry
             // titles.
-            text(format!(
-                "{} {} — {}",
-                icon,
-                super::operation_kind_label(state, &log.result.kind),
-                log.result.started_at.format("%m/%d %H:%M")
-            ))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens))
+            row![
+                status_badge(tokens, tone, &glyph, body_badge_diameter(tokens)),
+                text(format!(
+                    "{} — {}",
+                    super::operation_kind_label(state, &log.result.kind),
+                    log.result.started_at.format("%m/%d %H:%M")
+                ))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center)
             .into()
         })
         .collect();

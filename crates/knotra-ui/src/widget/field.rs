@@ -10,7 +10,7 @@
 
 use snora::design::Tokens;
 
-use super::layout::{Element, Length};
+use super::layout::{BUTTON_HEIGHT, Element, Length};
 
 fn to_iced(color: snora::design::Color) -> iced::Color {
     snora::design::style::color::to_iced_color(color)
@@ -86,6 +86,36 @@ pub fn text_input_style(
     }
 }
 
+/// RFC-073 handoff Amendment A3 §2: the one `text_input(...)` builder every
+/// field helper and ad-hoc call site goes through — `text_input` has no
+/// `.height(...)` of its own (unlike `button`), so `BUTTON_HEIGHT` is
+/// reached by padding instead: vertical padding of half of
+/// `BUTTON_HEIGHT` minus `body`'s own line height, the same "shrink to fit,
+/// then the padding gives the rest" layout `text_input` already uses, just
+/// aimed at this crate's own floor rather than iced's unset default. The
+/// caller still chains `.on_input(...)`, `.id(...)`, `.width(...)` — this
+/// only fixes size, line height, padding and style, the four knobs this
+/// crate has ever set by hand at each call site.
+#[must_use]
+pub fn styled_text_input<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    placeholder: &'a str,
+    value: &'a str,
+) -> iced::widget::TextInput<'a, Message> {
+    use iced::widget::text_input;
+
+    let line_height_px = tokens.typography.body.size * tokens.typography.body.line_height;
+
+    text_input(placeholder, value)
+        .padding([(BUTTON_HEIGHT - line_height_px) / 2.0, 12.0])
+        .size(snora::design::style::text::body_size(tokens))
+        .line_height(snora::design::style::text::body_line_height(tokens))
+        .style({
+            let t = tokens.clone();
+            move |_theme, status| text_input_style(&t, status)
+        })
+}
+
 /// A labelled text input with persistent label above and optional inline error.
 ///
 /// The label always stays visible (not a placeholder that disappears on
@@ -133,24 +163,13 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
     error: Option<&'a str>,
     id: Option<iced::widget::Id>,
 ) -> iced::Element<'a, Message> {
-    use iced::widget::{column, text, text_input};
+    use iced::widget::{column, text};
 
-    let mut field = text_input(placeholder, value)
+    // RFC-073 handoff Amendment A3 §2: `BUTTON_HEIGHT` by padding, through
+    // the one shared builder — see `styled_text_input`.
+    let mut field = styled_text_input(tokens, placeholder, value)
         .on_input(on_change)
-        // RFC-056 Stage 4 R7: zero vertical padding + body's line box
-        // (~22.4px) left this text_input's pointer target under the 24px
-        // WCAG floor. `text_input` has no `.height()` builder, so a
-        // spacing token is the fix, not a fixed height — `sm` (8.0),
-        // matching `command_palette.rs`'s own text_input precedent
-        // (`.padding([8, 12])`), for ~38.4px total.
-        .padding([tokens.spacing.sm, 12.0])
-        .width(Length::Fill)
-        .size(snora::design::style::text::body_size(tokens))
-        .line_height(snora::design::style::text::body_line_height(tokens))
-        .style({
-            let t = tokens.clone();
-            move |_theme, status| text_input_style(&t, status)
-        });
+        .width(Length::Fill);
 
     if let Some(widget_id) = id {
         field = field.id(widget_id);
@@ -212,21 +231,13 @@ pub fn validated_field<'a, Message: Clone + 'a>(
     on_change: impl Fn(String) -> Message + 'a,
     error: Option<&'a str>,
 ) -> Element<'a, Message> {
-    use iced::widget::{column, row, text, text_input};
+    use iced::widget::{column, row, text};
 
-    let field = text_input(placeholder, value)
+    // RFC-073 handoff Amendment A3 §2: same shared builder as
+    // `guided_field_with_id` above.
+    let field = styled_text_input(tokens, placeholder, value)
         .on_input(on_change)
-        // RFC-056 Stage 4 R7: same fix as `guided_field_with_id` above —
-        // `sm` (8.0) clears the 24px pointer-target floor; see that
-        // function's comment for the arithmetic.
-        .padding([tokens.spacing.sm, 12.0])
-        .width(Length::Fill)
-        .size(snora::design::style::text::body_size(tokens))
-        .line_height(snora::design::style::text::body_line_height(tokens))
-        .style({
-            let t = tokens.clone();
-            move |_theme, status| text_input_style(&t, status)
-        });
+        .width(Length::Fill);
 
     let mut field_row = row![field].spacing(8).align_y(iced::Alignment::Center);
     if let Some(unit) = unit {

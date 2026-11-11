@@ -138,10 +138,19 @@ mod tests {
     /// `text(format!("…"))` literals under `view/` that do not route
     /// through the catalog.
     ///
-    /// - `overlays/conflict.rs`, 4 — `command:`/`stdout:`/`stderr:`/`error:`
-    ///   prefixes on raw tool output, RFC-038 A1's "export text is English
-    ///   by design" category, not first-level UI wording. Predates
-    ///   RFC-048, one of the RFC's own named exceptions.
+    /// - `overlays/conflict.rs`, 2 — `command:`/`error:` prefixes on raw
+    ///   tool output, RFC-038 A1's "export text is English by design"
+    ///   category, not first-level UI wording. Predates RFC-048, one of the
+    ///   RFC's own named exceptions.
+    ///
+    ///   `stdout:`/`stderr:` (same justification, unchanged) moved out of
+    ///   this count under RFC-073 handoff Amendment A3 §3: both are now
+    ///   `label` arguments to `labelled_lines(tokens, label, content)`
+    ///   (multi-line output needs every line indented under the first, not
+    ///   only the whole string's start), so the literal is
+    ///   `labelled_lines(tokens, "stdout: ", …)`, not `text("stdout: …")` /
+    ///   `text(format!("stdout: …"))` — outside this guard's syntactic
+    ///   pattern, not outside its justification.
     ///
     /// `settings.rs`'s own former entry (**2** — `text("English")` and
     /// `text("日本語")`, the language switcher's two buttons) is gone, not
@@ -161,7 +170,7 @@ mod tests {
     /// means adding it to this list with the same per-item justification
     /// its neighbours carry — never silently, and never a blanket
     /// exception for a whole file.
-    const EXPECTED: &[(&str, usize)] = &[("overlays/conflict.rs", 4)];
+    const EXPECTED: &[(&str, usize)] = &[("overlays/conflict.rs", 2)];
 
     #[test]
     fn user_facing_text_under_view_routes_through_the_catalog() {
