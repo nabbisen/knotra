@@ -301,8 +301,8 @@ mod tests {
 
     fn all_four_themes() -> [(&'static str, Tokens); 4] {
         [
-            ("light", Tokens::light()),
-            ("dark", Tokens::dark()),
+            ("light", crate::theme::KnotraTheme::light().tokens),
+            ("dark", crate::theme::KnotraTheme::dark().tokens),
             ("high_contrast_light", Tokens::high_contrast_light()),
             ("high_contrast_dark", Tokens::high_contrast_dark()),
         ]

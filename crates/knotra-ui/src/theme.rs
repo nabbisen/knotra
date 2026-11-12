@@ -67,8 +67,14 @@ impl KnotraTheme {
         }
     }
 
+    /// Task 107 Commit 3 (the owner's decision, Review 272 §5.1, accepted
+    /// 2026-11-09): built from `Tokens::light_aaa()`, not `Tokens::light()`
+    /// — every declared text pair reaches 7:1, not 4.5:1, with the same
+    /// backgrounds and overall look (snora's own module doc for
+    /// `light_aaa`). `ThemeChoice::Light` still names this constructor;
+    /// nothing elsewhere needed to change to pick up the stricter preset.
     pub fn light() -> Self {
-        let mut tokens = snora::design::Tokens::light();
+        let mut tokens = snora::design::Tokens::light_aaa();
         // Task 107 Commit 2: every snora-drawn control's own pointer
         // target is at least `BUTTON_HEIGHT` — the same floor knotra
         // already holds its own widgets to (RFC-073 D8) — from this one
@@ -79,15 +85,17 @@ impl KnotraTheme {
             // application theme — every widget with no explicit `.style()`
             // (five confirmed `scrollable` sites, more unmeasured — R2)
             // renders from it. Built from the same `tokens` stored below
-            // rather than a second `Tokens::light()` call, so the two fields
-            // cannot drift from each other.
+            // rather than a second `Tokens::light_aaa()` call, so the two
+            // fields cannot drift from each other.
             base: snora::design::theme(&tokens),
             tokens,
         }
     }
 
+    /// Task 107 Commit 3: `Tokens::dark_aaa()`, the `light_aaa` decision's
+    /// Dark counterpart — see [`Self::light`].
     pub fn dark() -> Self {
-        let mut tokens = snora::design::Tokens::dark();
+        let mut tokens = snora::design::Tokens::dark_aaa();
         tokens.targets.min = crate::widget::BUTTON_HEIGHT;
         KnotraTheme {
             base: snora::design::theme(&tokens),
@@ -222,6 +230,12 @@ mod tests {
     const AA_NORMAL: f32 = 4.5;
     /// AA-large threshold, for the one documented exception below.
     const AA_LARGE: f32 = 3.0;
+    /// Task 107 Commit 3: Light and Dark are now built from snora's
+    /// `light_aaa`/`dark_aaa` presets (the owner's decision, Review 272
+    /// §5.1) — every text pair below that used to assert `AA_NORMAL`
+    /// (4.5:1) now asserts this, 7:1, the floor those presets actually
+    /// deliver.
+    const AAA_NORMAL: f32 = 7.0;
 
     /// R5: every mandatory-contrast text role (`text_primary`,
     /// `text_secondary`, `text_muted`) meets WCAG AA against every surface
@@ -260,9 +274,9 @@ mod tests {
                         from_iced(surface_color),
                     );
                     assert!(
-                        ratio >= AA_NORMAL,
+                        ratio >= AAA_NORMAL,
                         "{theme_name} {text_label} on {surface_label}: {ratio:.2}:1 \
-                         is below the required {AA_NORMAL}:1"
+                         is below the required {AAA_NORMAL}:1"
                     );
                 }
             }
@@ -371,9 +385,9 @@ mod tests {
                 from_iced(theme.accent()),
             );
             assert!(
-                selected >= AA_NORMAL,
+                selected >= AAA_NORMAL,
                 "{theme_name} chip selected text vs background: {selected:.2}:1 \
-                 is below the required {AA_NORMAL}:1"
+                 is below the required {AAA_NORMAL}:1"
             );
 
             let unselected = snora::design::contrast::contrast_ratio(
@@ -381,9 +395,9 @@ mod tests {
                 from_iced(theme.surface()),
             );
             assert!(
-                unselected >= AA_NORMAL,
+                unselected >= AAA_NORMAL,
                 "{theme_name} chip unselected text vs background: {unselected:.2}:1 \
-                 is below the required {AA_NORMAL}:1"
+                 is below the required {AAA_NORMAL}:1"
             );
         }
     }
@@ -402,9 +416,9 @@ mod tests {
                 from_iced(theme.surface()),
             );
             assert!(
-                closed >= AA_NORMAL,
+                closed >= AAA_NORMAL,
                 "{theme_name} select closed control text: {closed:.2}:1 \
-                 is below the required {AA_NORMAL}:1"
+                 is below the required {AAA_NORMAL}:1"
             );
 
             let menu_row = snora::design::contrast::contrast_ratio(
@@ -412,9 +426,9 @@ mod tests {
                 from_iced(theme.surface_raised()),
             );
             assert!(
-                menu_row >= AA_NORMAL,
+                menu_row >= AAA_NORMAL,
                 "{theme_name} select open menu row text: {menu_row:.2}:1 \
-                 is below the required {AA_NORMAL}:1"
+                 is below the required {AAA_NORMAL}:1"
             );
 
             let menu_selected = snora::design::contrast::contrast_ratio(
@@ -422,9 +436,9 @@ mod tests {
                 from_iced(theme.accent()),
             );
             assert!(
-                menu_selected >= AA_NORMAL,
+                menu_selected >= AAA_NORMAL,
                 "{theme_name} select open menu selected row text: {menu_selected:.2}:1 \
-                 is below the required {AA_NORMAL}:1"
+                 is below the required {AAA_NORMAL}:1"
             );
         }
     }
@@ -445,9 +459,9 @@ mod tests {
                 from_iced(theme.accent()),
             );
             assert!(
-                ratio >= AA_NORMAL,
+                ratio >= AAA_NORMAL,
                 "{theme_name} checkbox mark vs checked background: {ratio:.2}:1 \
-                 is below the required {AA_NORMAL}:1"
+                 is below the required {AAA_NORMAL}:1"
             );
         }
     }
@@ -850,14 +864,18 @@ mod tests {
         /// 7:1 in every theme — content text was never the floor D4 raises.
         const CONTENT_TEXT: f32 = 7.0;
 
-        // RFC-070 D4: the two floors D4 raises for the high-contrast
-        // themes, each theme carrying its own pair rather than one knotra
-        // constant plus a per-theme override — a high-contrast preset that
-        // fails its own stricter floor is exactly the "stop and report"
-        // case D4 names, not a reason to special-case the assertion.
+        // RFC-070 D4 raised the two floors below for the high-contrast
+        // themes alone; Task 107 Commit 3 raises `control_label_floor` for
+        // Light and Dark too, now that both are built from snora's
+        // `light_aaa`/`dark_aaa` presets, which deliver the same 7:1
+        // `control_label_floor` already held every button label and
+        // placeholder to in high-contrast. `non_text_floor` is untouched
+        // for Light/Dark — borders, focus rings and badges are non-text
+        // (SC 1.4.11), a criterion the AAA presets do not raise and this
+        // commit's own task does not ask to.
         for (theme_name, theme, control_label_floor, non_text_floor) in [
-            ("light", KnotraTheme::light(), AA_NORMAL, AA_LARGE),
-            ("dark", KnotraTheme::dark(), AA_NORMAL, AA_LARGE),
+            ("light", KnotraTheme::light(), CONTENT_TEXT, AA_LARGE),
+            ("dark", KnotraTheme::dark(), CONTENT_TEXT, AA_LARGE),
             (
                 "high_contrast_light",
                 KnotraTheme::high_contrast_light(),

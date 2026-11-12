@@ -153,7 +153,10 @@ mod tests {
     /// decision runs independently for each).
     #[test]
     fn focused_and_unfocused_styles_differ() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             for is_checked in [false, true] {
                 let unfocused = style(&tokens, Status::Active { is_checked }, false);
                 let focused = style(&tokens, Status::Active { is_checked }, true);
@@ -168,7 +171,10 @@ mod tests {
     /// for why).
     #[test]
     fn disabled_style_is_unaffected_by_is_focused() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             let a = style(&tokens, Status::Disabled { is_checked: true }, false);
             let b = style(&tokens, Status::Disabled { is_checked: true }, true);
             assert_eq!(a.border, b.border);

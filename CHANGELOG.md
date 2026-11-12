@@ -17,6 +17,12 @@ links or submodules. Save release point, Get latest safely and Change work area 
 back or act on changes that did not exist. Each file is now compared by its content, as Git
 itself does.
 
+### Changed — text in the light and dark themes has more contrast
+
+Every piece of text in the light and dark themes, including greyed-out labels and the hints in
+empty fields, now stands out from its background at least seven to one, a level
+recommended for older readers. Backgrounds and the overall look are unchanged.
+
 ### Changed — Settings shows what most people use
 
 Settings now shows language, theme, zoom, automatic refresh, your tools and your

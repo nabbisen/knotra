@@ -205,7 +205,10 @@ mod tests {
     /// (RFC-035 Handoff 020 §8).
     #[test]
     fn focused_and_unfocused_styles_differ() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             for selected in [false, true] {
                 let unfocused = style(&tokens, selected, 1, button::Status::Active, false);
                 let focused = style(&tokens, selected, 1, button::Status::Active, true);
@@ -221,7 +224,10 @@ mod tests {
     /// functions each read their own tokens.
     #[test]
     fn disabled_chip_text_and_border_differ_from_enabled() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             for selected in [false, true] {
                 let enabled = style(&tokens, selected, 1, button::Status::Active, false);
                 let disabled = style(&tokens, selected, 1, button::Status::Disabled, false);
@@ -242,7 +248,10 @@ mod tests {
     /// draw `accent_text` on a filled background.
     #[test]
     fn zero_count_chip_text_is_secondary_regardless_of_selected() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             let expected = to_iced(tokens.palette.text_secondary);
             for selected in [false, true] {
                 let zero = style(&tokens, selected, 0, button::Status::Active, false);

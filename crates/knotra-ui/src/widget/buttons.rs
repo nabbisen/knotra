@@ -517,7 +517,10 @@ mod tests {
     /// cause.
     #[test]
     fn filled_accent_style_gets_a_different_ring_color_than_a_transparent_one() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             let filled = super::style::primary(&tokens, Status::Active);
             let transparent = super::style::ghost(&tokens, Status::Active);
 
@@ -537,7 +540,7 @@ mod tests {
     /// decision has a branch.
     #[test]
     fn unfocused_style_is_untouched() {
-        let tokens = Tokens::dark();
+        let tokens = crate::theme::KnotraTheme::dark().tokens;
         let base = super::style::primary(&tokens, Status::Active);
         let result = with_focus_ring(&tokens, false, base);
         assert_eq!(result.border, base.border);
@@ -552,7 +555,10 @@ mod tests {
     /// criterion that ghost/secondary rendering is unchanged.
     #[test]
     fn ghost_and_secondary_ring_color_is_unchanged_by_the_contrast_branch() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             let expected = snora::design::style::color::to_iced_color(tokens.focus.ring_color);
 
             for status in [
@@ -585,7 +591,10 @@ mod tests {
     /// variants, in both themes, so none can keep the old fade silently.
     #[test]
     fn disabled_is_outline_only_with_text_muted_label_for_every_variant() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             let expected_text =
                 snora::design::style::color::to_iced_color(tokens.palette.text_muted);
             let expected_border = snora::design::style::color::to_iced_color(tokens.palette.border);

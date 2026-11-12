@@ -187,7 +187,10 @@ mod tests {
     /// RFC-036's invisible-ring defect earlier.
     #[test]
     fn field_focused_and_unfocused_styles_differ() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             let unfocused = field_style(&tokens, pick_list_widget::Status::Active, false);
             let focused = field_style(&tokens, pick_list_widget::Status::Active, true);
             assert_ne!(unfocused.border, focused.border);
@@ -196,7 +199,10 @@ mod tests {
 
     #[test]
     fn menu_focused_and_unfocused_styles_differ() {
-        for tokens in [Tokens::dark(), Tokens::light()] {
+        for tokens in [
+            crate::theme::KnotraTheme::dark().tokens,
+            crate::theme::KnotraTheme::light().tokens,
+        ] {
             let unfocused = menu_style(&tokens, false);
             let focused = menu_style(&tokens, true);
             assert_ne!(unfocused.border, focused.border);
