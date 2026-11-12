@@ -101,24 +101,18 @@ mod tests {
     /// in `AppLayout`'s dialog slot, not inside `dashboard::view` alone —
     /// and taps Escape.
     ///
-    /// **On snora 0.53 (today): expect zero messages.** knotra's Escape
-    /// handling is wired through `app.rs::subscription`'s
-    /// `keyboard::listen()`, not through a widget in the view tree — the
-    /// `Simulator` only ever drives the view tree's own `update`, and runs
-    /// no subscription at all, so the key tap that a real window's
-    /// subscription would turn into `Message::Shortcut(ShortcutMessage::
-    /// Close)` produces nothing here. This is the honest, current gap
-    /// Review 273 §4/Task 107 names.
-    ///
-    /// **Task 107 (snora 0.57) flips this.** From snora 0.55, `AppLayout`'s
-    /// `on_close_modals` captures Escape itself and publishes the close
-    /// message *as a widget operation inside the view tree* — something
-    /// the `Simulator` *does* run. Once knotra is on 0.55+, this same test
-    /// should assert `messages == [Message::Shortcut(ShortcutMessage::
-    /// Close)]`, exactly one. Update this test alongside that upgrade,
-    /// rather than leaving the zero-message assertion to go stale.
+    /// **Task 107 (snora 0.57):** `AppLayout`'s `on_close_modals` captures
+    /// Escape itself and publishes the close message *as a widget
+    /// operation inside the view tree* — something the `Simulator` runs,
+    /// unlike `app.rs::subscription`'s own `keyboard::listen()`, which the
+    /// `Simulator` never drives at all. Before this upgrade (snora 0.53),
+    /// this same tap produced zero messages here, for exactly that reason
+    /// — the honest, current gap Review 273 §4/Task 107 named. Now it
+    /// produces exactly one: `Message::Shortcut(ShortcutMessage::Close)`,
+    /// the same message knotra's own subscription-driven Escape sends, so
+    /// a real window's behaviour is unchanged.
     #[test]
-    fn escape_in_a_dialog_produces_no_message_on_snora_0_53() {
+    fn escape_in_a_dialog_produces_exactly_one_close_message() {
         let mut state = make_state();
         state.confirm_remove_dialog = Some(ConfirmRemoveDialog {
             project_id: knotra_vcs::ProjectId::new(),
@@ -130,14 +124,13 @@ mod tests {
         let _ = ui.tap_key(keyboard::Key::Named(keyboard::key::Named::Escape));
 
         let messages: Vec<Message> = ui.into_messages().collect();
+        assert_eq!(messages.len(), 1, "{messages:?}");
         assert!(
-            messages.is_empty(),
-            "expected no message on snora 0.53 (Escape is subscription-driven, \
-             which the simulator does not run); got {messages:?} — if this \
-             starts failing, Task 107's snora 0.57 upgrade has probably \
-             landed: update this test to expect exactly one \
-             Message::Shortcut(ShortcutMessage::Close) instead, per this \
-             test's own doc comment"
+            matches!(
+                messages[0],
+                Message::Shortcut(crate::message::ShortcutMessage::Close)
+            ),
+            "expected a Close message from snora's own on_close_modals; got {messages:?}"
         );
     }
 
