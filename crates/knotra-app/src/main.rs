@@ -9,6 +9,8 @@ mod button_label_guard;
 #[cfg(test)]
 mod button_style_guard;
 mod config;
+#[cfg(test)]
+mod escape_verification;
 mod fs_watcher;
 #[cfg(test)]
 mod headless;
