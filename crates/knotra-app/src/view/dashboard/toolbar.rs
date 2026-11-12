@@ -487,12 +487,6 @@ fn arrange_panel<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Messag
 fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
 
-    let visible_chips = row(FILTERS[..COMPACT_VISIBLE_CHIP_COUNT]
-        .iter()
-        .map(|filter| chip_element(state, tokens, filter))
-        .collect::<Vec<_>>())
-    .spacing(4);
-
     let overflow_button = disclosure_button(
         tokens,
         "⋯",
@@ -500,12 +494,23 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         is_focused(state, focus_target::TOOLBAR_OVERFLOW),
     );
 
-    let mut chip_area = column![
-        row![visible_chips, overflow_button]
-            .spacing(4)
-            .align_y(Alignment::Center)
-    ]
-    .spacing(4);
+    // Task 110 §1: the visible chips and the "⋯" trigger that follows them
+    // are one wrapping row, not a fixed-width row — the same `.wrap()`
+    // `view_standard_toolbar`'s own five-chip row already uses. At the
+    // zoom and width an older reader can choose (Review 280 §2.1: zoom
+    // 150%, an 800px window, logical ~533), a plain row let the last
+    // chip's own label clamp narrower than its count digit had room for,
+    // and pushed "⋯" off the visible window entirely; wrapped, the chips
+    // (and "⋯", if it too does not fit) continue onto a second line
+    // instead, so nothing is ever cut.
+    let mut visible_elements: Vec<Element<'_, Message>> = FILTERS[..COMPACT_VISIBLE_CHIP_COUNT]
+        .iter()
+        .map(|filter| chip_element(state, tokens, filter))
+        .collect();
+    visible_elements.push(overflow_button);
+
+    let mut chip_area =
+        column![row(visible_elements).spacing(4).wrap().vertical_spacing(4)].spacing(4);
 
     if state.dashboard_toolbar_overflow_open {
         let overflow_chips = row(FILTERS[COMPACT_VISIBLE_CHIP_COUNT..]

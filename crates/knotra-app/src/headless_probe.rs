@@ -205,49 +205,100 @@ mod tests {
     /// stayed `Light` would snapshot the same tokens every time no matter
     /// which `base` was passed to `snapshot`, the bug Review 275 §2.3
     /// found in this test's own first version.
+    ///
+    /// **Task 110 §3: rewritten — the hash-equality version above could
+    /// not fail on the bug it was named for.** `base` is itself built
+    /// from each choice's own tokens (`snora::design::theme(&tokens)`),
+    /// so the four snapshot hashes already differed even with the bug in
+    /// place (`state.theme` frozen on Light): reproduced directly,
+    /// temporarily not setting `state.theme` below, restored after — the
+    /// four hashes still came out pairwise distinct. A test that passes
+    /// whether or not the thing it names is true is not a regression
+    /// guard. This version instead decodes the PNG `Snapshot::
+    /// matches_image` writes (via the `png` crate, a dev-dependency added
+    /// for exactly this — `Snapshot` exposes no in-memory pixel accessor
+    /// of its own) and reads the actual colour of one token-styled
+    /// control's background: the "Needs help" chip's own `surface` fill
+    /// (`chip.rs`'s `style()`, unselected/`Active` — `to_iced(tokens.
+    /// palette.surface)`), sampled a couple of pixels past the label's
+    /// own right edge — inside the deliberate gap `chip::filter`'s own
+    /// `Space::new().width(tokens.spacing.xs)` leaves before the count
+    /// digit, never inside a glyph's own ink. Asserts it equals that
+    /// choice's own `tokens.palette.surface`, for all four — which the
+    /// four `surface` values (confirmed distinct: light
+    /// `#f4f6f8`-ish, dark near-black-blue, HC light pure white, HC dark
+    /// pure black) make a genuine discriminator.
     #[test]
     fn varies_theme() {
-        let mut state = make_state();
-        install_one_project(&mut state);
-
-        let mut hash_of = |choice: knotra_ui::ThemeChoice| -> String {
-            state.theme = knotra_ui::KnotraTheme::from_choice(choice);
-            let dir = tempfile::tempdir().expect("tempdir");
+        fn chip_background_pixel(state: &mut AppState, base: &iced::Theme) -> [u8; 4] {
             let mut ui = crate::headless::simulator(
-                crate::view::dashboard::view(&state, state.width_mode),
+                crate::view::dashboard::view(state, state.width_mode),
                 Size::new(1024.0, 768.0),
             );
-            let snapshot = ui
-                .snapshot(&state.theme.base)
-                .unwrap_or_else(|e| panic!("snapshot must succeed for {choice:?}: {e}"));
-            snapshot
-                .matches_hash(dir.path().join("snapshot"))
-                .expect("write the hash file");
-            let entry = std::fs::read_dir(dir.path())
+            let label_bounds = ui
+                .find("Needs help")
+                .expect("the chip's own label must be found")
+                .bounds();
+            let sample_x_logical = label_bounds.x + label_bounds.width + 2.0;
+            let sample_y_logical = label_bounds.y + label_bounds.height / 2.0;
+
+            let dir = tempfile::tempdir().expect("tempdir");
+            let base_path = dir.path().join("snapshot");
+            let snapshot = ui.snapshot(base).expect("snapshot must succeed");
+            snapshot.matches_image(&base_path).expect("write the png");
+            let png_path = std::fs::read_dir(dir.path())
                 .expect("read the tempdir")
                 .find_map(Result::ok)
-                .expect("exactly one .sha256 file must have been written");
-            std::fs::read_to_string(entry.path()).expect("read it back")
-        };
+                .expect("exactly one .png file must have been written")
+                .path();
 
-        let hashes: Vec<(knotra_ui::ThemeChoice, String)> = [
+            let file = std::fs::File::open(&png_path).expect("open the png");
+            let decoder = png::Decoder::new(std::io::BufReader::new(file));
+            let mut reader = decoder.read_info().expect("read the png header");
+            let mut bytes = vec![0; reader.output_buffer_size().expect("buffer size")];
+            let info = reader.next_frame(&mut bytes).expect("decode the png");
+            let width = info.width;
+            // The simulator renders at the renderer's own backing-store
+            // scale, not necessarily 1 physical pixel per logical point
+            // (confirmed: a 1024x768 logical window produced a 2048x1536
+            // PNG here) — scale the logical sample point by the PNG's own
+            // width against the logical window width actually requested,
+            // rather than assuming any fixed factor.
+            let scale = width as f32 / 1024.0;
+            let sample_x = (sample_x_logical * scale).round() as u32;
+            let sample_y = (sample_y_logical * scale).round() as u32;
+            let idx = (sample_y * width + sample_x) as usize * 4;
+            [bytes[idx], bytes[idx + 1], bytes[idx + 2], bytes[idx + 3]]
+        }
+
+        fn to_rgba_bytes(color: snora::design::Color) -> [u8; 4] {
+            [
+                (color.r * 255.0).round() as u8,
+                (color.g * 255.0).round() as u8,
+                (color.b * 255.0).round() as u8,
+                (color.a * 255.0).round() as u8,
+            ]
+        }
+
+        for choice in [
             knotra_ui::ThemeChoice::Light,
             knotra_ui::ThemeChoice::Dark,
             knotra_ui::ThemeChoice::HighContrastLight,
             knotra_ui::ThemeChoice::HighContrastDark,
-        ]
-        .into_iter()
-        .map(|choice| (choice, hash_of(choice)))
-        .collect();
+        ] {
+            let mut state = make_state();
+            install_one_project(&mut state);
+            state.theme = knotra_ui::KnotraTheme::from_choice(choice);
+            let base = state.theme.base.clone();
 
-        for i in 0..hashes.len() {
-            for j in (i + 1)..hashes.len() {
-                assert_ne!(
-                    hashes[i].1, hashes[j].1,
-                    "{:?} and {:?} must snapshot to different hashes",
-                    hashes[i].0, hashes[j].0
-                );
-            }
+            let pixel = chip_background_pixel(&mut state, &base);
+            let expected = to_rgba_bytes(state.theme.tokens.palette.surface);
+            assert_eq!(
+                pixel, expected,
+                "{choice:?}: the chip's own background pixel {pixel:?} does not match its \
+                 theme's tokens.palette.surface {expected:?} — state.theme is not reaching \
+                 this control"
+            );
         }
     }
 

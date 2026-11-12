@@ -3308,6 +3308,7 @@ dependencies = [
  "iced_test",
  "knotra-ui",
  "knotra-vcs",
+ "png 0.18.1",
  "rfd",
  "serde",
  "serde_json",

@@ -43,3 +43,9 @@ uuid                        = { workspace = true }
 [dev-dependencies]
 tempfile                    = { workspace = true }
 iced_test                   = { workspace = true }
+# Task 110 §3: decodes the PNG `Snapshot::matches_image` writes, to read
+# back a pixel's colour directly — `Snapshot` exposes no in-memory
+# accessor of its own, only file-comparison methods. The same version
+# `iced_test` itself already resolves to (Cargo.lock), so this adds no
+# second copy to the dependency graph.
+png                          = { workspace = true }

@@ -46,3 +46,4 @@ uuid                        = { version = "1", features = ["v4", "serde"] }
 # Testing
 filetime                    = "0.2"
 tempfile                    = "3"
+png                          = "0.18"

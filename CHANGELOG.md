@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — the status filters fit a small window at a large zoom
+
+In a small window at a large zoom, the last status filter lost its count and the control for
+the rest was cut off. The filters now continue on a second line.
+
 ### Fixed — projects no longer show unsaved files they do not have
 
 knotra could report unsaved files in a project that had none: after the project folder was

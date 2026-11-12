@@ -1937,6 +1937,138 @@ fn tab_all_the_way_around_a_windows_order_returns_to_the_entry_r4() {
     }
 }
 
+/// Task 110 §4's own Level 1: a full Tab (and Shift+Tab) cycle stays
+/// inside each window's own order and returns to the entry, for the four
+/// windows `tab_all_the_way_around_a_windows_order_returns_to_the_entry_r4`'s
+/// own doc comment did not already name a covering test for: Add project
+/// (both steps — they carry distinct orders), Remove project, Save
+/// release point at the ready check, and the Resolve sheet with Stop's
+/// confirmation open. `ring_follows_tab_through_a_name_dialog_field_
+/// confirm_cancel_close` only steps forward once per assertion, never
+/// asserting the wrap-around property itself; none of the five windows
+/// below had a test asserting that confinement before this one, checked
+/// by searching this file for each window's own name and for `FocusNext`
+/// nearby.
+#[test]
+fn tab_and_shift_tab_stay_inside_five_more_windows_task_110() {
+    fn assert_full_cycle_confinement(state: &mut AppState, order_len: usize, label: &str) {
+        let entry = state.overlay_focus.clone();
+        assert!(
+            entry.is_some(),
+            "{label}: precondition: opening settles an entry"
+        );
+        for _ in 0..order_len {
+            dispatch(state, Message::Shortcut(ShortcutMessage::FocusNext));
+        }
+        assert_eq!(
+            state.overlay_focus, entry,
+            "{label}: a full Tab cycle must return to the entry"
+        );
+        for _ in 0..order_len {
+            dispatch(state, Message::Shortcut(ShortcutMessage::FocusPrevious));
+        }
+        assert_eq!(
+            state.overlay_focus, entry,
+            "{label}: a full Shift+Tab cycle must also return to the entry"
+        );
+    }
+
+    // Add project, step 1 (ChooseFolder).
+    {
+        let mut state = make_state();
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
+        );
+        let order_len = crate::view::add_project_modal::layer_focus(&state)
+            .order
+            .len();
+        assert_full_cycle_confinement(&mut state, order_len, "Add project step 1");
+    }
+
+    // Add project, step 2 (NameProject) — a distinct order from step 1.
+    {
+        let mut state = make_state();
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectPathChanged(
+                "/tmp/demo".to_owned(),
+            )),
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::AddProjectNextStep),
+        );
+        let order_len = crate::view::add_project_modal::layer_focus(&state)
+            .order
+            .len();
+        assert_full_cycle_confinement(&mut state, order_len, "Add project step 2");
+    }
+
+    // Remove project.
+    {
+        let mut state = make_state();
+        let project = make_project("svc");
+        let project_id = project.id.clone();
+        install_workspaces(
+            &mut state,
+            vec![Workspace {
+                projects: vec![project],
+                ..Workspace::new("Main")
+            }],
+            0,
+        );
+        dispatch(
+            &mut state,
+            Message::Workspace(WorkspaceMessage::RemoveProjectRequested(project_id)),
+        );
+        let order_len = crate::view::remove_project_dialog::layer_focus(&state)
+            .order
+            .len();
+        assert_full_cycle_confinement(&mut state, order_len, "Remove project");
+    }
+
+    // Save release point, at the ready check (ValidationReady). The phase
+    // is set directly (as the existing `ValidationReady`-phase tests
+    // elsewhere in this file already do), which settles no entry on its
+    // own the way a real dispatch chain would — seeded from `layer_focus`'s
+    // own `entry` field directly instead of dispatching an unrelated
+    // message just to trigger `settle_layer_focus` as a side effect.
+    {
+        let mut state = make_state();
+        let project = make_project("rel");
+        state.active_modal = ActiveModal::Tag;
+        state.freezer.phase =
+            FreezerPhase::ValidationReady(ready_freeze_validation(&project, "v1.0.0"));
+        let layer_focus = crate::view::overlays::freezer_layer_focus(&state);
+        state.overlay_focus = layer_focus.entry.clone();
+        assert_full_cycle_confinement(
+            &mut state,
+            layer_focus.order.len(),
+            "Save release point, ready check",
+        );
+    }
+
+    // The Resolve sheet, with Stop's confirmation open.
+    {
+        let project = make_project("conflict");
+        let detail = ProjectConflictDetail {
+            project_id: project.id.clone(),
+            project_name: project.name.clone(),
+            conflicted_files: Vec::new(),
+            read_error: None,
+        };
+        let mut state = confirm_stop_state(&project, detail);
+        let layer_focus = crate::view::overlays::conflict_layer_focus(&state, &project.id);
+        state.overlay_focus = layer_focus.entry.clone();
+        assert_full_cycle_confinement(&mut state, layer_focus.order.len(), "Resolve, ConfirmStop");
+    }
+}
+
 /// RFC-066 D2: Remove project's entry is "Keep" —
 /// `RemoveProjectConfirmed` starts a change, so it is never the entry.
 #[test]
