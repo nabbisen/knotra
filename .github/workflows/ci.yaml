@@ -166,7 +166,9 @@ jobs:
             pkg-config \
             libwayland-dev \
             libxkbcommon-dev \
-            libgl1-mesa-dev
+            libgl1-mesa-dev \
+            fonts-noto-core \
+            fonts-noto-cjk
 
       - name: Install Rust toolchain
         run: rustup toolchain install "$TOOLCHAIN" --profile minimal

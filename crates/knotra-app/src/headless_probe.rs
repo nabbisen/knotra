@@ -18,7 +18,6 @@ mod tests {
     use crate::config::AppConfig;
     use crate::message::Message;
     use crate::state::{AppState, ConfirmRemoveDialog};
-    use iced_test::Simulator;
     use iced_test::core::{Size, keyboard};
 
     fn make_state() -> AppState {
@@ -74,7 +73,10 @@ mod tests {
         let mut state = make_state();
         install_one_project(&mut state);
 
-        let mut ui = Simulator::new(crate::view::dashboard::view(&state, state.width_mode));
+        let mut ui = crate::headless::simulator(
+            crate::view::dashboard::view(&state, state.width_mode),
+            Size::new(1024.0, 768.0),
+        );
 
         ui.click("Select")
             .expect("the Select button must be found and clickable");
@@ -123,7 +125,8 @@ mod tests {
             project_name: "Alpha".to_owned(),
         });
 
-        let mut ui = Simulator::new(crate::view::app_view(&state));
+        let mut ui =
+            crate::headless::simulator(crate::view::app_view(&state), Size::new(1024.0, 768.0));
         let _ = ui.tap_key(keyboard::Key::Named(keyboard::key::Named::Escape));
 
         let messages: Vec<Message> = ui.into_messages().collect();
@@ -154,7 +157,10 @@ mod tests {
     fn find_gives_widget_bounds() {
         let mut state = make_state();
         install_one_project(&mut state);
-        let mut ui = Simulator::new(crate::view::dashboard::view(&state, state.width_mode));
+        let mut ui = crate::headless::simulator(
+            crate::view::dashboard::view(&state, state.width_mode),
+            Size::new(1024.0, 768.0),
+        );
 
         let label = ui.find("Select").expect("label must be found");
         let label_bounds = label.bounds();
@@ -184,10 +190,9 @@ mod tests {
         install_one_project(&mut state);
 
         for size in [Size::new(800.0, 600.0), Size::new(1280.0, 720.0)] {
-            let mut ui = Simulator::with_size(
-                iced_test::core::Settings::default(),
-                size,
+            let mut ui = crate::headless::simulator(
                 crate::view::dashboard::view(&state, state.width_mode),
+                size,
             );
             ui.find("Select")
                 .unwrap_or_else(|e| panic!("Select must render at {size:?}: {e}"));
@@ -197,20 +202,59 @@ mod tests {
     /// Theme: **yes** — a theme is passed to `Simulator::snapshot`
     /// directly (colour only; it does not change layout, so it is not
     /// part of the bounds guard, only the visual one). Demonstrated by
-    /// snapshotting the same view under light and dark without either
-    /// panicking.
+    /// snapshotting the same view under all four themes and asserting
+    /// their hashes differ pairwise.
+    ///
+    /// `state.theme` is set alongside the `base` passed to `snapshot`:
+    /// knotra's own styles (`widget/buttons.rs`, `chip.rs`, etc.) read
+    /// their colours from `state.theme.tokens`, not from the `base`
+    /// `iced::Theme` alone — a view built from a `state` whose `theme`
+    /// stayed `Light` would snapshot the same tokens every time no matter
+    /// which `base` was passed to `snapshot`, the bug Review 275 §2.3
+    /// found in this test's own first version.
     #[test]
     fn varies_theme() {
         let mut state = make_state();
         install_one_project(&mut state);
 
-        for theme in [
-            knotra_ui::KnotraTheme::light(),
-            knotra_ui::KnotraTheme::dark(),
-        ] {
-            let mut ui = Simulator::new(crate::view::dashboard::view(&state, state.width_mode));
-            ui.snapshot(&theme.base)
-                .unwrap_or_else(|e| panic!("snapshot must succeed for {theme:?}: {e}"));
+        let mut hash_of = |choice: knotra_ui::ThemeChoice| -> String {
+            state.theme = knotra_ui::KnotraTheme::from_choice(choice);
+            let dir = tempfile::tempdir().expect("tempdir");
+            let mut ui = crate::headless::simulator(
+                crate::view::dashboard::view(&state, state.width_mode),
+                Size::new(1024.0, 768.0),
+            );
+            let snapshot = ui
+                .snapshot(&state.theme.base)
+                .unwrap_or_else(|e| panic!("snapshot must succeed for {choice:?}: {e}"));
+            snapshot
+                .matches_hash(dir.path().join("snapshot"))
+                .expect("write the hash file");
+            let entry = std::fs::read_dir(dir.path())
+                .expect("read the tempdir")
+                .find_map(Result::ok)
+                .expect("exactly one .sha256 file must have been written");
+            std::fs::read_to_string(entry.path()).expect("read it back")
+        };
+
+        let hashes: Vec<(knotra_ui::ThemeChoice, String)> = [
+            knotra_ui::ThemeChoice::Light,
+            knotra_ui::ThemeChoice::Dark,
+            knotra_ui::ThemeChoice::HighContrastLight,
+            knotra_ui::ThemeChoice::HighContrastDark,
+        ]
+        .into_iter()
+        .map(|choice| (choice, hash_of(choice)))
+        .collect();
+
+        for i in 0..hashes.len() {
+            for j in (i + 1)..hashes.len() {
+                assert_ne!(
+                    hashes[i].1, hashes[j].1,
+                    "{:?} and {:?} must snapshot to different hashes",
+                    hashes[i].0, hashes[j].0
+                );
+            }
         }
     }
 
@@ -222,16 +266,22 @@ mod tests {
         let mut state = make_state();
         install_one_project(&mut state);
         assert!(
-            Simulator::new(crate::view::dashboard::view(&state, state.width_mode))
-                .find("Select")
-                .is_ok()
+            crate::headless::simulator(
+                crate::view::dashboard::view(&state, state.width_mode),
+                Size::new(1024.0, 768.0),
+            )
+            .find("Select")
+            .is_ok()
         );
 
         state.catalog = knotra_ui::i18n::Catalog::for_locale(knotra_ui::i18n::Locale::Ja);
         assert!(
-            Simulator::new(crate::view::dashboard::view(&state, state.width_mode))
-                .find("選択")
-                .is_ok(),
+            crate::headless::simulator(
+                crate::view::dashboard::view(&state, state.width_mode),
+                Size::new(1024.0, 768.0),
+            )
+            .find("選択")
+            .is_ok(),
             "the Japanese label must render once the catalog is switched"
         );
     }
@@ -254,15 +304,11 @@ mod tests {
 
         let physical = Size::new(1280.0, 720.0);
         let zoom_percent = 150.0_f32;
-        let logical = Size::new(
-            physical.width / (zoom_percent / 100.0),
-            physical.height / (zoom_percent / 100.0),
-        );
+        let logical = crate::headless::logical_size_at_zoom(physical, zoom_percent);
 
-        let mut ui = Simulator::with_size(
-            iced_test::core::Settings::default(),
-            logical,
+        let mut ui = crate::headless::simulator(
             crate::view::dashboard::view(&state, state.width_mode),
+            logical,
         );
         ui.find("Select")
             .expect("the dashboard must still render at the zoomed logical size");
@@ -273,9 +319,9 @@ mod tests {
     // -----------------------------------------------------------------------
 
     /// Two runs of the same view, same theme, give the same hash — proven
-    /// directly rather than assumed. Uses the default font
-    /// (`Font::with_name("Fira Sans")`, `simulator.rs`'s own fallback when
-    /// no font is set) — English text only, so this does not exercise
+    /// directly rather than assumed. Built through `crate::headless::
+    /// simulator`, so this uses "Noto Sans" and the icon font, same as the
+    /// real application — English text only, so this does not exercise
     /// Japanese glyph shaping at all; see the next, `#[ignore]`d test for
     /// that question.
     #[test]
@@ -294,7 +340,10 @@ mod tests {
         // committed evidence; both are removed after reading.
         let hash_of = || -> String {
             let dir = tempfile::tempdir().expect("tempdir");
-            let mut ui = Simulator::new(crate::view::dashboard::view(&state, state.width_mode));
+            let mut ui = crate::headless::simulator(
+                crate::view::dashboard::view(&state, state.width_mode),
+                Size::new(1024.0, 768.0),
+            );
             let snapshot = ui.snapshot(&theme.base).expect("snapshot must succeed");
             snapshot
                 .matches_hash(dir.path().join("snapshot"))
@@ -329,7 +378,10 @@ mod tests {
         state.catalog = knotra_ui::i18n::Catalog::for_locale(knotra_ui::i18n::Locale::Ja);
         let theme = knotra_ui::KnotraTheme::light();
 
-        let mut ui = Simulator::new(crate::view::dashboard::view(&state, state.width_mode));
+        let mut ui = crate::headless::simulator(
+            crate::view::dashboard::view(&state, state.width_mode),
+            Size::new(1024.0, 768.0),
+        );
         let path = std::env::temp_dir().join("knotra-headless-probe-ja-snapshot");
         let snapshot = ui.snapshot(&theme.base).expect("snapshot must succeed");
         assert!(

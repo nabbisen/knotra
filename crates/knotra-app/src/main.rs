@@ -11,7 +11,11 @@ mod button_style_guard;
 mod config;
 mod fs_watcher;
 #[cfg(test)]
+mod headless;
+#[cfg(test)]
 mod headless_probe;
+#[cfg(test)]
+mod label_overflow_guard;
 mod message;
 mod persistence;
 mod state;
