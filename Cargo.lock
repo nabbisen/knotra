@@ -1097,9 +1097,9 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "endringer"
-version = "0.33.2"
+version = "0.33.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9752cf4bf1f2e8900918e347c6a7735c7e0234fb19826fcee0d15e10262efe5"
+checksum = "4bbe07ff6aeb762a0660d6832efb92595e6b9f6e4c3f1948c692d313f9b943ec"
 dependencies = [
  "anyhow",
  "endringer-core",
@@ -1109,9 +1109,9 @@ dependencies = [
 
 [[package]]
 name = "endringer-async"
-version = "0.33.2"
+version = "0.33.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9a2f9c90a2af4c524f566b8d761504cf11d3cf71fbb3f6dbe6ee346643875f3"
+checksum = "7d2e883c60b2a61497b90f396902948d01e5fec1fc2873bf39805599ef65b9bd"
 dependencies = [
  "anyhow",
  "endringer",
@@ -1120,18 +1120,18 @@ dependencies = [
 
 [[package]]
 name = "endringer-core"
-version = "0.33.2"
+version = "0.33.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e9d854daa4f122652acce8e74c0038c426d54c3030eb399a28c00c5a692146d"
+checksum = "9365370fc31cb04b9b3821951de3081e4dffa9c75fc1b21390b222f6a0c65347"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
 name = "endringer-git"
-version = "0.33.2"
+version = "0.33.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "971001296f8eb0be960c407dfcc58a0727bc3fc9949f3a274c37e4cd07f12207"
+checksum = "13f046cdcc341ca4a2da7116625ef2d891cbd4d5a51ef340c55fbb7105ee4d4d"
 dependencies = [
  "anyhow",
  "endringer-core",
@@ -1140,9 +1140,9 @@ dependencies = [
 
 [[package]]
 name = "endringer-jj"
-version = "0.33.2"
+version = "0.33.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0261dd257c5bfa84e7ad5d57e3f7deec04a31ae9ebd571bc3eea7df26defdcfa"
+checksum = "a9264362326e12dfbdcbac1dbc90c7380998ac1e1bfe65de5b4774b757c1626b"
 dependencies = [
  "anyhow",
  "endringer-core",
@@ -1203,7 +1203,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3162,7 +3162,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3757,7 +3757,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4855,7 +4855,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5411,10 +5411,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.6",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6389,7 +6389,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

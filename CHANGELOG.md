@@ -9,6 +9,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — projects no longer show unsaved files they do not have
+
+knotra could report unsaved files in a project that had none: after the project folder was
+copied or restored, on Windows where Git converts line endings, and in projects with symbolic
+links or submodules. Save release point, Get latest safely and Change work area could then hold
+back or act on changes that did not exist. Each file is now compared by its content, as Git
+itself does.
+
 ### Changed — Settings shows what most people use
 
 Settings now shows language, theme, zoom, automatic refresh, your tools and your
