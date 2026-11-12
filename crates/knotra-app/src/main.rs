@@ -10,6 +10,8 @@ mod button_label_guard;
 mod button_style_guard;
 mod config;
 mod fs_watcher;
+#[cfg(test)]
+mod headless_probe;
 mod message;
 mod persistence;
 mod state;
