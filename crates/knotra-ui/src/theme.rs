@@ -68,7 +68,12 @@ impl KnotraTheme {
     }
 
     pub fn light() -> Self {
-        let tokens = snora::design::Tokens::light();
+        let mut tokens = snora::design::Tokens::light();
+        // Task 107 Commit 2: every snora-drawn control's own pointer
+        // target is at least `BUTTON_HEIGHT` — the same floor knotra
+        // already holds its own widgets to (RFC-073 D8) — from this one
+        // value, in every theme.
+        tokens.targets.min = crate::widget::BUTTON_HEIGHT;
         KnotraTheme {
             // RFC-057 D1/R1: `base` is what `main.rs` hands to iced as the
             // application theme — every widget with no explicit `.style()`
@@ -82,7 +87,8 @@ impl KnotraTheme {
     }
 
     pub fn dark() -> Self {
-        let tokens = snora::design::Tokens::dark();
+        let mut tokens = snora::design::Tokens::dark();
+        tokens.targets.min = crate::widget::BUTTON_HEIGHT;
         KnotraTheme {
             base: snora::design::theme(&tokens),
             tokens,
@@ -93,7 +99,8 @@ impl KnotraTheme {
     /// RFC's own stricter floors (see this file's contrast suite test) —
     /// not a knotra-authored palette.
     pub fn high_contrast_light() -> Self {
-        let tokens = snora::design::Tokens::high_contrast_light();
+        let mut tokens = snora::design::Tokens::high_contrast_light();
+        tokens.targets.min = crate::widget::BUTTON_HEIGHT;
         KnotraTheme {
             base: snora::design::theme(&tokens),
             tokens,
@@ -103,7 +110,8 @@ impl KnotraTheme {
     /// RFC-070 D1/D4: snora's own high-contrast dark preset, same reasoning
     /// as [`Self::high_contrast_light`].
     pub fn high_contrast_dark() -> Self {
-        let tokens = snora::design::Tokens::high_contrast_dark();
+        let mut tokens = snora::design::Tokens::high_contrast_dark();
+        tokens.targets.min = crate::widget::BUTTON_HEIGHT;
         KnotraTheme {
             base: snora::design::theme(&tokens),
             tokens,
