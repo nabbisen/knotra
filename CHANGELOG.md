@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — Escape closes a window even while you are typing in it
+
+Pressing Escape in a window such as Add project or the command palette now closes it at once,
+even when the cursor is in a text field. Before, the first press only left the field.
+
 ### Fixed — the status filters fit a small window at a large zoom
 
 In a small window at a large zoom, the last status filter lost its count and the control for

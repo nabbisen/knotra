@@ -9,6 +9,7 @@
 mod buttons;
 pub(crate) mod checkbox;
 pub mod chip;
+mod escape_first;
 mod field;
 mod focus;
 pub mod icon;
@@ -27,6 +28,7 @@ pub use buttons::{
     secondary_maybe, style,
 };
 pub use checkbox::checkbox;
+pub use escape_first::escape_first;
 pub use field::{
     guided_field, guided_field_focused, styled_text_input, text_input_style, validated_field,
 };

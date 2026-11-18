@@ -67,7 +67,17 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     use crate::state::layer::{self, Layer};
     use iced::Length;
     use iced::widget::{column, row};
+    use knotra_ui::widget::escape_first;
     use snora::{AppLayout, Dialog, LayoutDirection, Sheet, SheetEdge, SheetSize, render};
+
+    // Task 111: every dialog/sheet's content is wrapped in `escape_first`
+    // before it is handed to `Dialog::new`/`Sheet::new`, below — the same
+    // `Message::Shortcut(ShortcutMessage::Close)` `on_close_modals` already
+    // publishes, just seen and captured one layer earlier, ahead of the
+    // content itself. See `escape_first`'s own module doc for why: a
+    // focused `text_input` inside that content would otherwise capture
+    // Escape first and the window would need a second press to close.
+    let on_escape = Message::Shortcut(ShortcutMessage::Close);
 
     // -----------------------------------------------------------------------
     // Body: screen content + selection bar + activity strip. The persistent
@@ -150,39 +160,39 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
         None | Some(Layer::WorkspaceMenu) => {}
         Some(Layer::ShortcutsSheet) => {
             let el: Element<'_, Message> = shortcuts_overlay::view(state);
-            layout = layout.dialog(Dialog::new(el));
+            layout = layout.dialog(Dialog::new(escape_first(el, on_escape.clone())));
         }
         Some(Layer::Palette) => {
             let el: Element<'_, Message> = command_palette::view(state);
-            layout = layout.dialog(Dialog::new(el));
+            layout = layout.dialog(Dialog::new(escape_first(el, on_escape.clone())));
         }
         Some(Layer::AddProject) => {
             if let Some(el) = add_project_modal::view(state) {
-                layout = layout.dialog(Dialog::new(el));
+                layout = layout.dialog(Dialog::new(escape_first(el, on_escape.clone())));
             }
         }
         Some(Layer::WorkspaceCreate)
         | Some(Layer::WorkspaceRename)
         | Some(Layer::WorkspaceDelete) => {
             if let Some(el) = workspace_manager::view(state) {
-                layout = layout.dialog(Dialog::new(el));
+                layout = layout.dialog(Dialog::new(escape_first(el, on_escape.clone())));
             }
         }
         Some(Layer::GetLatest) => {
             let el: Element<'_, Message> = overlays::pull_modal(state);
-            layout = layout.dialog(Dialog::new(el));
+            layout = layout.dialog(Dialog::new(escape_first(el, on_escape.clone())));
         }
         Some(Layer::SaveReleasePoint) => {
             let el: Element<'_, Message> = overlays::tag_modal(state);
-            layout = layout.dialog(Dialog::new(el));
+            layout = layout.dialog(Dialog::new(escape_first(el, on_escape.clone())));
         }
         Some(Layer::ChangeWorkArea) => {
             let el: Element<'_, Message> = overlays::switch_modal(state);
-            layout = layout.dialog(Dialog::new(el));
+            layout = layout.dialog(Dialog::new(escape_first(el, on_escape.clone())));
         }
         Some(Layer::GenerateNotes) => {
             let el: Element<'_, Message> = overlays::changelog_modal(state);
-            layout = layout.dialog(Dialog::new(el));
+            layout = layout.dialog(Dialog::new(escape_first(el, on_escape.clone())));
         }
         Some(Layer::Resolve(_)) => {
             // Right-docked resolve panel → snora Sheet anchored to the End edge.
@@ -204,12 +214,16 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
             // both need) rather than from a local owned by this function.
             if let ActiveModal::Resolve(ref pid) = state.active_modal {
                 let el: Element<'_, Message> = overlays::resolve_panel(state, pid);
-                layout = layout.sheet(Sheet::new(el).at(SheetEdge::End).with_size(SheetSize::Half));
+                layout = layout.sheet(
+                    Sheet::new(escape_first(el, on_escape.clone()))
+                        .at(SheetEdge::End)
+                        .with_size(SheetSize::Half),
+                );
             }
         }
         Some(Layer::RemoveProject) => {
             if let Some(el) = remove_project_dialog::view(state) {
-                layout = layout.dialog(Dialog::new(el));
+                layout = layout.dialog(Dialog::new(escape_first(el, on_escape.clone())));
             }
         }
     }

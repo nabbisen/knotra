@@ -196,16 +196,19 @@ mod tests {
     ///
     /// - **Tab** still leaves the field for the next control: `Ignored`,
     ///   reaching knotra the same as every other row.
-    /// - **Escape does not close the dialog while the field is
-    ///   focused.** `tap_key` itself reports `event::Status::Captured`,
-    ///   and no message is published at all — iced's own `text_input`
-    ///   widget, being the focused control, consumes Escape before
-    ///   snora's `on_close_modals` (sitting above it in the tree) ever
-    ///   sees it. This is unrelated to the snora upgrade (nothing here
-    ///   changed by it) and is not this task's to fix, only to report:
-    ///   a user editing the field who presses Escape expecting to cancel
-    ///   the dialog gets nothing on that first press; a second press,
-    ///   once the field itself has lost focus, would close it.
+    /// - **Escape, at the time this test was first written, did not
+    ///   close the dialog while the field was focused** — iced's own
+    ///   `text_input` widget, being the focused control, consumed Escape
+    ///   before snora's `on_close_modals` (sitting above it in the tree)
+    ///   ever saw it, leaving a user who pressed Escape while editing the
+    ///   field with nothing on that first press. Task 111 fixed exactly
+    ///   this: `view.rs` now wraps every dialog/sheet's content in
+    ///   `knotra_ui::widget::escape_first`, which sees a plain Escape
+    ///   press before the content does, so the fix applies here too.
+    ///   This test's own Escape assertions below were rewritten to match
+    ///   — `escape_verification.rs` carries Task 111's full,
+    ///   seen-failing-first demonstration of the fix; this is only this
+    ///   file's own Tab-adjacent corner, kept in step with it.
     #[test]
     fn tab_and_escape_in_rename_workspace_with_the_field_focused() {
         let mut state = make_state();
@@ -242,10 +245,10 @@ mod tests {
              got {messages:?}"
         );
 
-        // Separately: Escape with the field focused — found, not
-        // assumed, to be `Captured` by the field itself, publishing
-        // nothing; see this test's own doc comment above for why, and
-        // what that means for a user.
+        // Separately: Escape with the field focused — Task 111's own
+        // fix, exercised here too (see this test's own doc comment
+        // above). `escape_first` captures the key ahead of the field, so
+        // it closes on this very first press.
         let mut ui =
             crate::headless::simulator(crate::view::app_view(&state), Size::new(1024.0, 768.0));
         ui.click("Renamed")
@@ -254,13 +257,21 @@ mod tests {
         assert_eq!(
             escape_status,
             event::Status::Captured,
-            "expected the focused text field to capture Escape itself"
+            "expected escape_first to capture Escape ahead of the focused field"
         );
         let messages: Vec<Message> = ui.into_messages().collect();
+        assert_eq!(
+            messages.len(),
+            1,
+            "Escape with the field focused must close the dialog on this first press; \
+             got {messages:?}"
+        );
         assert!(
-            messages.is_empty(),
-            "Escape captured by the focused field must publish no message (the dialog does not \
-             close on this press); got {messages:?}"
+            matches!(
+                messages[0],
+                Message::Shortcut(crate::message::ShortcutMessage::Close)
+            ),
+            "expected Shortcut::Close; got {messages:?}"
         );
     }
 }
