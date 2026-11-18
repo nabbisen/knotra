@@ -1010,4 +1010,350 @@ mod tests {
             );
         }
     }
+
+    /// Task 112 Commit 3: every control knotra draws with a label — buttons
+    /// (through snora: `widget::style::{primary,secondary,ghost,danger}`,
+    /// thin wrappers over `snora::design::style::button::*`), chips,
+    /// the select's field and its open menu's selected row, and the
+    /// checkbox — in every state (rest, hovered, pressed, and focused), on
+    /// all four presets, against **the real floor each preset actually
+    /// declares**: `tokens.palette.text_contrast.ratio()`, not a constant
+    /// copied from the palette's own current values (7.0, for every preset
+    /// knotra ships today — snora's own `TextContrast` table, 0.65 — but
+    /// read live here rather than assumed, so a preset that ever changed
+    /// its own declared level would move this test's floor with it, not
+    /// require a second edit to keep it honest).
+    ///
+    /// Drives the real style functions, reading colours back out of the
+    /// `Style` each one returns — the same discipline
+    /// `focus_ring_meets_wcag_aa_against_every_background_it_can_be_drawn_on`
+    /// above already applies to the ring, now applied to the label text and
+    /// widened from two presets to four.
+    ///
+    /// **Disabled is excluded** (WCAG SC 1.4.3 exempts inactive
+    /// components) — matching every other test in this file that makes the
+    /// same exclusion.
+    ///
+    /// **Two real gaps in iced's own state model, reported rather than
+    /// papered over:**
+    /// - `checkbox::Status` (iced 0.14.2) is `Active`/`Hovered`/`Disabled`
+    ///   only — there is no `Pressed` variant for a checkbox at all, so
+    ///   that column reads "n/a" for it rather than a fabricated number.
+    /// - `pick_list::Status`'s closest analogue to "pressed" is `Opened`
+    ///   (the control engaged, menu open) — used for that column, since
+    ///   the type has no literal `Pressed` either.
+    ///
+    /// **Focus never moves any of these numbers.** Every style function
+    /// below applies its focus ring (when asked) to `border` only — never
+    /// to `text_color`/`background`/`selected_text_color`/
+    /// `selected_background` — confirmed by reading each one; the
+    /// "focused" column's ratio is therefore always identical to its
+    /// unfocused counterpart at the same status, asserted explicitly below
+    /// rather than skipped, so the table states that fact instead of
+    /// silently relying on it.
+    #[test]
+    fn every_labelled_control_meets_its_presets_own_text_floor() {
+        use crate::widget::{checkbox, chip, select};
+        use iced::widget::button::Status as ButtonStatus;
+        use iced::widget::checkbox::Status as CheckboxStatus;
+        use iced::widget::pick_list::Status as FieldStatus;
+
+        /// The colour text actually renders against, for a control whose
+        /// own fill may be partly or fully translucent (`ghost`'s rest
+        /// background, confirmed by reading it back, is not `None` but
+        /// `Some(Background::Color(transparent black))` — alpha 0, not a
+        /// real black fill) or absent (`None`) entirely. Alpha-composites
+        /// whatever colour the control's own `Style` carries over
+        /// `fallback` (the real surface beneath it — the same choice
+        /// `focus_ring_meets_wcag_aa_against_every_background_it_can_be_drawn_on`
+        /// above already makes for `ghost`/`secondary`, by a hardcoded
+        /// special case rather than reading the real alpha back; this
+        /// reads it, via `snora::design::contrast::composite_over`, so it
+        /// is correct for every alpha a status might render, not only 0
+        /// and 1).
+        fn bg_or(bg: Option<iced::Background>, fallback: Color) -> Color {
+            let translucent = match bg {
+                Some(iced::Background::Color(c)) => c,
+                None => Color::TRANSPARENT,
+                Some(other) => panic!("expected a solid Background::Color, got {other:?}"),
+            };
+            to_iced(snora::design::contrast::composite_over(
+                from_iced(translucent),
+                from_iced(fallback),
+            ))
+        }
+        fn bg(bg: iced::Background) -> Color {
+            match bg {
+                iced::Background::Color(c) => c,
+                other => panic!("expected a solid Background::Color, got {other:?}"),
+            }
+        }
+
+        fn row(
+            rows: &mut Vec<String>,
+            failures: &mut Vec<String>,
+            preset: &str,
+            control: &str,
+            state: &str,
+            ratio: f32,
+            floor: f32,
+        ) {
+            let line =
+                format!("{preset:20} {control:28} {state:14} {ratio:5.2}:1  (floor {floor:.1}:1)");
+            if ratio < floor {
+                failures.push(format!("{line}  <-- UNDER FLOOR"));
+            }
+            rows.push(line);
+        }
+
+        let mut rows: Vec<String> = Vec::new();
+        let mut failures: Vec<String> = Vec::new();
+
+        for (preset, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+            ("high_contrast_light", KnotraTheme::high_contrast_light()),
+            ("high_contrast_dark", KnotraTheme::high_contrast_dark()),
+        ] {
+            let tokens = &theme.tokens;
+            let floor = tokens.palette.text_contrast.ratio();
+            let surface = theme.surface();
+
+            // -- Buttons (through snora) ----------------------------------
+            type ButtonStyleFn =
+                fn(&snora::design::Tokens, ButtonStatus) -> iced::widget::button::Style;
+            let buttons: [(&str, ButtonStyleFn); 4] = [
+                ("button:primary", crate::widget::style::primary),
+                ("button:secondary", crate::widget::style::secondary),
+                ("button:ghost", crate::widget::style::ghost),
+                ("button:danger", crate::widget::style::danger),
+            ];
+            for (name, style_fn) in buttons {
+                for (state, status) in [
+                    ("rest", ButtonStatus::Active),
+                    ("hovered", ButtonStatus::Hovered),
+                    ("pressed", ButtonStatus::Pressed),
+                ] {
+                    let s = style_fn(tokens, status);
+                    let ratio = snora::design::contrast::contrast_ratio(
+                        from_iced(s.text_color),
+                        from_iced(bg_or(s.background, surface)),
+                    );
+                    row(&mut rows, &mut failures, preset, name, state, ratio, floor);
+
+                    let focused = crate::widget::style::with_focus_ring(
+                        tokens,
+                        true,
+                        style_fn(tokens, status),
+                    );
+                    let focused_ratio = snora::design::contrast::contrast_ratio(
+                        from_iced(focused.text_color),
+                        from_iced(bg_or(focused.background, surface)),
+                    );
+                    row(
+                        &mut rows,
+                        &mut failures,
+                        preset,
+                        name,
+                        "focused",
+                        focused_ratio,
+                        floor,
+                    );
+                    assert_eq!(
+                        ratio, focused_ratio,
+                        "{preset} {name} {state}: focus moved the label's own ratio, \
+                         contradicting this test's own finding that it never does"
+                    );
+                }
+            }
+
+            // -- Chips -------------------------------------------------------
+            for selected in [false, true] {
+                let name = if selected {
+                    "chip:selected"
+                } else {
+                    "chip:unselected"
+                };
+                for (state, status) in [
+                    ("rest", ButtonStatus::Active),
+                    ("hovered", ButtonStatus::Hovered),
+                    ("pressed", ButtonStatus::Pressed),
+                ] {
+                    // count=1: the real, non-zero label path (RFC-071 D5's
+                    // count==0 override is its own, separately asserted
+                    // pairing — `zero_count_chip_text_is_secondary_
+                    // regardless_of_selected` in `chip.rs` — not this
+                    // floor's concern).
+                    let s = chip::style(tokens, selected, 1, status, false);
+                    let ratio = snora::design::contrast::contrast_ratio(
+                        from_iced(s.text_color),
+                        from_iced(bg_or(s.background, surface)),
+                    );
+                    row(&mut rows, &mut failures, preset, name, state, ratio, floor);
+
+                    let focused = chip::style(tokens, selected, 1, status, true);
+                    let focused_ratio = snora::design::contrast::contrast_ratio(
+                        from_iced(focused.text_color),
+                        from_iced(bg_or(focused.background, surface)),
+                    );
+                    row(
+                        &mut rows,
+                        &mut failures,
+                        preset,
+                        name,
+                        "focused",
+                        focused_ratio,
+                        floor,
+                    );
+                    assert_eq!(
+                        ratio, focused_ratio,
+                        "{preset} {name} {state}: focus moved the label's own ratio"
+                    );
+                }
+            }
+
+            // -- Select: the closed field -------------------------------
+            for (state, status) in [
+                ("rest", FieldStatus::Active),
+                ("hovered", FieldStatus::Hovered),
+                ("pressed(open)", FieldStatus::Opened { is_hovered: true }),
+            ] {
+                let s = select::field_style(tokens, status, false);
+                let ratio = snora::design::contrast::contrast_ratio(
+                    from_iced(s.text_color),
+                    from_iced(bg(s.background)),
+                );
+                row(
+                    &mut rows,
+                    &mut failures,
+                    preset,
+                    "select:field",
+                    state,
+                    ratio,
+                    floor,
+                );
+
+                let focused = select::field_style(tokens, status, true);
+                let focused_ratio = snora::design::contrast::contrast_ratio(
+                    from_iced(focused.text_color),
+                    from_iced(bg(focused.background)),
+                );
+                row(
+                    &mut rows,
+                    &mut failures,
+                    preset,
+                    "select:field",
+                    "focused",
+                    focused_ratio,
+                    floor,
+                );
+                assert_eq!(
+                    ratio, focused_ratio,
+                    "{preset} select:field {state}: focus moved the label's own ratio"
+                );
+            }
+
+            // -- Select: the open menu's selected row ---------------------
+            // `menu_style` takes no `Status` at all — one real call already
+            // is "the real function", nothing to loop over for rest/hovered/
+            // pressed (the same reasoning
+            // `new_control_focus_rings_meet_wcag_aa_...` above already
+            // states for this exact function).
+            let menu = select::menu_style(tokens, false);
+            let menu_ratio = snora::design::contrast::contrast_ratio(
+                from_iced(menu.selected_text_color),
+                from_iced(bg(menu.selected_background)),
+            );
+            row(
+                &mut rows,
+                &mut failures,
+                preset,
+                "select:menu-selected-row",
+                "rest/hovered/pressed",
+                menu_ratio,
+                floor,
+            );
+            let menu_focused = select::menu_style(tokens, true);
+            let menu_focused_ratio = snora::design::contrast::contrast_ratio(
+                from_iced(menu_focused.selected_text_color),
+                from_iced(bg(menu_focused.selected_background)),
+            );
+            row(
+                &mut rows,
+                &mut failures,
+                preset,
+                "select:menu-selected-row",
+                "focused",
+                menu_focused_ratio,
+                floor,
+            );
+            assert_eq!(
+                menu_ratio, menu_focused_ratio,
+                "{preset} select menu selected row: focus moved the label's own ratio"
+            );
+
+            // -- Checkbox ---------------------------------------------------
+            for is_checked in [false, true] {
+                let name = if is_checked {
+                    "checkbox:checked"
+                } else {
+                    "checkbox:unchecked"
+                };
+                for (state, status) in [
+                    ("rest", CheckboxStatus::Active { is_checked }),
+                    ("hovered", CheckboxStatus::Hovered { is_checked }),
+                ] {
+                    let s = checkbox::style(tokens, status, false);
+                    let ratio = snora::design::contrast::contrast_ratio(
+                        from_iced(s.icon_color),
+                        from_iced(bg(s.background)),
+                    );
+                    row(&mut rows, &mut failures, preset, name, state, ratio, floor);
+
+                    let focused = checkbox::style(tokens, status, true);
+                    let focused_ratio = snora::design::contrast::contrast_ratio(
+                        from_iced(focused.icon_color),
+                        from_iced(bg(focused.background)),
+                    );
+                    row(
+                        &mut rows,
+                        &mut failures,
+                        preset,
+                        name,
+                        "focused",
+                        focused_ratio,
+                        floor,
+                    );
+                    assert_eq!(
+                        ratio, focused_ratio,
+                        "{preset} {name} {state}: focus moved the label's own ratio"
+                    );
+                }
+                // iced's own `checkbox::Status` has no `Pressed` variant at
+                // all (`Active`/`Hovered`/`Disabled` only, confirmed against
+                // iced_widget 0.14.2's own enum) — recorded as "n/a", not a
+                // fabricated number.
+                rows.push(format!(
+                    "{preset:20} {name:28} {state:14} n/a — iced's checkbox::Status has no Pressed",
+                    state = "pressed"
+                ));
+            }
+        }
+
+        println!(
+            "knotra label/control text-contrast matrix ({} rows):",
+            rows.len()
+        );
+        for line in &rows {
+            println!("{line}");
+        }
+
+        assert!(
+            failures.is_empty(),
+            "{} of {} label/control pairs fell under their own preset's text-contrast floor:\n{}",
+            failures.len(),
+            rows.len(),
+            failures.join("\n")
+        );
+    }
 }
