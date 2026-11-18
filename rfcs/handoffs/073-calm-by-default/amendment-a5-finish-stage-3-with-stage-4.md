@@ -3,8 +3,7 @@
 Issued 2026-11-12. Reason: `.git-exclude/reviewed/274-rfc-073-stage-3-review.md` §2.
 
 **Stage 3 is approved. These items are done in stage 4, as their own commit before stage 4's
-own.** §5 waits for the owner's word on its text. If that has not come when you reach it, do
-everything else and report §5 as waiting.
+own.** §5's text is approved (2026-11-18).
 
 **Evidence follows the owner's updated GUI rules and Amendment A4 §1:**
 
@@ -72,7 +71,10 @@ hand-edited file.
   `detail.section_status`, `detail.section_recent_operations`, and any other `detail.section_*`.
 - **Name the typeface of the Japanese headings** in the report (Review 248: Bold, not Semibold).
 
-## 5. File-system monitoring as a checkbox (Review 274 §2.5): **waits for the owner's text**
+## 5. File-system monitoring as a checkbox (Review 274 §2.5)
+
+**The owner approved the text on 2026-11-18**, exactly as Review 274 §4 gives it (gathered again in
+Review 283 §3, rows 1–3).
 
 - The "Disabled" / "Enabled ✓" button becomes a checkbox, through `widget/checkbox.rs`, labelled
   `settings.fs_watch_enable_label`.

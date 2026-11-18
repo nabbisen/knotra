@@ -6,9 +6,9 @@ Issued 2026-11-18. Reasons:
 - `.git-exclude/reviewed/281-task-110-review.md` §3;
 - `.git-exclude/reviewed/283-stage-4-additions-and-open-text-decisions.md`.
 
-**Done in stage 4, with A5, as their own commits before stage 4's own.** §1 and §2 wait for the
-owner's decisions in Review 283. If those have not come when you reach them, do everything else
-and report them as waiting.
+**Done in stage 4, with A5, as their own commits before stage 4's own.** **The owner approved
+both on 2026-11-18:** §1's layout change and §2's text, `dashboard.no_commits_yet` = "No commits
+yet" / 「まだコミットがありません」.
 
 Evidence follows the owner's GUI rules, Amendment A4 §1 and Task 108's session script.
 
@@ -84,5 +84,3 @@ second line, and "Arrange" is shown by name. Nothing is hidden behind "⋯" any 
 A project with no commits yet showed "Work area unavailable", sometimes beside "All set". It
 now shows its branch and "No commits yet".
 ```
-
-The quoted text follows the owner's approved wording in Review 283.
