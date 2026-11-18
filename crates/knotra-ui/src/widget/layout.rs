@@ -6,6 +6,13 @@ pub use iced::{
     widget::{Column, Row, button, column, container, row, scrollable, text, text_input},
 };
 
+/// Task 112: knotra's one, single declared reading direction — left to
+/// right. Every snora call that now takes a `LayoutDirection` (`AppLayout
+/// ::direction`, `view.rs`; `Notice::new`, `notice.rs`, since 0.64) reads
+/// this same constant, so the two can never disagree with each other by a
+/// stray literal at one call site and not the other.
+pub const APP_DIRECTION: snora::LayoutDirection = snora::LayoutDirection::Ltr;
+
 /// RFC-071 D2 / Amendment A2: the one place knotra ever names a text
 /// weight. No view names a `Weight` itself; `text_weight_guard.rs` is the
 /// guard that enforces it (the shape of `text_size_guard.rs`, scanning for

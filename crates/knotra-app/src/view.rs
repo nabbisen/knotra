@@ -68,7 +68,7 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     use iced::Length;
     use iced::widget::{column, row};
     use knotra_ui::widget::escape_first;
-    use snora::{AppLayout, Dialog, LayoutDirection, Sheet, SheetEdge, SheetSize, render};
+    use snora::{AppLayout, Dialog, Sheet, SheetEdge, SheetSize, render};
 
     // Task 111: every dialog/sheet's content is wrapped in `escape_first`
     // before it is handed to `Dialog::new`/`Sheet::new`, below — the same
@@ -141,7 +141,7 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // -----------------------------------------------------------------------
     let mut layout = AppLayout::new(body)
         .header(shell::view(state))
-        .direction(LayoutDirection::Ltr)
+        .direction(knotra_ui::widget::APP_DIRECTION)
         .on_close_modals(Message::Shortcut(ShortcutMessage::Close));
 
     // Switcher dropdown: a `header_menu` layer, distinct from the

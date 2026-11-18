@@ -88,7 +88,8 @@ pub fn notice<'a, Message: Clone + 'a>(
     body: impl Into<String>,
     action: Option<NoticeAction<Message>>,
 ) -> Element<'a, Message> {
-    let mut builder = snora::design::notice::Notice::new(tokens, tone.to_snora(), body);
+    let mut builder =
+        snora::design::notice::Notice::new(tokens, tone.to_snora(), body, super::APP_DIRECTION);
     if let Some(title) = title {
         builder = builder.title(title);
     }

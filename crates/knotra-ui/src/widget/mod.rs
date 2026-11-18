@@ -34,9 +34,9 @@ pub use field::{
 };
 pub use focus::{clear_input_focus, focus_id, focus_input};
 pub use layout::{
-    Alignment, BUTTON_HEIGHT, Color, Column, Element, Length, Padding, Row, SMALL_BUTTON_HEIGHT,
-    STRONG_FONT, WIDE_CONTENT_WIDTH, button, column, container, row, scrollable, strong, text,
-    text_input,
+    APP_DIRECTION, Alignment, BUTTON_HEIGHT, Color, Column, Element, Length, Padding, Row,
+    SMALL_BUTTON_HEIGHT, STRONG_FONT, WIDE_CONTENT_WIDTH, button, column, container, row,
+    scrollable, strong, text, text_input,
 };
 pub use list::list;
 pub use notice::{NoticeAction, NoticeTone, notice};
