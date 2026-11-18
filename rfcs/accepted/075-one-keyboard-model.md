@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted |
 | Priority | High - Settings and History cannot be used from the keyboard at all, and a select cannot be opened from it anywhere |
 | Effort | Large - every control knotra draws, every window's focus, five stages |
 | Target | 0.35.0 (after 0.34.0, which ships snora 0.65 through Task 112) |
 | Related files | `crates/knotra-app/src/app/focus_ops.rs`, `crates/knotra-app/src/state/focus.rs`, `crates/knotra-app/src/app.rs` (the key subscription), every `crates/knotra-app/src/view/**` module, `crates/knotra-ui/src/widget/{buttons,chip,select,checkbox,field,focus,ring}.rs` |
-| Decided by | project owner, 2026-11-18 - the direction (adopt snora's model, not extend knotra's own). This RFC itself awaits acceptance, with the decisions in "For the owner" |
+| Decided by | project owner, 2026-11-18 - the direction (adopt snora's model, not extend knotra's own); then accepted, with D4 a-e as recommended, and D4 d to be decided by comparing both behaviours in stage 0 |
 | Related | RFC-033 D3 item 4 (the contract: focus entry, trap, return); RFC-036 (knotra's own focus model); RFC-066 (keyboard use stays inside the open window); RFC-067; Task 095; Task 111; snora 0.55-0.65 (RFC-116, -119, -120, -121, -122, -127, -134) |
 
 ## Summary
@@ -88,14 +88,14 @@ Measured at `605a4a6` (Review 282 §3).
 
 ### D4. Where knotra's accepted rules and snora's differ
 
-These are owner decisions: see "For the owner". The recommendation is given for each.
+The owner decided these on 2026-11-18: each as recommended. **d** waits for a comparison of both behaviours in stage 0; until then the recommendation is not taken.
 
 | # | knotra today (accepted) | snora | Recommended |
 |---|---|---|---|
 | a | **Tab wraps** inside a window (RFC-066 D5) | Tab bounded to the overlay; "past the last, focus leaves the group: it does not wrap" | **Stage 0 measures** what "leaves" means inside a modal. If focus goes nowhere, keep wrapping by routing the key; otherwise take snora's |
 | b | **Disabled controls are Tab stops** (RFC-036 R3) | a disabled control is no stop | **snora's.** The common convention. The reason for an unavailable control is printed beside it (RFC-073), so it need not be focused to be read |
 | c | **No ring after a window opens by mouse;** Enter then shows the ring before pressing (RFC-066 D4) | focus set by the application shows its ring, and Enter presses at once | **Set the entry only when the window was opened from the keyboard** (a shortcut, or Enter on a control). Opened by a click, nothing is focused, and the first Tab reaches the window's first control: its header close, which is safe. D4's purpose, no ring the user did not ask for, then holds by construction |
-| d | **↓ / ↑ act as Tab** inside a window (RFC-066 D5) | arrows only inside menus, radio groups, selects and sliders | **Keep** them in the list-like windows (palette results, workspace menu, "Find work area") by routing them to `traverse`, and only while no text field holds focus. Elsewhere, drop them and update the shortcuts sheet |
+| d | **↓ / ↑ act as Tab** inside a window (RFC-066 D5) | arrows only inside menus, radio groups, selects and sliders | **Recommended:** keep them in the list-like windows (palette results, workspace menu, "Find work area") by routing them to `traverse`, and only while no text field holds focus; drop them elsewhere, and update the shortcuts sheet. **The owner decides after comparing both behaviours** (stage 0) |
 | e | **One Escape closes,** even from a field (Task 095, Task 111) | "a focused text field in a dialog takes the first Escape; the second closes" | **Keep knotra's,** through Task 111's layer, which sits inside knotra's own content and does not compete with snora's |
 
 ### D5. Settings and History join by construction
@@ -124,6 +124,9 @@ Each stage has its own handoff, evidence and review, under the owner's GUI test 
    - snora's answers to D4 a-d, measured in a spike branch that is not merged: what Tab does
      past a modal's last control; whether a focused text field keeps ↓ ↑; the ring on
      programmatic focus.
+   - **D4 d, compared:** two spike builds, not merged, that differ only in ↓ ↑ in the
+     list-like windows (one with the arrows routed to Tab there, one without). The owner tries
+     both, and the decision is recorded in an amendment.
    - Whether the headless level can run `traverse`'s tasks. `iced_test`'s `Emulator` runs a
      program's tasks, and `Simulator` does not.
    - **Output:** a table, and a short amendment to this RFC with any decision the
@@ -158,12 +161,10 @@ Each stage has its own handoff, evidence and review, under the owner's GUI test 
 - Right-to-left.
 - The palette's search behaviour.
 
-## For the owner
+## Decided
 
-1. **Accept this RFC,** with stage 0 first.
-2. **D4 a-e,** each as recommended, or otherwise:
-   - a: measured first;
-   - b: snora's;
-   - c: entry only when opened from the keyboard;
-   - d: arrows kept in list-like windows only;
-   - e: knotra's one Escape.
+Owner, 2026-11-18:
+
+- the RFC is accepted;
+- D4 a, b, c and e are as recommended (a after measuring);
+- **D4 d** is decided after the owner compares both behaviours in stage 0.
