@@ -9,6 +9,16 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — a small window shows every status filter
+
+In a small window or at a large zoom, all five status filters are shown, continuing on a
+second line, and "Arrange" is shown by name. Nothing is hidden behind "⋯" any more.
+
+### Fixed — a project with no commits says so
+
+A project with no commits yet showed "Work area unavailable", sometimes beside "All set". It
+now shows its branch and "No commits yet".
+
 ### Changed — file-change refresh is a plain on/off box
 
 The experimental refresh when files change is now a checkbox, and its settings sit together

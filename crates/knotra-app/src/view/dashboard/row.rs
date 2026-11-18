@@ -127,11 +127,25 @@ pub(super) fn view_project_row<'a>(
     let checkbox_element = selection_checkbox(state, tokens, project);
     let name = name_button(state, tokens, project);
     let action = row_action(state, tokens, &entry, project);
+    // RFC-073 Amendment A6 §2: an unborn HEAD's own `context.label` is just
+    // the branch name — on its own indistinguishable from an ordinary
+    // branch with commits — so this composes "<branch> · No commits yet"
+    // here, the one place both layouts read `work_area` from.
     let work_area = entry
         .status
         .and_then(|status| status.context.as_ref())
-        .map(|context| context.label.as_str())
-        .unwrap_or(state.t("dashboard.work_area_unknown"));
+        .map(|context| {
+            if context.unborn {
+                format!(
+                    "{} · {}",
+                    context.label,
+                    state.t("dashboard.no_commits_yet")
+                )
+            } else {
+                context.label.clone()
+            }
+        })
+        .unwrap_or_else(|| state.t("dashboard.work_area_unknown").to_owned());
 
     match mode {
         WidthMode::Compact => {
@@ -324,7 +338,7 @@ fn view_standard_row<'a>(
     checkbox_element: Option<Element<'a, Message>>,
     name: Element<'a, Message>,
     action: Element<'a, Message>,
-    work_area: &'a str,
+    work_area: String,
 ) -> Element<'a, Message> {
     let tokens = &state.theme.tokens;
     let mut identity = row![].spacing(4).align_y(Alignment::Center);
@@ -422,7 +436,7 @@ fn view_compact_row<'a>(
     checkbox_element: Option<Element<'a, Message>>,
     name: Element<'a, Message>,
     action: Element<'a, Message>,
-    work_area: &'a str,
+    work_area: String,
 ) -> Element<'a, Message> {
     let mut line_one = row![].spacing(4).align_y(Alignment::Center);
     if let Some(checkbox_element) = checkbox_element {
@@ -433,7 +447,7 @@ fn view_compact_row<'a>(
     line_one = line_one.push(action);
 
     let tokens = &state.theme.tokens;
-    let line_two = compact_status_line(state, entry, work_area);
+    let line_two = compact_status_line(state, entry, &work_area);
     let (tone, glyph) = entry_badge(entry);
 
     container(

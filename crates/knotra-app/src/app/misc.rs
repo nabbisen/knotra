@@ -404,9 +404,6 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
                 state.reconcile_selection_with_display();
             }
         }
-        DashboardMessage::ToolbarOverflowToggled => {
-            state.dashboard_toolbar_overflow_open = !state.dashboard_toolbar_overflow_open;
-        }
         DashboardMessage::ArrangeToggled => {
             state.dashboard_arrange_open = !state.dashboard_arrange_open;
         }

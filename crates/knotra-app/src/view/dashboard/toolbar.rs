@@ -53,8 +53,6 @@ mod focus_target {
     pub const ARRANGE: &str = "dashboard.toolbar.arrange";
     pub const CLEAR_FILTERS: &str = "dashboard.toolbar.clear_filters";
     pub const SELECT_MODE: &str = "dashboard.toolbar.select_mode";
-    /// RFC-035 Handoff 028: compact-only.
-    pub const TOOLBAR_OVERFLOW: &str = "dashboard.toolbar.overflow";
 }
 
 /// The five status filters, in the order the chip row renders them.
@@ -68,14 +66,6 @@ const FILTERS: [StatusFilter; 5] = [
     StatusFilter::Ahead,
     StatusFilter::AllSet,
 ];
-
-/// Handoff 028 Ruling 6.3: compact shows these first chips directly; the
-/// rest go behind the `⋯` overflow. A fixed split, stated as a constant
-/// rather than derived — iced has no measure-and-overflow layout
-/// primitive. Matches the External Design sketch, which names Needs help,
-/// Unsaved work, and Updates available (`FILTERS`' own first three). If the
-/// compact band later proves to fit more, this is a one-constant change.
-const COMPACT_VISIBLE_CHIP_COUNT: usize = 3;
 
 fn filter_focus_key(filter: &StatusFilter) -> &'static str {
     match filter {
@@ -207,19 +197,16 @@ fn standard_focus_order(state: &AppState) -> FocusOrder<Message> {
     order
 }
 
-/// Compact's order (RFC-035 R8, Handoff 028 §5): the first
-/// [`COMPACT_VISIBLE_CHIP_COUNT`] chips, then the overflow control, then —
-/// **only while `state.dashboard_toolbar_overflow_open`** — the remaining
-/// chips, so a chip behind the overflow is reachable exactly when it is on
-/// screen (the same conditional shape `standard_focus_order` already uses
-/// for Clear filters). Search, then Arrange (RFC-073 D2: "it takes their
-/// place in the existing overflow" — the same disclosure trigger as
-/// before, now sharing `standard_focus_order`'s single `ARRANGE` target
-/// and `ArrangeToggled` message instead of its own compact-only pair).
-/// Clear filters and the bulk-selection entry point keep the same guards
-/// `standard_focus_order` uses.
+/// Compact's order (RFC-035 R8, Handoff 028 §5; RFC-073 Amendment A6 §1):
+/// all five chips now — the three-visible/overflow split and its own
+/// `TOOLBAR_OVERFLOW` target are gone along with the "⋯" control itself.
+/// Search, then Arrange (sharing `standard_focus_order`'s single `ARRANGE`
+/// target and `ArrangeToggled` message — the same control, not a
+/// compact-only pair, since `view_compact_toolbar` now calls
+/// [`arrange_button`] directly). Clear filters and the bulk-selection
+/// entry point keep the same guards `standard_focus_order` uses.
 fn compact_focus_order(state: &AppState) -> FocusOrder<Message> {
-    let mut order: FocusOrder<Message> = FILTERS[..COMPACT_VISIBLE_CHIP_COUNT]
+    let mut order: FocusOrder<Message> = FILTERS
         .iter()
         .map(|filter| {
             (
@@ -230,22 +217,6 @@ fn compact_focus_order(state: &AppState) -> FocusOrder<Message> {
             )
         })
         .collect();
-
-    order.push((
-        FocusTarget::control(focus_target::TOOLBAR_OVERFLOW),
-        Some(Message::Dashboard(DashboardMessage::ToolbarOverflowToggled)),
-    ));
-
-    if state.dashboard_toolbar_overflow_open {
-        order.extend(FILTERS[COMPACT_VISIBLE_CHIP_COUNT..].iter().map(|filter| {
-            (
-                FocusTarget::control(filter_focus_key(filter)),
-                Some(Message::Filter(FilterMessage::StatusFilterToggled(
-                    filter.clone(),
-                ))),
-            )
-        }));
-    }
 
     order.push((
         FocusTarget::text_input(knotra_ui::widget::focus_id::SEARCH.clone()),
@@ -360,10 +331,11 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
 
 /// RFC-073 D2: the single control, beside Search, that opens
 /// [`arrange_panel`] — replacing the two always-visible selects
-/// `view_standard_toolbar` drew directly before this change. Same
-/// `with_focus_ring`/`ghost` treatment as [`disclosure_button`]'s compact
-/// counterpart, but with a text label (`dashboard.arrange`) rather than a
-/// bare glyph, matching the rest of the standard band's controls.
+/// `view_standard_toolbar` drew directly before this change.
+/// `with_focus_ring`/`ghost` styled, with a text label (`dashboard.arrange`)
+/// rather than a bare glyph. RFC-073 Amendment A6 §1: now also
+/// `view_compact_toolbar`'s own Arrange control, verbatim — Compact no
+/// longer builds a bare-glyph disclosure trigger of its own.
 fn arrange_button<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Message> {
     let t = tokens.clone();
     let focused = is_focused(state, focus_target::ARRANGE);
@@ -475,51 +447,25 @@ fn arrange_panel<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Messag
         .into()
 }
 
-/// Compact (RFC-035 R8, Handoff 028 §4): chips beyond
-/// [`COMPACT_VISIBLE_CHIP_COUNT`] behind a `⋯` overflow; Arrange (RFC-073
-/// D2 — "it takes their place in the existing overflow") behind a `▾`
-/// disclosure. Both are plain layout pushes (an extra row appended when
-/// the corresponding `AppState` bool is set), not an overlay/menu widget —
-/// the same shape a `guided_button`'s reason text or a compact row's
-/// second line already uses, deliberately not the "substantial widget
-/// with its own focus/keyboard/positioning behaviour" Handoff 027 §7 ruled
-/// out.
+/// Compact (RFC-035 R8, Handoff 028 §4; RFC-073 Amendment A6 §1). Since
+/// Task 110 the chip row wraps onto a second line rather than clamping or
+/// running off-screen, so the reason Handoff 028 hid two chips behind a
+/// `⋯` overflow (and Group/Sort behind a bare `▾`) is gone: Compact now
+/// shows every status filter directly, in the same wrapping row Standard
+/// uses, and reuses [`arrange_button`] byte-for-byte rather than a
+/// glyph-only disclosure trigger of its own.
 fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
 
-    let overflow_button = disclosure_button(
-        tokens,
-        "⋯",
-        Message::Dashboard(DashboardMessage::ToolbarOverflowToggled),
-        is_focused(state, focus_target::TOOLBAR_OVERFLOW),
-    );
-
-    // Task 110 §1: the visible chips and the "⋯" trigger that follows them
-    // are one wrapping row, not a fixed-width row — the same `.wrap()`
-    // `view_standard_toolbar`'s own five-chip row already uses. At the
-    // zoom and width an older reader can choose (Review 280 §2.1: zoom
-    // 150%, an 800px window, logical ~533), a plain row let the last
-    // chip's own label clamp narrower than its count digit had room for,
-    // and pushed "⋯" off the visible window entirely; wrapped, the chips
-    // (and "⋯", if it too does not fit) continue onto a second line
-    // instead, so nothing is ever cut.
-    let mut visible_elements: Vec<Element<'_, Message>> = FILTERS[..COMPACT_VISIBLE_CHIP_COUNT]
+    // Task 110 §1: wraps onto a second line rather than clamping — the
+    // same `.wrap()` `view_standard_toolbar`'s own five-chip row uses.
+    let chips = row(FILTERS
         .iter()
         .map(|filter| chip_element(state, tokens, filter))
-        .collect();
-    visible_elements.push(overflow_button);
-
-    let mut chip_area =
-        column![row(visible_elements).spacing(4).wrap().vertical_spacing(4)].spacing(4);
-
-    if state.dashboard_toolbar_overflow_open {
-        let overflow_chips = row(FILTERS[COMPACT_VISIBLE_CHIP_COUNT..]
-            .iter()
-            .map(|filter| chip_element(state, tokens, filter))
-            .collect::<Vec<_>>())
-        .spacing(4);
-        chip_area = chip_area.push(overflow_chips);
-    }
+        .collect::<Vec<_>>())
+    .spacing(4)
+    .wrap()
+    .vertical_spacing(4);
 
     // RFC-073 handoff Amendment A3 §2: same shared builder as the standard
     // band's search field above.
@@ -532,12 +478,7 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
     .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
     .width(Length::Fixed(220.0));
 
-    let arrange_trigger = disclosure_button(
-        tokens,
-        "▾",
-        Message::Dashboard(DashboardMessage::ArrangeToggled),
-        is_focused(state, focus_target::ARRANGE),
-    );
+    let arrange = arrange_button(state, tokens);
 
     let summary = state.selection_summary();
     let select_message = (!summary.visible_ids.is_empty())
@@ -552,7 +493,7 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
 
     // RFC-073 Amendment A2: top-aligned, same reason as the standard band.
     let mut controls = column![
-        row![search, arrange_trigger, select]
+        row![search, arrange, select]
             .spacing(6)
             .align_y(Alignment::Start)
     ]
@@ -570,7 +511,7 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         ));
     }
 
-    container(column![chip_area, controls].spacing(5))
+    container(column![chips, controls].spacing(5))
         .width(Length::Fill)
         .padding(Padding {
             top: 0.0,
@@ -651,29 +592,5 @@ fn clear_filters_button<'a>(
     .style(move |_theme, status| {
         style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
     })
-    .into()
-}
-
-/// The compact toolbar's `⋯`/`▾` disclosure triggers — a plain glyph
-/// button (not `icon_button_maybe`: these aren't lucide icons, they're the
-/// literal glyphs the External Design sketch draws), `ghost`-styled with a
-/// working focus ring, same shape as `select_mode_button`/
-/// `clear_filters_button`.
-fn disclosure_button<'a>(
-    tokens: &Tokens,
-    glyph: &'a str,
-    on_press: Message,
-    is_focused: bool,
-) -> Element<'a, Message> {
-    let t = tokens.clone();
-    button(centered_button_label(
-        text(glyph)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 12])
-    .on_press(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style::ghost(&t, status)))
     .into()
 }

@@ -123,18 +123,45 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
             read_error: Some(format!("cannot open repository: {e}")),
         },
         Ok(repo) => {
-            // StatusDigest — branch + HEAD commit
-            let context = repo.status_digest().await.ok().map(|d| VcsContext {
-                label: d.current_branch.clone(),
-                branch: if d.current_branch.starts_with("(detached") {
-                    None
-                } else {
-                    Some(d.current_branch.clone())
-                },
-                jj_change_id: None,
-                jj_bookmark: None,
-                is_detached: d.current_branch.starts_with("(detached"),
-            });
+            // StatusDigest — branch + HEAD commit. Fails when HEAD names a
+            // branch with no commits yet, as well as for a genuinely
+            // unreadable HEAD — `unborn_branch_or_read_error` (RFC-073
+            // Amendment A6 §2) tells the two apart via
+            // `repository_info().head`.
+            let digest = repo.status_digest().await.ok();
+            let (context, head_read_error) = if let Some(d) = digest {
+                (
+                    Some(VcsContext {
+                        label: d.current_branch.clone(),
+                        branch: if d.current_branch.starts_with("(detached") {
+                            None
+                        } else {
+                            Some(d.current_branch.clone())
+                        },
+                        jj_change_id: None,
+                        jj_bookmark: None,
+                        is_detached: d.current_branch.starts_with("(detached"),
+                        unborn: false,
+                    }),
+                    None,
+                )
+            } else {
+                let head = repo.repository_info().await.ok().map(|info| info.head);
+                match super::unborn_branch_or_read_error(head) {
+                    Ok(branch) => (
+                        Some(VcsContext {
+                            label: branch.clone(),
+                            branch: Some(branch),
+                            jj_change_id: None,
+                            jj_bookmark: None,
+                            is_detached: false,
+                            unborn: true,
+                        }),
+                        None,
+                    ),
+                    Err(reason) => (None, Some(reason.to_owned())),
+                }
+            };
 
             // Working tree — dirty / untracked via is_dirty + worktree_status
             let working_tree = repo
@@ -164,7 +191,7 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
                 working_tree,
                 conflict,
                 refreshed_at: Timestamp::now(),
-                read_error: None,
+                read_error: head_read_error,
             }
         }
     }

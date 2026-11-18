@@ -527,19 +527,13 @@ pub struct AppState {
     /// Whether to show technical command details in modal result views.
     /// Toggled by the "Show details" / "Hide details" button in result screens.
     pub show_op_details: bool,
-    /// RFC-035 R8/Handoff 028 Ruling 6.1: whether the compact toolbar's chip
-    /// overflow (`⋯`) is open. Ignored outside `WidthMode::Compact` — not
-    /// cleared on resize (a stale `true` behind a hidden control is
-    /// harmless, and clearing it would need a resize-triggered message,
-    /// which is exactly what `width_mode` moving into `AppState` was about
-    /// keyboard/render parity, not about growing further).
-    pub dashboard_toolbar_overflow_open: bool,
     /// RFC-035 R8/Handoff 028 Ruling 6.1, renamed by RFC-073 D2: whether the
-    /// "Arrange" disclosure (`▾` in compact, a labelled control in
-    /// standard/wide) holding the grouping/sorting selects is open. Same
-    /// ignored-outside-its-own-width-mode-rendering, not-cleared-on-resize
-    /// shape as `dashboard_toolbar_overflow_open` — both bands share one
-    /// flag since only one is ever rendered at a time.
+    /// "Arrange" disclosure holding the grouping/sorting selects is open.
+    /// RFC-073 Amendment A6 §1 removed the toolbar's only other such flag
+    /// (the compact chip overflow, `⋯`) — Compact now shares this same
+    /// control and this same flag with Standard/Wide. Not cleared on
+    /// resize (a stale `true` while the panel happens to be hidden is
+    /// harmless).
     pub dashboard_arrange_open: bool,
     /// RFC-073 D11: whether Settings' "Advanced" disclosure is open.
     /// **Not saved** — `app.rs`'s `Message::Navigate` resets this to
@@ -636,7 +630,6 @@ impl AppState {
             active_modal: ActiveModal::default(),
             selection_mode: false,
             show_op_details: false,
-            dashboard_toolbar_overflow_open: false,
             dashboard_arrange_open: false,
             settings_advanced_open: false,
             recent_removal: None,

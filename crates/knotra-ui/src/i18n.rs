@@ -92,6 +92,11 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.clear_filters", "Clear filters");
     m.insert("dashboard.all_projects", "All projects");
     m.insert("dashboard.work_area_unknown", "Work area unavailable");
+    // RFC-073 Amendment A6 §2: a project whose HEAD names a branch with no
+    // commits yet — shown as "<branch> · No commits yet", never beside
+    // `dashboard.work_area_unknown`, which is reserved for a HEAD that is
+    // genuinely unreadable.
+    m.insert("dashboard.no_commits_yet", "No commits yet");
     m.insert("dashboard.resolve", "Choose resolution");
     // RFC-071 Amendment A7: gone — a dashboard preference's failed save now
     // shows `settings.save_error` instead, through the same `persist_config`
@@ -896,6 +901,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("dashboard.clear_filters", "絞り込みを解除");
     m.insert("dashboard.all_projects", "すべてのプロジェクト");
     m.insert("dashboard.work_area_unknown", "作業場所を確認できません");
+    m.insert("dashboard.no_commits_yet", "まだコミットがありません");
     m.insert("dashboard.resolve", "解決方法を選ぶ");
     m.insert(
         "dashboard.cause.missing_path",

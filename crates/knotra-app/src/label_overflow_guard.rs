@@ -291,29 +291,19 @@ mod tests {
                             }
                         };
 
-                        // Every status filter chip that is directly
-                        // visible at this width_mode, with its own count
-                        // (see `install_one_project_per_status`'s own doc
-                        // comment for why each count is distinct: 1
-                        // through 5, in filter order). Compact shows only
-                        // the first three directly; the other two sit
-                        // behind the "⋯" disclosure, out of this guard's
-                        // scope (opening it changes nothing about *these*
-                        // three chips' own sizing).
-                        let chip_keys: &[(&str, &str)] = match state.width_mode {
-                            WidthMode::Compact => &[
-                                ("filter.needs_help", "1"),
-                                ("filter.dirty", "2"),
-                                ("filter.behind", "3"),
-                            ],
-                            WidthMode::Standard | WidthMode::Wide => &[
-                                ("filter.needs_help", "1"),
-                                ("filter.dirty", "2"),
-                                ("filter.behind", "3"),
-                                ("filter.ahead", "4"),
-                                ("filter.all_set", "5"),
-                            ],
-                        };
+                        // RFC-073 Amendment A6 §1: Compact shows every
+                        // status filter directly now, in the same wrapping
+                        // row Standard uses — the three-chip split and the
+                        // "⋯" disclosure that used to hide the rest are
+                        // gone, so there is no longer a Compact-only
+                        // narrower list here.
+                        let chip_keys: &[(&str, &str)] = &[
+                            ("filter.needs_help", "1"),
+                            ("filter.dirty", "2"),
+                            ("filter.behind", "3"),
+                            ("filter.ahead", "4"),
+                            ("filter.all_set", "5"),
+                        ];
                         for (key, count) in chip_keys {
                             let label = state.t(key).to_owned();
                             check(&label, &mut failures);
@@ -321,21 +311,13 @@ mod tests {
                             checked += 2;
                         }
 
-                        if state.width_mode == WidthMode::Standard
-                            || state.width_mode == WidthMode::Wide
-                        {
-                            let arrange = state.t("dashboard.arrange").to_owned();
-                            check(&arrange, &mut failures);
-                            checked += 1;
-                        } else {
-                            // Compact's own "⋯" overflow trigger — the
-                            // control Review 280 §2.1 found pushed off
-                            // the visible window entirely. Not a catalog
-                            // label (a bare glyph), but checked the same
-                            // way: unclamped and inside the viewport.
-                            check("⋯", &mut failures);
-                            checked += 1;
-                        }
+                        // RFC-073 Amendment A6 §1: Compact's "Arrange" is
+                        // Standard's own control now — the same label, the
+                        // same catalog key, no more bare "▾" glyph to check
+                        // instead.
+                        let arrange = state.t("dashboard.arrange").to_owned();
+                        check(&arrange, &mut failures);
+                        checked += 1;
 
                         let select = state.t("plain.selection.enter").to_owned();
                         check(&select, &mut failures);

@@ -437,6 +437,63 @@ mod tests {
         );
     }
 
+    // RFC-073 handoff Amendment A6 §2: a project whose HEAD has no commits
+    // yet must read "<branch> · No commits yet", never the generic "Work
+    // area unavailable" a `context: None` project shows — the two are easy
+    // to conflate since both come from a `status_digest()` failure, so
+    // this renders the real view (not just `knotra-vcs`'s own `ProjectStatus`
+    // facts, already covered by `git_integration.rs`'s own unborn fixtures)
+    // and finds the exact composed row text.
+    #[test]
+    fn an_unborn_project_reads_branch_and_no_commits_yet_not_work_area_unavailable() {
+        use knotra_vcs::model::status::VcsContext;
+        use knotra_vcs::{Project, Workspace, WorkspaceStatus};
+
+        let mut state = make_state();
+        state.config.dashboard_all_set_collapsed = false;
+
+        let project = Project::new("Fresh", "/tmp/fresh-unborn");
+        let id = project.id.clone();
+        let mut workspace = Workspace::new("Demo");
+        workspace.projects.push(project.clone());
+        state.all_workspaces = vec![workspace];
+        state.active_workspace_idx = 0;
+        state.workspace = state.all_workspaces.first().cloned();
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![knotra_vcs::ProjectStatus {
+                project_id: id,
+                identity: knotra_vcs::model::status::RepositoryIdentity {
+                    path: "/tmp/fresh-unborn".into(),
+                    vcs_kind: knotra_vcs::model::status::VcsKind::Git,
+                },
+                context: Some(VcsContext {
+                    label: "main".to_owned(),
+                    branch: Some("main".to_owned()),
+                    jj_change_id: None,
+                    jj_bookmark: None,
+                    is_detached: false,
+                    unborn: true,
+                }),
+                remote: knotra_vcs::model::status::RemoteStatus::default(),
+                working_tree: knotra_vcs::model::status::WorkingTreeStatus::default(),
+                conflict: knotra_vcs::model::status::ConflictStatus::default(),
+                refreshed_at: jiff::Timestamp::now(),
+                read_error: None,
+            }],
+            last_refresh: None,
+        });
+
+        let mut ui =
+            crate::headless::simulator(crate::view::app_view(&state), Size::new(1280.0, 720.0));
+
+        ui.find("main · No commits yet")
+            .expect("the row must read \"main · No commits yet\"");
+        assert!(
+            ui.find("Work area unavailable").is_err(),
+            "an unborn project must never show the generic unreadable-HEAD text"
+        );
+    }
+
     // RFC-073 handoff Amendment A5 §3, Level 2 — tried first, per the
     // task's own preference over the helper's arithmetic, and found not
     // to apply here. `PickList` paints its own selected-value label

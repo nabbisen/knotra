@@ -305,8 +305,6 @@ pub enum DashboardMessage {
     GroupingChanged(crate::config::DashboardGrouping),
     SortChanged(crate::config::DashboardSort),
     TierToggled(crate::state::dashboard::DashboardTier),
-    /// RFC-035 R8/Handoff 028 Ruling 6.1: compact toolbar's chip overflow (`⋯`).
-    ToolbarOverflowToggled,
     /// RFC-035 R8/Handoff 028 Ruling 6.1, renamed by RFC-073 D2: the
     /// "Arrange" disclosure holding the grouping/sorting selects.
     ArrangeToggled,

@@ -49,6 +49,14 @@ pub struct VcsContext {
     pub jj_bookmark: Option<String>,
     /// True when HEAD is detached (Git) or the workcopy has no description (jj).
     pub is_detached: bool,
+    /// RFC-073 Amendment A6 §2: true when HEAD names a branch that has no
+    /// commits yet (`HeadState::Unborn`, endringer 0.33.4 — a fresh
+    /// `git init`). The row still follows the files for its tier (an
+    /// unborn repo with an untracked file is still "Unsaved work"); this
+    /// only changes the *label text* the row displays, since `label` alone
+    /// (just the branch name) would be indistinguishable from an ordinary
+    /// branch with commits.
+    pub unborn: bool,
 }
 
 /// Ahead / Behind relative to the upstream remote.

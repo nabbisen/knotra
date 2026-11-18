@@ -163,6 +163,103 @@ async fn clean_repo_reports_synced() {
 }
 
 // ---------------------------------------------------------------------------
+// RFC-073 Amendment A6 §2: an unborn HEAD (a fresh `git init`, no commits
+// yet) is a usable project, not an unreadable one — it must not say "Work
+// area unavailable" beside ✓ All set. `status.context.unborn` and `.label`
+// are the facts `knotra-app`'s `row.rs` composes "<branch> · No commits
+// yet" from; its own tier classification (`state/dashboard.rs::classify`)
+// is unchanged and untested here — these fixtures verify the facts it
+// reads, not the view built on top of them.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn unborn_repo_with_no_commits_reports_its_branch_with_no_read_error() {
+    let dir = tempfile::tempdir().unwrap();
+    git(&["init", "-b", "main"], dir.path());
+    let project = make_project(dir.path());
+
+    let status = VcsAdapter::read_project_status(&project).await;
+
+    assert!(
+        status.read_error.is_none(),
+        "an unborn HEAD is not a read error: {:?}",
+        status.read_error
+    );
+    let context = status
+        .context
+        .as_ref()
+        .expect("an unborn HEAD still names a branch");
+    assert!(context.unborn, "HEAD has no commits yet");
+    assert_eq!(context.label, "main");
+    assert!(
+        !status.working_tree.is_dirty(),
+        "an empty unborn repo has nothing uncommitted"
+    );
+}
+
+/// RFC-073 Amendment A6 §2's own wording ("an unborn repository with a new
+/// file → its tier") is satisfied with a **staged** addition, not an
+/// untracked one — found while writing this test: endringer-git 0.33.4's
+/// `worktree_status()` calls `repo.open_index()`, which errors
+/// (`"open git index"`, confirmed directly against `GitBackend`) when no
+/// `.git/index` file exists yet, true of a `git init` that has never run
+/// `git add` — a real repository with no file ever staged, not a fixture
+/// artifact. `git.rs`'s existing `.ok()` / `unwrap_or_default()` around
+/// that call (present before this amendment, unchanged by it) silently
+/// reports an all-zero working tree rather than surfacing the failure, so
+/// an untracked-only unborn repo cannot be distinguished from a clean one
+/// today — an upstream gap in endringer-git, outside this crate, not
+/// something Amendment A6 §2 asked for and not fixed here. Staging the
+/// file first gives `.git/index` a reason to exist, so this test exercises
+/// the amendment's own claim (tier changes, row text does not) without
+/// depending on that gap closing.
+#[tokio::test]
+async fn unborn_repo_with_a_staged_file_is_still_reported_as_unborn() {
+    let dir = tempfile::tempdir().unwrap();
+    git(&["init", "-b", "main"], dir.path());
+    fs::write(dir.path().join("new_file.txt"), "staged\n").unwrap();
+    git(&["add", "new_file.txt"], dir.path());
+    let project = make_project(dir.path());
+
+    let status = VcsAdapter::read_project_status(&project).await;
+
+    assert!(status.read_error.is_none());
+    let context = status
+        .context
+        .as_ref()
+        .expect("an unborn HEAD still names a branch");
+    assert!(context.unborn);
+    assert_eq!(context.label, "main");
+    assert!(
+        status.working_tree.uncommitted_count > 0,
+        "the row still follows the files for its tier (Amendment A6 §2); got {:?}",
+        status.working_tree
+    );
+}
+
+#[tokio::test]
+async fn a_repository_with_a_corrupt_head_file_is_unreadable_not_unborn() {
+    let dir = tempfile::tempdir().unwrap();
+    git(&["init", "-b", "main"], dir.path());
+    // A HEAD that names neither a symbolic ref nor a commit id — gix can
+    // neither resolve it to a commit nor recognise it as `Unborn`, so this
+    // must fall to `read_error`, never to the unborn/"No commits yet" path.
+    fs::write(dir.path().join(".git/HEAD"), "not a valid ref at all\n").unwrap();
+    let project = make_project(dir.path());
+
+    let status = VcsAdapter::read_project_status(&project).await;
+
+    assert!(
+        status.read_error.is_some(),
+        "a corrupt HEAD must be a read error, not silently treated as unborn"
+    );
+    assert!(
+        status.context.is_none(),
+        "no usable context comes from a corrupt HEAD"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // §16.4 State 2: Uncommitted
 // ---------------------------------------------------------------------------
 

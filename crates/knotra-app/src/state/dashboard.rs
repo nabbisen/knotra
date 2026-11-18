@@ -531,6 +531,7 @@ mod tests {
                 jj_change_id: None,
                 jj_bookmark: None,
                 is_detached: false,
+                unborn: false,
             }),
             remote: RemoteStatus::default(),
             working_tree: WorkingTreeStatus::default(),
