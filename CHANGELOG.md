@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — window edges and pressed filters are easier to see
+
+In the light theme, the edge of a window such as Add project is a little darker. In the light
+and dark themes, a status filter keeps its full contrast while you press it.
+
 ### Fixed — Escape closes a window even while you are typing in it
 
 Pressing Escape in a window such as Add project or the command palette now closes it at once,
