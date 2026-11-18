@@ -1,0 +1,24 @@
+{
+  "result": {
+    "operation_id": "6ff4dba9-1d87-4e53-a699-d72890d33591",
+    "kind": "Fetch",
+    "started_at": "2024-03-04T05:06:07Z",
+    "finished_at": "2024-03-04T05:06:07Z",
+    "per_project": [
+      {
+        "project_id": "1ec9cc9d-3c0b-422f-bf6c-be275f044f7a",
+        "outcome": "Skipped",
+        "success": false,
+        "skip_reason": "このプロジェクトは今は確認できません。",
+        "commands_executed": [],
+        "stdout": "",
+        "stderr": "",
+        "exit_code": null,
+        "error_message": null
+      }
+    ],
+    "rollback_attempted": false,
+    "rollback_succeeded": null
+  },
+  "recovery_hints": []
+}

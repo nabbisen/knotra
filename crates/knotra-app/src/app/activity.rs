@@ -115,7 +115,7 @@ fn start_activity_fetch_retry(
     state.activity.fetch_retry = Some(crate::state::FetchRetryRun {
         operation_id: operation_id.clone(),
         lease_id,
-        started_at: chrono::Utc::now(),
+        started_at: jiff::Timestamp::now(),
         total,
         completed: Vec::new(),
         exclusions,

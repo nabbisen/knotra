@@ -160,7 +160,7 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
             state.sync.phase = SyncPhase::PullRunning {
                 plan,
                 lease_id,
-                started_at: chrono::Utc::now(),
+                started_at: jiff::Timestamp::now(),
                 completed: Vec::new(),
             };
 
@@ -362,7 +362,7 @@ fn start_bulk_fetch(
     state.sync.phase = SyncPhase::FetchRunning {
         operation_id,
         lease_id,
-        started_at: chrono::Utc::now(),
+        started_at: jiff::Timestamp::now(),
         total,
         done,
         completed: skipped,

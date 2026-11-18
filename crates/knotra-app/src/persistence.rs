@@ -136,7 +136,7 @@ pub fn save_operation_log(log: &OperationLog, paths: &AppPaths) -> Result<(), St
     std::fs::create_dir_all(&paths.history_dir)
         .map_err(|e| format!("cannot create history dir: {e}"))?;
 
-    let ts = log.result.started_at.format("%Y%m%dT%H%M%SZ");
+    let ts = log.result.started_at.strftime("%Y%m%dT%H%M%SZ");
     let file_name = format!("{}_{}.json", ts, log.result.operation_id);
     let path = paths.history_dir.join(file_name);
 
@@ -243,7 +243,7 @@ mod tests {
     /// calls a few microseconds apart cannot reliably guarantee at
     /// second-resolution filenames.
     fn log_at(seconds: i64) -> OperationLog {
-        let ts = chrono::DateTime::from_timestamp(seconds, 0).unwrap();
+        let ts = jiff::Timestamp::from_second(seconds).unwrap();
         OperationLog {
             result: OperationResult {
                 operation_id: OperationId::new(),
@@ -258,14 +258,39 @@ mod tests {
         }
     }
 
+    /// Task 113: `save_operation_log`'s filename timestamp prefix — the
+    /// order every history read depends on — must not change byte for
+    /// byte across the chrono -> jiff move. Fixed instant: 1_709_528_767
+    /// = 2024-03-04T05:06:07Z.
+    #[test]
+    fn save_operation_log_filename_timestamp_prefix_is_stable() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = paths_in(&tmp);
+        let log = log_at(1_709_528_767);
+
+        save_operation_log(&log, &paths).expect("save must succeed");
+
+        let names: Vec<String> = std::fs::read_dir(&paths.history_dir)
+            .expect("history dir must exist")
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names.len(), 1, "{names:?}");
+        assert!(
+            names[0].starts_with("20240304T050607Z_"),
+            "expected the filename to start with \"20240304T050607Z_\"; got {:?}",
+            names[0]
+        );
+    }
+
     /// A file `load_recent_logs` will encounter and fail to parse, named to
     /// sort at the given position among real log files (same
     /// `{timestamp}_{suffix}.json` shape `save_operation_log` uses).
     fn write_corrupt_file(paths: &AppPaths, seconds: i64) {
         std::fs::create_dir_all(&paths.history_dir).expect("create history dir");
-        let ts = chrono::DateTime::from_timestamp(seconds, 0)
+        let ts = jiff::Timestamp::from_second(seconds)
             .unwrap()
-            .format("%Y%m%dT%H%M%SZ");
+            .strftime("%Y%m%dT%H%M%SZ");
         let path = paths.history_dir.join(format!("{ts}_corrupt.json"));
         std::fs::write(path, "not valid json").expect("write corrupt file");
     }
@@ -281,7 +306,7 @@ mod tests {
     fn a_pre_fix_prose_skip_reason_round_trips_and_still_renders() {
         let tmp = tempfile::TempDir::new().expect("tempdir");
         let paths = paths_in(&tmp);
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
         let prose = "このプロジェクトは今は確認できません。";
 
         let log = OperationLog {
@@ -450,5 +475,85 @@ mod tests {
             loaded.directory_unreadable,
             "a blocked directory must be reported, not read as no history yet"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // Task 113: three real chrono-written logs must still load under
+    // jiff. `with-nanoseconds.json`/`without-nanoseconds.json` are a
+    // modern-shape log (built with today's `OperationLog`, including
+    // `project_name`), generated from this file's own chrono-era
+    // `OperationLog`/`OperationResult` construction before the move.
+    // `v0.27.0-prose-skip-reason.json` is a genuine artifact of knotra
+    // 0.27.0 (`777839d`, the commit immediately before RFC-046's own
+    // `3102098` retired prose `skip_reason` for a stable code) — run for
+    // real in a worktree at that commit, not hand-written: its own
+    // `ProjectOperationResult` has no `project_name` field at all (added
+    // later, Task 103) and a prose `skip_reason` RFC-046 later replaced
+    // with a code (`a_pre_fix_prose_skip_reason_round_trips_and_still_
+    // renders`, below, already covers that field's own compatibility in
+    // memory — this fixture backs it with a file chrono actually wrote).
+    // -----------------------------------------------------------------
+
+    fn fixture(name: &str) -> &'static str {
+        match name {
+            "with-nanoseconds" => {
+                include_str!("../tests/fixtures/chrono-log-fixtures/with-nanoseconds.json")
+            }
+            "without-nanoseconds" => {
+                include_str!("../tests/fixtures/chrono-log-fixtures/without-nanoseconds.json")
+            }
+            "v0.27.0-prose-skip-reason" => {
+                include_str!("../tests/fixtures/chrono-log-fixtures/v0.27.0-prose-skip-reason.json")
+            }
+            other => panic!("unknown fixture {other}"),
+        }
+    }
+
+    #[test]
+    fn a_chrono_written_log_with_nanoseconds_still_loads() {
+        let log: OperationLog = serde_json::from_str(fixture("with-nanoseconds")).unwrap();
+        assert_eq!(log.result.started_at.as_second(), 1_709_528_767);
+        assert_eq!(log.result.started_at.subsec_nanosecond(), 123_456_789);
+    }
+
+    #[test]
+    fn a_chrono_written_log_without_nanoseconds_still_loads() {
+        let log: OperationLog = serde_json::from_str(fixture("without-nanoseconds")).unwrap();
+        assert_eq!(log.result.started_at.as_second(), 1_709_528_767);
+        assert_eq!(log.result.started_at.subsec_nanosecond(), 0);
+    }
+
+    #[test]
+    fn a_chrono_written_v027_prose_skip_reason_log_still_loads() {
+        let log: OperationLog = serde_json::from_str(fixture("v0.27.0-prose-skip-reason")).unwrap();
+        assert_eq!(log.result.started_at.as_second(), 1_709_528_767);
+        assert_eq!(
+            log.result.per_project[0].skip_reason.as_deref(),
+            Some("このプロジェクトは今は確認できません。")
+        );
+        assert_eq!(log.result.per_project[0].project_name, None);
+    }
+
+    /// A log jiff writes must load again to the same value — the other
+    /// half of the round trip, exercised through the real
+    /// `save_operation_log` (serialize) and a direct `serde_json::
+    /// from_str` (deserialize), the same two halves `load_recent_logs`
+    /// itself calls.
+    #[test]
+    fn a_freshly_saved_log_round_trips_through_the_real_save_path() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = paths_in(&tmp);
+        let log = log_at(1_709_528_767);
+
+        save_operation_log(&log, &paths).expect("save must succeed");
+
+        let entry = std::fs::read_dir(&paths.history_dir)
+            .expect("history dir")
+            .next()
+            .expect("one entry")
+            .expect("readable entry");
+        let text = std::fs::read_to_string(entry.path()).expect("read back");
+        let loaded: OperationLog = serde_json::from_str(&text).expect("must parse");
+        assert_eq!(loaded.result.started_at, log.result.started_at);
     }
 }

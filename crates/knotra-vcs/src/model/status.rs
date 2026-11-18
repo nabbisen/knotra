@@ -101,7 +101,7 @@ pub struct ProjectStatus {
     pub working_tree: WorkingTreeStatus,
     pub conflict: ConflictStatus,
     /// Wall-clock time this status snapshot was produced.
-    pub refreshed_at: chrono::DateTime<chrono::Utc>,
+    pub refreshed_at: jiff::Timestamp,
     /// Short description of the last read error, if the repository could not
     /// be read successfully.
     pub read_error: Option<String>,
@@ -133,7 +133,7 @@ pub struct WorkspaceStatus {
     /// Ordered list of per-project statuses.
     pub projects: Vec<ProjectStatus>,
     /// Timestamp of the most recent workspace-wide refresh.
-    pub last_refresh: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_refresh: Option<jiff::Timestamp>,
 }
 
 // ---------------------------------------------------------------------------

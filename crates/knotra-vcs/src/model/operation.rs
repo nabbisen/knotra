@@ -1,6 +1,6 @@
 //! Operation planning, execution result, and audit-log types.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -197,8 +197,8 @@ impl ProjectOperationResult {
 pub struct OperationResult {
     pub operation_id: OperationId,
     pub kind: OperationKind,
-    pub started_at: DateTime<Utc>,
-    pub finished_at: DateTime<Utc>,
+    pub started_at: Timestamp,
+    pub finished_at: Timestamp,
     pub per_project: Vec<ProjectOperationResult>,
     pub rollback_attempted: bool,
     pub rollback_succeeded: Option<bool>,
@@ -521,7 +521,7 @@ mod tests {
     #[test]
     fn retry_exclusion_code_survives_operation_log_json_round_trip() {
         let reason = RetryExclusionReason::ProjectPathMissing;
-        let now = Utc::now();
+        let now = Timestamp::now();
         let log = OperationLog {
             result: OperationResult {
                 operation_id: OperationId::new(),

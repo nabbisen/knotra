@@ -18,7 +18,7 @@ endringer-jj                = { workspace = true }
 endringer-async             = { workspace = true }
 
 anyhow                      = { workspace = true }
-chrono                      = { workspace = true }
+jiff                        = { workspace = true }
 serde                       = { workspace = true }
 thiserror                   = { workspace = true }
 tokio                       = { workspace = true }

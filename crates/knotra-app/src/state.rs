@@ -300,7 +300,7 @@ pub struct RetryExclusion {
 pub struct FetchRetryRun {
     pub operation_id: OperationId,
     pub lease_id: OperationLeaseId,
-    pub started_at: chrono::DateTime<chrono::Utc>,
+    pub started_at: jiff::Timestamp,
     pub total: usize,
     pub completed: Vec<ProjectOperationResult>,
     pub exclusions: Vec<RetryExclusion>,

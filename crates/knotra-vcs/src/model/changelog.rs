@@ -1,7 +1,7 @@
 //! Changelog auto-aggregation domain types.
 
 use crate::model::project::ProjectId;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 /// A single commit entry collected for the changelog.
@@ -14,7 +14,7 @@ pub struct CommitEntry {
     /// Author name.
     pub author: String,
     /// Commit date.
-    pub date: DateTime<Utc>,
+    pub date: Timestamp,
 }
 
 /// Commits collected from one project.
@@ -52,7 +52,7 @@ pub struct ChangelogDraft {
     /// The freeze / release name this changelog is for.
     pub release_name: String,
     /// UTC timestamp of generation.
-    pub generated_at: DateTime<Utc>,
+    pub generated_at: Timestamp,
     pub projects: Vec<ProjectCommits>,
 }
 
@@ -62,7 +62,7 @@ impl ChangelogDraft {
         let mut md = format!(
             "# Changelog — {}\n\n_Generated {}_\n\n",
             self.release_name,
-            self.generated_at.format("%Y-%m-%d %H:%M UTC")
+            self.generated_at.strftime("%Y-%m-%d %H:%M UTC")
         );
 
         for proj in &self.projects {
@@ -108,7 +108,7 @@ mod tests {
             hash: hash.to_owned(),
             subject: subject.to_owned(),
             author: "Author".to_owned(),
-            date: Utc::now(),
+            date: Timestamp::now(),
         }
     }
 
@@ -116,7 +116,7 @@ mod tests {
     fn markdown_includes_project_name_and_commits() {
         let draft = ChangelogDraft {
             release_name: "v1.0.0".to_owned(),
-            generated_at: Utc::now(),
+            generated_at: Timestamp::now(),
             projects: vec![ProjectCommits {
                 project_id: ProjectId::new(),
                 project_name: "api-server".to_owned(),
@@ -135,7 +135,7 @@ mod tests {
     fn markdown_skips_empty_projects() {
         let draft = ChangelogDraft {
             release_name: "v2.0.0".to_owned(),
-            generated_at: Utc::now(),
+            generated_at: Timestamp::now(),
             projects: vec![ProjectCommits {
                 project_id: ProjectId::new(),
                 project_name: "unchanged-lib".to_owned(),
@@ -152,7 +152,7 @@ mod tests {
     fn total_commits_sums_all_projects() {
         let draft = ChangelogDraft {
             release_name: "v1.0.0".to_owned(),
-            generated_at: Utc::now(),
+            generated_at: Timestamp::now(),
             projects: vec![
                 ProjectCommits {
                     project_id: ProjectId::new(),
@@ -171,5 +171,24 @@ mod tests {
             ],
         };
         assert_eq!(draft.total_commits(), 3);
+    }
+
+    /// Task 113: the chrono -> jiff move must not change the generated
+    /// line's own byte output. Fixed instant: 1_709_528_767 =
+    /// 2024-03-04T05:06:07Z (`date -u -d @1709528767`).
+    #[test]
+    fn to_markdown_generated_at_format_is_stable() {
+        let draft = ChangelogDraft {
+            release_name: "v1.0.0".to_owned(),
+            generated_at: Timestamp::from_second(1_709_528_767).unwrap(),
+            projects: Vec::new(),
+        };
+        assert!(
+            draft
+                .to_markdown()
+                .contains("_Generated 2024-03-04 05:06 UTC_"),
+            "{}",
+            draft.to_markdown()
+        );
     }
 }

@@ -505,7 +505,7 @@ fn compare_identity(left: &DashboardEntry<'_>, right: &DashboardEntry<'_>) -> Or
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
+    use jiff::Timestamp;
     use knotra_vcs::model::status::{
         ConflictStatus, RemoteStatus, RepositoryIdentity, VcsContext, VcsKind, WorkingTreeStatus,
     };
@@ -535,7 +535,7 @@ mod tests {
             remote: RemoteStatus::default(),
             working_tree: WorkingTreeStatus::default(),
             conflict: ConflictStatus::default(),
-            refreshed_at: Utc::now(),
+            refreshed_at: Timestamp::now(),
             read_error: None,
         }
     }

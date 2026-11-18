@@ -37,7 +37,7 @@ pub enum SyncPhase {
     FetchRunning {
         operation_id: OperationId,
         lease_id: OperationLeaseId,
-        started_at: chrono::DateTime<chrono::Utc>,
+        started_at: jiff::Timestamp,
         total: usize,
         done: usize,
         completed: Vec<ProjectOutcome>,
@@ -55,7 +55,7 @@ pub enum SyncPhase {
     PullRunning {
         plan: SmartPullPlan,
         lease_id: OperationLeaseId,
-        started_at: chrono::DateTime<chrono::Utc>,
+        started_at: jiff::Timestamp,
         completed: Vec<SmartPullProgress>,
     },
     /// Operation finished — show results.
@@ -221,7 +221,7 @@ impl SyncCenterState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
+    use jiff::Timestamp;
     use knotra_vcs::{
         ProjectId, WorkspaceStatus,
         model::status::{
@@ -267,7 +267,7 @@ mod tests {
                 conflict_count: None,
                 detection_unavailable: false,
             },
-            refreshed_at: Utc::now(),
+            refreshed_at: Timestamp::now(),
             read_error: None,
         }
     }

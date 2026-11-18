@@ -100,7 +100,7 @@ pub(super) fn smart_pull_retry_status_ready(
         state,
         knotra_vcs::WorkspaceStatus {
             projects: readable,
-            last_refresh: Some(chrono::Utc::now()),
+            last_refresh: Some(jiff::Timestamp::now()),
         },
     );
     state.sync.selected_project_ids = readable_ids.clone();
@@ -206,7 +206,7 @@ pub(super) fn smart_pull_project_completed(
                         operation_id: operation_id.clone(),
                         kind: OperationKind::Fetch,
                         started_at: *started_at,
-                        finished_at: chrono::Utc::now(),
+                        finished_at: jiff::Timestamp::now(),
                         per_project: operation_results.clone(),
                         rollback_attempted: false,
                         rollback_succeeded: None,
@@ -261,7 +261,7 @@ pub(super) fn smart_pull_project_completed(
                         operation_id: plan.id.clone(),
                         kind: OperationKind::SmartPull,
                         started_at: started_at.to_owned(),
-                        finished_at: chrono::Utc::now(),
+                        finished_at: jiff::Timestamp::now(),
                         per_project: logged_results,
                         rollback_attempted: false,
                         rollback_succeeded: None,

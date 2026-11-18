@@ -118,8 +118,8 @@ pub(super) fn freeze_execution_done(
         .freezer
         .execution_started_at
         .take()
-        .unwrap_or_else(chrono::Utc::now);
-    let finished_at = chrono::Utc::now();
+        .unwrap_or_else(jiff::Timestamp::now);
+    let finished_at = jiff::Timestamp::now();
 
     // Build per-project entries for the operation log.
     let per_project: Vec<_> = result

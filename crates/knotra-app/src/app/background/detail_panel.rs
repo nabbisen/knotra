@@ -41,7 +41,7 @@ mod tests {
                 hash: "deadbeef".to_owned(),
                 subject: subject.to_owned(),
                 author: "Test".to_owned(),
-                date: chrono::Utc::now(),
+                date: jiff::Timestamp::now(),
             }],
             error: None,
         }

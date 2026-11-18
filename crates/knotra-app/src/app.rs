@@ -551,7 +551,7 @@ fn handle_fs_watch_tick(state: &mut AppState) -> Task<Message> {
                         Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
                             knotra_vcs::WorkspaceStatus {
                                 projects: vec![s],
-                                last_refresh: Some(chrono::Utc::now()),
+                                last_refresh: Some(jiff::Timestamp::now()),
                             },
                         ))
                     },

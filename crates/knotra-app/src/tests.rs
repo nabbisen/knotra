@@ -18,7 +18,7 @@ use crate::state::{
     freezer::FreezerPhase,
     sync::{RetryPreparationId, SmartPullRetryPreparation, SyncPhase, SyncResult},
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use knotra_vcs::{
     ChangelogDraft, CommitEntry, ConflictMarker, ConflictedFile, ContextList, ContextSwitchResult,
     ContextTarget, OperationId, Project, ProjectCommits, ProjectConflictDetail, ProjectId,
@@ -91,7 +91,7 @@ fn make_operation_result(
 }
 
 fn make_operation_log(kind: OperationKind, results: Vec<ProjectOperationResult>) -> OperationLog {
-    let now = Utc::now();
+    let now = Timestamp::now();
     OperationLog {
         result: OperationResult {
             operation_id: OperationId::new(),
@@ -120,7 +120,7 @@ fn make_project_status(project_id: ProjectId, upstream: Option<&str>) -> knotra_
         },
         working_tree: WorkingTreeStatus::default(),
         conflict: ConflictStatus::default(),
-        refreshed_at: Utc::now(),
+        refreshed_at: Timestamp::now(),
         read_error: None,
     }
 }
@@ -139,7 +139,7 @@ fn make_project_status_with_kind(
         remote: RemoteStatus::default(),
         working_tree: WorkingTreeStatus::default(),
         conflict: ConflictStatus::default(),
-        refreshed_at: Utc::now(),
+        refreshed_at: Timestamp::now(),
         read_error: None,
     }
 }
@@ -147,7 +147,7 @@ fn make_project_status_with_kind(
 fn make_changelog_draft(project: &Project, entries: Vec<CommitEntry>) -> ChangelogDraft {
     ChangelogDraft {
         release_name: "v1.2.0".to_owned(),
-        generated_at: Utc::now(),
+        generated_at: Timestamp::now(),
         projects: vec![ProjectCommits {
             project_id: project.id.clone(),
             project_name: project.name.clone(),
@@ -163,7 +163,7 @@ fn make_commit(hash: &str, subject: &str) -> CommitEntry {
         hash: hash.to_owned(),
         subject: subject.to_owned(),
         author: "Maintainer".to_owned(),
-        date: Utc::now(),
+        date: Timestamp::now(),
     }
 }
 
@@ -1623,7 +1623,7 @@ fn every_layer_and_phase_entry_never_starts_a_change_r2() {
                 make_project_status(with_upstream.id.clone(), Some("origin/main")),
                 make_project_status(no_upstream.id.clone(), None),
             ],
-            last_refresh: Some(Utc::now()),
+            last_refresh: Some(Timestamp::now()),
         });
         state
             .selection
@@ -1787,7 +1787,7 @@ fn settle_layer_focus_moves_off_a_stale_none_onto_a_newly_real_entry() {
     );
     state.workspace_status = Some(WorkspaceStatus {
         projects: vec![make_project_status(project.id.clone(), None)],
-        last_refresh: Some(Utc::now()),
+        last_refresh: Some(Timestamp::now()),
     });
     state.selection.selected_ids.insert(project.id.clone());
     dispatch(&mut state, Message::Sync(SyncMessage::BulkPullRequested));
@@ -1884,7 +1884,7 @@ fn tab_all_the_way_around_a_windows_order_returns_to_the_entry_r4() {
                 make_project_status(with_upstream.id.clone(), Some("origin/main")),
                 make_project_status(no_upstream.id.clone(), None),
             ],
-            last_refresh: Some(Utc::now()),
+            last_refresh: Some(Timestamp::now()),
         });
         state
             .selection
@@ -2760,7 +2760,7 @@ fn install_dashboard_projects(state: &mut AppState) -> (ProjectId, ProjectId, Pr
 
     state.workspace_status = Some(WorkspaceStatus {
         projects: vec![beta_status, gamma_status],
-        last_refresh: Some(Utc::now()),
+        last_refresh: Some(Timestamp::now()),
     });
     state.load_phase = crate::state::LoadPhase::Ready;
     // `AppConfig::default()` collapses AllSet by default; expand both
@@ -3624,7 +3624,7 @@ fn context_target_choice_preserves_typed_target_and_blocks_dirty_project() {
     status.working_tree.uncommitted_count = 1;
     state.workspace_status = Some(WorkspaceStatus {
         projects: vec![status],
-        last_refresh: Some(Utc::now()),
+        last_refresh: Some(Timestamp::now()),
     });
     let target = ContextTarget::GitLocalBranch {
         name: "feature/foo".to_owned(),
@@ -3665,7 +3665,7 @@ fn context_switch_confirm_does_not_execute_disabled_confirmation() {
     status.conflict.has_conflict = true;
     state.workspace_status = Some(WorkspaceStatus {
         projects: vec![status],
-        last_refresh: Some(Utc::now()),
+        last_refresh: Some(Timestamp::now()),
     });
 
     dispatch(
@@ -3731,7 +3731,7 @@ fn smart_pull_plan_keeps_mixed_no_upstream_project_skipped() {
             make_project_status(with_upstream.id.clone(), Some("origin/main")),
             make_project_status(no_upstream.id.clone(), None),
         ],
-        last_refresh: Some(Utc::now()),
+        last_refresh: Some(Timestamp::now()),
     });
     state
         .selection
@@ -3793,7 +3793,7 @@ fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
     state.sync.phase = SyncPhase::PullRunning {
         plan,
         lease_id,
-        started_at: Utc::now(),
+        started_at: Timestamp::now(),
         completed: Vec::new(),
     };
 
@@ -3864,7 +3864,7 @@ fn install_running_smart_pull(state: &mut AppState) {
             }],
         },
         lease_id,
-        started_at: Utc::now(),
+        started_at: Timestamp::now(),
         completed: Vec::new(),
     };
 }
@@ -4115,7 +4115,7 @@ fn changelog_result_counts_include_no_change_and_error_projects() {
     let failed_project = make_project("failed");
     let draft = ChangelogDraft {
         release_name: "v1.2.0".to_owned(),
-        generated_at: Utc::now(),
+        generated_at: Timestamp::now(),
         projects: vec![
             ProjectCommits {
                 project_id: ok_project.id,
@@ -4196,7 +4196,7 @@ fn freezer_execute_requires_at_least_one_ready_project() {
 fn install_running_freezer(state: &mut AppState) {
     state.active_modal = ActiveModal::Tag;
     state.freezer.phase = FreezerPhase::Executing;
-    state.freezer.execution_started_at = Some(Utc::now());
+    state.freezer.execution_started_at = Some(Timestamp::now());
 }
 
 #[test]
@@ -4355,9 +4355,9 @@ fn freezer_completion_persists_log_and_offers_git_push() {
             project.id.clone(),
             VcsKind::Git,
         )],
-        last_refresh: Some(Utc::now()),
+        last_refresh: Some(Timestamp::now()),
     });
-    state.freezer.execution_started_at = Some(Utc::now());
+    state.freezer.execution_started_at = Some(Timestamp::now());
     let lease_id = state
         .operation_interlock
         .try_acquire(OperationOwner::FreezeExecution)
@@ -4415,7 +4415,7 @@ fn freezer_completion_does_not_offer_jj_push() {
             project.id.clone(),
             VcsKind::Jujutsu,
         )],
-        last_refresh: Some(Utc::now()),
+        last_refresh: Some(Timestamp::now()),
     });
     let lease_id = state
         .operation_interlock
@@ -4465,7 +4465,7 @@ fn freezer_non_success_result_clears_stale_push_offer() {
             project.id.clone(),
             VcsKind::Git,
         )],
-        last_refresh: Some(Utc::now()),
+        last_refresh: Some(Timestamp::now()),
     });
     let lease_id = state
         .operation_interlock

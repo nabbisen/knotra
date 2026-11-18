@@ -53,7 +53,7 @@ mod tests {
                 remote: knotra_vcs::model::status::RemoteStatus::default(),
                 working_tree: knotra_vcs::model::status::WorkingTreeStatus::default(),
                 conflict: knotra_vcs::model::status::ConflictStatus::default(),
-                refreshed_at: chrono::Utc::now(),
+                refreshed_at: jiff::Timestamp::now(),
                 read_error: None,
             }],
             last_refresh: None,

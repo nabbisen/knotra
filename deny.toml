@@ -24,5 +24,4 @@ ignore = [
   { id = "RUSTSEC-2026-0370", reason = "zvariant 5.10.1, unmaintained: merged into zbus 6. Runtime, Linux only, via zbus 5 from ashpd -> rfd (file dialog) and mundy -> iced_winit (system theme). Unfixable here: mundy 0.2.3, which iced_winit 0.14 pins, and ashpd 0.13.13 are both on zbus 5. Retires when both move to zbus 6." },
   { id = "RUSTSEC-2026-0371", reason = "zbus_names 4.3.2, unmaintained: merged into zbus 6. Same path and retirement as RUSTSEC-2026-0370." },
   { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 5.10.1, unmaintained: merged into zbus 6. Build-time proc-macro, same path and retirement as RUSTSEC-2026-0370." },
-  { id = "RUSTSEC-2026-0543", reason = "chrono 0.4.44, unmaintained (no vulnerability). A direct dependency of knotra and knotra-vcs: timestamps, and the saved operation logs. Retires when knotra moves to jiff, planned before 0.34.0 is released." },
 ]

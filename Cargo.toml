@@ -29,7 +29,7 @@ iced                        = { version = "0.14", features = ["tokio", "image", 
 iced_test                   = { version = "0.14" }
 snora                       = { version = "0.65", features = ["design", "lucide-icons"] }
 
-chrono                      = { version = "0.4", features = ["serde"] }
+jiff                        = { version = "0.2", features = ["serde"] }
 dirs                        = "5"
 rfd                         = { version = "0.15", default-features = false, features = ["tokio", "xdg-portal"] }
 

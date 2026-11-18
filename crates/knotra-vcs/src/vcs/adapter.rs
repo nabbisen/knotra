@@ -49,7 +49,7 @@ impl VcsAdapter {
                 remote: Default::default(),
                 working_tree: Default::default(),
                 conflict: Default::default(),
-                refreshed_at: chrono::Utc::now(),
+                refreshed_at: jiff::Timestamp::now(),
                 read_error: Some(format!("no Git or jj repository at {}", project.path)),
             },
         }
@@ -84,7 +84,7 @@ impl VcsAdapter {
 
         WorkspaceStatus {
             projects: statuses,
-            last_refresh: Some(chrono::Utc::now()),
+            last_refresh: Some(jiff::Timestamp::now()),
         }
     }
 
@@ -593,7 +593,7 @@ impl VcsAdapter {
 
         crate::model::changelog::ChangelogDraft {
             release_name: since_ref.to_owned(),
-            generated_at: chrono::Utc::now(),
+            generated_at: jiff::Timestamp::now(),
             projects: project_commits,
         }
     }

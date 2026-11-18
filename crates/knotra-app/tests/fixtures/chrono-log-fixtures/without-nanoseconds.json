@@ -1,0 +1,26 @@
+{
+  "result": {
+    "operation_id": "4c3f5d1c-2cf7-4b20-b4df-014edd826280",
+    "kind": "Fetch",
+    "started_at": "2024-03-04T05:06:07Z",
+    "finished_at": "2024-03-04T05:06:07Z",
+    "per_project": [
+      {
+        "project_id": "e62c07e7-6c41-4693-a4d2-376a3092099d",
+        "project_name": "alpha",
+        "outcome": "Succeeded",
+        "success": true,
+        "commands_executed": [
+          "git fetch"
+        ],
+        "stdout": "",
+        "stderr": "",
+        "exit_code": 0,
+        "error_message": null
+      }
+    ],
+    "rollback_attempted": false,
+    "rollback_succeeded": null
+  },
+  "recovery_hints": []
+}

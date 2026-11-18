@@ -54,7 +54,7 @@ pub(super) fn activity_fetch_retry_project_completed(
             operation_id: run.operation_id,
             kind: OperationKind::Fetch,
             started_at: run.started_at,
-            finished_at: chrono::Utc::now(),
+            finished_at: jiff::Timestamp::now(),
             per_project,
             rollback_attempted: false,
             rollback_succeeded: None,
@@ -95,7 +95,7 @@ pub(super) fn single_fetch_completed(
                     Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
                         knotra_vcs::WorkspaceStatus {
                             projects: vec![s],
-                            last_refresh: Some(chrono::Utc::now()),
+                            last_refresh: Some(jiff::Timestamp::now()),
                         },
                     ))
                 },

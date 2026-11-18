@@ -203,7 +203,7 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                 text(format!(
                     "{} — {}",
                     super::operation_kind_label(state, &log.result.kind),
-                    log.result.started_at.format("%m/%d %H:%M")
+                    log.result.started_at.strftime("%m/%d %H:%M")
                 ))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
@@ -292,7 +292,7 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                         let detail = text(format!(
                             "{} — {}",
                             entry.author,
-                            entry.date.format("%Y-%m-%d %H:%M")
+                            entry.date.strftime("%Y-%m-%d %H:%M")
                         ))
                         .size(snora::design::style::text::body_small_size(tokens))
                         .line_height(snora::design::style::text::body_small_line_height(tokens));
@@ -398,4 +398,29 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
             .height(Length::Fill)
             .into(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    /// Task 113: this file's own two inline directive strings — a recent
+    /// operation's `started_at` and a recent commit's `entry.date` — read
+    /// here exactly as the real call sites spell them (`%m/%d %H:%M` and
+    /// `%Y-%m-%d %H:%M`), the same precedent `persistence.rs`'s own
+    /// `write_corrupt_file` test helper already sets for a literal this
+    /// file has no standalone function to call directly. Fixed instant:
+    /// 1_709_528_767 = 2024-03-04T05:06:07Z.
+    #[test]
+    fn recent_operation_timestamp_format_is_stable() {
+        let ts = jiff::Timestamp::from_second(1_709_528_767).unwrap();
+        assert_eq!(ts.strftime("%m/%d %H:%M").to_string(), "03/04 05:06");
+    }
+
+    #[test]
+    fn recent_commit_date_format_is_stable() {
+        let ts = jiff::Timestamp::from_second(1_709_528_767).unwrap();
+        assert_eq!(
+            ts.strftime("%Y-%m-%d %H:%M").to_string(),
+            "2024-03-04 05:06"
+        );
+    }
 }

@@ -93,7 +93,7 @@ mod tests {
             remote: RemoteStatus::default(),
             working_tree: WorkingTreeStatus::default(),
             conflict: ConflictStatus::default(),
-            refreshed_at: chrono::Utc::now(),
+            refreshed_at: jiff::Timestamp::now(),
             read_error: None,
         };
 

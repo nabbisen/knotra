@@ -222,7 +222,7 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     let status = summarise_status(result);
     let timestamp = result
         .started_at
-        .format("%Y-%m-%d %H:%M:%S UTC")
+        .strftime("%Y-%m-%d %H:%M:%S UTC")
         .to_string();
     let project_count = result.per_project.len();
 
@@ -630,7 +630,7 @@ fn export_text(result: &OperationResult, names: &[String]) -> String {
     let kind = result.kind.to_string();
     let ts = result
         .started_at
-        .format("%Y-%m-%d %H:%M:%S UTC")
+        .strftime("%Y-%m-%d %H:%M:%S UTC")
         .to_string();
     let status = summarise_status(result);
     let status_text = format!("{} {}", status.glyph, status.label_en);
@@ -762,6 +762,23 @@ mod tests {
 
     use super::*;
 
+    /// Task 113: the chrono -> jiff move must not change what a user reads
+    /// or exports. `view_log_entry` (this file, inline) and `export_text`
+    /// (below, directly callable) share the exact same directive string —
+    /// one call through the real `export_text` pins both. Fixed instant:
+    /// 1_709_528_767 = 2024-03-04T05:06:07Z (`date -u -d @1709528767`).
+    #[test]
+    fn export_text_timestamp_format_is_stable() {
+        let mut result = sample_result(Vec::new(), false, None);
+        result.started_at = fixed_instant();
+        result.finished_at = result.started_at;
+        let text = export_text(&result, &[]);
+        assert!(
+            text.contains("2024-03-04 05:06:07 UTC"),
+            "expected the fixed instant formatted as \"2024-03-04 05:06:07 UTC\"; got: {text}"
+        );
+    }
+
     /// RFC-073 handoff Amendment A3 §3: a two-line stderr — every line
     /// gets the same four-space indent, not only the first.
     #[test]
@@ -780,12 +797,19 @@ mod tests {
         assert_eq!(preview, "    one\n    two");
     }
 
+    /// Task 113: a fixed instant for the format-stability tests —
+    /// 2024-03-04T05:06:07Z, chosen so every field (year/month/day/hour/
+    /// minute/second) has a distinct, two-digit value with no ambiguity.
+    fn fixed_instant() -> jiff::Timestamp {
+        jiff::Timestamp::from_second(1_709_528_767).unwrap()
+    }
+
     fn sample_result(
         per_project: Vec<ProjectOperationResult>,
         rollback_attempted: bool,
         rollback_succeeded: Option<bool>,
     ) -> OperationResult {
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
         OperationResult {
             operation_id: OperationId::new(),
             kind: OperationKind::Fetch,

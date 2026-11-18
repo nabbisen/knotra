@@ -47,8 +47,8 @@ pub(super) fn context_switch_done(
         result: OperationResult {
             operation_id: OperationId::new(),
             kind: OperationKind::ContextSwitch,
-            started_at: chrono::Utc::now(),
-            finished_at: chrono::Utc::now(),
+            started_at: jiff::Timestamp::now(),
+            finished_at: jiff::Timestamp::now(),
             per_project: vec![result.operation_result.clone()],
             rollback_attempted: false,
             rollback_succeeded: None,
@@ -71,7 +71,7 @@ pub(super) fn context_switch_done(
                 Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
                     knotra_vcs::WorkspaceStatus {
                         projects: vec![s],
-                        last_refresh: Some(chrono::Utc::now()),
+                        last_refresh: Some(jiff::Timestamp::now()),
                     },
                 ))
             },

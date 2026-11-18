@@ -129,7 +129,7 @@ fn start_freeze_execution(state: &mut AppState) -> Task<Message> {
         return Task::none();
     };
 
-    state.freezer.execution_started_at = Some(chrono::Utc::now());
+    state.freezer.execution_started_at = Some(jiff::Timestamp::now());
     state.freezer.phase = FreezerPhase::Executing;
     state.pending_tag_push = None;
 

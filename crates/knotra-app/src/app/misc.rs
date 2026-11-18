@@ -45,7 +45,7 @@ pub(super) fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<
                         Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
                             knotra_vcs::WorkspaceStatus {
                                 projects: vec![s],
-                                last_refresh: Some(chrono::Utc::now()),
+                                last_refresh: Some(jiff::Timestamp::now()),
                             },
                         ))
                     },
@@ -64,7 +64,7 @@ pub(super) fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<
                 state.fetching_projects.insert(id.clone());
                 Task::perform(
                     async move {
-                        let started = chrono::Utc::now();
+                        let started = jiff::Timestamp::now();
                         let op_id = OperationId::new();
                         let result = VcsAdapter::fetch(&p).await;
                         OperationLog {
@@ -72,7 +72,7 @@ pub(super) fn handle_project(state: &mut AppState, msg: ProjectMessage) -> Task<
                                 operation_id: op_id,
                                 kind: OperationKind::Fetch,
                                 started_at: started,
-                                finished_at: chrono::Utc::now(),
+                                finished_at: jiff::Timestamp::now(),
                                 per_project: vec![result],
                                 rollback_attempted: false,
                                 rollback_succeeded: None,

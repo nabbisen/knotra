@@ -4,7 +4,7 @@
 //! `JjBackend` → gix, no `jj` binary required).
 //! Writes still use the `jj` CLI where gix doesn't expose mutation APIs.
 
-use chrono::Utc;
+use jiff::Timestamp;
 use std::process::Command;
 
 use endringer_async::AsyncRepository;
@@ -132,7 +132,7 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
             remote: Default::default(),
             working_tree: Default::default(),
             conflict: Default::default(),
-            refreshed_at: Utc::now(),
+            refreshed_at: Timestamp::now(),
             read_error: Some(format!("cannot open jj repository: {e}")),
         },
         Ok(repo) => {
@@ -170,7 +170,7 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
                 remote: RemoteStatus::default(),
                 working_tree,
                 conflict,
-                refreshed_at: Utc::now(),
+                refreshed_at: Timestamp::now(),
                 read_error: None,
             }
         }
@@ -310,11 +310,7 @@ pub async fn log_since(
                         let hash = p.next()?.to_owned();
                         let subject = p.next()?.to_owned();
                         let author = p.next()?.to_owned();
-                        let date = p
-                            .next()?
-                            .trim()
-                            .parse::<chrono::DateTime<chrono::Utc>>()
-                            .ok()?;
+                        let date = p.next()?.trim().parse::<jiff::Timestamp>().ok()?;
                         Some(CommitEntry {
                             hash,
                             subject,
@@ -416,11 +412,7 @@ pub async fn recent_commits(
                         let hash = p.next()?.to_owned();
                         let subject = p.next()?.to_owned();
                         let author = p.next()?.to_owned();
-                        let date = p
-                            .next()?
-                            .trim()
-                            .parse::<chrono::DateTime<chrono::Utc>>()
-                            .ok()?;
+                        let date = p.next()?.trim().parse::<jiff::Timestamp>().ok()?;
                         Some(CommitEntry {
                             hash,
                             subject,
