@@ -61,7 +61,7 @@ Save to `.git-exclude/evidence/rfc-075/stage-0/inventory.md`.
 | d | With the palette's search field focused, do ↓ and ↑ reach knotra's subscription, or does the field keep them? | D4 d |
 | e | The Settings select: does Enter open it, do ↓ ↑ move, does Enter choose, does Escape close it and give focus back, all inside `snora::render`? | D1 |
 | f | Can the headless level run `traverse`'s tasks? `iced_test`'s `Emulator` runs a program's tasks, and `Simulator` does not. If yes, show one Tab sequence asserted at level 2 | the acceptance tests |
-| g | Escape with Task 111's layer in place: one press still closes, from the field too | D4 e |
+| g | Escape with Task 111's layer in place: one press still closes, from the field too. **And** with a snora select or menu open inside a window, the first Escape closes only it, and the window waits for the next. Task 111's layer takes Escape before the window's content, so today it would close the window | D4 e |
 
 ## 3. D4 d: two builds for the owner to try
 
