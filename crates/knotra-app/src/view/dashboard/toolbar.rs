@@ -432,7 +432,7 @@ fn arrange_panel<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Messag
         text(state.t("dashboard.grouping"))
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-        select::pick_list(
+        select::styled_pick_list(
             tokens,
             grouping_options,
             Some(state.config.dashboard_grouping),
@@ -458,7 +458,7 @@ fn arrange_panel<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Messag
         text(state.t("dashboard.sorting"))
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-        select::pick_list(
+        select::styled_pick_list(
             tokens,
             sorting_options,
             Some(state.config.dashboard_sort),

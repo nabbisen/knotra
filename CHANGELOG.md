@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — file-change refresh is a plain on/off box
+
+The experimental refresh when files change is now a checkbox, and its settings sit together
+under "Advanced".
+
 ### Changed — window edges and pressed filters are easier to see
 
 In the light theme, the edge of a window such as Add project is a little darker. In the light

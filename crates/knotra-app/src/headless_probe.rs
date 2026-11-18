@@ -436,4 +436,24 @@ mod tests {
              machine with the same CJK font each time"
         );
     }
+
+    // RFC-073 handoff Amendment A5 §3, Level 2 — tried first, per the
+    // task's own preference over the helper's arithmetic, and found not
+    // to apply here. `PickList` paints its own selected-value label
+    // directly in its `draw()` (a `renderer.fill_paragraph` call,
+    // confirmed by reading `iced_widget` 0.14.2's own `pick_list.rs`)
+    // rather than composing a child `Text` widget the way a
+    // `button(text(...))` does — so the Simulator's text-matching
+    // selector, which walks the widget *tree* for a descendant carrying
+    // the given content, finds nothing to match: `ui.click("English")`
+    // on `styled_pick_list`'s own rendered select returns
+    // `SelectorNotFound`, confirmed by running it (and by the rendered
+    // snapshot itself, which plainly shows "English" on screen — the text
+    // exists, it is simply not a separately findable tree node).
+    // `find_gives_widget_bounds` above succeeds on a *button*'s label for
+    // exactly the opposite reason — `button(text(...))` really does carry
+    // a `Text` child. Level 1 is therefore the one this property can be
+    // checked at: `select.rs`'s own doc comment on `styled_pick_list`
+    // gives the arithmetic (44.0px closed, 42.4px for the open list's own
+    // row), the same fallback A3 §2 used for an equivalent gap.
 }

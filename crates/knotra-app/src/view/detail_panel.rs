@@ -24,7 +24,7 @@ use iced::{
 
 use knotra_ui::widget::{
     BUTTON_HEIGHT, Tokens, body_badge_diameter, centered_button_label, centered_button_row, icon,
-    list, record_row, status_badge, style,
+    list, record_row, status_badge, strong, style,
 };
 
 use crate::{
@@ -125,9 +125,13 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     let identity = column![
         // RFC-071 Amendment A3 D14: a section header is dialog-body
         // structure the user reads to orient themselves — `body`.
-        text(state.t("detail.section_identity"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
+        // Amendment A5 §4: `strong` (Bold), the same weight every other
+        // section heading in this app already uses.
+        strong(
+            text(state.t("detail.section_identity"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ),
         field_row(tokens, state.t("detail.label_vcs"), vcs),
         field_row(tokens, state.t("detail.label_path"), path),
         field_row(tokens, state.t("detail.label_remote"), remote),
@@ -150,9 +154,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         };
 
         column![
-            text(state.t("detail.section_status"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
+            strong(
+                text(state.t("detail.section_status"))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+            ),
             field_row(tokens, state.t("detail.label_branch"), branch),
             field_row(tokens, state.t("detail.label_ahead"), ahead),
             field_row(tokens, state.t("detail.label_behind"), behind),
@@ -163,9 +169,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .spacing(3)
     } else {
         column![
-            text(state.t("detail.section_status"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
+            strong(
+                text(state.t("detail.section_status"))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+            ),
             // RFC-071 Amendment A3 D14: a status message — `body`.
             text(state.t("detail.loading"))
                 .size(snora::design::style::text::body_size(tokens))
@@ -198,18 +206,32 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
             // RFC-071 Amendment A3 D14: list content (a recent-operation
             // entry) — `body`, the same role History gives its own entry
             // titles.
-            row![
-                status_badge(tokens, tone, &glyph, body_badge_diameter(tokens)),
-                text(format!(
-                    "{} — {}",
-                    super::operation_kind_label(state, &log.result.kind),
-                    log.result.started_at.strftime("%m/%d %H:%M")
-                ))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-            ]
-            .spacing(6)
-            .align_y(Alignment::Center)
+            //
+            // Amendment A5 §6: `[7, 8]`, the same vertical padding every
+            // other list row in this app wraps itself in
+            // (`dashboard/row.rs`'s own project row) — this row had none
+            // at all, so a wrapped time ran up against the next row's own
+            // rule line (`widget::list`'s own doc comment: the separator
+            // sits directly between adjacent items, with no padding of
+            // its own — a row's padding is its own call site's concern).
+            // `align_y::Start`, not `Center`: the badge sits beside the
+            // text's *first* line, not the vertical centre of however
+            // many lines the kind-and-time string wraps to.
+            container(
+                row![
+                    status_badge(tokens, tone, &glyph, body_badge_diameter(tokens)),
+                    text(format!(
+                        "{} — {}",
+                        super::operation_kind_label(state, &log.result.kind),
+                        log.result.started_at.strftime("%m/%d %H:%M")
+                    ))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Start),
+            )
+            .padding([7, 8])
             .into()
         })
         .collect();
@@ -219,9 +241,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     // section header and History's entries follow.
     let recent = column![
         // RFC-071 Amendment A3 D14: section header — `body`.
-        text(state.t("detail.section_recent_operations"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
+        strong(
+            text(state.t("detail.section_recent_operations"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ),
         list(
             tokens,
             if recent_ops.is_empty() {
@@ -314,9 +338,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     // above.
     let commits = column![
         // RFC-071 Amendment A3 D14: section header — `body`.
-        text(state.t("detail.section_recent_commits"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
+        strong(
+            text(state.t("detail.section_recent_commits"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ),
         list(tokens, commits_body),
     ]
     .spacing(3);
@@ -380,9 +406,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
 
     let actions = column![
         // RFC-071 Amendment A3 D14: section header — `body`.
-        text(state.t("detail.section_actions"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
+        strong(
+            text(state.t("detail.section_actions"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ),
         row![refresh_btn, fetch_btn].spacing(6),
         remove_btn,
     ]

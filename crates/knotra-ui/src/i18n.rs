@@ -206,7 +206,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // code referents, left from a copy-command feature that never landed.
     // (This RFC's own D3 considered shipping one; it chose not to — see the
     // Handoff 064 review request.)
-    m.insert("plain.activity.fs_watch_disabled", "FS watching disabled.");
     m.insert("plain.activity.launched", "Launched:");
     // Confirm remove
     m.insert("confirm.remove_no", "Keep");
@@ -727,12 +726,11 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // Settings screen
     m.insert("settings.title", "Settings");
     m.insert("settings.section.display", "Display");
-    m.insert("settings.section.refresh", "Refresh & performance");
+    m.insert("settings.section.refresh", "Refresh");
     m.insert("settings.section.tools", "External tools");
     // RFC-073 D4: workspace creation/rename/removal move here from the
     // header switcher's menu.
     m.insert("settings.section.workspaces", "Workspaces");
-    m.insert("settings.section.logs", "Logs");
     // RFC-073 D11.
     m.insert("settings.section.advanced", "Advanced");
     m.insert("settings.locale_label", "Language");
@@ -770,30 +768,21 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // RFC-073 D12 (D16): "Max operation log entries" → "Operation log
     // size".
     m.insert("settings.max_logs_label", "Operation log size");
-    // RFC-073 D13: replaces the general `settings.restart_hint` — carried
-    // under the one setting that actually needs a restart
-    // (`config.rs`'s own doc comment on `max_log_entries` has the reason),
-    // not a blanket "some changes" with no way to tell which.
-    m.insert(
-        "settings.needs_restart",
-        "Takes effect after you restart knotra.",
-    );
     // RFC-071 Amendment A7: `settings.save`/`settings.saved_ok` are gone —
     // there is no "Save settings" button or success flash any more, every
     // setting is saved when it changes (`app/misc.rs`'s `persist_config`).
     // The failure message stays; it is the one case a save is still shown.
     m.insert("settings.save_error", "Could not save settings:");
-    // File-system monitoring section (RFC-038 Stage 1 §2)
-    m.insert("settings.section.fs_watch", "File-system Monitoring");
+    // File-system monitoring, now a plain checkbox under Advanced, with no
+    // subheading of its own (RFC-073 handoff Amendment A5 §5; the owner's
+    // approved text, Review 274 §4, gathered in Review 283 §3 rows 2–3).
     m.insert(
         "settings.fs_watch_enable_label",
-        "Enable automatic FS change detection (experimental)",
+        "Refresh when files change (experimental)",
     );
-    m.insert("settings.fs_watch_enabled", "Enabled ✓");
-    m.insert("settings.fs_watch_disabled", "Disabled");
     m.insert(
         "settings.fs_watch_hint",
-        "When enabled, knotra refreshes sooner after activity in your projects, instead of waiting for the next scheduled check.",
+        "knotra refreshes a project soon after its files change, instead of waiting for the next automatic refresh.",
     );
     // RFC-038 Stage 3: trimmed "(seconds)" — same reason as the refresh
     // interval label above.
@@ -1013,10 +1002,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert(
         "plain.activity.retry_prepare_failed",
         "プロジェクト状態を更新できませんでした。",
-    );
-    m.insert(
-        "plain.activity.fs_watch_disabled",
-        "FS監視を無効にしました。",
     );
     m.insert("plain.activity.launched", "起動しました:");
     // Confirm remove
@@ -1557,12 +1542,11 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("history.status_failed", "失敗");
     m.insert("settings.title", "設定");
     m.insert("settings.section.display", "表示");
-    m.insert("settings.section.refresh", "更新とパフォーマンス");
+    m.insert("settings.section.refresh", "再読み込み");
     m.insert("settings.section.tools", "外部ツール");
     // RFC-073 D4: workspace creation/rename/removal move here from the
     // header switcher's menu.
     m.insert("settings.section.workspaces", "ワークスペース");
-    m.insert("settings.section.logs", "ログ");
     m.insert("settings.section.advanced", "詳細設定");
     m.insert("settings.locale_label", "言語");
     m.insert("settings.theme_label", "テーマ");
@@ -1596,21 +1580,14 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("settings.merge_tool_label", "比較ツールのパス");
     m.insert("settings.merge_tool_hint", "/usr/bin/meld （任意）");
     m.insert("settings.max_logs_label", "操作ログの保持数");
-    m.insert(
-        "settings.needs_restart",
-        "knotra を再起動すると反映されます。",
-    );
     m.insert("settings.save_error", "設定を保存できませんでした:");
-    m.insert("settings.section.fs_watch", "ファイルシステム監視");
     m.insert(
         "settings.fs_watch_enable_label",
-        "自動的なファイルシステム変更検出を有効にする（実験的機能）",
+        "ファイルが変わったら再読み込み（実験的機能）",
     );
-    m.insert("settings.fs_watch_enabled", "有効 ✓");
-    m.insert("settings.fs_watch_disabled", "無効");
     m.insert(
         "settings.fs_watch_hint",
-        "有効にすると、次の定期チェックを待たずに、プロジェクト内の操作後により早く更新します。",
+        "次の自動再読み込みを待たずに、ファイルが変わったプロジェクトをすぐに再読み込みします。",
     );
     m.insert("settings.fs_watch_interval_label", "変更検出の間隔");
     m.insert("tool.not_configured", "先に設定でツールを選んでください。");

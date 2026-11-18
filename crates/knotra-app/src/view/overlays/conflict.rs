@@ -13,7 +13,7 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, column, row, text},
+    widget::{Space, column, container, row, text},
 };
 
 use knotra_ui::widget::{
@@ -452,6 +452,25 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                             // line inherits this row's own width (the
                             // panel's width minus the 28px indent), so
                             // continuation lines stay indented too.
+                            // Amendment A5 §6: each button's own reason
+                            // text ("Choose … in Settings first.") must
+                            // wrap at its own column's width, not run on
+                            // at its own natural single-line length — the
+                            // `reasoned()` primitive itself stays
+                            // `Length::Shrink` (every one of its nine
+                            // other call sites across the app relies on
+                            // that, most beside a `Space::new().width(
+                            // Length::Fill)` spacer that would otherwise
+                            // be squeezed), so each one is wrapped in its
+                            // own `container(...).width(Length::Fill)`
+                            // here instead — local to this one row.
+                            // iced's layout threads the container's
+                            // resolved width down as the content's own
+                            // bound regardless of the content's `Shrink`
+                            // policy, so the reason text wraps to it; two
+                            // equal `Fill` columns split the row evenly,
+                            // with this row's own `spacing(6)` as the gap
+                            // between them.
                             let mut line2_controls = row![
                                 // RFC-037 Stage 6: migrated onto the shared
                                 // `reasoned` primitive. `style::secondary`
@@ -459,14 +478,15 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                 // it is a button — both are peripheral row
                                 // actions, not this phase's one completing
                                 // action.
-                                reasoned(
+                                container(reasoned(
                                     tokens,
                                     state.t("plain.resolve.open_editor"),
                                     open_editor_msg,
                                     editor_reason,
                                     crate::app::ring(state, &editor_target),
                                     style::secondary,
-                                ),
+                                ))
+                                .width(Length::Fill),
                                 // Handoff 058: same control, same weight,
                                 // same reasoned-disabled shape as the editor
                                 // button beside it — an editor and a merge
@@ -474,16 +494,17 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                 // each with its own reason when
                                 // unconfigured, rather than the row's shape
                                 // depending on Settings.
-                                reasoned(
+                                container(reasoned(
                                     tokens,
                                     state.t("plain.resolve.open_merge_tool"),
                                     open_merge_tool_msg,
                                     merge_tool_reason,
                                     crate::app::ring(state, &tool_target),
                                     style::secondary,
-                                ),
+                                ))
+                                .width(Length::Fill),
                             ]
-                            .align_y(Alignment::Center)
+                            .align_y(Alignment::Start)
                             .spacing(6);
 
                             let mut file_col = column![line1].spacing(4);

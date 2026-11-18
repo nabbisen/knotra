@@ -31,6 +31,7 @@ use crate::{
         BackgroundMessage, DashboardMessage, HistoryMessage, LaunchMessage, Message,
         PaletteMessage, ProjectMessage, SelectionMessage, SettingsMessage, TagPushMessage,
     },
+    persistence::load_recent_logs,
     state::{AppState, OperationOwner},
 };
 
@@ -170,12 +171,47 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
         SettingsMessage::MaxLogEntriesChanged(n) => {
             state.config.max_log_entries = n;
             persist_config(state);
+            // RFC-073 Amendment A5 §2: takes effect at once, both ways —
+            // no setting needs a restart once this one does not (D13's
+            // own result, below, becomes "none").
+            if state.operation_logs.len() > n {
+                // Lowering: truncate now, the same insert-then-truncate
+                // `persist_log` already does for a newly completed
+                // operation — here nothing new completed, so the
+                // truncation has to happen in this handler instead. Drop
+                // the truncated-away ids from `history_expanded` too:
+                // nothing else in `knotra-app` refers to an entry by
+                // position (`history.rs` and `detail_panel.rs` both only
+                // ever `.iter()`/`.filter()` the list; `history_expanded`
+                // is keyed by `OperationId`), so this is the one place
+                // that needs it.
+                let dropped = state.operation_logs.split_off(n);
+                for log in &dropped {
+                    state.history_expanded.remove(&log.result.operation_id);
+                }
+            } else if state.operation_logs.len() < n {
+                // Raising: the in-memory list may already be shorter than
+                // the new `n` (truncated to the previous, smaller limit),
+                // so the rest has to come back from disk — as a `Task`,
+                // off this update path.
+                let paths = state.paths.clone();
+                return Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || load_recent_logs(&paths, n))
+                            .await
+                            .expect("blocking task must not panic")
+                    },
+                    |loaded| Message::Background(BackgroundMessage::HistoryLogsReloaded(loaded)),
+                );
+            }
         }
         SettingsMessage::FsWatchEnabledChanged(v) => {
+            // RFC-073 handoff Amendment A5 §5: the control is a checkbox
+            // now, not a button whose own label already said "Disabled" —
+            // its own checked/unchecked state is the status, so the extra
+            // status-bar message (and `plain.activity.fs_watch_disabled`
+            // with it) is gone.
             state.config.fs_watch_enabled = v;
-            if !v {
-                state.status_bar = Some(state.t("plain.activity.fs_watch_disabled").to_owned());
-            }
             persist_config(state);
         }
         SettingsMessage::FsDebounceSecs(secs) => {

@@ -50,12 +50,13 @@ pub struct AppConfig {
     /// Path to the preferred external merge tool.
     pub external_merge_tool: Option<String>,
     /// Maximum number of operation log entries to keep in memory. RFC-073
-    /// D12: always one of [`LOG_SIZE_STEPS`] once loaded. D13: a *larger*
-    /// value needs a restart to take effect — `app.rs::new` loads only this
-    /// many entries from disk at startup (`load_recent_logs`), and nothing
-    /// re-reads disk later to pick up more once that number grows; a
-    /// *smaller* value takes effect immediately, by truncation
-    /// (`app/background/mod.rs`).
+    /// D12: always one of [`LOG_SIZE_STEPS`] once loaded. Amendment A5 §2:
+    /// takes effect at once in both directions, no restart needed — a
+    /// *smaller* value truncates the in-memory list immediately
+    /// (`app/misc.rs::handle_settings`'s own `MaxLogEntriesChanged` arm);
+    /// a *larger* one re-reads the new window from disk as a `Task`, off
+    /// the update path, and merges it back in
+    /// (`app/background/mod.rs::history_logs_reloaded`).
     pub max_log_entries: usize,
     /// Enable file-system event monitoring (off by default).
     pub fs_watch_enabled: bool,
@@ -383,10 +384,24 @@ pub fn load_config(paths: &AppPaths) -> (AppConfig, Option<String>) {
                         cfg.zoom_percent = nearest_zoom_step(cfg.zoom_percent);
                         // RFC-073 D12: the same snap, for the four settings
                         // that became selects. An older file's own defaults
-                        // (60/8/200/2) are already steps, so this is a
-                        // no-op for every file but a hand-edited one.
-                        cfg.refresh_interval_secs =
-                            nearest_step_u32(&REFRESH_AUTO_STEPS, cfg.refresh_interval_secs);
+                        // (60/8/200/2) are already steps, so this moves
+                        // only a value typed before D12 turned the field
+                        // into a select (0.33 and earlier let anything
+                        // through) or one from a hand-edited file.
+                        //
+                        // Amendment A5 §1: "Off" (0) is its own choice, not
+                        // the lower end of the interval scale — snapping it
+                        // against the whole table (`nearest_step_u32`'s
+                        // plain call) would read a typed `1` as "closer to
+                        // Off than to 30s" and silently turn automatic
+                        // refresh off, the opposite of what a value that
+                        // small asked for. 0 stays 0 exactly; any other
+                        // value snaps among the non-zero choices only.
+                        cfg.refresh_interval_secs = if cfg.refresh_interval_secs == 0 {
+                            0
+                        } else {
+                            nearest_step_u32(&REFRESH_AUTO_STEPS[1..], cfg.refresh_interval_secs)
+                        };
                         cfg.max_concurrent_reads =
                             nearest_step_usize(&SIMULTANEOUS_READS_STEPS, cfg.max_concurrent_reads);
                         cfg.max_log_entries =
@@ -817,6 +832,42 @@ mod tests {
         assert_eq!(loaded.max_log_entries, 200);
         // 4 is closer to 5 (1 away) than to 2 (2 away).
         assert_eq!(loaded.fs_debounce_secs, 5);
+    }
+
+    /// Amendment A5 §1: 0 ("Off") stays 0 exactly, and a non-zero value
+    /// never snaps down to it — only among the non-zero choices. Before
+    /// this fix, `nearest_step_u32` snapped `1` to `0` (`REFRESH_AUTO_
+    /// STEPS`'s own first entry), reading a small typed interval as "turn
+    /// refresh off", the opposite of the saved intent.
+    #[test]
+    fn a_non_zero_refresh_interval_never_snaps_to_off() {
+        let cases: [(u32, u32); 7] = [
+            (0, 0),
+            (1, 30),
+            (10, 30),
+            (15, 30),
+            (45, 30), // exactly between 30 and 60: lower wins.
+            (46, 60),
+            (2000, 900),
+        ];
+        for (saved, expected) in cases {
+            let tmp = tempfile::TempDir::new().expect("tempdir");
+            let paths = AppPaths::under(tmp.path().to_path_buf());
+            std::fs::create_dir_all(paths.config_file.parent().unwrap()).expect("config dir");
+            std::fs::write(
+                &paths.config_file,
+                format!("refresh_interval_secs = {saved}\n"),
+            )
+            .expect("write config.toml");
+
+            let (loaded, warning) = load_config(&paths);
+
+            assert_eq!(warning, None, "{saved}: {warning:?}");
+            assert_eq!(
+                loaded.refresh_interval_secs, expected,
+                "saved {saved} must load as {expected}"
+            );
+        }
     }
 
     #[test]

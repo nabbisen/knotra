@@ -28,7 +28,7 @@ use iced::{
 use knotra_ui::ThemeChoice;
 use knotra_ui::i18n::Locale;
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, WIDE_CONTENT_WIDTH, centered_button_label, centered_button_row, icon,
+    BUTTON_HEIGHT, Tokens, WIDE_CONTENT_WIDTH, centered_button_row, checkbox, icon,
     secondary_maybe, select, strong, style, validated_field,
 };
 
@@ -154,7 +154,7 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::pick_list(
+        select::styled_pick_list(
             tokens,
             locale_options,
             Some(state.config.locale),
@@ -187,7 +187,7 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::pick_list(
+        select::styled_pick_list(
             tokens,
             theme_options,
             Some(state.config.theme),
@@ -210,7 +210,7 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::pick_list(
+        select::styled_pick_list(
             tokens,
             zoom_options,
             Some(state.config.zoom_percent),
@@ -267,31 +267,39 @@ fn view_workspaces_section(state: &AppState) -> Element<'_, Message> {
         // workspace, with its existing reason" — the same
         // `workspace.delete.disabled_last` text the delete dialog itself
         // falls back to when the last workspace is somehow targeted.
-        let remove: Element<'_, Message> = if can_delete {
-            remove_btn
-        } else {
-            column![
-                remove_btn,
+        //
+        // Amendment A5 §6: the reason is its own line *under* the row, not
+        // a second item inside a column standing in for Remove within the
+        // row itself — that older shape made the row's own tallest child
+        // the two-line "button + reason" pair, so centring it against the
+        // single-line Rename button left the two buttons' own top edges
+        // misaligned even though both were nominally `align_y::Center`.
+        // A plain leaf `remove_btn` keeps Rename and Remove the same
+        // height, so they share one top edge without needing to say so;
+        // the reason, a sibling in the surrounding `column!` rather than
+        // the row, starts at the same left edge the name already does —
+        // "aligned with the name" falls out of plain vertical stacking,
+        // no explicit indent to keep in step with the name's own width.
+        let row = row![
+            text(ws.name.clone())
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+            Space::new().width(Length::Fill),
+            rename_btn,
+            remove_btn,
+        ]
+        .spacing(8)
+        .align_y(Alignment::Center);
+
+        let mut entry = column![row].spacing(4);
+        if !can_delete {
+            entry = entry.push(
                 text(state.t("workspace.delete.disabled_last"))
                     .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens))
-            ]
-            .spacing(4)
-            .into()
-        };
-
-        list = list.push(
-            row![
-                text(ws.name.clone())
-                    .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
-                Space::new().width(Length::Fill),
-                rename_btn,
-                remove,
-            ]
-            .spacing(8)
-            .align_y(Alignment::Center),
-        );
+            );
+        }
+        list = list.push(entry);
     }
 
     let add_workspace = secondary_maybe(
@@ -325,7 +333,7 @@ fn view_refresh_auto_field(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::pick_list(
+        select::styled_pick_list(
             tokens,
             options,
             Some(state.config.refresh_interval_secs),
@@ -365,7 +373,7 @@ fn view_max_concurrent_field(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::pick_list(
+        select::styled_pick_list(
             tokens,
             options,
             Some(state.config.max_concurrent_reads),
@@ -379,21 +387,22 @@ fn view_max_concurrent_field(state: &AppState) -> Element<'_, Message> {
 }
 
 /// RFC-073 D12: a select of plain numbers over `config.rs`'s
-/// `LOG_SIZE_STEPS`. D13: the one setting that needs a restart to take
-/// full effect — `config.rs`'s own doc comment on `max_log_entries` has
-/// the reason — so `settings.needs_restart` sits under it.
+/// `LOG_SIZE_STEPS`. Amendment A5 §2: this used to be the one setting that
+/// needed a restart to take full effect (`settings.needs_restart` sat
+/// under it) — now `MaxLogEntriesChanged` truncates or re-reads at once
+/// (`app/misc.rs`), so no restart note is needed here either.
 fn view_max_logs_field(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     let options: Vec<(usize, String)> = crate::config::LOG_SIZE_STEPS
         .iter()
         .map(|&n| (n, n.to_string()))
         .collect();
-    let field = row![
+    row![
         text(state.t("settings.max_logs_label"))
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::pick_list(
+        select::styled_pick_list(
             tokens,
             options,
             Some(state.config.max_log_entries),
@@ -402,15 +411,7 @@ fn view_max_logs_field(state: &AppState) -> Element<'_, Message> {
         ),
     ]
     .spacing(8)
-    .align_y(Alignment::Center);
-
-    column![
-        field,
-        text(state.t("settings.needs_restart"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ]
-    .spacing(4)
+    .align_y(Alignment::Center)
     .into()
 }
 
@@ -456,7 +457,7 @@ fn view_fs_debounce_field(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::pick_list(
+        select::styled_pick_list(
             tokens,
             options,
             Some(state.config.fs_debounce_secs),
@@ -516,12 +517,15 @@ fn view_advanced_section(state: &AppState) -> Element<'_, Message> {
         return header.into();
     }
 
+    // RFC-073 handoff Amendment A5 §5: no subheadings under Advanced — the
+    // rows are Simultaneous reads, Operation log size, the file-change
+    // checkbox with its hint, and (when ticked) the interval, following
+    // each other directly, not grouped under `settings.section.logs`/
+    // `settings.section.fs_watch`, both gone.
     column![
         header,
         view_max_concurrent_field(state),
-        section_header(tokens, state.t("settings.section.logs")),
         view_max_logs_field(state),
-        section_header(tokens, state.t("settings.section.fs_watch")),
         view_fs_watch_section(state),
     ]
     .spacing(16)
@@ -529,38 +533,30 @@ fn view_advanced_section(state: &AppState) -> Element<'_, Message> {
 }
 
 // ---------------------------------------------------------------------------
-// FS Watch section — enable toggle and hint stay plain (not fields); the
-// debounce interval is the one select in this section.
+// File-change refresh — a plain on/off checkbox and its hint; the debounce
+// interval (the one select in this section) shows only while ticked
+// (RFC-073 handoff Amendment A5 §5).
 // ---------------------------------------------------------------------------
 
 fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    // RFC-073 Amendment A2: `secondary` — a toggle, not the section's sole
-    // action; its current state is the label's own text, not the fill.
-    // RFC-073 D8: `BUTTON_HEIGHT`, matching the Workspaces section's own
-    // buttons on this same screen.
-    let t = tokens.clone();
-    column![
-        labeled_row(
-            tokens,
-            state.t("settings.fs_watch_enable_label"),
-            button(centered_button_label(text(
-                if state.config.fs_watch_enabled {
-                    state.t("settings.fs_watch_enabled")
-                } else {
-                    state.t("settings.fs_watch_disabled")
-                }
-            )))
-            .height(Length::Fixed(BUTTON_HEIGHT))
-            .padding([0, 12])
-            .on_press(Message::Settings(SettingsMessage::FsWatchEnabledChanged(
-                !state.config.fs_watch_enabled
-            )))
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, false, style::secondary(&t, status))
-            })
-            .into(),
-        ),
+    let enabled = state.config.fs_watch_enabled;
+
+    let mut section = column![
+        row![
+            checkbox(
+                tokens,
+                state.t("settings.fs_watch_enable_label"),
+                enabled,
+                |v| Message::Settings(SettingsMessage::FsWatchEnabledChanged(v)),
+                false,
+            ),
+            text(state.t("settings.fs_watch_enable_label"))
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ]
+        .spacing(8)
+        .align_y(Alignment::Center),
         // RFC-038 Stage 1 §9: this sentence names `.git/HEAD` and "index" —
         // moved into the catalog unchanged rather than reworded, per the
         // handoff's explicit instruction. `settings.*` is not among
@@ -571,10 +567,14 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
         text(state.t("settings.fs_watch_hint"))
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-        view_fs_debounce_field(state),
     ]
-    .spacing(12)
-    .into()
+    .spacing(12);
+
+    if enabled {
+        section = section.push(view_fs_debounce_field(state));
+    }
+
+    section.into()
 }
 
 // ---------------------------------------------------------------------------
@@ -599,27 +599,16 @@ fn view_save_status(state: &AppState) -> Element<'_, Message> {
     }
 }
 
+/// RFC-073 handoff Amendment A5 §4: a section heading is `strong`
+/// (Bold) — the same weight every other section/heading role in this app
+/// already uses, so Settings' own section rule stops being the one
+/// exception.
 fn section_header<'a>(tokens: &Tokens, label: &'a str) -> Element<'a, Message> {
-    text(label)
-        .size(snora::design::style::text::body_size(tokens))
-        .line_height(snora::design::style::text::body_line_height(tokens))
-        .into()
-}
-
-fn labeled_row<'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    widget: Element<'a, Message>,
-) -> Element<'a, Message> {
-    // RFC-071 Amendment A3 D14: a field label — explicit move category.
-    row![
+    strong(
         text(label)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-        Space::new().width(Length::Fill),
-        widget,
-    ]
-    .align_y(Alignment::Center)
+    )
     .into()
 }
 

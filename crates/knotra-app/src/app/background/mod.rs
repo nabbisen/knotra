@@ -25,7 +25,7 @@ use knotra_vcs::model::operation::{
 use super::shared;
 use crate::{
     message::{BackgroundMessage, Message},
-    persistence::save_operation_log,
+    persistence::{LoadedLogs, save_operation_log},
     state::{
         ActivityRetryAction, AppState, RetryAvailability, RetryExclusion, RetryUnavailableReason,
     },
@@ -205,7 +205,33 @@ pub(super) fn handle_background(state: &mut AppState, msg: BackgroundMessage) ->
         BackgroundMessage::RecentCommitsLoaded(commits) => {
             detail_panel::recent_commits_loaded(state, commits)
         }
+
+        BackgroundMessage::HistoryLogsReloaded(loaded) => history_logs_reloaded(state, loaded),
     }
+}
+
+/// RFC-073 Amendment A5 §2: raising "Operation log size" re-reads the
+/// larger window from disk, off the update path (`misc::handle_settings`'s
+/// `MaxLogEntriesChanged` arm) — this merges that result back into the
+/// in-memory list by `operation_id`, newest first, so an operation that
+/// completed while the read was running is not lost: `state.operation_logs`
+/// is drained *first*, so its own copy of a shared id (inserted by
+/// `persist_log` above, possibly after the read started) wins over the
+/// disk copy the read raced against.
+fn history_logs_reloaded(state: &mut AppState, loaded: LoadedLogs) -> Task<Message> {
+    let mut seen = std::collections::HashSet::new();
+    let mut merged: Vec<OperationLog> = Vec::new();
+    for log in state.operation_logs.drain(..).chain(loaded.logs) {
+        if seen.insert(log.result.operation_id.clone()) {
+            merged.push(log);
+        }
+    }
+    merged.sort_by(|a, b| b.result.started_at.cmp(&a.result.started_at));
+    merged.truncate(state.config.max_log_entries);
+    state.operation_logs = merged;
+    state.history_unreadable_count = loaded.unreadable;
+    state.history_directory_unreadable = loaded.directory_unreadable;
+    Task::none()
 }
 
 #[cfg(test)]

@@ -5633,3 +5633,124 @@ fn app_id_matches_the_desktop_file_name() {
         desktop_file.display()
     );
 }
+
+// -----------------------------------------------------------------------
+// RFC-073 Amendment A5 §2: "Operation log size" takes effect at once.
+// -----------------------------------------------------------------------
+
+/// A minimal `OperationLog` at an explicit second — `make_operation_log`'s
+/// own `Timestamp::now()` cannot give these tests the distinct, orderable
+/// instants a newest-first merge needs to prove anything.
+fn make_operation_log_at(seconds: i64) -> OperationLog {
+    let ts = Timestamp::from_second(seconds).unwrap();
+    OperationLog {
+        result: OperationResult {
+            operation_id: OperationId::new(),
+            kind: OperationKind::Fetch,
+            started_at: ts,
+            finished_at: ts,
+            per_project: Vec::new(),
+            rollback_attempted: false,
+            rollback_succeeded: None,
+        },
+        recovery_hints: Vec::new(),
+    }
+}
+
+/// Lowering truncates `operation_logs` at once — no new operation needs to
+/// complete first — and drops the truncated-away ids from
+/// `history_expanded`, the one place in `knotra-app` that refers to an
+/// entry by id outside the list itself.
+#[test]
+fn lowering_max_log_entries_truncates_at_once_and_drops_expanded_ids() {
+    let mut state = make_state();
+    let logs: Vec<OperationLog> = (0..5).map(|i| make_operation_log_at(1000 + i)).collect();
+    let kept_id = logs[0].result.operation_id.clone();
+    let dropped_id = logs[4].result.operation_id.clone();
+    state.history_expanded.insert(kept_id.clone());
+    state.history_expanded.insert(dropped_id.clone());
+    state.operation_logs = logs;
+
+    dispatch(
+        &mut state,
+        Message::Settings(SettingsMessage::MaxLogEntriesChanged(2)),
+    );
+
+    assert_eq!(state.operation_logs.len(), 2);
+    assert!(
+        state.history_expanded.contains(&kept_id),
+        "an id still present in the list must stay expanded"
+    );
+    assert!(
+        !state.history_expanded.contains(&dropped_id),
+        "a truncated-away id must not linger in history_expanded"
+    );
+}
+
+/// Raising re-reads from disk (`BackgroundMessage::HistoryLogsReloaded`,
+/// driven directly — this is the merge logic's own test, not a test of
+/// `tokio::task::spawn_blocking` plumbing the code itself already shows is
+/// a plain, trusted wrapper around `load_recent_logs`) and merges the
+/// result with whatever is already in memory, newest first, by
+/// `operation_id`, truncated to the new limit. An operation that finishes
+/// while the read is running — modelled here as an entry already in
+/// `state.operation_logs` that the simulated disk read does not carry —
+/// must not be lost, and must not be duplicated if the disk read also
+/// names its id.
+#[test]
+fn raising_max_log_entries_merges_disk_and_in_memory_losing_nothing() {
+    let mut state = make_state();
+    state.config.max_log_entries = 5;
+
+    let older_on_disk_only = make_operation_log_at(1000);
+    let shared_both_copies_in_memory = make_operation_log_at(2000);
+    let shared_both_copies_on_disk = {
+        // The disk's own copy of the same operation — same id, so the
+        // merge must keep exactly one, not both.
+        let mut log = shared_both_copies_in_memory.clone();
+        log.result.started_at = Timestamp::from_second(1999).unwrap();
+        log
+    };
+    let finished_during_the_read = make_operation_log_at(3000);
+
+    // In memory: only the entry that finished *during* the simulated read,
+    // plus the one copy the two share — the state the previous, smaller
+    // `max_log_entries` would have left it in.
+    state.operation_logs = vec![
+        finished_during_the_read.clone(),
+        shared_both_copies_in_memory.clone(),
+    ];
+
+    let loaded = crate::persistence::LoadedLogs {
+        logs: vec![shared_both_copies_on_disk, older_on_disk_only.clone()],
+        unreadable: 0,
+        directory_unreadable: false,
+    };
+
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::HistoryLogsReloaded(loaded)),
+    );
+
+    let ids: Vec<_> = state
+        .operation_logs
+        .iter()
+        .map(|l| l.result.operation_id.clone())
+        .collect();
+    assert_eq!(state.operation_logs.len(), 3, "{ids:?}");
+    assert_eq!(
+        ids,
+        vec![
+            finished_during_the_read.result.operation_id.clone(),
+            shared_both_copies_in_memory.result.operation_id.clone(),
+            older_on_disk_only.result.operation_id.clone(),
+        ],
+        "newest first; the in-memory copy of the shared id wins, no duplicate"
+    );
+    // The surviving copy of the shared id is the in-memory one (started_at
+    // 2000), not the disk one (1999) the read raced against.
+    assert_eq!(
+        state.operation_logs[1].result.started_at,
+        shared_both_copies_in_memory.result.started_at
+    );
+}

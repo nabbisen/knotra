@@ -263,6 +263,9 @@ pub enum BackgroundMessage {
     },
     /// Recent-commits list loaded for the detail panel (RFC-039 D4).
     RecentCommitsLoaded(knotra_vcs::RecentCommits),
+    /// RFC-073 Amendment A5 §2: "Operation log size" raised — the larger
+    /// window re-read from disk, off the update path.
+    HistoryLogsReloaded(crate::persistence::LoadedLogs),
 }
 
 // --- Filter ---

@@ -20,6 +20,8 @@ mod headless_probe;
 mod label_overflow_guard;
 mod message;
 mod persistence;
+#[cfg(test)]
+mod pick_list_height_guard;
 mod state;
 #[cfg(test)]
 mod suppressions_guard;

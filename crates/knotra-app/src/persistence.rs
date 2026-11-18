@@ -148,6 +148,7 @@ pub fn save_operation_log(log: &OperationLog, paths: &AppPaths) -> Result<(), St
 /// `load_recent_logs`'s result (RFC-047 D2/D3): the logs themselves plus
 /// what could not be produced, so a caller can state the loss instead of
 /// rendering it as silence.
+#[derive(Debug, Clone)]
 pub struct LoadedLogs {
     pub logs: Vec<OperationLog>,
     /// Directory entries that could not be read or parsed as an
