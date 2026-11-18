@@ -1,18 +1,26 @@
 //! Filter chip primitive, built from `KnotraTheme` (RFC-035 Handoff 019
 //! §7.1, rebuilt per Handoff 020 §7.1). `snora::design::chip::filter`
-//! returns an `Element`, not a `Style`, and its two style functions
-//! (`chip_style_selected`/`chip_style_unselected`) are private — there is
-//! no seam to compose a focus ring onto a pass-through (094 Finding 1), so
-//! this is built from `KnotraTheme` directly, like `select` and
-//! `checkbox`, matching snora's visible appearance as closely as the token
-//! set allows.
+//! returns an `Element`, not a `Style`, and has no seam to compose a focus
+//! ring onto a pass-through (094 Finding 1), so this keeps its own button
+//! built from `KnotraTheme`'s own layout (badge, label, count, focus ring,
+//! sizing), like `select` and `checkbox` — only the *colours* now come
+//! from snora.
+//!
+//! **Task 112:** the two colour functions this module called were, until
+//! now, a hand-kept mirror of `snora::design::chip`'s own private style
+//! functions (`chip_style_selected`/`chip_style_unselected`) — so 0.62's
+//! pressed-state contrast fix for `light_aaa`/`dark_aaa` (RFC-129), made to
+//! snora's own copy, never reached this one. 0.62 made the real functions
+//! public for exactly this case (`snora::design::style::chip::{selected,
+//! unselected}`), so this module now calls them directly and keeps no
+//! copy of its own.
 //!
 //! A chip's style type is `button::Style`, so — unlike `select`/`checkbox`
 //! — this reuses `buttons.rs`'s `with_focus_ring` directly rather than
 //! `ring_color_for`.
 
 use iced::widget::{Space, button, row, text};
-use iced::{Border, Color, Length, Shadow};
+use iced::{Color, Length};
 use snora::design::Tokens;
 
 use super::buttons::centered_button_row;
@@ -22,19 +30,6 @@ use super::status::{Tone, status_badge};
 
 fn to_iced(color: snora::design::Color) -> Color {
     snora::design::style::color::to_iced_color(color)
-}
-
-/// Blends toward black by `amount` — mirrors `snora::design::chip`'s own
-/// private `darken` helper (used for hover/press states), which is not
-/// exported, so this is the same 4-line reimplementation `snora-widgets`
-/// itself keeps in two places (`design/chip.rs` and `design/style/button.rs`).
-fn darken(color: Color, amount: f32) -> Color {
-    Color {
-        r: (color.r - amount).max(0.0),
-        g: (color.g - amount).max(0.0),
-        b: (color.b - amount).max(0.0),
-        a: color.a,
-    }
 }
 
 /// A toggle chip for filtering or categorizing. Solid `accent` background +
@@ -111,9 +106,9 @@ pub(crate) fn style(
     is_focused: bool,
 ) -> button::Style {
     let base = if selected {
-        selected_style(tokens, status)
+        snora::design::style::chip::selected(tokens, status)
     } else {
-        unselected_style(tokens, status)
+        snora::design::style::chip::unselected(tokens, status)
     };
     // RFC-071 D5: a chip at count 0 reads as present-but-inactive, in
     // `text_secondary`, regardless of `selected` — never hidden, never
@@ -144,55 +139,6 @@ fn dim_if_disabled(status: button::Status, color: Color) -> Color {
     match status {
         button::Status::Disabled => Color { a: 0.5, ..color },
         _ => color,
-    }
-}
-
-/// Mirrors `snora::design::chip`'s private `chip_style_selected`: solid
-/// `accent` background, `accent_text` foreground, `accent`-colored pill
-/// border.
-fn selected_style(tokens: &Tokens, status: button::Status) -> button::Style {
-    let accent = to_iced(tokens.palette.accent);
-    let accent_text = to_iced(tokens.palette.accent_text);
-    let bg = match status {
-        button::Status::Active => accent,
-        button::Status::Hovered => darken(accent, 0.06),
-        button::Status::Pressed => darken(accent, 0.12),
-        button::Status::Disabled => Color { a: 0.5, ..accent },
-    };
-    button::Style {
-        background: Some(bg.into()),
-        text_color: dim_if_disabled(status, accent_text),
-        border: Border::default()
-            .rounded(tokens.radius.pill)
-            .color(dim_if_disabled(status, accent))
-            .width(1.0),
-        shadow: Shadow::default(),
-        snap: true,
-    }
-}
-
-/// Mirrors `snora::design::chip`'s private `chip_style_unselected`: neutral
-/// `surface` background, `text_secondary` foreground, `border`-colored pill
-/// border.
-fn unselected_style(tokens: &Tokens, status: button::Status) -> button::Style {
-    let border_color = to_iced(tokens.palette.border);
-    let text_color = to_iced(tokens.palette.text_secondary);
-    let surface = to_iced(tokens.palette.surface);
-    let bg = match status {
-        button::Status::Active => surface,
-        button::Status::Hovered => darken(surface, 0.04),
-        button::Status::Pressed => darken(surface, 0.08),
-        button::Status::Disabled => Color { a: 0.5, ..surface },
-    };
-    button::Style {
-        background: Some(bg.into()),
-        text_color: dim_if_disabled(status, text_color),
-        border: Border::default()
-            .rounded(tokens.radius.pill)
-            .color(dim_if_disabled(status, border_color))
-            .width(1.0),
-        shadow: Shadow::default(),
-        snap: true,
     }
 }
 
