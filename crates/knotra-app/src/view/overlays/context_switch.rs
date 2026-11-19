@@ -164,7 +164,11 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
 
         ContextPhase::LoadingList(_) => (
             column![
-                text(state.t("plain.status.checking"))
+                // RFC-073 D16: this is loading, not refreshing — the one
+                // corrected reuse the amendment names (`context_switch.rs`'s
+                // own list-loading line borrowed `plain.status.checking`,
+                // which Stage 4 repoints at "Refreshing…").
+                text(state.t("detail.loading"))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
                 // RFC-071 Amendment A3 D14: instructional guidance, read to

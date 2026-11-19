@@ -352,10 +352,12 @@ fn selection_exactly_one_for_remove(state: &AppState) -> PaletteAvailability {
 }
 
 fn visible_projects_available(state: &AppState) -> PaletteAvailability {
-    if state.selection_summary().visible_ids.is_empty() {
-        PaletteAvailability::Disabled("plain.selection.no_visible_projects")
-    } else {
-        PaletteAvailability::Enabled
+    // RFC-073 D16 W3: `AppState::visible_projects_unavailable_reason`, shared
+    // with the toolbar's own Select control, so the two never pick
+    // different wording for the same cause.
+    match state.visible_projects_unavailable_reason() {
+        Some(reason) => PaletteAvailability::Disabled(reason),
+        None => PaletteAvailability::Enabled,
     }
 }
 

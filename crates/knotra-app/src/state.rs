@@ -665,6 +665,37 @@ impl AppState {
         self.dashboard_display().ordered_selectable_ids
     }
 
+    /// RFC-035 R15/Handoff 030 §4.1, extended by RFC-073 D16 W3: the one
+    /// catalog key explaining why no project is currently selectable,
+    /// shared by every surface that needs that reason — the toolbar's
+    /// Select control (`view/dashboard/toolbar.rs::select_mode_reason`)
+    /// and the command palette's own "Enter selection" entry
+    /// (`state/palette.rs::visible_projects_available`) both showed "No
+    /// projects match this view" for the exact same underlying state
+    /// before this method existed, which W3 would otherwise have fixed in
+    /// one of the two and not the other. `None` when at least one project
+    /// is currently selectable.
+    pub fn visible_projects_unavailable_reason(&self) -> Option<&'static str> {
+        if !self.visible_project_ids().is_empty() {
+            return None;
+        }
+        let no_projects_registered = self
+            .workspace
+            .as_ref()
+            .is_none_or(|workspace| workspace.projects.is_empty());
+        if no_projects_registered {
+            return Some(self.t("plain.selection.no_projects_registered"));
+        }
+        let display = self.dashboard_display();
+        let all_in_closed_groups = !display.sections.is_empty()
+            && display.sections.iter().all(|section| section.collapsed);
+        Some(if all_in_closed_groups {
+            self.t("plain.selection.all_in_closed_groups")
+        } else {
+            self.t("plain.selection.no_visible_projects")
+        })
+    }
+
     /// Task 103: a project's *current* name, looked up by id across every
     /// registered workspace — not only the active one, since a logged
     /// operation can name a project that now lives in a different

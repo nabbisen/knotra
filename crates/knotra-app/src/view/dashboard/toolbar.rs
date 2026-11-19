@@ -109,25 +109,16 @@ fn chip_element<'a>(
 }
 
 /// RFC-035 R15/Handoff 030 §4.1: the Select control's disabled reason must
-/// be true to its actual cause. "No projects match this view" implies a
-/// filter excluded everything, which is false when nothing is
-/// **registered** at all (`066` observation 1) — that case gets its own
-/// wording, matching the empty state's own copy, rather than reusing a
-/// sentence about filtering. Shared between the standard and compact
-/// toolbars so the two cannot pick different wording for the same cause.
+/// be true to its actual cause — `AppState::visible_projects_unavailable_reason`
+/// (shared with the command palette's own equivalent check, so the two
+/// cannot pick different wording for the same cause) distinguishes nothing
+/// registered, every match sitting in a closed group (RFC-073 D16 W3), and
+/// the filter itself matching nothing.
 fn select_mode_reason(state: &AppState, summary: &SelectionSummary) -> Option<&'static str> {
     if !summary.visible_ids.is_empty() {
         return None;
     }
-    let no_projects_registered = state
-        .workspace
-        .as_ref()
-        .is_none_or(|workspace| workspace.projects.is_empty());
-    Some(if no_projects_registered {
-        state.t("plain.selection.no_projects_registered")
-    } else {
-        state.t("plain.selection.no_visible_projects")
-    })
+    state.visible_projects_unavailable_reason()
 }
 
 pub(super) fn focus_order(state: &AppState, mode: WidthMode) -> FocusOrder<Message> {

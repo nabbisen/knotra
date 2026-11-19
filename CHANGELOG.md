@@ -9,6 +9,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — one name for each action
+
+"Check" now always means checking for updates. Re-reading your projects' status is
+"Refresh" everywhere, and the project details use the same words as the dashboard
+("Unsaved files", "Local commits") instead of version-control terms. In Japanese, a few
+actions and states that had two names now have one.
+
 ### Changed — a small window shows every status filter
 
 In a small window or at a large zoom, all five status filters are shown, continuing on a

@@ -147,7 +147,10 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.activity.succeeded", "succeeded");
     m.insert("plain.activity.failed", "failed");
     m.insert("plain.activity.skipped", "skipped");
-    m.insert("plain.activity.retry_failed_fetches", "Retry failed checks");
+    m.insert(
+        "plain.activity.retry_failed_fetches",
+        "Retry failed update checks",
+    );
     m.insert("plain.activity.review_retry", "Review retry");
     m.insert(
         "plain.activity.busy",
@@ -157,7 +160,10 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "plain.activity.none_available",
         "These projects are no longer available in this workspace.",
     );
-    m.insert("plain.activity.retrying_fetch", "Retrying failed checks");
+    m.insert(
+        "plain.activity.retrying_fetch",
+        "Retrying failed update checks",
+    );
     m.insert(
         "plain.activity.retry_context_again",
         "Open Change work area again.",
@@ -168,7 +174,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     );
     m.insert(
         "plain.activity.retry_refresh_again",
-        "Use Refresh to check again.",
+        "Use Refresh to try again.",
     );
     m.insert(
         "plain.activity.log_save_failed",
@@ -223,7 +229,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("tier.active", "In progress");
     m.insert("tier.clean", "All set");
 
-    m.insert("plain.check_now", "Check now");
+    m.insert("plain.check_now", "Refresh");
     m.insert("plain.check_for_updates", "Check for updates");
     m.insert("plain.get_latest", "Get latest safely");
     m.insert("plain.save_release_point", "Save release point");
@@ -244,9 +250,15 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "plain.selection.no_projects_registered",
         "No projects added yet.",
     );
+    // RFC-073 D16 W3: shown instead of `no_visible_projects` when projects
+    // exist but every one currently sits in a collapsed dashboard section.
+    m.insert(
+        "plain.selection.all_in_closed_groups",
+        "Open a group to choose its projects.",
+    );
     m.insert(
         "plain.selection.none_fetchable",
-        "None of the selected projects can be checked right now.",
+        "None of the selected projects can be checked for updates right now.",
     );
     m.insert(
         "plain.selection.choose_one_work_area",
@@ -254,7 +266,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     );
 
     m.insert("plain.status.unsaved_work", "Unsaved work");
-    m.insert("plain.status.checking", "Checking…");
+    m.insert("plain.status.checking", "Refreshing…");
 
     m.insert("plain.disabled.choose_one", "Choose at least one project.");
     m.insert(
@@ -288,10 +300,10 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.get_latest.start", "Start getting latest");
     m.insert("plain.get_latest.working", "Getting latest…");
     m.insert("plain.get_latest.action_get", "Get latest");
-    m.insert("plain.get_latest.action_check", "Check only");
+    m.insert("plain.get_latest.action_check", "Only check for updates");
     m.insert("plain.get_latest.action_get_anyway", "Get latest anyway");
     m.insert("plain.get_latest.action_skip", "Skip");
-    m.insert("plain.get_latest.check_only", "Check only");
+    m.insert("plain.get_latest.check_only", "Only check for updates");
     m.insert("plain.get_latest.get_anyway", "Get anyway");
     m.insert(
         "plain.get_latest.note_unsaved",
@@ -346,8 +358,8 @@ fn en_strings() -> HashMap<Key, &'static str> {
     );
     m.insert("plain.release.note_label", "Note for later (optional)");
     m.insert("plain.release.note_hint", "");
-    m.insert("plain.release.check_readiness", "Check readiness");
-    m.insert("plain.release.checking", "Checking…");
+    m.insert("plain.release.check_readiness", "Run the ready check");
+    m.insert("plain.release.checking", "Running the ready check…");
     m.insert("plain.release.ready_check", "Ready check");
     m.insert("plain.release.row_ready", "Ready");
     m.insert("plain.release.fix_one", "Fix 1 item before saving.");
@@ -657,7 +669,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("palette.no_matches", "No matching actions.");
     m.insert("palette.kind.project", "Project");
     m.insert("palette.kind.workspace", "Workspace");
-    m.insert("palette.action.check_all", "Check all projects");
+    m.insert("palette.action.check_all", "Check all projects for updates");
     m.insert(
         "palette.action.changelog_selected",
         "Generate notes for selected",
@@ -669,12 +681,12 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("palette.action.clear_selection", "Clear selection");
     m.insert("palette.action.open_settings", "Open settings");
     m.insert("palette.action.open_history", "Open history");
-    m.insert("palette.action.refresh", "Refresh dashboard");
+    m.insert("palette.action.refresh", "Refresh all projects");
     m.insert("palette.action.shortcuts", "Show keyboard shortcuts");
     m.insert("palette.disabled.no_workspace", "Open a workspace first.");
     m.insert(
         "palette.disabled.no_fetchable_projects",
-        "No projects can be checked right now.",
+        "No projects can be checked for updates right now.",
     );
     m.insert(
         "palette.disabled.only_one_workspace",
@@ -806,29 +818,32 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // RFC-048 D1: the project detail panel — the expert surface RFC-021's
     // plain-language layer defers *to*. `detail.*` is deliberately not a
     // first-level prefix, so `first_level_wording_has_no_developer_jargon`
-    // does not apply here and `Branch`/`Fetch`/`Conflict` are not re-worded
-    // — this RFC translates, it does not re-word (R3: English unchanged
-    // from what shipped before this RFC).
+    // does not apply here. RFC-073 D15 ("the detail panel speaks knotra's
+    // words, not Git's") supersedes the original rule this comment once
+    // stated (English unchanged, translation only) — D16's table re-words
+    // `label_vcs`/`label_remote`/`label_branch`/`label_ahead`/
+    // `label_behind`/`label_dirty`/`label_untracked`/`label_conflict` in
+    // English too, matching the dashboard's own words.
     m.insert("detail.section_identity", "Identity");
     m.insert("detail.section_status", "Status");
     m.insert("detail.section_recent_operations", "Recent operations");
     m.insert("detail.section_actions", "Actions");
-    m.insert("detail.label_vcs", "VCS:");
+    m.insert("detail.label_vcs", "Kind:");
     m.insert("detail.label_path", "Path:");
-    m.insert("detail.label_remote", "Remote:");
-    m.insert("detail.label_branch", "Branch:");
-    m.insert("detail.label_ahead", "Ahead:");
-    m.insert("detail.label_behind", "Behind:");
-    m.insert("detail.label_dirty", "Dirty:");
-    m.insert("detail.label_untracked", "Untracked:");
-    m.insert("detail.label_conflict", "Conflict:");
+    m.insert("detail.label_remote", "Shared source:");
+    m.insert("detail.label_branch", "Work area:");
+    m.insert("detail.label_ahead", "Local commits:");
+    m.insert("detail.label_behind", "Updates available:");
+    m.insert("detail.label_dirty", "Unsaved files:");
+    m.insert("detail.label_untracked", "New files:");
+    m.insert("detail.label_conflict", "Needs a choice:");
     m.insert("detail.conflict_yes", "Yes");
     m.insert("detail.conflict_unknown", "Unknown");
     m.insert("detail.conflict_no", "No");
     m.insert("detail.loading", "Loading…");
     m.insert("detail.none", "None");
     m.insert("detail.refresh", "Refresh");
-    m.insert("detail.fetch", "Fetch");
+    m.insert("detail.fetch", "Check for updates");
     m.insert("detail.remove_from_workspace", "Remove from workspace");
     // RFC-039 D3/D5: the "Recent commits" section — three distinct
     // sentences for loading / no-commits-yet / could-not-be-read, none of
@@ -870,7 +885,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "Move between projects",
     );
     m.insert("shortcut.action_go_to_search", "Go to the search field");
-    m.insert("shortcut.action_check_now", "Check now");
+    m.insert("shortcut.action_check_now", "Refresh");
     m.insert("shortcut.action_change_work_area", "Change work area");
     m.insert("shortcut.action_save_release_point", "Save release point");
     // RFC-071 D12.
@@ -933,12 +948,12 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("dialog.add_project.error_empty", "名前とパスは必須です。");
     // Status labels
     m.insert("status.unknown", "不明");
-    m.insert("status.refreshing", "更新中…");
+    m.insert("status.refreshing", "再読み込み中…");
     // Filter chip labels
     m.insert("filter.all_set", "問題なし");
     m.insert("filter.behind", "更新あり");
     m.insert("filter.ahead", "ローカルのコミット");
-    m.insert("filter.dirty", "作業中の変更");
+    m.insert("filter.dirty", "未保存の作業");
     m.insert("filter.needs_help", "対応が必要");
     // Group labels
     m.insert("group.ungrouped", "(グループなし)");
@@ -951,7 +966,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.activity.skipped", "対象外");
     m.insert(
         "plain.activity.retry_failed_fetches",
-        "失敗した取得を再試行",
+        "失敗した更新確認を再試行",
     );
     m.insert("plain.activity.review_retry", "再試行を確認");
     m.insert(
@@ -962,7 +977,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "plain.activity.none_available",
         "これらのプロジェクトは現在のワークスペースで利用できません。",
     );
-    m.insert("plain.activity.retrying_fetch", "失敗した取得を再試行中");
+    m.insert(
+        "plain.activity.retrying_fetch",
+        "失敗した更新確認を再試行中",
+    );
     m.insert(
         "plain.activity.retry_context_again",
         "作業場所の変更をもう一度開いてください。",
@@ -973,7 +991,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     );
     m.insert(
         "plain.activity.retry_refresh_again",
-        "更新を使ってもう一度確認してください。",
+        "再読み込みでもう一度お試しください。",
     );
     m.insert(
         "plain.activity.log_save_failed",
@@ -992,10 +1010,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "対応しているリポジトリではありません",
     );
     m.insert("plain.activity.excluded_status", "状態を取得できません");
-    m.insert("plain.activity.kind_refresh", "更新");
-    m.insert("plain.activity.kind_fetch", "取得");
-    m.insert("plain.activity.kind_smart_pull", "最新版を取得");
-    m.insert("plain.activity.kind_context_switch", "作業場所を変更");
+    m.insert("plain.activity.kind_refresh", "再読み込み");
+    m.insert("plain.activity.kind_fetch", "更新を確認");
+    m.insert("plain.activity.kind_smart_pull", "最新を取得");
+    m.insert("plain.activity.kind_context_switch", "作業エリアを変更");
     m.insert("plain.activity.kind_freeze", "リリースポイントを記録");
     m.insert(
         "plain.activity.kind_freeze_rollback",
@@ -1018,7 +1036,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("tier.active", "作業中");
     m.insert("tier.clean", "問題なし");
 
-    m.insert("plain.check_now", "今すぐ確認");
+    m.insert("plain.check_now", "再読み込み");
     m.insert("plain.check_for_updates", "更新を確認");
     m.insert("plain.get_latest", "安全に最新を取得");
     m.insert("plain.save_release_point", "リリースポイントを保存");
@@ -1043,8 +1061,12 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "プロジェクトがまだ追加されていません。",
     );
     m.insert(
+        "plain.selection.all_in_closed_groups",
+        "グループを開いてプロジェクトを選んでください。",
+    );
+    m.insert(
         "plain.selection.none_fetchable",
-        "選択したプロジェクトは今は確認できません。",
+        "選択したプロジェクトは今は更新を確認できません。",
     );
     m.insert(
         "plain.selection.choose_one_work_area",
@@ -1052,7 +1074,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     );
 
     m.insert("plain.status.unsaved_work", "未保存の作業");
-    m.insert("plain.status.checking", "確認中…");
+    m.insert("plain.status.checking", "再読み込み中…");
 
     m.insert(
         "plain.disabled.choose_one",
@@ -1086,10 +1108,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.get_latest.start", "最新を取得する");
     m.insert("plain.get_latest.working", "最新を取得中…");
     m.insert("plain.get_latest.action_get", "最新を取得");
-    m.insert("plain.get_latest.action_check", "確認のみ");
+    m.insert("plain.get_latest.action_check", "更新の確認のみ");
     m.insert("plain.get_latest.action_get_anyway", "そのまま最新を取得");
     m.insert("plain.get_latest.action_skip", "スキップ");
-    m.insert("plain.get_latest.check_only", "確認のみ");
+    m.insert("plain.get_latest.check_only", "更新の確認のみ");
     m.insert("plain.get_latest.get_anyway", "そのまま取得");
     m.insert(
         "plain.get_latest.note_unsaved",
@@ -1147,8 +1169,8 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     );
     m.insert("plain.release.note_label", "後のためのメモ（任意）");
     m.insert("plain.release.note_hint", "");
-    m.insert("plain.release.check_readiness", "準備確認");
-    m.insert("plain.release.checking", "確認中…");
+    m.insert("plain.release.check_readiness", "準備確認を実行");
+    m.insert("plain.release.checking", "準備確認中…");
     m.insert("plain.release.ready_check", "準備確認");
     m.insert("plain.release.row_ready", "準備完了");
     m.insert("plain.release.fix_one", "保存前に1件修正してください。");
@@ -1480,7 +1502,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("palette.no_matches", "一致する操作はありません。");
     m.insert("palette.kind.project", "プロジェクト");
     m.insert("palette.kind.workspace", "ワークスペース");
-    m.insert("palette.action.check_all", "すべてのプロジェクトを確認");
+    m.insert(
+        "palette.action.check_all",
+        "すべてのプロジェクトの更新を確認",
+    );
     m.insert(
         "palette.action.changelog_selected",
         "選択項目のノートを生成",
@@ -1501,7 +1526,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("palette.action.clear_selection", "選択を解除");
     m.insert("palette.action.open_settings", "設定を開く");
     m.insert("palette.action.open_history", "履歴を開く");
-    m.insert("palette.action.refresh", "ダッシュボードを更新");
+    m.insert("palette.action.refresh", "すべてのプロジェクトを再読み込み");
     m.insert("palette.action.shortcuts", "キーボードショートカットを表示");
     m.insert(
         "palette.disabled.no_workspace",
@@ -1509,7 +1534,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     );
     m.insert(
         "palette.disabled.no_fetchable_projects",
-        "今は確認できるプロジェクトがありません。",
+        "今は更新を確認できるプロジェクトがありません。",
     );
     m.insert(
         "palette.disabled.only_one_workspace",
@@ -1602,22 +1627,22 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("detail.section_status", "ステータス");
     m.insert("detail.section_recent_operations", "最近の操作");
     m.insert("detail.section_actions", "アクション");
-    m.insert("detail.label_vcs", "VCS:");
+    m.insert("detail.label_vcs", "種類:");
     m.insert("detail.label_path", "パス:");
-    m.insert("detail.label_remote", "リモート:");
-    m.insert("detail.label_branch", "ブランチ:");
-    m.insert("detail.label_ahead", "先行:");
-    m.insert("detail.label_behind", "遅れ:");
-    m.insert("detail.label_dirty", "未コミット:");
-    m.insert("detail.label_untracked", "未追跡:");
-    m.insert("detail.label_conflict", "競合:");
+    m.insert("detail.label_remote", "共有元:");
+    m.insert("detail.label_branch", "作業エリア:");
+    m.insert("detail.label_ahead", "ローカルのコミット:");
+    m.insert("detail.label_behind", "更新あり:");
+    m.insert("detail.label_dirty", "未保存のファイル:");
+    m.insert("detail.label_untracked", "新しいファイル:");
+    m.insert("detail.label_conflict", "選択が必要:");
     m.insert("detail.conflict_yes", "はい");
     m.insert("detail.conflict_unknown", "不明");
     m.insert("detail.conflict_no", "いいえ");
     m.insert("detail.loading", "読み込み中…");
     m.insert("detail.none", "なし");
-    m.insert("detail.refresh", "更新");
-    m.insert("detail.fetch", "フェッチ");
+    m.insert("detail.refresh", "再読み込み");
+    m.insert("detail.fetch", "更新を確認");
     m.insert("detail.remove_from_workspace", "ワークスペースから削除");
     m.insert("detail.section_recent_commits", "最近のコミット");
     m.insert("detail.commits_loading", "コミットを読み込み中…");
@@ -1642,7 +1667,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "プロジェクト間を移動",
     );
     m.insert("shortcut.action_go_to_search", "検索欄へ移動");
-    m.insert("shortcut.action_check_now", "今すぐ確認");
+    m.insert("shortcut.action_check_now", "再読み込み");
     m.insert("shortcut.action_change_work_area", "作業エリアを変更");
     m.insert(
         "shortcut.action_save_release_point",
@@ -1736,6 +1761,68 @@ mod tests {
                 "key `{key}` is missing from the English catalog"
             );
         }
+    }
+
+    /// Pre-existing values that use the standalone word "Check"/"check" for
+    /// something other than checking for updates, found while writing
+    /// [`check_means_only_checking_for_updates`] below. None is D16 text —
+    /// D16 governs only the keys its own table and new-key list name, and
+    /// Stage 4's own standing rule ("Text: only D16's, exactly. Any other
+    /// wording is a stop and report") means these are reported here, not
+    /// reworded by this amendment: `plain.get_latest.note_unsaved` ("check
+    /// only" as Get Latest's own mode name, not spelled "for updates"),
+    /// `plain.empty.welcome_body` (the first scan of a newly added
+    /// project), `plain.release.blocker_unreadable` (verifying a folder
+    /// exists), `plain.switch.dirty_hint` (review a project's unsaved work
+    /// before switching). A future stage can reword and shrink this list;
+    /// it must never silently grow — any new entry here is itself a
+    /// "stop and report" moment for whoever adds it.
+    const CHECK_WORD_EXEMPT_KEYS: &[&str] = &[
+        "plain.get_latest.note_unsaved",
+        "plain.empty.welcome_body",
+        "plain.release.blocker_unreadable",
+        "plain.switch.dirty_hint",
+    ];
+
+    /// RFC-073 D16/Stage 4 item 2: "Check" means only "check for updates" —
+    /// every English value that uses the standalone word "Check"/"check"
+    /// (not "checking"/"checked"/"checks", read literally as a different
+    /// word) must belong to the one meaning D16's three phrases name:
+    /// "Check for updates", "Only check for updates", "Ready check", or be
+    /// one of [`CHECK_WORD_EXEMPT_KEYS`]'s own pre-existing, reported
+    /// exceptions. A value qualifies by containing `"for updates"` or
+    /// `"ready check"` (case-insensitive, either substring, anywhere in the
+    /// value) — not by exact phrase match alone, since D16's own new text
+    /// wraps the phrase ("**Check all projects for updates**" —
+    /// `palette.action.check_all`) rather than always repeating it
+    /// verbatim.
+    #[test]
+    fn check_means_only_checking_for_updates() {
+        let en = en_strings();
+        let mut violations = Vec::new();
+        for (key, value) in en.iter() {
+            if CHECK_WORD_EXEMPT_KEYS.contains(key) {
+                continue;
+            }
+            let lower = value.to_lowercase();
+            let has_check_word = lower
+                .split(|c: char| !c.is_alphanumeric())
+                .any(|w| w == "check");
+            if !has_check_word {
+                continue;
+            }
+            let in_allowed_context = lower.contains("for updates") || lower.contains("ready check");
+            if !in_allowed_context {
+                violations.push(format!("{key} = {value:?}"));
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "{} English value(s) use \"Check\"/\"check\" outside \"Check for \
+             updates\", \"Only check for updates\" or \"Ready check\":\n{}",
+            violations.len(),
+            violations.join("\n")
+        );
     }
 
     // -------------------------------------------------------------------
