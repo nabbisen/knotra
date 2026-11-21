@@ -356,4 +356,165 @@ mod tests {
             failures.join("\n")
         );
     }
+
+    /// RFC-073 Amendment A7 §1: the detail panel's own three Actions
+    /// buttons — Refresh, Check for updates, Remove from workspace.
+    /// Review 288 §2 found "Check for updates" (Stage 4's renaming of
+    /// "Fetch") wrapped onto a second line *inside* its own button and was
+    /// cut off, sharing one row with Refresh at 1280×900, English, zoom
+    /// 100%.
+    ///
+    /// **Its own test, not folded into the matrix above.** The detail
+    /// panel renders as a fixed-300px side panel *beside* the dashboard
+    /// (`view.rs`), so opening it inside the existing matrix's loop would
+    /// have shrunk the dashboard's own available width by 300px on every
+    /// iteration — a confounding variable the dashboard's own checks were
+    /// never written to tolerate, confirmed directly: doing exactly that
+    /// first produced 24 failures, nearly all of them pre-existing
+    /// dashboard controls (`Arrange`, `Select`, `Choose resolution`, the
+    /// whole selection-mode action bar) newly clamped or pushed off-screen
+    /// by the narrower width, not the one real defect this amendment
+    /// fixes. This test instead renders the full app view with the panel
+    /// open and nothing else competing for its own fixed width, which
+    /// does not vary with the outer window at all — `width` is still
+    /// swept here only because the handoff asks for "each window width at
+    /// which the panel is drawn", not because the panel's own content is
+    /// expected to differ by it.
+    #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "the pinned faces (Noto Sans, Noto Sans CJK JP) are installed only on the \
+                  Linux CI runner (Task 108 A1 §4) — the widths this guard measures would be \
+                  some other font's on macOS/Windows"
+    )]
+    fn every_detail_panel_action_label_fits_its_button() {
+        use crate::state::detail_panel::DetailPanelState;
+
+        // The panel's own ancestor is a fixed `Length::Fixed(300.0)`
+        // container (`detail_panel.rs`), unaffected by the outer window
+        // size — so `reference_simulator`'s own trick (render the same
+        // view at a 4000×2000 window to let a normally-squeezed label
+        // reach its natural width) does not work here: at *any* outer
+        // size, the panel's own content area is the same 268px, so a
+        // clamped/wrapped label would render identically "clamped" in
+        // both the real check and its own reference, comparing a bug
+        // against itself and finding no difference. Confirmed directly:
+        // written first against `reference_simulator`, this test passed
+        // even against the pre-fix code — a false negative, not a real
+        // pass. The reference here instead builds the same button in
+        // total isolation (no panel, no row, no window-size constraint at
+        // all) so its label is genuinely free to reach its own natural
+        // width.
+        fn reference_bounds(label: &str) -> iced_test::core::Rectangle {
+            let button: iced::widget::Button<'static, (), iced::Theme, iced::Renderer> =
+                iced::widget::button(knotra_ui::widget::centered_button_label(
+                    iced::widget::text(label.to_owned()),
+                ))
+                .height(iced::Length::Fixed(knotra_ui::widget::BUTTON_HEIGHT))
+                .padding([0.0, 18.0]);
+            let mut sim = crate::headless::simulator(button, REFERENCE_SIZE);
+            sim.find(label)
+                .unwrap_or_else(|e| panic!("reference label {label:?} not found: {e}"))
+                .bounds()
+        }
+
+        let mut checked = 0usize;
+        let mut failures: Vec<String> = Vec::new();
+
+        for &locale in &[knotra_ui::i18n::Locale::En, knotra_ui::i18n::Locale::Ja] {
+            for &zoom_percent in &[100.0_f32, 150.0_f32] {
+                for &width in &[800.0_f32, 1280.0_f32] {
+                    let mut state = AppState::new(AppConfig::default());
+                    state.catalog = knotra_ui::i18n::Catalog::for_locale(locale);
+                    install_one_project_per_status(&mut state);
+                    let project_id = state
+                        .workspace
+                        .as_ref()
+                        .and_then(|ws| ws.projects.first())
+                        .map(|p| p.id.clone())
+                        .expect("install_one_project_per_status adds at least one project");
+                    state.detail_panel = DetailPanelState {
+                        open_project_id: Some(project_id),
+                        ..Default::default()
+                    };
+
+                    let logical = crate::headless::logical_size_at_zoom(
+                        Size::new(width, 720.0),
+                        zoom_percent,
+                    );
+                    state.width_mode = WidthMode::from_width(logical.width);
+
+                    let context = format!(
+                        "locale={locale:?} zoom={zoom_percent}% width={width} (detail panel)"
+                    );
+
+                    // The panel alone, not the full `app_view` — the
+                    // header shows its own "Refresh"/「再読み込み」 control
+                    // since Stage 4 (`plain.check_now`, a *different*
+                    // catalog key with the same literal text as this
+                    // panel's own `detail.refresh`), and `Simulator::find`
+                    // has no way to pick which of two same-text matches is
+                    // the one under test — confirmed directly: through
+                    // `app_view`, "Refresh" intermittently matched the
+                    // header's own control instead (only at width=1280,
+                    // the Standard/Wide band where the header shows a text
+                    // label, not just an icon), giving a false failure
+                    // this isolated render does not have.
+                    let panel = crate::view::detail_panel::view(&state)
+                        .expect("detail_panel.open_project_id is set above");
+                    let mut ui = crate::headless::simulator(panel, logical);
+
+                    for key in [
+                        "detail.refresh",
+                        "detail.fetch",
+                        "detail.remove_from_workspace",
+                    ] {
+                        let label = state.t(key).to_owned();
+                        let natural = reference_bounds(&label);
+                        let actual = ui
+                            .find(label.as_str())
+                            .unwrap_or_else(|e| panic!("{context}: label {label:?} not found: {e}"))
+                            .bounds();
+
+                        let mut problems = Vec::new();
+                        if (actual.width - natural.width).abs() > 0.5 {
+                            problems.push(format!(
+                                "width {:.2} != natural {:.2} (clamped)",
+                                actual.width, natural.width
+                            ));
+                        }
+                        if actual.height != natural.height {
+                            problems.push(format!(
+                                "height {:.2} != natural {:.2}",
+                                actual.height, natural.height
+                            ));
+                        }
+                        if actual.x + actual.width > logical.width + 0.5 {
+                            problems.push(format!(
+                                "right edge {:.2} exceeds the viewport's {:.2}",
+                                actual.x + actual.width,
+                                logical.width
+                            ));
+                        }
+                        if !problems.is_empty() {
+                            failures.push(format!(
+                                "{context}: label {label:?} {actual:?} (natural {natural:?}): {}",
+                                problems.join("; ")
+                            ));
+                        }
+                        checked += 1;
+                    }
+                }
+            }
+        }
+
+        assert!(checked > 0, "the matrix must check at least one label");
+        eprintln!("label_overflow_guard: checked {checked} detail-panel label/control pairs");
+        assert!(
+            failures.is_empty(),
+            "{} of {checked} detail-panel label/control pairs were clamped or off-screen:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+    }
 }

@@ -411,7 +411,12 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
         ),
-        row![refresh_btn, fetch_btn].spacing(6),
+        // RFC-073 Amendment A7 §1: wraps, same as the dashboard's own chip
+        // row (Task 110) — "Check for updates" (Stage 4's renaming of
+        // "Fetch") no longer fits beside "Refresh" at every width/zoom
+        // this panel's fixed 300px is shown at; wrapped, it moves to its
+        // own line instead of clipping inside the shared row.
+        row![refresh_btn, fetch_btn].spacing(6).wrap(),
         remove_btn,
     ]
     .spacing(6);

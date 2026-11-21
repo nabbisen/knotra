@@ -307,7 +307,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.get_latest.get_anyway", "Get anyway");
     m.insert(
         "plain.get_latest.note_unsaved",
-        "Has unsaved work — check only by default.",
+        "Has unsaved work — only checks for updates by default.",
     );
     m.insert(
         "plain.get_latest.note_save_restore",
@@ -428,7 +428,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.release.blocker_unsaved", "Has unsaved work.");
     m.insert(
         "plain.release.blocker_unreadable",
-        "Couldn't read this project. Check that its folder still exists.",
+        "Couldn't read this project. Make sure its folder still exists.",
     );
     m.insert(
         "plain.release.note_untracked",
@@ -463,7 +463,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.switch.kind_change", "Change");
     m.insert(
         "plain.switch.dirty_hint",
-        "This project has unsaved work. Check it before changing work area.",
+        "This project has unsaved work. Review it before changing work area.",
     );
     m.insert("plain.switch.working", "Changing work area…");
     m.insert("plain.switch.done_title", "Work area changed.");
@@ -603,7 +603,7 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.empty.welcome_title", "Welcome to knotra");
     m.insert(
         "plain.empty.welcome_body",
-        "Add your first project folder. knotra will check it and show what needs your attention.",
+        "Add your first project folder. knotra will read it and show what needs your attention.",
     );
     m.insert("plain.empty.add_first", "Add project folder");
     m.insert(
@@ -1115,7 +1115,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.get_latest.get_anyway", "そのまま取得");
     m.insert(
         "plain.get_latest.note_unsaved",
-        "未保存の作業あり — デフォルトは確認のみ",
+        "未保存の作業あり — 既定では更新の確認のみ",
     );
     m.insert(
         "plain.get_latest.note_save_restore",
@@ -1763,47 +1763,32 @@ mod tests {
         }
     }
 
-    /// Pre-existing values that use the standalone word "Check"/"check" for
-    /// something other than checking for updates, found while writing
-    /// [`check_means_only_checking_for_updates`] below. None is D16 text —
-    /// D16 governs only the keys its own table and new-key list name, and
-    /// Stage 4's own standing rule ("Text: only D16's, exactly. Any other
-    /// wording is a stop and report") means these are reported here, not
-    /// reworded by this amendment: `plain.get_latest.note_unsaved` ("check
-    /// only" as Get Latest's own mode name, not spelled "for updates"),
-    /// `plain.empty.welcome_body` (the first scan of a newly added
-    /// project), `plain.release.blocker_unreadable` (verifying a folder
-    /// exists), `plain.switch.dirty_hint` (review a project's unsaved work
-    /// before switching). A future stage can reword and shrink this list;
-    /// it must never silently grow — any new entry here is itself a
-    /// "stop and report" moment for whoever adds it.
-    const CHECK_WORD_EXEMPT_KEYS: &[&str] = &[
-        "plain.get_latest.note_unsaved",
-        "plain.empty.welcome_body",
-        "plain.release.blocker_unreadable",
-        "plain.switch.dirty_hint",
-    ];
-
     /// RFC-073 D16/Stage 4 item 2: "Check" means only "check for updates" —
     /// every English value that uses the standalone word "Check"/"check"
     /// (not "checking"/"checked"/"checks", read literally as a different
     /// word) must belong to the one meaning D16's three phrases name:
-    /// "Check for updates", "Only check for updates", "Ready check", or be
-    /// one of [`CHECK_WORD_EXEMPT_KEYS`]'s own pre-existing, reported
-    /// exceptions. A value qualifies by containing `"for updates"` or
-    /// `"ready check"` (case-insensitive, either substring, anywhere in the
-    /// value) — not by exact phrase match alone, since D16's own new text
-    /// wraps the phrase ("**Check all projects for updates**" —
+    /// "Check for updates", "Only check for updates", "Ready check". A
+    /// value qualifies by containing `"for updates"` or `"ready check"`
+    /// (case-insensitive, either substring, anywhere in the value) — not
+    /// by exact phrase match alone, since D16's own new text wraps the
+    /// phrase ("**Check all projects for updates**" —
     /// `palette.action.check_all`) rather than always repeating it
     /// verbatim.
+    ///
+    /// Amendment A7 §2 reworded the four values Stage 4 had found and
+    /// exempted here (`plain.get_latest.note_unsaved`,
+    /// `plain.empty.welcome_body`, `plain.release.blocker_unreadable`,
+    /// `plain.switch.dirty_hint`) — the owner-approved texts no longer use
+    /// "check" at all (`note_unsaved`'s own "only checks for updates" is
+    /// the plural/gerund form this test's own word-boundary match
+    /// deliberately does not catch, same as "Checking…" elsewhere), so the
+    /// exemption list these once needed is gone with them, not merely
+    /// emptied.
     #[test]
     fn check_means_only_checking_for_updates() {
         let en = en_strings();
         let mut violations = Vec::new();
         for (key, value) in en.iter() {
-            if CHECK_WORD_EXEMPT_KEYS.contains(key) {
-                continue;
-            }
             let lower = value.to_lowercase();
             let has_check_word = lower
                 .split(|c: char| !c.is_alphanumeric())

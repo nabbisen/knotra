@@ -34,6 +34,16 @@ use super::layout::{BUTTON_HEIGHT, Element, Length};
 /// buttons is content-sized horizontally by its own `[0, 18]` padding
 /// (already centred by that symmetric padding), and a filled width would
 /// stretch it across its row.
+///
+/// RFC-073 Amendment A7 §1: `Wrapping::None` too — without it, a button
+/// placed in a row too narrow for its own label (the detail panel's
+/// Actions row, after Stage 4 lengthened "Fetch" to "Check for updates")
+/// let the label wrap onto a second line *inside* the button's own fixed
+/// height, clipping it, rather than reporting its true natural width and
+/// making the row (now `.wrap()`'d at each such call site) carry the
+/// button to its own line instead. The label guard (`label_overflow_
+/// guard.rs`) covers the three detail-panel buttons this protects,
+/// confirmed to still pass everywhere else this helper is already used.
 #[must_use]
 pub fn centered_button_label<'a>(
     label: iced::widget::Text<'a, iced::Theme, iced::Renderer>,
@@ -41,6 +51,7 @@ pub fn centered_button_label<'a>(
     label
         .height(Length::Fill)
         .align_y(iced::alignment::Vertical::Center)
+        .wrapping(iced::advanced::text::Wrapping::None)
 }
 
 /// The same centring [`centered_button_label`] gives a bare `Text`, for a
