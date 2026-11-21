@@ -24,4 +24,13 @@ ignore = [
   { id = "RUSTSEC-2026-0370", reason = "zvariant 5.10.1, unmaintained: merged into zbus 6. Runtime, Linux only, via zbus 5 from ashpd -> rfd (file dialog) and mundy -> iced_winit (system theme). Unfixable here: mundy 0.2.3, which iced_winit 0.14 pins, and ashpd 0.13.13 are both on zbus 5. Retires when both move to zbus 6." },
   { id = "RUSTSEC-2026-0371", reason = "zbus_names 4.3.2, unmaintained: merged into zbus 6. Same path and retirement as RUSTSEC-2026-0370." },
   { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 5.10.1, unmaintained: merged into zbus 6. Build-time proc-macro, same path and retirement as RUSTSEC-2026-0370." },
+  { id = "RUSTSEC-2026-0574", reason = "heapless 0.8.0, use-after-free in FindMutView::pop(). Runtime path via gix-hash -> gix -> endringer-git/endringer-jj. Unfixable here: faster-hex 0.10.1 (gix-hash's own dependency) pins heapless to exactly 0.8.0 — confirmed via `cargo update -p heapless --dry-run` (0 packages movable). Found newly failing while running Task 115's gates, unrelated to that task's own change — the advisory database published nine separate heapless 0.8.0 findings at once (this one plus the eight below); none is reachable through anything knotra calls directly. Retires when faster-hex (or gix-hash's choice of hex-encoding crate) moves past it." },
+  { id = "RUSTSEC-2026-0575", reason = "heapless 0.8.0, `Spsc::peek` used Relaxed ordering where Acquire was needed. Same path and retirement as RUSTSEC-2026-0574." },
+  { id = "RUSTSEC-2026-0576", reason = "heapless 0.8.0, `IndexMap::truncate` could leave an inconsistent state. Same path and retirement as RUSTSEC-2026-0574." },
+  { id = "RUSTSEC-2026-0577", reason = "heapless 0.8.0, a panicking `Drop` implementation could lead to UB. Same path and retirement as RUSTSEC-2026-0574." },
+  { id = "RUSTSEC-2026-0578", reason = "heapless 0.8.0, `SortedLinkedList::zeroize` could leave an inconsistent state. Same path and retirement as RUSTSEC-2026-0574." },
+  { id = "RUSTSEC-2026-0579", reason = "heapless 0.8.0, `Deque`'s `TryFrom` implementation was wrong when the `Deque` ended up full. Same path and retirement as RUSTSEC-2026-0574." },
+  { id = "RUSTSEC-2026-0580", reason = "heapless 0.8.0, a race condition in the treiber stack implementation. Same path and retirement as RUSTSEC-2026-0574." },
+  { id = "RUSTSEC-2026-0581", reason = "heapless 0.8.0, `Deque::make_contiguous` could lead to broken invariants. Same path and retirement as RUSTSEC-2026-0574." },
+  { id = "RUSTSEC-2026-0582", reason = "heapless 0.8.0, on maps of u16::MAX elements, `IndexMap::insert` could lead to a broken invariant. Same path and retirement as RUSTSEC-2026-0574." },
 ]

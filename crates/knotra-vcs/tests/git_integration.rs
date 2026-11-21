@@ -15,6 +15,7 @@ use std::{
 use knotra_vcs::{
     FreezeBlocker, FreezeNote, VcsAdapter,
     model::{
+        operation::ProjectOperationOutcome,
         project::Project,
         status::{ContextTarget, VcsKind},
     },
@@ -84,6 +85,21 @@ fn init_repo(dir: &Path) {
 
 fn make_project(dir: &Path) -> Project {
     Project::new("test-repo", dir.to_str().unwrap())
+}
+
+/// Task 115 §1: a real, natural way to make `worktree_status()`/`is_dirty()`
+/// fail without touching HEAD at all — confirmed directly against
+/// `endringer_git::GitBackend` before writing any of the tests below:
+/// `status_digest()` still succeeds (HEAD resolves to the real commit),
+/// but `worktree_status()`/`is_dirty()` both fail with
+/// `Backend { message: "open git index", .. }` once `.git/index` is gone,
+/// the same underlying gap A6's own `unborn_repo_with_a_staged_file_is_
+/// still_reported_as_unborn` found (a missing index, there because nothing
+/// had ever run `git add`; here because the file that already existed is
+/// removed after the fact) — not a test seam, a real repository state.
+fn init_repo_with_missing_index(dir: &Path) {
+    init_repo(dir);
+    fs::remove_file(dir.join(".git/index")).expect("remove .git/index");
 }
 
 /// True if a real `jj` binary is on `PATH`. Several tests in this suite
@@ -173,6 +189,16 @@ async fn clean_repo_reports_synced() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
+// Task 115 §1 made an unreadable working-tree status a `read_error`
+// rather than silently reading as "0 files changed" — correct, but a
+// truly empty `git init` (no file ever created, so `.git/index` was
+// never written, the same `open_index()` gap Task 115 §2 names) now
+// fails this same way, pending endringer 0.33.5 treating a missing
+// index as empty, as git itself does. Task 115 §3's own sibling,
+// `unborn_repo_with_an_untracked_file_is_still_reported_as_unborn`
+// below, carries the identical reason and comes off with the same
+// update.
+#[ignore = "needs endringer 0.33.5 (a missing .git/index reads as empty, not an error)"]
 async fn unborn_repo_with_no_commits_reports_its_branch_with_no_read_error() {
     let dir = tempfile::tempdir().unwrap();
     git(&["init", "-b", "main"], dir.path());
@@ -232,6 +258,36 @@ async fn unborn_repo_with_a_staged_file_is_still_reported_as_unborn() {
     assert_eq!(context.label, "main");
     assert!(
         status.working_tree.uncommitted_count > 0,
+        "the row still follows the files for its tier (Amendment A6 §2); got {:?}",
+        status.working_tree
+    );
+}
+
+/// Task 115 §3: the sibling case this test's own neighbour above left for
+/// endringer 0.33.5 to close — a file that is merely **untracked** (never
+/// `git add`ed), not staged, in an unborn repository. `.git/index` still
+/// does not exist (nothing has touched it), so `worktree_status()` still
+/// fails until endringer treats a missing index as empty, the same as
+/// git itself does.
+#[tokio::test]
+#[ignore = "needs endringer 0.33.5 (a missing .git/index reads as empty, not an error)"]
+async fn unborn_repo_with_an_untracked_file_is_still_reported_as_unborn() {
+    let dir = tempfile::tempdir().unwrap();
+    git(&["init", "-b", "main"], dir.path());
+    fs::write(dir.path().join("new_file.txt"), "untracked\n").unwrap();
+    let project = make_project(dir.path());
+
+    let status = VcsAdapter::read_project_status(&project).await;
+
+    assert!(status.read_error.is_none());
+    let context = status
+        .context
+        .as_ref()
+        .expect("an unborn HEAD still names a branch");
+    assert!(context.unborn);
+    assert_eq!(context.label, "main");
+    assert!(
+        status.working_tree.untracked_count > 0,
         "the row still follows the files for its tier (Amendment A6 §2); got {:?}",
         status.working_tree
     );
@@ -381,6 +437,17 @@ async fn behind_repo_shows_nonzero_behind_count() {
     git(&["add", "x.txt"], clone1_dir.path());
     git(&["commit", "-m", "from clone1"], clone1_dir.path());
     git(&["push", "-u", "origin", "main"], clone1_dir.path());
+
+    // Clone2 pulls the base commit — same reason `ahead_and_behind_repo`
+    // below already does this: a bare clone of an empty remote has no
+    // commit and no `.git/index` at all until something writes to the
+    // working tree. Task 115 §1 made an unreadable working-tree status a
+    // `read_error` rather than silently reading as "0 files changed" —
+    // correct, but it means this test's own second clone, never checked
+    // out, now fails this same way as a genuinely unborn repository would
+    // (which it structurally is, until this pull). Fetch alone (as this
+    // test did before) still leaves no index; pull resolves it.
+    git(&["pull", "origin", "main"], clone2_dir.path());
 
     // Push another commit to advance remote.
     fs::write(clone1_dir.path().join("y.txt"), "y\n").unwrap();
@@ -1435,5 +1502,149 @@ async fn jj_bookmark_name_match_is_exact_not_prefix() {
         v2.entries[0].blockers.contains(&FreezeBlocker::NameInUse),
         "v1 must be taken when v1 itself exists, got: {:?}",
         v2.entries[0].blockers
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Task 115 §1: a failed status read is never "nothing changed"
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn an_unreadable_working_tree_becomes_a_read_error_not_a_clean_status() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo_with_missing_index(dir.path());
+    let project = make_project(dir.path());
+
+    let status = VcsAdapter::read_project_status(&project).await;
+
+    assert!(
+        status.read_error.is_some(),
+        "a project whose working tree can't be read must never be reported as readable"
+    );
+    assert!(
+        !status.working_tree.is_dirty(),
+        "an unreadable working tree reports zero, not a guessed positive count"
+    );
+    assert_eq!(status.working_tree.untracked_count, 0);
+    // The branch itself still resolved fine (HEAD was never touched) —
+    // only the *working-tree* read failed, confirming this isn't the
+    // unborn-HEAD path reusing the same error by coincidence.
+    assert!(
+        status.context.is_some(),
+        "HEAD itself resolved fine; only worktree_status() failed"
+    );
+}
+
+#[tokio::test]
+async fn smart_pull_refuses_to_merge_when_dirty_state_cannot_be_read() {
+    // A real upstream, so `git fetch --prune` itself succeeds regardless
+    // of this fix — the dirty-state read failure (`.git/index` missing,
+    // after the fact) must be the only thing that stops the merge, not a
+    // fetch that was always going to fail in this fixture for an
+    // unrelated reason (no remote at all).
+    let remote_dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    git(&["init", "--bare", "-b", "main"], remote_dir.path());
+    git_command(
+        &["clone", remote_dir.path().to_str().unwrap(), "."],
+        dir.path(),
+    )
+    .status()
+    .unwrap();
+    git(&["config", "user.email", "test@test.local"], dir.path());
+    git(&["config", "user.name", "Test"], dir.path());
+    fs::write(dir.path().join("a.txt"), "a\n").unwrap();
+    git(&["add", "a.txt"], dir.path());
+    git(&["commit", "-m", "initial"], dir.path());
+    git(&["push", "-u", "origin", "main"], dir.path());
+    fs::remove_file(dir.path().join(".git/index")).expect("remove .git/index");
+    let project = make_project(dir.path());
+
+    let (result, _hint) = VcsAdapter::smart_pull(&project, false).await;
+
+    assert!(
+        !result.success,
+        "smart_pull must not proceed when it cannot tell whether the tree is dirty"
+    );
+    assert_eq!(result.outcome, ProjectOperationOutcome::Failed);
+    assert!(
+        result
+            .error_message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("could not read working tree"),
+        "got: {:?}",
+        result.error_message
+    );
+}
+
+#[tokio::test]
+async fn switch_context_refuses_when_the_working_tree_cannot_be_read() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo_with_missing_index(dir.path());
+    git(&["branch", "featurex"], dir.path());
+    let project = make_project(dir.path());
+    let target = ContextTarget::GitLocalBranch {
+        name: "featurex".to_owned(),
+    };
+
+    let (result, _hint) = VcsAdapter::switch_context(&project, &target).await;
+
+    assert!(
+        !result.success,
+        "switch_context must not proceed when it cannot tell whether the tree is dirty"
+    );
+    assert_eq!(result.outcome, ProjectOperationOutcome::Failed);
+    assert!(
+        result
+            .error_message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("could not read working tree"),
+        "got: {:?}",
+        result.error_message
+    );
+
+    // Confirm it really did not switch — the operation stopped before
+    // ever running `git switch`.
+    let output = git_command(&["symbolic-ref", "--short", "HEAD"], dir.path())
+        .output()
+        .unwrap();
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    assert_eq!(
+        branch, "main",
+        "must still be on main — nothing was switched"
+    );
+}
+
+#[tokio::test]
+async fn jj_unreadable_working_tree_becomes_a_read_error_not_a_clean_status() {
+    // A colocated jj layout (`.jj/` + `.git/` at the same root) built by
+    // hand, without the `jj` binary — `endringer-jj`'s own `JjBackend`
+    // reads the colocated git store directly via gix (confirmed reading
+    // its source during RFC-073 Amendment A6), so this exercises the real
+    // `jj.rs::read_status` path on a machine where `jj` itself is not
+    // installed, the same way Amendment A6's own source-level finding did.
+    let dir = tempfile::tempdir().unwrap();
+    init_repo_with_missing_index(dir.path());
+    fs::create_dir(dir.path().join(".jj")).expect("create .jj");
+    let project = make_project(dir.path());
+    assert_eq!(
+        VcsAdapter::list_contexts(&project).await.vcs_kind,
+        VcsKind::Jujutsu,
+        "a colocated .jj/.git layout must route through the jj backend"
+    );
+
+    let status = VcsAdapter::read_project_status(&project).await;
+
+    assert!(
+        status.read_error.is_some(),
+        "a jj project whose working tree can't be read must never be reported as readable"
+    );
+    assert!(!status.working_tree.is_dirty());
+    assert_eq!(status.working_tree.untracked_count, 0);
+    assert!(
+        status.context.is_some(),
+        "HEAD itself resolved fine; only worktree_status() failed"
     );
 }

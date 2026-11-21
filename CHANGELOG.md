@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — a project whose status cannot be read is never shown as all set
+
+If knotra could not read a project's files, it showed the project as all set, and Get latest
+safely treated it as having nothing unsaved. It now shows that the project needs your help, and
+leaves it alone.
+
 ### Changed — one name for each action
 
 "Check" now always means checking for updates. Re-reading your projects' status is

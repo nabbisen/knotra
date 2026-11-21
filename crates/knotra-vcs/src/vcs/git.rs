@@ -163,16 +163,31 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
                 }
             };
 
-            // Working tree — dirty / untracked via is_dirty + worktree_status
-            let working_tree = repo
-                .worktree_status()
-                .await
-                .ok()
-                .map(|ws| WorkingTreeStatus {
-                    uncommitted_count: (ws.staged.len() + ws.unstaged.len()) as u32,
-                    untracked_count: ws.untracked.len() as u32,
-                })
-                .unwrap_or_default();
+            // Working tree — dirty / untracked via is_dirty + worktree_status.
+            // Task 115 §1: a failed read must never read as "nothing
+            // changed" — `.ok()`/`unwrap_or_default()` used to silently
+            // turn any error here into an empty `WorkingTreeStatus`
+            // (reading as "All set" on the dashboard, for a project whose
+            // files knotra never actually looked at). A failure here now
+            // becomes `read_error` too, same as `head_read_error` above —
+            // `classify` (`state/dashboard.rs`) already turns any
+            // `read_error` into `NeedsHelp`/`ReadUnavailable`, so this
+            // alone routes it there without any change on the `knotra-app`
+            // side. `head_read_error` wins if both failed, since it is
+            // read first and is the more fundamental of the two facts.
+            let (working_tree, working_tree_read_error) = match repo.worktree_status().await {
+                Ok(ws) => (
+                    WorkingTreeStatus {
+                        uncommitted_count: (ws.staged.len() + ws.unstaged.len()) as u32,
+                        untracked_count: ws.untracked.len() as u32,
+                    },
+                    None,
+                ),
+                Err(e) => (
+                    WorkingTreeStatus::default(),
+                    Some(format!("cannot read working tree: {e}")),
+                ),
+            };
 
             // Ahead/Behind via gix (falls back to all-zero on error).
             let remote = gix_ahead_behind(&project.path);
@@ -191,7 +206,7 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
                 working_tree,
                 conflict,
                 refreshed_at: Timestamp::now(),
-                read_error: head_read_error,
+                read_error: head_read_error.or(working_tree_read_error),
             }
         }
     }
@@ -761,17 +776,57 @@ pub async fn smart_pull(
     project: &Project,
     stash_dirty: bool,
 ) -> (ProjectOperationResult, Option<RecoveryHint>) {
-    // Read dirty state via gix
+    // Read dirty state via gix. Task 115 §1: an unreadable dirty state
+    // must never be treated as "not dirty" — the old
+    // `.ok()...unwrap_or(false)` chain let a read failure merge a
+    // fast-forward over local changes it never actually saw. A failure
+    // here now stops the operation, the same "could not read" shape
+    // `validate_for_freeze` below already uses.
     let path = std::path::Path::new(&project.path).to_path_buf();
-    let is_dirty = tokio::task::spawn_blocking(move || {
+    let is_dirty = match tokio::task::spawn_blocking(move || {
         use endringer_core::backend::VcsBackend;
         endringer_git::GitBackend::open(&path)
-            .ok()
-            .and_then(|b| b.is_dirty().ok())
-            .unwrap_or(false)
+            .map_err(|e| e.to_string())
+            .and_then(|b| b.is_dirty().map_err(|e| e.to_string()))
     })
     .await
-    .unwrap_or(false);
+    {
+        Ok(Ok(dirty)) => dirty,
+        Ok(Err(e)) => {
+            return (
+                ProjectOperationResult {
+                    project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
+                    outcome: ProjectOperationOutcome::Failed,
+                    success: false,
+                    skip_reason: None,
+                    commands_executed: vec![],
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: Some(format!("could not read working tree: {e}")),
+                },
+                None,
+            );
+        }
+        Err(e) => {
+            return (
+                ProjectOperationResult {
+                    project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
+                    outcome: ProjectOperationOutcome::Failed,
+                    success: false,
+                    skip_reason: None,
+                    commands_executed: vec![],
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: Some(format!("task join error: {e}")),
+                },
+                None,
+            );
+        }
+    };
 
     let fetch_res = run_git(project, &["fetch", "--prune"]).await;
     if !fetch_res.success {
@@ -834,23 +889,58 @@ pub async fn switch_context(
     project: &Project,
     target: &ContextTarget,
 ) -> (ProjectOperationResult, Option<RecoveryHint>) {
-    // Check dirty via gix
+    // Check dirty via gix. Task 115 §1: an unreadable working tree must
+    // never be treated as a clean one — the old `.ok().flatten()` chain
+    // let a switch proceed on a project whose uncommitted/untracked state
+    // was never actually known, the same risk `smart_pull` above had.
     let path = std::path::Path::new(&project.path).to_path_buf();
-    let wt_status = tokio::task::spawn_blocking(move || {
+    let wt_status = match tokio::task::spawn_blocking(move || {
         use endringer_core::backend::VcsBackend;
         endringer_git::GitBackend::open(&path)
-            .ok()
-            .and_then(|b| b.worktree_status().ok())
+            .map_err(|e| e.to_string())
+            .and_then(|b| b.worktree_status().map_err(|e| e.to_string()))
     })
     .await
-    .ok()
-    .flatten();
+    {
+        Ok(Ok(status)) => status,
+        Ok(Err(e)) => {
+            return (
+                ProjectOperationResult {
+                    project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
+                    outcome: ProjectOperationOutcome::Failed,
+                    success: false,
+                    skip_reason: None,
+                    commands_executed: vec![],
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: Some(format!("could not read working tree: {e}")),
+                },
+                None,
+            );
+        }
+        Err(e) => {
+            return (
+                ProjectOperationResult {
+                    project_id: project.id.clone(),
+                    project_name: Some(project.name.clone()),
+                    outcome: ProjectOperationOutcome::Failed,
+                    success: false,
+                    skip_reason: None,
+                    commands_executed: vec![],
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error_message: Some(format!("task join error: {e}")),
+                },
+                None,
+            );
+        }
+    };
 
-    let uncommitted = wt_status
-        .as_ref()
-        .map(|s| s.staged.len() + s.unstaged.len())
-        .unwrap_or(0);
-    let untracked = wt_status.as_ref().map(|s| s.untracked.len()).unwrap_or(0);
+    let uncommitted = wt_status.staged.len() + wt_status.unstaged.len();
+    let untracked = wt_status.untracked.len();
 
     if uncommitted > 0 {
         let hint = RecoveryHint {

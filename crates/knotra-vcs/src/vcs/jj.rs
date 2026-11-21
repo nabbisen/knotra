@@ -176,15 +176,21 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
                 }
             };
 
-            let working_tree = repo
-                .worktree_status()
-                .await
-                .ok()
-                .map(|ws| WorkingTreeStatus {
-                    uncommitted_count: (ws.staged.len() + ws.unstaged.len()) as u32,
-                    untracked_count: ws.untracked.len() as u32,
-                })
-                .unwrap_or_default();
+            // Task 115 §1: same fix as `git.rs::read_status` — a failed
+            // working-tree read must never read as "nothing changed".
+            let (working_tree, working_tree_read_error) = match repo.worktree_status().await {
+                Ok(ws) => (
+                    WorkingTreeStatus {
+                        uncommitted_count: (ws.staged.len() + ws.unstaged.len()) as u32,
+                        untracked_count: ws.untracked.len() as u32,
+                    },
+                    None,
+                ),
+                Err(e) => (
+                    WorkingTreeStatus::default(),
+                    Some(format!("cannot read working tree: {e}")),
+                ),
+            };
 
             let conflict = detect_jj_conflict(&project.path);
 
@@ -199,7 +205,7 @@ pub async fn read_status(project: &Project) -> ProjectStatus {
                 working_tree,
                 conflict,
                 refreshed_at: Timestamp::now(),
-                read_error: head_read_error,
+                read_error: head_read_error.or(working_tree_read_error),
             }
         }
     }
