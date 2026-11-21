@@ -87,19 +87,30 @@ fn make_project(dir: &Path) -> Project {
     Project::new("test-repo", dir.to_str().unwrap())
 }
 
-/// Task 115 §1: a real, natural way to make `worktree_status()`/`is_dirty()`
-/// fail without touching HEAD at all — confirmed directly against
-/// `endringer_git::GitBackend` before writing any of the tests below:
-/// `status_digest()` still succeeds (HEAD resolves to the real commit),
-/// but `worktree_status()`/`is_dirty()` both fail with
-/// `Backend { message: "open git index", .. }` once `.git/index` is gone,
-/// the same underlying gap A6's own `unborn_repo_with_a_staged_file_is_
-/// still_reported_as_unborn` found (a missing index, there because nothing
-/// had ever run `git add`; here because the file that already existed is
-/// removed after the fact) — not a test seam, a real repository state.
-fn init_repo_with_missing_index(dir: &Path) {
+/// Task 115 Amendment A1 §2: endringer 0.33.5 reads a *missing* `.git/index`
+/// as empty, the same as git itself — so a deleted index no longer forces
+/// the read failure these tests exist to cover. A state git itself still
+/// cannot read does: a few bytes of garbage in place of the index file.
+/// Confirmed directly, both ways, before this replaced the old seam:
+///
+/// ```text
+/// $ git status
+/// fatal: .git/index: index file smaller than expected
+/// $ echo $?
+/// 128
+/// ```
+///
+/// and against `endringer_git::GitBackend` (0.33.5), via a scratch probe
+/// since removed: `read_project_status` returns
+/// `read_error: Some("cannot read working tree: backend error: open git
+/// index")`, with `context` (HEAD/branch) still resolving fine and
+/// `working_tree.is_dirty()` false — the same shape the old, now-stale
+/// "missing index" seam produced, confirming the replacement changes
+/// nothing these tests assert on.
+fn init_repo_with_corrupt_index(dir: &Path) {
     init_repo(dir);
-    fs::remove_file(dir.join(".git/index")).expect("remove .git/index");
+    fs::write(dir.join(".git/index"), b"garbage bytes not an index")
+        .expect("overwrite .git/index with garbage");
 }
 
 /// True if a real `jj` binary is on `PATH`. Several tests in this suite
@@ -190,15 +201,13 @@ async fn clean_repo_reports_synced() {
 
 #[tokio::test]
 // Task 115 §1 made an unreadable working-tree status a `read_error`
-// rather than silently reading as "0 files changed" — correct, but a
-// truly empty `git init` (no file ever created, so `.git/index` was
-// never written, the same `open_index()` gap Task 115 §2 names) now
-// fails this same way, pending endringer 0.33.5 treating a missing
-// index as empty, as git itself does. Task 115 §3's own sibling,
-// `unborn_repo_with_an_untracked_file_is_still_reported_as_unborn`
-// below, carries the identical reason and comes off with the same
-// update.
-#[ignore = "needs endringer 0.33.5 (a missing .git/index reads as empty, not an error)"]
+// rather than silently reading as "0 files changed" — which briefly
+// caught a truly empty `git init` too (no file ever created, so
+// `.git/index` was never written, the same `open_index()` gap Task 115
+// §2 named). Amendment A1: endringer 0.33.5 reads a missing index as
+// empty, as git itself does, so this passes again, with no ignore.
+// `unborn_repo_with_an_untracked_file_is_still_reported_as_unborn` below
+// carries the identical history.
 async fn unborn_repo_with_no_commits_reports_its_branch_with_no_read_error() {
     let dir = tempfile::tempdir().unwrap();
     git(&["init", "-b", "main"], dir.path());
@@ -266,11 +275,10 @@ async fn unborn_repo_with_a_staged_file_is_still_reported_as_unborn() {
 /// Task 115 §3: the sibling case this test's own neighbour above left for
 /// endringer 0.33.5 to close — a file that is merely **untracked** (never
 /// `git add`ed), not staged, in an unborn repository. `.git/index` still
-/// does not exist (nothing has touched it), so `worktree_status()` still
-/// fails until endringer treats a missing index as empty, the same as
-/// git itself does.
+/// does not exist (nothing has touched it); Amendment A1's endringer
+/// 0.33.5 now treats a missing index as empty, the same as git itself
+/// does, so `worktree_status()` succeeds and this passes with no ignore.
 #[tokio::test]
-#[ignore = "needs endringer 0.33.5 (a missing .git/index reads as empty, not an error)"]
 async fn unborn_repo_with_an_untracked_file_is_still_reported_as_unborn() {
     let dir = tempfile::tempdir().unwrap();
     git(&["init", "-b", "main"], dir.path());
@@ -1512,7 +1520,7 @@ async fn jj_bookmark_name_match_is_exact_not_prefix() {
 #[tokio::test]
 async fn an_unreadable_working_tree_becomes_a_read_error_not_a_clean_status() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo_with_missing_index(dir.path());
+    init_repo_with_corrupt_index(dir.path());
     let project = make_project(dir.path());
 
     let status = VcsAdapter::read_project_status(&project).await;
@@ -1538,10 +1546,10 @@ async fn an_unreadable_working_tree_becomes_a_read_error_not_a_clean_status() {
 #[tokio::test]
 async fn smart_pull_refuses_to_merge_when_dirty_state_cannot_be_read() {
     // A real upstream, so `git fetch --prune` itself succeeds regardless
-    // of this fix — the dirty-state read failure (`.git/index` missing,
-    // after the fact) must be the only thing that stops the merge, not a
-    // fetch that was always going to fail in this fixture for an
-    // unrelated reason (no remote at all).
+    // of this fix — the dirty-state read failure (a corrupt `.git/index`,
+    // after the fact; see `init_repo_with_corrupt_index`) must be the
+    // only thing that stops the merge, not a fetch that was always going
+    // to fail in this fixture for an unrelated reason (no remote at all).
     let remote_dir = tempfile::tempdir().unwrap();
     let dir = tempfile::tempdir().unwrap();
     git(&["init", "--bare", "-b", "main"], remote_dir.path());
@@ -1557,7 +1565,8 @@ async fn smart_pull_refuses_to_merge_when_dirty_state_cannot_be_read() {
     git(&["add", "a.txt"], dir.path());
     git(&["commit", "-m", "initial"], dir.path());
     git(&["push", "-u", "origin", "main"], dir.path());
-    fs::remove_file(dir.path().join(".git/index")).expect("remove .git/index");
+    fs::write(dir.path().join(".git/index"), b"garbage bytes not an index")
+        .expect("overwrite .git/index with garbage");
     let project = make_project(dir.path());
 
     let (result, _hint) = VcsAdapter::smart_pull(&project, false).await;
@@ -1581,7 +1590,7 @@ async fn smart_pull_refuses_to_merge_when_dirty_state_cannot_be_read() {
 #[tokio::test]
 async fn switch_context_refuses_when_the_working_tree_cannot_be_read() {
     let dir = tempfile::tempdir().unwrap();
-    init_repo_with_missing_index(dir.path());
+    init_repo_with_corrupt_index(dir.path());
     git(&["branch", "featurex"], dir.path());
     let project = make_project(dir.path());
     let target = ContextTarget::GitLocalBranch {
@@ -1626,7 +1635,7 @@ async fn jj_unreadable_working_tree_becomes_a_read_error_not_a_clean_status() {
     // `jj.rs::read_status` path on a machine where `jj` itself is not
     // installed, the same way Amendment A6's own source-level finding did.
     let dir = tempfile::tempdir().unwrap();
-    init_repo_with_missing_index(dir.path());
+    init_repo_with_corrupt_index(dir.path());
     fs::create_dir(dir.path().join(".jj")).expect("create .jj");
     let project = make_project(dir.path());
     assert_eq!(

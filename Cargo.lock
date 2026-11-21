@@ -1083,9 +1083,9 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "endringer"
-version = "0.33.4"
+version = "0.33.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bbe07ff6aeb762a0660d6832efb92595e6b9f6e4c3f1948c692d313f9b943ec"
+checksum = "02f7dab6881329c4886b8482888debfe00e1749a18d7df245b62a495f4a25194"
 dependencies = [
  "anyhow",
  "endringer-core",
@@ -1095,9 +1095,9 @@ dependencies = [
 
 [[package]]
 name = "endringer-async"
-version = "0.33.4"
+version = "0.33.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d2e883c60b2a61497b90f396902948d01e5fec1fc2873bf39805599ef65b9bd"
+checksum = "3a21279ebefcdbba42493ead820d735859d7876b63a4a15095fd2a915c24a55b"
 dependencies = [
  "anyhow",
  "endringer",
@@ -1106,18 +1106,18 @@ dependencies = [
 
 [[package]]
 name = "endringer-core"
-version = "0.33.4"
+version = "0.33.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9365370fc31cb04b9b3821951de3081e4dffa9c75fc1b21390b222f6a0c65347"
+checksum = "b5398266d77cf3b7366a73013653427073b5c1e18564e3b395cfc435e9da2a10"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
 name = "endringer-git"
-version = "0.33.4"
+version = "0.33.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13f046cdcc341ca4a2da7116625ef2d891cbd4d5a51ef340c55fbb7105ee4d4d"
+checksum = "e8bbb10f8a7e918fdacfeb426c4b1650f054c3e4c2940fed61643e0dabf3cf44"
 dependencies = [
  "anyhow",
  "endringer-core",
@@ -1126,9 +1126,9 @@ dependencies = [
 
 [[package]]
 name = "endringer-jj"
-version = "0.33.4"
+version = "0.33.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9264362326e12dfbdcbac1dbc90c7380998ac1e1bfe65de5b4774b757c1626b"
+checksum = "f431444ffa54fbe6327fd8b2a24b0978cae186091103f96995b535e9156be8eb"
 dependencies = [
  "anyhow",
  "endringer-core",
