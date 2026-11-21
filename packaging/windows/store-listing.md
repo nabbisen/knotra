@@ -141,6 +141,27 @@ Strongly recommended. If absent, the Store uses the image from the package.
 **Leave it blank for the first submission**, as Microsoft instructs. From the
 second submission on, summarise that version's `CHANGELOG.md` section.
 
+**0.34.0**, English:
+
+> Calmer by default. The dashboard shows less at once, and Settings shows what most people
+> use, with fine-tuning under "Advanced". Buttons and fields are easier to hit, and text in
+> the light and dark themes has more contrast. Each action has one name: "Refresh" re-reads
+> your projects, and "Check for updates" asks their shared source. In a small window or at a
+> large zoom, every status filter is shown. Fixed: projects no longer show unsaved files
+> they do not have, notably on Windows, where Git converts line endings. A project whose
+> status cannot be read is no longer shown as all set. Escape now closes a window even
+> while you are typing in it.
+
+**0.34.0**, Japanese:
+
+> 標準で落ち着いた画面になりました。ダッシュボードの表示を絞り、設定にはよく使う項目を並べ、
+> 細かな調整は「詳細設定」にまとめました。ボタンや入力欄が押しやすくなり、ライト／ダークの
+> テーマでは文字のコントラストを高めました。操作の名前を一つにそろえ、「再読み込み」は
+> プロジェクトの状態を読み直し、「更新を確認」は共有元の更新を確かめます。小さなウィンドウや
+> 大きな表示倍率でも、すべての状態の絞り込みを表示します。修正：変更のないファイルが未保存と
+> 表示される問題を直しました（特に、Git が改行を変換する Windows で）。状態を読み取れない
+> プロジェクトを「問題なし」と表示しないようにしました。入力中でも Esc キーで画面を閉じられます。
+
 **0.33.0**, English:
 
 > Every screen is easier to read. Text is larger and headings are bold. Each status has its
