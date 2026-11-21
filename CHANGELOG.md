@@ -9,16 +9,52 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.34.0] — 2026-11-21
+
+**Calmer by default: the dashboard and Settings show less at once, everything is easier to hit
+and to read, each action has one name, and projects no longer show changes they do not have.**
+
+### Added — knotra appears in your Linux desktop's menu, with its icon
+
+The Linux download now includes a desktop entry, an icon and a software-centre description,
+and knotra's window tells the desktop which app it is, so docks and task switchers show its
+icon. Package maintainers can install the files from the archive's `share/` folder as they
+are.
+
+### Changed — the dashboard shows less at once
+
+With no projects yet, the dashboard shows only how to add your first one. "Group" and
+"Sort" are now together under "Arrange". A project's kind (Git or Jujutsu) is shown only
+when both kinds are in the workspace. With a single workspace, its name is no longer a menu;
+workspaces are created, renamed and removed in Settings. The "Needs a choice" filter is gone:
+those projects are all under "Needs help", each with its reason.
+
+### Changed — everything you can press is easier to hit, and every status looks the same
+
+Filter buttons, header controls, group headings and project names now have a larger area to
+click. Every window now shows a project's status with the same coloured symbol as the
+dashboard, and the symbol itself is larger.
+
+### Changed — text in the light and dark themes has more contrast
+
+Every piece of text in the light and dark themes, including greyed-out labels and the hints in
+empty fields, now stands out from its background at least seven to one, a level
+recommended for older readers. Backgrounds and the overall look are unchanged.
+
+### Changed — window edges and pressed filters are easier to see
+
+In the light theme, the edge of a window such as Add project is a little darker. In the light
+and dark themes, a status filter keeps its full contrast while you press it.
+
 ### Changed — the project details panel stands apart from the page
 
 The panel that opens on the right has its own background and a line along its edge, so it is
 easy to tell from the rest of the window.
 
-### Fixed — a project whose status cannot be read is never shown as all set
+### Changed — a small window shows every status filter
 
-If knotra could not read a project's files, it showed the project as all set, and Get latest
-safely treated it as having nothing unsaved. It now shows that the project needs your help, and
-leaves it alone.
+In a small window or at a large zoom, all five status filters are shown, continuing on a
+second line, and "Arrange" is shown by name. Nothing is hidden behind "⋯" any more.
 
 ### Changed — one name for each action
 
@@ -27,25 +63,54 @@ leaves it alone.
 ("Unsaved files", "Local commits") instead of version-control terms. In Japanese, a few
 actions and states that had two names now have one.
 
-### Changed — a small window shows every status filter
+### Changed — Settings shows what most people use
 
-In a small window or at a large zoom, all five status filters are shown, continuing on a
-second line, and "Arrange" is shown by name. Nothing is hidden behind "⋯" any more.
-
-### Fixed — a project with no commits says so
-
-A project with no commits yet showed "Work area unavailable", sometimes beside "All set". It
-now shows its branch and "No commits yet".
+Settings now shows language, theme, zoom, automatic refresh, your tools and your
+workspaces. Settings for fine-tuning are under "Advanced", closed until you open it. Numbers
+are now chosen from a list instead of typed, and a setting that needs a restart says so.
 
 ### Changed — file-change refresh is a plain on/off box
 
 The experimental refresh when files change is now a checkbox, and its settings sit together
 under "Advanced".
 
-### Changed — window edges and pressed filters are easier to see
+### Changed — Jujutsu projects are labelled "Jujutsu"
 
-In the light theme, the edge of a window such as Add project is a little darker. In the light
-and dark themes, a status filter keeps its full contrast while you press it.
+Where knotra shows a project's kind, a Jujutsu project now reads "Jujutsu", as a Git project
+reads "Git"; it used to read "jj". For developers using `knotra-vcs`: `VcsKind::Jujutsu`
+displays as `Jujutsu`.
+
+### Changed — timestamps are `jiff::Timestamp`, and a work area can be unborn (`knotra-vcs` crate)
+
+`ProjectStatus::refreshed_at`, `WorkspaceStatus::last_refresh`, `OperationResult::started_at`
+and `finished_at`, `CommitEntry::date` and `ChangelogDraft::generated_at` are now
+`jiff::Timestamp`, in place of `chrono::DateTime<Utc>`. `VcsContext` gains `unborn: bool`, true
+for a branch with no commits yet.
+
+### Changed — `select::pick_list` is now `styled_pick_list` (`knotra-ui` crate)
+
+It sets the control's height with its padding. New: `escape_first`, `styled_text_input`,
+`centered_button_row`, `body_badge_diameter`, `APP_DIRECTION`, `icon::chevron_up` and
+`status_symbol::skipped`.
+
+### Fixed — projects no longer show unsaved files they do not have
+
+knotra could report unsaved files in a project that had none: after the project folder was
+copied or restored, on Windows where Git converts line endings, and in projects with symbolic
+links or submodules. Save release point, Get latest safely and Change work area could then hold
+back or act on changes that did not exist. Each file is now compared by its content, as Git
+itself does.
+
+### Fixed — a project whose status cannot be read is never shown as all set
+
+If knotra could not read a project's files, it showed the project as all set, and Get latest
+safely treated it as having nothing unsaved. It now shows that the project needs your help, and
+leaves it alone.
+
+### Fixed — a project with no commits says so
+
+A project with no commits yet showed "Work area unavailable", sometimes beside "All set". It
+now shows its branch and "No commits yet".
 
 ### Fixed — Escape closes a window even while you are typing in it
 
@@ -56,53 +121,6 @@ even when the cursor is in a text field. Before, the first press only left the f
 
 In a small window at a large zoom, the last status filter lost its count and the control for
 the rest was cut off. The filters now continue on a second line.
-
-### Fixed — projects no longer show unsaved files they do not have
-
-knotra could report unsaved files in a project that had none: after the project folder was
-copied or restored, on Windows where Git converts line endings, and in projects with symbolic
-links or submodules. Save release point, Get latest safely and Change work area could then hold
-back or act on changes that did not exist. Each file is now compared by its content, as Git
-itself does.
-
-### Changed — text in the light and dark themes has more contrast
-
-Every piece of text in the light and dark themes, including greyed-out labels and the hints in
-empty fields, now stands out from its background at least seven to one, a level
-recommended for older readers. Backgrounds and the overall look are unchanged.
-
-### Changed — Settings shows what most people use
-
-Settings now shows language, theme, zoom, automatic refresh, your tools and your
-workspaces. Settings for fine-tuning are under "Advanced", closed until you open it. Numbers
-are now chosen from a list instead of typed, and a setting that needs a restart says so.
-
-### Changed — everything you can press is easier to hit, and every status looks the same
-
-Filter buttons, header controls, group headings and project names now have a larger area to
-click. Every window now shows a project's status with the same coloured symbol as the
-dashboard, and the symbol itself is larger.
-
-### Added — knotra appears in your Linux desktop's menu, with its icon
-
-The Linux download now includes a desktop entry, an icon and a software-centre description,
-and knotra's window tells the desktop which app it is, so docks and task switchers show its
-icon. Package maintainers can install the files from the archive's `share/` folder as they
-are.
-
-### Changed — Jujutsu projects are labelled "Jujutsu"
-
-Where knotra shows a project's kind, a Jujutsu project now reads "Jujutsu", as a Git project
-reads "Git"; it used to read "jj". For developers using `knotra-vcs`: `VcsKind::Jujutsu`
-displays as `Jujutsu`.
-
-### Changed — the dashboard shows less at once
-
-With no projects yet, the dashboard shows only how to add your first one. "Group" and
-"Sort" are now together under "Arrange". A project's kind (Git or Jujutsu) is shown only
-when both kinds are in the workspace. With a single workspace, its name is no longer a menu;
-workspaces are created, renamed and removed in Settings. The "Needs a choice" filter is gone:
-those projects are all under "Needs help", each with its reason.
 
 ## [0.33.0] — 2026-11-04
 
