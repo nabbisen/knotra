@@ -33,7 +33,9 @@ Stage 4 renamed "Fetch" to "Check for updates".
   - each window width at which the panel is drawn.
   - **Seen to fail first,** on today's code.
 
-## 2. Four texts that still say "check" (Review 287 §4): **only as the owner decides**
+## 2. Four texts that still say "check" (Review 287 §4)
+
+**The owner approved all four on 2026-11-21, exactly as below. Apply them.**
 
 | Key | Text |
 |---|---|
