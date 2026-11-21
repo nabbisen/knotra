@@ -44,12 +44,9 @@ Stage 4 renamed "Fetch" to "Check for updates".
 | `plain.release.blocker_unreadable` | English: "Couldn't read this project. Make sure its folder still exists." Japanese unchanged |
 | `plain.switch.dirty_hint` | English: "This project has unsaved work. Review it before changing work area." Japanese unchanged |
 
-**Apply these only once the owner has approved them,** exactly as approved.
-
 - Then remove the four exemptions from `check_means_only_checking_for_updates`.
-- If the owner has not decided when you reach this section, do §1, and report §2 as waiting.
-- Stage 4's CHANGELOG line ("'Check' now always means checking for updates") is not true until
-  §2 is done. If the owner declines, I will reword that line.
+- With this done, stage 4's CHANGELOG line ("'Check' now always means checking for updates") is
+  true.
 
 ## 3. Evidence plan
 
