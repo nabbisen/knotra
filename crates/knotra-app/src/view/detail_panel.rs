@@ -425,10 +425,21 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .spacing(16)
         .padding(16);
 
+    // Task 117: the panel's own surface, not the page's `background` — the
+    // only thing between it and the main column used to be the main
+    // column's own scrollbar, with nothing on screen saying where the page
+    // ends and the panel begins. `view.rs` draws the panel's leading edge
+    // (`palette.border`) as its own element; this container only needs its
+    // own fill.
+    let surface = snora::design::style::color::to_iced_color(tokens.palette.surface);
     Some(
         container(scrollable(content))
             .width(Length::Fixed(300.0))
             .height(Length::Fill)
+            .style(move |_theme| iced::widget::container::Style {
+                background: Some(surface.into()),
+                ..iced::widget::container::Style::default()
+            })
             .into(),
     )
 }

@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the project details panel stands apart from the page
+
+The panel that opens on the right has its own background and a line along its edge, so it is
+easy to tell from the rest of the window.
+
 ### Fixed — a project whose status cannot be read is never shown as all set
 
 If knotra could not read a project's files, it showed the project as all set, and Get latest

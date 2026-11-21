@@ -112,9 +112,30 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     }
 
     // Detail panel (RFC-0014) — horizontally adjacent to main column.
+    //
+    // Task 117: the panel's own leading edge, a 1px `palette.border` line
+    // the full height of the row — the only thing between it and the main
+    // column used to be the main column's own scrollbar, with nothing on
+    // screen marking where the page ends and the panel begins. Built as
+    // its own element here, not as a border on either neighbour, so only
+    // this one line is drawn (the same choice `list.rs`'s own divider
+    // makes, for the same reason: a border on the container would also
+    // draw along the top/bottom/far edges, which this task does not ask
+    // for).
     let body: Element<'_, Message> = if state.detail_panel.open_project_id.is_some() {
         if let Some(panel) = detail_panel::view(state) {
-            row![main_col, panel].into()
+            use iced::widget::rule;
+            let edge_color =
+                snora::design::style::color::to_iced_color(state.theme.tokens.palette.border);
+            let edge: Element<'_, Message> = rule::vertical(1.0)
+                .style(move |_theme: &iced::Theme| rule::Style {
+                    color: edge_color,
+                    radius: 0.0.into(),
+                    fill_mode: rule::FillMode::Full,
+                    snap: true,
+                })
+                .into();
+            row![main_col, edge, panel].into()
         } else {
             main_col.into()
         }

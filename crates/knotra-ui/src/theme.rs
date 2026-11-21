@@ -726,11 +726,23 @@ mod tests {
     /// the criterion it was judged against — asserting a number closer to
     /// any of the current values would be asserting a margin snora has
     /// not promised to hold.
+    ///
+    /// **Task 117 widened this from Light/Dark to all four presets** — the
+    /// detail panel's new edge (`palette.border`, against both its own
+    /// `surface` fill and the page's `background`) needed the same floor
+    /// on `high_contrast_light`/`high_contrast_dark` too, which this test
+    /// did not reach before. Measured, both new presets, all three
+    /// surfaces: `surface` 21.0000/21.0000, `surface_raised`
+    /// 21.0000/19.7981, `background` 21.0000/21.0000
+    /// (`high_contrast_light`/`high_contrast_dark`) — every one already
+    /// clears 3.0 by a wide margin, as the preset's own name promises.
     #[test]
-    fn border_meets_the_wcag_1_4_11_boundary_floor_against_every_surface_in_both_themes() {
+    fn border_meets_the_wcag_1_4_11_boundary_floor_against_every_surface_in_every_preset() {
         for (theme_name, theme) in [
             ("light", KnotraTheme::light()),
             ("dark", KnotraTheme::dark()),
+            ("high_contrast_light", KnotraTheme::high_contrast_light()),
+            ("high_contrast_dark", KnotraTheme::high_contrast_dark()),
         ] {
             let p = &theme.tokens.palette;
             let surfaces: [(&str, snora::design::Color); 3] = [
@@ -810,14 +822,29 @@ mod tests {
     }
 
     /// RFC-071 D3: every status badge's symbol colour (`*_text`) against its
-    /// own badge colour, in both themes — the pairing `status_badge` draws.
+    /// own badge colour, in every preset — the pairing `status_badge` draws
+    /// wherever it is placed (the dashboard, History, and — Task 117 — the
+    /// detail panel's own recent-operations list), independent of whatever
+    /// surface sits behind the badge itself.
+    ///
+    /// **Widened from Light/Dark to all four presets (Task 117)**, the
+    /// detail panel's new background being the occasion — though this
+    /// pairing never reads the page's own surface at all, so nothing about
+    /// the panel's own fill could have broken it; the floor stays a flat
+    /// `AA_NORMAL`, as before, not `text_contrast.ratio()`, since D4 never
+    /// raised this one. Measured, both new presets: Success 8.3799/13.4062,
+    /// Warning 8.4168/14.8507, Danger 8.8458/10.3409, Info 10.2454/11.7535
+    /// (`high_contrast_light`/`high_contrast_dark`) — every one already
+    /// clears 4.5 by a wide margin.
     #[test]
-    fn status_badge_symbol_meets_wcag_aa_on_its_own_tone_in_both_themes() {
+    fn status_badge_symbol_meets_wcag_aa_on_its_own_tone_in_every_preset() {
         use crate::widget::Tone;
 
         for (theme_name, theme) in [
             ("light", KnotraTheme::light()),
             ("dark", KnotraTheme::dark()),
+            ("high_contrast_light", KnotraTheme::high_contrast_light()),
+            ("high_contrast_dark", KnotraTheme::high_contrast_dark()),
         ] {
             let cases = [
                 ("Success", Tone::Success),
