@@ -30,6 +30,22 @@ operations — fetches, context switches, release tagging — safely and atomica
 
 ---
 
+## Install
+
+- **Windows:** the Microsoft Store (search for "knotra"), or the Windows zip from
+  [GitHub Releases](https://github.com/nabbisen/knotra/releases).
+- **Linux:** the Linux archive from [GitHub Releases](https://github.com/nabbisen/knotra/releases).
+  It includes knotra's desktop entry and icon.
+- **macOS:** the macOS zip from [GitHub Releases](https://github.com/nabbisen/knotra/releases).
+  knotra is not signed by Apple, so macOS stops it the first time you open it. To allow it, try
+  to open knotra once, then go to **System Settings → Privacy & Security** and click
+  **Open Anyway** (Apple shows it for about an hour after the attempt). See Apple's
+  [Open a Mac app from an unknown developer](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+- **Any system with Rust:** `cargo install knotra`. This builds knotra on your own computer, so
+  macOS does not ask you to allow it.
+
+---
+
 ## Quick Start
 
 ```sh
