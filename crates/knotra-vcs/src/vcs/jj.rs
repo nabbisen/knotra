@@ -5,7 +5,7 @@
 //! Writes still use the `jj` CLI where gix doesn't expose mutation APIs.
 
 use jiff::Timestamp;
-use std::process::Command;
+use std::path::Path;
 
 use endringer_async::AsyncRepository;
 
@@ -23,7 +23,9 @@ use crate::model::{
 // ---------------------------------------------------------------------------
 
 fn run_jj(args: &[&str], cwd: &str) -> std::io::Result<std::process::Output> {
-    Command::new("jj").args(args).current_dir(cwd).output()
+    crate::process::host_command("jj", Some(Path::new(cwd)))
+        .args(args)
+        .output()
 }
 
 async fn run_jj_command(project: &Project, args: &[&str]) -> ProjectOperationResult {
@@ -34,9 +36,8 @@ async fn run_jj_command(project: &Project, args: &[&str]) -> ProjectOperationRes
     let project_name = project.name.clone();
 
     tokio::task::spawn_blocking(move || {
-        match Command::new("jj")
+        match crate::process::host_command("jj", Some(Path::new(&path)))
             .args(&args_owned)
-            .current_dir(&path)
             .output()
         {
             Ok(output) => {
@@ -93,9 +94,8 @@ async fn run_jj_command(project: &Project, args: &[&str]) -> ProjectOperationRes
 /// `detection_unavailable: true` so the UI shows "Unknown"
 /// rather than a false "No conflict."
 fn detect_jj_conflict(path: &str) -> crate::model::status::ConflictStatus {
-    match std::process::Command::new("jj")
+    match crate::process::host_command("jj", Some(Path::new(path)))
         .args(["log", "-r", "@", "--no-graph", "-T", "conflict\n"])
-        .current_dir(path)
         .output()
     {
         Err(_) => crate::model::status::ConflictStatus {
@@ -307,9 +307,8 @@ pub async fn log_since(
             r#" ++ "
 ""#,
         );
-        let out = std::process::Command::new("jj")
+        let out = crate::process::host_command("jj", Some(Path::new(&path)))
             .args(["log", "-r", &rev, "--no-graph", "-T", tmpl])
-            .current_dir(&path)
             .output();
 
         match out {
@@ -413,9 +412,8 @@ pub async fn recent_commits(
             r#" ++ "
 ""#,
         );
-        let out = std::process::Command::new("jj")
+        let out = crate::process::host_command("jj", Some(Path::new(&path)))
             .args(["log", "-r", "..@-", "--no-graph", "-T", tmpl, "-n", &limit])
-            .current_dir(&path)
             .output();
 
         match out {
@@ -575,9 +573,8 @@ pub async fn list_conflicted_files(
     let project_name = project.name.clone();
 
     tokio::task::spawn_blocking(move || {
-        match Command::new("jj")
+        match crate::process::host_command("jj", Some(Path::new(&path)))
             .args(["resolve", "--list"])
-            .current_dir(&path)
             .output()
         {
             Err(e) => ProjectConflictDetail {

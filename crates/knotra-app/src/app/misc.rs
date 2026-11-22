@@ -236,7 +236,10 @@ pub(super) fn handle_launch(state: &mut AppState, msg: LaunchMessage) -> Task<Me
         return Task::none();
     };
 
-    match std::process::Command::new(&tool).arg(&file_path).spawn() {
+    match knotra_vcs::process::host_command(&tool, None)
+        .arg(&file_path)
+        .spawn()
+    {
         Ok(_) => {
             state.status_bar = Some(format!(
                 "{} {} {:?}",

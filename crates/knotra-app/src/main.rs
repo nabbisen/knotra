@@ -47,6 +47,11 @@ mod tests;
 const APP_ID: &str = "io.github.nabbisen.knotra";
 
 fn main() -> iced::Result {
+    // RFC-068 D2: must run before anything else touches the environment or
+    // the filesystem, and before any other thread exists (see its own
+    // doc comment for why that makes its one `unsafe` block sound).
+    knotra_vcs::process::restore_host_xdg_dirs();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

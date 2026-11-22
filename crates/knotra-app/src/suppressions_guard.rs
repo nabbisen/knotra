@@ -139,12 +139,24 @@ mod tests {
     /// without losing the enforcement the eighth parameter existed for).
     /// `knotra-vcs/src/vcs/git.rs`'s `tag_exists` entry is deliberately
     /// kept, not up for removal (RFC-052/RFC-053 non-goals, both).
+    ///
+    /// RFC-068 D1 adds two: `knotra-vcs/src/process.rs`'s own
+    /// `#[allow(clippy::disallowed_methods)]` on `host_command`'s one
+    /// direct `Command::new` (the single call site every other caller in
+    /// the workspace now goes through instead — the suppression map
+    /// grows from five to **six**), and `knotra-vcs/tests/
+    /// git_integration.rs`'s file-level allow, since that file builds
+    /// fixture repositories directly with `git`/`jj` on the machine
+    /// running the tests, never inside a Flatpak, so `host_command`'s
+    /// Flatpak detour has no reason to apply there.
     const EXPECTED: &[(&str, usize)] = &[
         ("knotra-app/src/state/palette.rs", 1),
         ("knotra-app/src/view/command_palette.rs", 1),
         ("knotra-app/src/view/detail_panel.rs", 1),
         ("knotra-app/src/view/shortcuts_overlay.rs", 1),
+        ("knotra-vcs/src/process.rs", 1),
         ("knotra-vcs/src/vcs/git.rs", 1),
+        ("knotra-vcs/tests/git_integration.rs", 1),
     ];
 
     #[test]

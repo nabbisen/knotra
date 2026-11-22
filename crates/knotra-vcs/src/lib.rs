@@ -2,6 +2,7 @@
 
 pub mod error;
 pub mod model;
+pub mod process;
 pub mod vcs;
 pub mod watcher;
 

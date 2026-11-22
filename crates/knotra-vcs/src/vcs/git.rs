@@ -9,7 +9,7 @@
 //!   - Write: `std::process::Command` with `git`
 
 use jiff::Timestamp;
-use std::process::Command;
+use std::path::Path;
 
 use endringer_async::AsyncRepository;
 use endringer_core::types::SortOrder;
@@ -28,7 +28,9 @@ use crate::model::{
 // ---------------------------------------------------------------------------
 
 fn git_cmd(args: &[&str], cwd: &str) -> std::io::Result<std::process::Output> {
-    Command::new("git").args(args).current_dir(cwd).output()
+    crate::process::host_command("git", Some(Path::new(cwd)))
+        .args(args)
+        .output()
 }
 
 fn git_stdout(args: &[&str], cwd: &str) -> Option<String> {
@@ -48,9 +50,8 @@ async fn run_git(project: &Project, args: &[&str]) -> ProjectOperationResult {
     let project_name = project.name.clone();
 
     tokio::task::spawn_blocking(move || {
-        let result = Command::new("git")
+        let result = crate::process::host_command("git", Some(Path::new(&path)))
             .args(&args_owned)
-            .current_dir(&path)
             .output();
         match result {
             Ok(output) => {
@@ -260,9 +261,8 @@ pub(crate) fn gix_ahead_behind(repo_path: &str) -> RemoteStatus {
 /// Count commits in `from` NOT reachable from `exclude`.
 /// Equivalent to `git rev-list --count <from> ^<exclude>`.
 fn count_commits_to_base_gix(path: &str, from: &str, exclude: &str) -> Option<u32> {
-    let out = std::process::Command::new("git")
+    let out = crate::process::host_command("git", Some(Path::new(path)))
         .args(["rev-list", "--count", from, &format!("^{exclude}")])
-        .current_dir(path)
         .output()
         .ok()?;
     if !out.status.success() {
@@ -411,9 +411,8 @@ pub async fn log_since(
         // Use `git log <since>..<until>` — ref-based, no timestamp ambiguity.
         let range = format!("{since}..{until}");
         let fmt = "%H|%s|%an|%aI";
-        let output = Command::new("git")
+        let output = crate::process::host_command("git", Some(Path::new(&path)))
             .args(["log", &range, &format!("--format={fmt}"), "--no-merges"])
-            .current_dir(&path)
             .output();
 
         match output {
@@ -489,14 +488,13 @@ pub async fn recent_commits(
 
     tokio::task::spawn_blocking(move || {
         let fmt = "%H|%s|%an|%aI";
-        let output = Command::new("git")
+        let output = crate::process::host_command("git", Some(Path::new(&path)))
             .args([
                 "log",
                 &format!("-n{limit}"),
                 &format!("--format={fmt}"),
                 "--no-merges",
             ])
-            .current_dir(&path)
             .output();
 
         match output {
@@ -1021,9 +1019,8 @@ async fn local_branch_exists(project: &Project, branch: &str) -> bool {
     let path = project.path.clone();
     let branch_ref = format!("refs/heads/{branch}");
     tokio::task::spawn_blocking(move || {
-        Command::new("git")
+        crate::process::host_command("git", Some(Path::new(&path)))
             .args(["show-ref", "--verify", "--quiet", &branch_ref])
-            .current_dir(path)
             .status()
             .is_ok_and(|status| status.success())
     })
@@ -1043,9 +1040,8 @@ pub async fn list_conflicted_files(
     let project_name = project.name.clone();
 
     tokio::task::spawn_blocking(move || {
-        let out = Command::new("git")
+        let out = crate::process::host_command("git", Some(Path::new(&path)))
             .args(["diff", "--name-status", "--diff-filter=U"])
-            .current_dir(&path)
             .output();
         match out {
             Err(e) => ProjectConflictDetail {

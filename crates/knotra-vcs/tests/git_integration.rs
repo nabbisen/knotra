@@ -4,6 +4,12 @@
 //! Required states (spec §16.4):
 //!   clean | uncommitted | untracked | ahead | behind | ahead+behind
 //!   conflict | tag-created | permission-error | jj-project (skipped if jj absent)
+//!
+//! RFC-068 D1: this file builds fixture repositories directly with `git`/`jj`,
+//! on the machine running the tests, never inside a Flatpak — `host_command`'s
+//! Flatpak detour has no reason to apply here, so it calls `Command::new`
+//! directly rather than through `knotra_vcs::process::host_command`.
+#![allow(clippy::disallowed_methods)]
 
 use std::{
     fs,
