@@ -275,10 +275,6 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens))
                     .width(Length::FillPortion(2)),
-                text(state.t("plain.note"))
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens))
-                    .width(Length::FillPortion(3)),
             ]
             .spacing(8)
             .into();
@@ -336,24 +332,35 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                             .into()
                     };
 
-                rows.push(
+                let mut entry_col = column![
                     row![
                         text(&entry.project_name)
                             .size(snora::design::style::text::body_size(tokens))
                             .line_height(snora::design::style::text::body_line_height(tokens))
                             .width(Length::FillPortion(3)),
                         action_cell,
-                        // RFC-071 Amendment A3 D14: the row's own note/reason
-                        // — `body`, matching the rest of the row.
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center),
+                ]
+                .spacing(2);
+                if !note.is_empty() {
+                    // Task 118: a note gets its own line, spanning the row's
+                    // full width (not squeezed into a narrow column) —
+                    // Japanese has no spaces to break at, so a narrow
+                    // column broke mid-word. Aligned with the project name
+                    // above it by construction: both start at this column's
+                    // own left edge.
+                    // RFC-071 Amendment A3 D14: the row's own note/reason —
+                    // `body`, matching the rest of the row.
+                    entry_col = entry_col.push(
                         text(note)
                             .size(snora::design::style::text::body_size(tokens))
                             .line_height(snora::design::style::text::body_line_height(tokens))
-                            .width(Length::FillPortion(3)),
-                    ]
-                    .spacing(8)
-                    .align_y(Alignment::Center)
-                    .into(),
-                );
+                            .width(Length::Fill),
+                    );
+                }
+                rows.push(entry_col.into());
             }
 
             for exclusion in &sync.retry_exclusions {
@@ -369,22 +376,27 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                     .map(|project| project.name.as_str())
                     .unwrap_or_else(|| state.t("plain.project"));
                 rows.push(
-                    row![
-                        text(name)
-                            .size(snora::design::style::text::body_size(tokens))
-                            .line_height(snora::design::style::text::body_line_height(tokens))
-                            .width(Length::FillPortion(3)),
-                        text(state.t("plain.activity.skipped"))
-                            .size(snora::design::style::text::body_size(tokens))
-                            .line_height(snora::design::style::text::body_line_height(tokens))
-                            .width(Length::FillPortion(2)),
+                    column![
+                        row![
+                            text(name)
+                                .size(snora::design::style::text::body_size(tokens))
+                                .line_height(snora::design::style::text::body_line_height(tokens))
+                                .width(Length::FillPortion(3)),
+                            text(state.t("plain.activity.skipped"))
+                                .size(snora::design::style::text::body_size(tokens))
+                                .line_height(snora::design::style::text::body_line_height(tokens))
+                                .width(Length::FillPortion(2)),
+                        ]
+                        .spacing(8),
+                        // Task 118: the reason gets its own line, same as a
+                        // plan entry's note above.
                         // RFC-071 Amendment A3 D14: a reason — `body`.
                         text(state.t(exclusion.reason.i18n_key()))
                             .size(snora::design::style::text::body_size(tokens))
                             .line_height(snora::design::style::text::body_line_height(tokens))
-                            .width(Length::FillPortion(3)),
+                            .width(Length::Fill),
                     ]
-                    .spacing(8)
+                    .spacing(2)
                     .into(),
                 );
             }

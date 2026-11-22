@@ -357,6 +357,130 @@ mod tests {
         );
     }
 
+    /// Task 118: Get latest safely's plan review used to lay a dirty
+    /// project's note in a third, narrow column (`3 : 2 : 3` FillPortion),
+    /// squeezed further when the middle column held the two disposition
+    /// buttons. Japanese has no spaces to break at, so the note wrapped
+    /// mid-word — 0.34.0's committed Store image shows 「み」 alone on its
+    /// own line. The fix gives the note its own full-width line beneath the
+    /// row, aligned with the project name.
+    ///
+    /// **What this checks, without reaching into `OverlayWidth`'s private
+    /// resolved-pixel math (RFC-053 D2/D3 deliberately hides it even from
+    /// this crate):** the note's own left edge must sit at the same `x` as
+    /// the project name's — true only when the note is the sole content of
+    /// its own line, not a sibling column starting partway across the row.
+    /// A column position is a strictly stronger signal than a width
+    /// threshold would be: no dirty-code accident makes it line up by
+    /// coincidence, where a width-based margin might, and unlike a width
+    /// check it needs no "natural" reference at all — comparing a
+    /// `Length::Fill` text's rendered width against its own unconstrained
+    /// render is not meaningful in the first place, since a `Fill` text's
+    /// bounds reflect the box it was given, not its glyph content, at any
+    /// size. The right edge is still checked against the viewport, the same
+    /// overflow check [`check_label`] makes for a button.
+    ///
+    /// **Seen failing first** against the pre-fix view (the x-alignment
+    /// assertion failed: the note's `x` sat well to the right of the
+    /// project name's, at the old middle column's own width plus spacing).
+    #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "the pinned faces (Noto Sans, Noto Sans CJK JP) are installed only on the \
+                  Linux CI runner (Task 108 A1 §4) — the widths this guard measures would be \
+                  some other font's on macOS/Windows"
+    )]
+    fn the_plan_reviews_note_gets_its_own_full_width_line() {
+        use crate::state::sync::SyncPhase;
+        use knotra_vcs::{
+            OperationId, ProjectId, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry,
+        };
+
+        let mut checked = 0usize;
+        let mut failures: Vec<String> = Vec::new();
+
+        for &locale in &[knotra_ui::i18n::Locale::En, knotra_ui::i18n::Locale::Ja] {
+            for &zoom_percent in &[100.0_f32, 150.0_f32] {
+                for &width in &[800.0_f32, 1280.0_f32] {
+                    let mut state = AppState::new(AppConfig::default());
+                    state.catalog = knotra_ui::i18n::Catalog::for_locale(locale);
+
+                    // `pull_modal`'s `AwaitingConfirm` entries carry their
+                    // own `project_name` directly; no workspace lookup
+                    // needed (unlike `sync.retry_exclusions`, untouched
+                    // here).
+                    state.sync.phase = SyncPhase::AwaitingConfirm(SmartPullPlan {
+                        id: OperationId::new(),
+                        entries: vec![SmartPullPlanEntry {
+                            project_id: ProjectId::new(),
+                            project_name: "billing-service".to_owned(),
+                            is_dirty: true,
+                            has_conflict: false,
+                            skip_reason: None,
+                            disposition: SmartPullDisposition::FetchOnly,
+                        }],
+                    });
+
+                    let logical = crate::headless::logical_size_at_zoom(
+                        Size::new(width, 720.0),
+                        zoom_percent,
+                    );
+                    state.window_width = logical.width;
+
+                    let context = format!("locale={locale:?} zoom={zoom_percent}% width={width}");
+
+                    let note = state.t("plain.get_latest.note_unsaved").to_owned();
+                    let project_name = "billing-service";
+
+                    let mut ui = crate::headless::simulator(
+                        crate::view::overlays::pull_modal(&state),
+                        logical,
+                    );
+
+                    let project_bounds = ui
+                        .find(project_name)
+                        .unwrap_or_else(|e| {
+                            panic!("{context}: project name {project_name:?} not found: {e}")
+                        })
+                        .bounds();
+                    let note_bounds = ui
+                        .find(note.as_str())
+                        .unwrap_or_else(|e| panic!("{context}: note {note:?} not found: {e}"))
+                        .bounds();
+
+                    let mut problems = Vec::new();
+                    if (note_bounds.x - project_bounds.x).abs() > 1.0 {
+                        problems.push(format!(
+                            "note.x {:.2} != project name's x {:.2} (not on its own full-width \
+                             line)",
+                            note_bounds.x, project_bounds.x
+                        ));
+                    }
+                    if note_bounds.x + note_bounds.width > logical.width + 0.5 {
+                        problems.push(format!(
+                            "right edge {:.2} exceeds the viewport's {:.2}",
+                            note_bounds.x + note_bounds.width,
+                            logical.width
+                        ));
+                    }
+                    if !problems.is_empty() {
+                        failures.push(format!("{context}: {}", problems.join("; ")));
+                    }
+                    checked += 1;
+                }
+            }
+        }
+
+        assert!(checked > 0, "the matrix must check at least one case");
+        eprintln!("label_overflow_guard: checked {checked} plan-review note cases");
+        assert!(
+            failures.is_empty(),
+            "{} of {checked} cases squeezed the note:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+    }
+
     /// RFC-073 Amendment A7 §1: the detail panel's own three Actions
     /// buttons — Refresh, Check for updates, Remove from workspace.
     /// Review 288 §2 found "Check for updates" (Stage 4's renaming of

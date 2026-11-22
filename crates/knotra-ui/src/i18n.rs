@@ -281,7 +281,6 @@ fn en_strings() -> HashMap<Key, &'static str> {
     // --- Modal flows (Phase 2-4) -------------------------------------------
     m.insert("plain.project", "Project");
     m.insert("plain.what_will_happen", "What will happen");
-    m.insert("plain.note", "Note");
     m.insert("plain.of", "of");
     m.insert("plain.waiting", "Waiting…");
     m.insert("plain.needs_help", "Needs help");
@@ -1092,7 +1091,6 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     // --- Modal flows (Phase 2-4) -------------------------------------------
     m.insert("plain.project", "プロジェクト");
     m.insert("plain.what_will_happen", "内容");
-    m.insert("plain.note", "メモ");
     m.insert("plain.of", "/");
     m.insert("plain.waiting", "待機中…");
     m.insert("plain.needs_help", "対応が必要");

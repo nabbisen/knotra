@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — Get latest safely's notes are easier to read
+
+A note about a project, such as why it only checks for updates, now has its own line under the
+project, so it is no longer squeezed into a narrow column.
+
 ## [0.34.0] — 2026-11-21
 
 **Calmer by default: the dashboard and Settings show less at once, everything is easier to hit
