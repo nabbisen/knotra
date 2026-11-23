@@ -665,17 +665,32 @@ impl AppState {
         self.dashboard_display().ordered_selectable_ids
     }
 
-    /// RFC-035 R15/Handoff 030 §4.1, extended by RFC-073 D16 W3: the one
-    /// catalog key explaining why no project is currently selectable,
-    /// shared by every surface that needs that reason — the toolbar's
-    /// Select control (`view/dashboard/toolbar.rs::select_mode_reason`)
-    /// and the command palette's own "Enter selection" entry
-    /// (`state/palette.rs::visible_projects_available`) both showed "No
-    /// projects match this view" for the exact same underlying state
-    /// before this method existed, which W3 would otherwise have fixed in
-    /// one of the two and not the other. `None` when at least one project
-    /// is currently selectable.
-    pub fn visible_projects_unavailable_reason(&self) -> Option<&'static str> {
+    /// RFC-035 R15/Handoff 030 §4.1, extended by RFC-073 D16 W3. Task 119:
+    /// returns the **catalog key**, not translated text — it did call
+    /// `self.t(...)` and hand back the already-resolved string, which the
+    /// command palette's own call site (`state/palette.rs::
+    /// visible_projects_available`) then wrapped straight into
+    /// `PaletteAvailability::Disabled`, a field documented and everywhere
+    /// else used to hold a key the palette's view later translates itself
+    /// (`view/command_palette.rs`'s `state.t(reason_key)`). Translating
+    /// twice is usually harmless (a key that resolves to real text is
+    /// idempotent under `t()` only by accident — nothing guarantees a
+    /// translated sentence is never itself, coincidentally, also a valid
+    /// key — but did not happen to break here), **except** that `Catalog::t`
+    /// asserts its *input* is a registered key: in a debug build, calling it
+    /// on already-translated text (which registers as no key at all) fires
+    /// `debug_assert!` and panics, as the owner hit doing exactly this
+    /// through the RFC-075 comparison build.
+    ///
+    /// The one other caller, the toolbar's Select control
+    /// (`view/dashboard/toolbar.rs::select_mode_reason`), is fixed to
+    /// translate the key itself where it renders — so the two surfaces
+    /// still cannot pick different wording for the same cause (the reason
+    /// this method exists at all), each now translating its own copy of the
+    /// same key exactly once.
+    ///
+    /// `None` when at least one project is currently selectable.
+    pub fn visible_projects_unavailable_reason_key(&self) -> Option<&'static str> {
         if !self.visible_project_ids().is_empty() {
             return None;
         }
@@ -684,15 +699,15 @@ impl AppState {
             .as_ref()
             .is_none_or(|workspace| workspace.projects.is_empty());
         if no_projects_registered {
-            return Some(self.t("plain.selection.no_projects_registered"));
+            return Some("plain.selection.no_projects_registered");
         }
         let display = self.dashboard_display();
         let all_in_closed_groups = !display.sections.is_empty()
             && display.sections.iter().all(|section| section.collapsed);
         Some(if all_in_closed_groups {
-            self.t("plain.selection.all_in_closed_groups")
+            "plain.selection.all_in_closed_groups"
         } else {
-            self.t("plain.selection.no_visible_projects")
+            "plain.selection.no_visible_projects"
         })
     }
 

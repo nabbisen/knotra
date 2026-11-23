@@ -109,16 +109,21 @@ fn chip_element<'a>(
 }
 
 /// RFC-035 R15/Handoff 030 §4.1: the Select control's disabled reason must
-/// be true to its actual cause — `AppState::visible_projects_unavailable_reason`
+/// be true to its actual cause — `AppState::visible_projects_unavailable_reason_key`
 /// (shared with the command palette's own equivalent check, so the two
 /// cannot pick different wording for the same cause) distinguishes nothing
 /// registered, every match sitting in a closed group (RFC-073 D16 W3), and
-/// the filter itself matching nothing.
+/// the filter itself matching nothing. Task 119: the shared method returns a
+/// key now, not text, so this is the one place that translates it for the
+/// toolbar's own display — `select_mode_button` renders its `reason`
+/// directly, it does not call `t()` a second time.
 fn select_mode_reason(state: &AppState, summary: &SelectionSummary) -> Option<&'static str> {
     if !summary.visible_ids.is_empty() {
         return None;
     }
-    state.visible_projects_unavailable_reason()
+    state
+        .visible_projects_unavailable_reason_key()
+        .map(|key| state.t(key))
 }
 
 pub(super) fn focus_order(state: &AppState, mode: WidthMode) -> FocusOrder<Message> {

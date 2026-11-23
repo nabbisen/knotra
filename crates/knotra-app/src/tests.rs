@@ -3200,6 +3200,126 @@ fn palette_changelog_action_is_disabled_until_projects_are_selected() {
     assert_eq!(entry.disabled_reason_key, Some("plain.disabled.choose_one"));
 }
 
+/// Task 119 — the owner's exact path: switch to a workspace where every
+/// project sits in the closed "All set" group, then open the command
+/// palette. Debug-only in effect (the suite runs debug, where `Catalog::t`'s
+/// `debug_assert!` is live) — this is a regression test for a bug that, on
+/// the pre-fix code, failed here: `AppState::visible_projects_unavailable_reason_key`
+/// (then named without the `_key` suffix) called `self.t(...)` itself and
+/// handed the command palette's "Enter selection" row already-translated
+/// text instead of a key, which `view/command_palette.rs` then fed to
+/// `state.t()` a second time — `missing i18n key: Open a group to choose
+/// its projects.`
+#[test]
+fn switching_to_a_workspace_with_every_project_in_a_closed_group_gives_the_palette_a_real_key() {
+    let mut state = make_state();
+    let second_project = make_project("Gamma");
+    let second_project_id = second_project.id.clone();
+    let mut second_workspace = Workspace::new("Second");
+    second_workspace.projects = vec![second_project];
+    let second_workspace_id = second_workspace.id.clone();
+    install_workspaces(
+        &mut state,
+        vec![Workspace::new("Main"), second_workspace],
+        0,
+    );
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::WorkspaceSwitched(second_workspace_id)),
+    );
+    // `WorkspaceSwitched` clears `workspace_status` and starts the real
+    // refresh as a `Task` a unit test never runs; stand in for that refresh
+    // completing with one clean project, so the dashboard's only tier is
+    // "All set" — collapsed by default (`AppConfig::default()`), the
+    // owner's exact "every project sits in the closed 'All set' group".
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![make_project_status(second_project_id, None)],
+        last_refresh: Some(Timestamp::now()),
+    });
+    state.load_phase = crate::state::LoadPhase::Ready;
+
+    dispatch(&mut state, Message::Palette(PaletteMessage::Opened));
+
+    for entry in &state.palette.results {
+        if let Some(key) = entry.disabled_reason_key {
+            assert!(
+                state.catalog.contains_key(key),
+                "palette entry {:?} carries {key:?} as its disabled_reason_key, \
+                 which is not a catalog key — Task 119: that field must hold \
+                 a key the view translates itself, never already-translated text",
+                entry.payload
+            );
+        }
+    }
+}
+
+/// Task 119 §3's sweep — every state the palette's own availability
+/// functions distinguish, in both locales: no workspace, no projects
+/// registered, every project in a closed group, a filter matching nothing,
+/// and no project selected (the selection-dependent actions). A `Disabled`
+/// reason that is accidentally already-translated text (as
+/// `visible_projects_unavailable_reason_key` used to hand back) is missing
+/// from one or both catalogs — `Catalog::contains_key` is the same check
+/// `Catalog::t`'s `debug_assert!` makes, without the panic.
+#[test]
+fn every_palette_disabled_reason_is_a_real_key_in_both_catalogs() {
+    type Scenario = (&'static str, fn() -> AppState);
+    let scenarios: Vec<Scenario> = vec![
+        ("no workspace registered", || make_state()),
+        ("a workspace with no projects", || {
+            let mut state = make_state();
+            install_workspaces(&mut state, vec![Workspace::new("Empty")], 0);
+            state.load_phase = crate::state::LoadPhase::Ready;
+            state
+        }),
+        ("every project in a closed group", || {
+            let mut state = make_state();
+            let project = make_project("Gamma");
+            let project_id = project.id.clone();
+            let mut workspace = Workspace::new("Main");
+            workspace.projects = vec![project];
+            install_workspaces(&mut state, vec![workspace], 0);
+            state.workspace_status = Some(WorkspaceStatus {
+                projects: vec![make_project_status(project_id, None)],
+                last_refresh: Some(Timestamp::now()),
+            });
+            state.load_phase = crate::state::LoadPhase::Ready;
+            state
+        }),
+        ("a filter matching nothing", || {
+            let mut state = make_state();
+            let (_, _, _) = install_dashboard_projects(&mut state);
+            state.filter.search_text = "no-such-project".to_owned();
+            state
+        }),
+        ("nothing selected", || {
+            let mut state = make_state();
+            let _ = install_dashboard_projects(&mut state);
+            state
+        }),
+    ];
+
+    for &locale in &[knotra_ui::i18n::Locale::En, knotra_ui::i18n::Locale::Ja] {
+        for (name, build) in &scenarios {
+            let mut state = build();
+            state.catalog = knotra_ui::i18n::Catalog::for_locale(locale);
+            crate::state::palette::update_results(&mut state);
+
+            for entry in &state.palette.results {
+                if let Some(key) = entry.disabled_reason_key {
+                    assert!(
+                        state.catalog.contains_key(key),
+                        "scenario {name:?}, locale {locale:?}: palette entry \
+                         {:?} carries {key:?}, missing from this locale's catalog",
+                        entry.payload
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn palette_changelog_action_dispatches_selected_project_modal() {
     let mut state = make_state();

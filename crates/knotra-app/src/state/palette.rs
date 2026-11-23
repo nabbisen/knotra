@@ -352,11 +352,11 @@ fn selection_exactly_one_for_remove(state: &AppState) -> PaletteAvailability {
 }
 
 fn visible_projects_available(state: &AppState) -> PaletteAvailability {
-    // RFC-073 D16 W3: `AppState::visible_projects_unavailable_reason`, shared
-    // with the toolbar's own Select control, so the two never pick
+    // RFC-073 D16 W3: `AppState::visible_projects_unavailable_reason_key`,
+    // shared with the toolbar's own Select control, so the two never pick
     // different wording for the same cause.
-    match state.visible_projects_unavailable_reason() {
-        Some(reason) => PaletteAvailability::Disabled(reason),
+    match state.visible_projects_unavailable_reason_key() {
+        Some(reason_key) => PaletteAvailability::Disabled(reason_key),
         None => PaletteAvailability::Enabled,
     }
 }
