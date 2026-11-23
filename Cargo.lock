@@ -3289,6 +3289,7 @@ name = "knotra-ui"
 version = "0.34.0"
 dependencies = [
  "iced",
+ "iced_test",
  "serde",
  "snora",
  "tracing",

@@ -1365,6 +1365,67 @@ mod tests {
                     state = "pressed"
                 ));
             }
+
+            // -- RFC-075 handoff stage 1: select_control / checkbox_control -
+            //
+            // Neither drives its own colours through a `pub(crate)` style
+            // function this file can call — `snora::design::select`/
+            // `checkbox` derive them inside `snora_widgets::form::Skin::
+            // colors`'s `Look::Designed` arm, private to that crate. Read
+            // directly (registry, `snora-widgets-0.65.0/src/form.rs`)
+            // rather than guessed: the mapping is fixed per role, not
+            // per-`Status`, so there is one row per role here, not a
+            // rest/hovered/pressed/focused sweep — every status this
+            // widget can be in reads the same two colours, confirmed by
+            // the same source (`colors()` takes no `Status` argument at
+            // all; only `enabled` branches it, and `Control`'s own ring is
+            // what status affects, already covered above for the button/
+            // chip family and reported as "may differ" for this one per
+            // D1).
+            //
+            //   border   -> text_secondary (not palette.border — held at
+            //               the text level, not the 3:1 non-text role;
+            //               the module's own doc comment says so)
+            //   accent   -> palette.accent / the mark's "on" fill
+            //   on_accent-> palette.accent_text / what is drawn on it —
+            //               select_control's selected menu row, and
+            //               checkbox_control's checked tick
+            //   off      -> text_primary / the mark's "off" outline
+            //   page     -> palette.background
+            //   track    -> palette.surface
+            //
+            // Only the text-bearing pairs belong in this test (a border's
+            // own 3:1 non-text floor is a different criterion, already
+            // covered by `border_meets_the_wcag_1_4_11_boundary_floor_
+            // against_every_surface_in_every_preset` reading the same
+            // `text_secondary` role against `background` — not repeated
+            // here): the checked mark (`accent_text` on `accent`) for
+            // both, and select's own trigger label / menu text
+            // (`text_primary` on `background`, already covered by
+            // `text_roles_meet_wcag_aa_against_every_surface_role_in_both_
+            // themes` for light/dark — re-asserted here so this table
+            // carries the dynamic, per-preset floor into high_contrast_*
+            // too, rather than that older test's fixed `AAA_NORMAL`).
+            for (name, fg, bg_role) in [
+                (
+                    "select_control:trigger-label",
+                    tokens.palette.text_primary,
+                    tokens.palette.background,
+                ),
+                (
+                    "select_control:menu-selected-row",
+                    tokens.palette.accent_text,
+                    tokens.palette.accent,
+                ),
+                (
+                    "checkbox_control:checked-mark",
+                    tokens.palette.accent_text,
+                    tokens.palette.accent,
+                ),
+            ] {
+                let ratio = snora::design::contrast::contrast_ratio(fg, bg_role);
+                row(&mut rows, &mut failures, preset, name, "rest", ratio, floor);
+            }
         }
 
         println!(

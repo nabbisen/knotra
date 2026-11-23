@@ -23,11 +23,13 @@ pub mod select;
 pub mod status;
 
 pub use buttons::{
-    centered_button_label, centered_button_row, current_or, danger, danger_maybe, ghost,
-    ghost_maybe, header_control, icon_button_maybe, primary, primary_maybe, reasoned, secondary,
+    centered_button_label, centered_button_row, current_or, danger, danger_control,
+    danger_control_maybe, danger_maybe, ghost, ghost_control, ghost_control_maybe, ghost_maybe,
+    header_control, icon_button_maybe, primary, primary_control, primary_control_maybe,
+    primary_maybe, reasoned, secondary, secondary_control, secondary_control_maybe,
     secondary_maybe, style,
 };
-pub use checkbox::checkbox;
+pub use checkbox::{checkbox, checkbox_control};
 pub use escape_first::escape_first;
 pub use field::{
     guided_field, guided_field_focused, styled_text_input, text_input_style, validated_field,

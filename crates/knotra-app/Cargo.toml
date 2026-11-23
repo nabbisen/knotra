@@ -43,6 +43,11 @@ uuid                        = { workspace = true }
 [dev-dependencies]
 tempfile                    = { workspace = true }
 iced_test                   = { workspace = true }
+# RFC-075 handoff stage 1 §1: turns on knotra-ui's keyboard test harness
+# (`knotra_ui::test_support`) for this crate's own tests only — the
+# `[dependencies]` copy above carries no feature, so the shipped binary
+# never sees it.
+knotra-ui                   = { workspace = true, features = ["test-support"] }
 # Task 110 §3: decodes the PNG `Snapshot::matches_image` writes, to read
 # back a pixel's colour directly — `Snapshot` exposes no in-memory
 # accessor of its own, only file-comparison methods. The same version

@@ -219,17 +219,33 @@ mod tests {
     }
 
     /// True if `callee` (the trimmed source immediately before an opening
-    /// paren) is a call to `button` — bare (`button(`) or path-qualified
-    /// (`iced::widget::button(`), the only two spellings this codebase
-    /// uses. Checking the *suffix* rather than the whole string: `callee`
-    /// is everything in the file up to that point, so an equality check
-    /// against the literal `"button"` would never match anything.
-    /// Guards against a longer identifier that merely ends in "button"
-    /// (none exist here, but the check costs nothing) by requiring the
-    /// character immediately before the suffix, if any, not be an
-    /// identifier character.
+    /// paren) is a call to `button` or `control` — bare (`button(`/
+    /// `control(`) or path-qualified (`iced::widget::button(`/
+    /// `snora::design::control(`). Checking the *suffix* rather than the
+    /// whole string: `callee` is everything in the file up to that point,
+    /// so an equality check against the literal name would never match
+    /// anything. Guards against a longer identifier that merely ends in
+    /// the name (e.g. `my_control`) by requiring the character immediately
+    /// before the suffix, if any, not be an identifier character.
+    ///
+    /// **RFC-075 handoff stage 1 §2: `control` added** alongside `button`
+    /// — `Control`'s own builder is `button`'s (confirmed:
+    /// `Control::height` takes the identical `impl Into<Length>`), so the
+    /// same centring rule and the same check applies to
+    /// `snora::design::control(...)`-based primitives
+    /// (`buttons.rs`'s `_control` family, `chip::filter_control`). Seen
+    /// failing first: reordering `buttons.rs`'s/`chip.rs`'s own
+    /// `.height(BUTTON_HEIGHT)` to be the call immediately chained onto
+    /// `control(...)`'s own closing paren (matching this guard's
+    /// adjacency rule) still failed, with `is_button_callee` unchanged —
+    /// "chained onto a call that is not `button(...)`" — until `control`
+    /// was added here.
     fn is_button_callee(callee: &str) -> bool {
-        let Some(rest) = callee.strip_suffix("button") else {
+        is_named_callee(callee, "button") || is_named_callee(callee, "control")
+    }
+
+    fn is_named_callee(callee: &str, name: &str) -> bool {
+        let Some(rest) = callee.strip_suffix(name) else {
             return false;
         };
         rest.is_empty() || !rest.ends_with(|c: char| c.is_alphanumeric() || c == '_')

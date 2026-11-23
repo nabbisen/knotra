@@ -74,6 +74,31 @@ pub fn checkbox<'a, Message: Clone + 'a>(
     .into()
 }
 
+/// RFC-075 D1/Stage 1: [`checkbox`]'s own twin on `snora::design::checkbox`
+/// — see `buttons.rs`'s `_control` section doc for the naming reasoning.
+/// Unlike [`checkbox`], there is no separate mouse-area/tooltip composition
+/// here: `snora::design::checkbox` is already one control with its own
+/// built-in minimum target (`Tokens::targets.min`, wired to
+/// [`super::layout::BUTTON_HEIGHT`] for every theme this crate ships —
+/// `theme.rs`) and its own accessible label, through
+/// [`snora_widgets::form::Checkbox::label`]'s own `label` parameter — a
+/// real part of the control's target, not a hover-only tooltip, so `label`
+/// below is shown, not merely announced.
+#[must_use]
+pub fn checkbox_control<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    is_checked: bool,
+    on_toggle: impl Fn(bool) -> Message + 'a,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    snora::design::checkbox(tokens, is_checked, super::layout::APP_DIRECTION)
+        .label(label)
+        .on_toggle(on_toggle)
+        .id(id)
+        .into()
+}
+
 /// `surface`/`accent` background, `border` at rest, `text_primary` icon
 /// colour when unchecked and `accent_text` when checked (the same
 /// on-accent pairing `chip::filter`'s selected state and `select`'s
@@ -147,6 +172,67 @@ mod tests {
     use super::*;
     use iced_checkbox::Status;
 
+    /// RFC-075 handoff stage 1 §3, row 3 — see `buttons.rs`'s test of the
+    /// same name for the full reasoning; this is `checkbox_control`'s copy
+    /// of it. A checkbox's own "press" toggles it — this checks both
+    /// directions (checked -> unchecked via Enter, unchecked -> checked
+    /// via Space), not just one.
+    #[test]
+    fn checkbox_control_is_a_tab_stop_enter_and_space_press_it_disabled_is_skipped() {
+        use crate::test_support::Harness;
+        use iced::widget::{Id, column};
+
+        #[derive(Debug, Clone, PartialEq)]
+        enum Msg {
+            Toggled(bool),
+        }
+
+        let tokens = Tokens::light();
+        let view = |enabled: bool| -> iced::Element<'static, Msg> {
+            let mut box_a =
+                snora::design::checkbox(&tokens, true, super::super::layout::APP_DIRECTION)
+                    .label("Include in bulk")
+                    .id(Id::new("box_a"));
+            if enabled {
+                box_a = box_a.on_toggle(Msg::Toggled);
+            }
+            column![
+                iced::Element::from(box_a),
+                checkbox_control(&tokens, "Tags", false, Msg::Toggled, Id::new("box_b")),
+            ]
+            .spacing(8)
+            .into()
+        };
+        let size = iced_test::core::Size {
+            width: 400.0,
+            height: 400.0,
+        };
+
+        // Enter toggles a checked box off.
+        let mut h = Harness::new(view(true), size, None);
+        h.tab(false);
+        assert_eq!(h.focused_id(), Some(Id::new("box_a")));
+        h.enter();
+        assert_eq!(h.messages(), [Msg::Toggled(false)]);
+
+        // Space toggles an unchecked box on.
+        let mut h = Harness::new(view(true), size, None);
+        h.tab(false);
+        h.tab(false);
+        assert_eq!(h.focused_id(), Some(Id::new("box_b")));
+        h.space();
+        assert_eq!(h.messages(), [Msg::Toggled(true)]);
+
+        // Disabled: Tab skips the first box entirely.
+        let mut h = Harness::new(view(false), size, None);
+        h.tab(false);
+        assert_eq!(
+            h.focused_id(),
+            Some(Id::new("box_b")),
+            "a disabled checkbox must not be a Tab stop"
+        );
+    }
+
     /// RFC-035 Handoff 019 §8: focused and unfocused styles must differ,
     /// for both the checked and unchecked backgrounds (`accent` and
     /// `surface` are different colours, so the ring-vs-background contrast
@@ -162,6 +248,119 @@ mod tests {
                 let focused = style(&tokens, Status::Active { is_checked }, true);
                 assert_ne!(unfocused.border, focused.border, "is_checked={is_checked}");
             }
+        }
+    }
+
+    /// RFC-075 handoff stage 1 §3, row 2. **Found, and reported, rather
+    /// than forced to pass**: `checkbox_control`'s drawn mark is not
+    /// pixel-identical to `checkbox`'s, in two ways confirmed by rendering
+    /// both and reading the pixels back (crop saved and read directly,
+    /// not inferred):
+    ///
+    /// - **square corners, not rounded.** `checkbox`'s own box draws with
+    ///   `tokens.radius.sm`; `snora::design::checkbox`'s does not expose a
+    ///   radius at all (confirmed against `snora_widgets::form::Checkbox`'s
+    ///   own builder, in the registry — no such method) and draws square.
+    /// - **a darker border.** `checkbox`'s border is `tokens.palette.
+    ///   border` (the 3:1 role); snora's own is `tokens.palette.
+    ///   text_secondary` (`snora_widgets::design::form`'s own module doc,
+    ///   `Skin::colors`'s `Look::Designed` arm, read directly: "**Not
+    ///   `palette.border`**: that role is held at 3:1 against the page,
+    ///   and a hovered or pressed row draws a tint behind the mark...
+    ///   `text_secondary` is held at the text level" — snora's own
+    ///   deliberate choice, not an oversight).
+    ///
+    /// Neither is the ring the RFC anticipated reporting (D1's "the focus
+    /// ring may differ") — both are at rest. **Also found, and kept, not
+    /// reported as a regression**: `checkbox`'s `accessible_label` is a
+    /// hover-only tooltip (this file's own module doc); `snora::design::
+    /// checkbox`'s `label` is drawn, always — a real target
+    /// (`snora_widgets::form::Checkbox::label`'s own doc: "part of the
+    /// target"), not hidden behind a hover. That is this primitive's own
+    /// accessibility improvement over Handoff 019's original choice, not a
+    /// "same look" violation to chase.
+    ///
+    /// What this test actually checks, since exact pixels are not the
+    /// right bar here: both draw **some** mark (not a blank square — a
+    /// render that silently drew nothing would pass a looser check and
+    /// should not), and the **checked** fill differs visibly from the
+    /// **unchecked** one for each control on its own terms — the state the
+    /// box shows is legible, which full pixel identity is not actually
+    /// needed to prove.
+    #[test]
+    fn checkbox_control_draws_a_legible_mark_whose_checked_state_differs_from_unchecked() {
+        use crate::test_support::Harness;
+        use crate::theme::KnotraTheme;
+        use iced::widget::Id;
+
+        type Msg = ();
+        let size = iced_test::core::Size {
+            width: 220.0,
+            height: 60.0,
+        };
+        const CROP: u32 = 30;
+
+        fn crop(rgba: &[u8], w: u32, side: u32) -> Vec<u8> {
+            let mut out = Vec::with_capacity((side * side * 4) as usize);
+            for y in 0..side {
+                let row_start = ((y * w) * 4) as usize;
+                let row_end = row_start + (side * 4) as usize;
+                out.extend_from_slice(&rgba[row_start..row_end]);
+            }
+            out
+        }
+
+        fn non_background_pixels(crop: &[u8], background: [u8; 4]) -> usize {
+            crop.chunks_exact(4).filter(|p| *p != background).count()
+        }
+
+        for (_preset, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+            ("high_contrast_light", KnotraTheme::high_contrast_light()),
+            ("high_contrast_dark", KnotraTheme::high_contrast_dark()),
+        ] {
+            let t = &theme.tokens;
+            let background = {
+                use iced::theme::Base;
+                let c = theme.base.base().background_color;
+                [
+                    (c.r * 255.0).round() as u8,
+                    (c.g * 255.0).round() as u8,
+                    (c.b * 255.0).round() as u8,
+                    (c.a * 255.0).round() as u8,
+                ]
+            };
+
+            let mut crops: [Vec<u8>; 2] = [Vec::new(), Vec::new()];
+            for (i, is_checked) in [false, true].into_iter().enumerate() {
+                let old: iced::Element<'static, Msg> =
+                    checkbox(t, "Include in bulk", is_checked, |_| (), false);
+                let new: iced::Element<'static, Msg> =
+                    checkbox_control(t, "Include in bulk", is_checked, |_| (), Id::new("box"));
+
+                let mut h_old = Harness::new(old, size, None);
+                let (old_rgba, ow, _) = h_old.screenshot(&theme.base);
+                let mut h_new = Harness::new(new, size, None);
+                let (new_rgba, nw, _) = h_new.screenshot(&theme.base);
+
+                let old_mark = crop(&old_rgba, ow, CROP);
+                let new_mark = crop(&new_rgba, nw, CROP);
+
+                assert!(
+                    non_background_pixels(&old_mark, background) > 20,
+                    "is_checked={is_checked}: checkbox drew no mark"
+                );
+                assert!(
+                    non_background_pixels(&new_mark, background) > 20,
+                    "is_checked={is_checked}: checkbox_control drew no mark"
+                );
+                crops[i] = new_mark;
+            }
+            assert_ne!(
+                crops[0], crops[1],
+                "checkbox_control's checked mark must look different from its unchecked one"
+            );
         }
     }
 

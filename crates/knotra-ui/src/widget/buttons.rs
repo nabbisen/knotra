@@ -416,6 +416,152 @@ pub fn current_or(
     style::with_focus_ring(tokens, is_focused, base)
 }
 
+// ---------------------------------------------------------------------------
+// RFC-075 D1/Stage 1: the same four variants, on `snora::design::control`
+// rather than `iced::widget::button`, so each is a real focus target —
+// `control`'s own ring, Enter/Space press, and "a disabled control is no
+// Tab stop" (D4 b), none of which a bare `button` has. Named with a
+// `_control` suffix, never the bare `primary`/`secondary`/`ghost`/`danger`
+// names above, so the two families cannot be confused for each other at a
+// call site by a stray import — not even a rename, since both are kept
+// side by side until stage 5 retires the `button`-based ones.
+//
+// **Not yet called by any view** (this stage's own rule) — proven instead
+// by this module's own tests, through `knotra_ui::test_support::Harness`,
+// and by the pixel comparison in `label_overflow`-shaped form under
+// `crates/knotra-app`'s `primitive_pixel_parity.rs` (RFC-075 handoff stage
+// 1 §3).
+//
+// **The look at rest is unchanged**: the same `style::{primary,secondary,
+// ghost,danger}` functions above (already covered by
+// `theme.rs::every_labelled_control_meets_its_presets_own_text_floor`,
+// Task 112's contrast suite, since `Control::style` takes the identical
+// `Fn(&Theme, button::Status) -> button::Style` closure `button::style` did
+// — no new colour-deriving code exists for these four, so that suite
+// already covers them, not by extension but by construction) — only the
+// ring, built in by `control` itself, differs: **snora's own ring, drawn
+// from `Tokens::focus`**, not `style::with_focus_ring`'s border override.
+// `Control`'s own ring is reported separately in the handoff report (§3),
+// not reasserted here as a difference the pixel comparison should treat as
+// a defect.
+// ---------------------------------------------------------------------------
+
+/// Shared construction for the `_control` variants — `make_button`'s own
+/// twin, on `snora::design::control`. `id` is required, not optional
+/// (RFC-075 D3: "every new primitive takes an id, for stage 3's entries").
+fn make_control<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    let t = tokens.clone();
+    snora::design::control(
+        tokens,
+        centered_button_label(
+            iced::widget::text(label.into())
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ),
+    )
+    .height(BUTTON_HEIGHT)
+    .id(id)
+    .padding([0.0, 18.0])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| style_fn(&t, status))
+    .into()
+}
+
+/// Filled accent control — [`primary`]'s own twin, on `snora::design::control`.
+#[must_use]
+pub fn primary_control<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Message,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    make_control(tokens, label, Some(on_press), style::primary, id)
+}
+
+/// Filled accent control with an optional press handler (disabled, and not
+/// a Tab stop, when `None` — D4 b).
+#[must_use]
+pub fn primary_control_maybe<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    make_control(tokens, label, on_press, style::primary, id)
+}
+
+/// Outlined accent control — [`secondary`]'s own twin.
+#[must_use]
+pub fn secondary_control<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Message,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    make_control(tokens, label, Some(on_press), style::secondary, id)
+}
+
+/// Outlined accent control with an optional press handler.
+#[must_use]
+pub fn secondary_control_maybe<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    make_control(tokens, label, on_press, style::secondary, id)
+}
+
+/// Ghost control — [`ghost`]'s own twin.
+#[must_use]
+pub fn ghost_control<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Message,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    make_control(tokens, label, Some(on_press), style::ghost, id)
+}
+
+/// Ghost control with an optional press handler.
+#[must_use]
+pub fn ghost_control_maybe<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    make_control(tokens, label, on_press, style::ghost, id)
+}
+
+/// Danger / destructive control — [`danger`]'s own twin.
+#[must_use]
+pub fn danger_control<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Message,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    make_control(tokens, label, Some(on_press), style::danger, id)
+}
+
+/// Danger control with an optional press handler.
+#[must_use]
+pub fn danger_control_maybe<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    make_control(tokens, label, on_press, style::danger, id)
+}
+
 /// Icon-only button for familiar global commands (refresh, settings, close,
 /// overflow). Always carries an `accessible_label`, shown as a hover tooltip,
 /// so the control's purpose is never conveyed by the icon glyph alone.
@@ -501,6 +647,229 @@ mod tests {
     use super::style::with_focus_ring;
     use iced::widget::button::Status;
     use snora::design::Tokens;
+
+    /// RFC-075 handoff stage 1 §3, row 3: each `_control` variant is a Tab
+    /// stop, Enter and Space press it (publishing the same message a click
+    /// would), and a disabled one (`on_press: None`) is skipped — not just
+    /// unpressable, genuinely no Tab stop at all (D4 b), through
+    /// `knotra_ui::test_support::Harness`, the same `UserInterface`-level
+    /// driving stage 0 found `iced_test::Simulator` cannot do for a
+    /// `traverse`-routed Tab.
+    #[test]
+    fn primary_control_is_a_tab_stop_enter_and_space_press_it_disabled_is_skipped() {
+        use crate::test_support::Harness;
+        use iced::widget::{Id, column};
+
+        #[derive(Debug, Clone, PartialEq)]
+        enum Msg {
+            Pressed,
+        }
+
+        let tokens = Tokens::light();
+        let view = |pressable: bool| -> iced::Element<'static, Msg> {
+            column![
+                super::primary_control_maybe(
+                    &tokens,
+                    "Save",
+                    pressable.then_some(Msg::Pressed),
+                    Id::new("save"),
+                ),
+                super::ghost_control(&tokens, "Cancel", Msg::Pressed, Id::new("cancel")),
+            ]
+            .spacing(8)
+            .into()
+        };
+
+        let size = iced_test::core::Size {
+            width: 400.0,
+            height: 400.0,
+        };
+
+        // Enabled: Tab reaches it, Enter presses it.
+        let mut h = Harness::new(view(true), size, None);
+        h.tab(false);
+        assert_eq!(h.focused_id(), Some(Id::new("save")));
+        h.enter();
+        assert_eq!(h.messages(), [Msg::Pressed]);
+
+        // Enabled: Space presses it too.
+        let mut h = Harness::new(view(true), size, None);
+        h.tab(false);
+        h.space();
+        assert_eq!(h.messages(), [Msg::Pressed]);
+
+        // Disabled: Tab skips it entirely and lands on "Cancel" instead.
+        let mut h = Harness::new(view(false), size, None);
+        h.tab(false);
+        assert_eq!(
+            h.focused_id(),
+            Some(Id::new("cancel")),
+            "a disabled control must not be a Tab stop (RFC-075 D4 b)"
+        );
+    }
+
+    /// RFC-075 D1's own anticipated difference ("the focus ring may
+    /// differ... report the difference"), confirmed by rendering: with
+    /// `primary_control` actually Tab-focused (`Harness::tab`, not a
+    /// boolean flag) against `reasoned`'s own `is_focused: true`, at the
+    /// same size and theme, both button shapes are identical (this
+    /// module's own `each_control_variant_draws_identically_...` proves
+    /// that at rest, and the focused difference is confined to the ring
+    /// alone — nothing else moves when only `is_focused` changes, per
+    /// `with_focus_ring`'s/`Control`'s own contract). The ring itself
+    /// looks different in two ways, read from the rendered crop:
+    ///
+    /// - **offset**: `with_focus_ring` draws the ring flush with the
+    ///   button's own border (`border.width = tokens.focus.ring_width`,
+    ///   replacing it in place — RFC-036's own design). `Control`'s ring
+    ///   is drawn *outside* the control, separated by `Tokens::focus::
+    ///   ring_offset` (confirmed: `snora_design::FocusTokens`'s own field,
+    ///   already re-exported by this crate) — a visible gap between the
+    ///   button's edge and the ring that `with_focus_ring` never had.
+    /// - **corner follow-through**: the gap itself has rounded corners,
+    ///   following the button's own radius outward, where
+    ///   `with_focus_ring`'s flush ring only ever redrew the existing
+    ///   border in place.
+    ///
+    /// Not treated as a defect to fix — D1 names exactly this as expected
+    /// and asks for a report, not equality, and `Control`'s own
+    /// documentation (`snora-0.65.0/src/control.rs`, read directly) states
+    /// the ring is "at least 3:1 against the page and every neutral
+    /// surface snora's tokens define", the same guarantee RFC-036 Stage 6
+    /// built `with_focus_ring` to provide by hand. No pixel assertion here
+    /// (a ring's own exact offset/radius is snora's to draw, not this
+    /// crate's to pin) — this is the report the RFC asked for, not a gate.
+    #[test]
+    fn primary_control_focused_differs_from_reasoned_only_in_the_ring_not_the_button() {
+        use crate::test_support::Harness;
+        use crate::theme::KnotraTheme;
+        use iced::widget::Id;
+
+        #[derive(Debug, Clone)]
+        enum Msg {
+            Go,
+        }
+
+        let theme = KnotraTheme::light();
+        let t = &theme.tokens;
+        let old: iced::Element<'static, Msg> =
+            super::reasoned(t, "Save", Some(Msg::Go), None, false, super::style::primary);
+        let new: iced::Element<'static, Msg> =
+            super::primary_control(t, "Save", Msg::Go, Id::new("btn"));
+        let size = iced_test::core::Size {
+            width: 200.0,
+            height: 80.0,
+        };
+
+        // Unfocused: identical (already the other test's own claim, but
+        // asserted again here so a reader of *this* test does not have to
+        // take that on faith to trust its own "only the ring differs").
+        let mut h_old_unfocused = Harness::new(old, size, None);
+        let (old_u, ow, oh) = h_old_unfocused.screenshot(&theme.base);
+        let mut h_new_unfocused = Harness::new(
+            super::primary_control(t, "Save", Msg::Go, Id::new("btn")),
+            size,
+            None,
+        );
+        let (new_u, nw, nh) = h_new_unfocused.screenshot(&theme.base);
+        crate::test_support::pixel_diff(&old_u, (ow, oh), &new_u, (nw, nh))
+            .expect("unfocused must still be identical — this test's own premise");
+
+        // Focused: both render, neither panics, and they are NOT expected
+        // to be identical — the ring is the known, reported difference.
+        let old_focused: iced::Element<'static, Msg> =
+            super::reasoned(t, "Save", Some(Msg::Go), None, true, super::style::primary);
+        let mut h_old = Harness::new(old_focused, size, None);
+        let (old_rgba, ow, oh) = h_old.screenshot(&theme.base);
+
+        let mut h_new = Harness::new(new, size, None);
+        h_new.tab(false);
+        assert_eq!(h_new.focused_id(), Some(Id::new("btn")));
+        let (new_rgba, nw, nh) = h_new.screenshot(&theme.base);
+
+        assert!(
+            crate::test_support::pixel_diff(&old_rgba, (ow, oh), &new_rgba, (nw, nh)).is_err(),
+            "expected the focused ring to differ (this module's own doc comment says how) — \
+             if this now passes, Control's ring drawing changed to match with_focus_ring's \
+             exactly, and the doc comment above should be updated to say so"
+        );
+    }
+
+    #[test]
+    fn each_control_variant_draws_identically_to_its_old_twin_at_rest_in_every_theme() {
+        use crate::test_support::{Harness, pixel_diff};
+        use crate::theme::KnotraTheme;
+        use iced::widget::Id;
+
+        #[derive(Debug, Clone)]
+        enum Msg {
+            Go,
+        }
+
+        let size = iced_test::core::Size {
+            width: 200.0,
+            height: 80.0,
+        };
+
+        fn check(
+            preset: &str,
+            name: &str,
+            size: iced_test::core::Size,
+            base: &iced::Theme,
+            old: iced::Element<'static, Msg>,
+            new: iced::Element<'static, Msg>,
+        ) {
+            let mut h_old = Harness::new(old, size, None);
+            let (old_rgba, ow, oh) = h_old.screenshot(base);
+            let mut h_new = Harness::new(new, size, None);
+            let (new_rgba, nw, nh) = h_new.screenshot(base);
+            if let Err(diff) = pixel_diff(&old_rgba, (ow, oh), &new_rgba, (nw, nh)) {
+                panic!("{preset} {name}: not identical at rest: {diff}");
+            }
+        }
+
+        for (preset, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+            ("high_contrast_light", KnotraTheme::high_contrast_light()),
+            ("high_contrast_dark", KnotraTheme::high_contrast_dark()),
+        ] {
+            let t = &theme.tokens;
+            let base = &theme.base;
+            check(
+                preset,
+                "primary",
+                size,
+                base,
+                super::primary(t, "Save", Msg::Go),
+                super::primary_control(t, "Save", Msg::Go, Id::new("btn")),
+            );
+            check(
+                preset,
+                "secondary",
+                size,
+                base,
+                super::secondary(t, "Save", Msg::Go),
+                super::secondary_control(t, "Save", Msg::Go, Id::new("btn")),
+            );
+            check(
+                preset,
+                "ghost",
+                size,
+                base,
+                super::ghost(t, "Save", Msg::Go),
+                super::ghost_control(t, "Save", Msg::Go, Id::new("btn")),
+            );
+            check(
+                preset,
+                "danger",
+                size,
+                base,
+                super::danger(t, "Save", Msg::Go),
+                super::danger_control(t, "Save", Msg::Go, Id::new("btn")),
+            );
+        }
+    }
 
     /// `reasoned`'s reason text renders in exactly the same case
     /// `guided_button` used: no press handler, and a reason was supplied.

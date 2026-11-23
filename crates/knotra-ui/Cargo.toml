@@ -17,3 +17,15 @@ snora                       = { workspace = true }
 
 serde                       = { workspace = true }
 tracing                     = { workspace = true }
+
+# RFC-075 handoff stage 1 §1: the keyboard test harness's own dependency,
+# optional so a normal (non-test) build of this crate never pulls it in.
+# `knotra-app`'s dev-dependency on this crate with `test-support` enabled is
+# what "every crate's tests can use it" means in practice (§5 of the report).
+iced_test                   = { workspace = true, optional = true }
+
+[dev-dependencies]
+iced_test                   = { workspace = true }
+
+[features]
+test-support = ["dep:iced_test"]

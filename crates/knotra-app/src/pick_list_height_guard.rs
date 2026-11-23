@@ -277,4 +277,74 @@ mod tests {
              BUTTON_HEIGHT through styled_pick_list: {actual:?}"
         );
     }
+
+    /// RFC-075 handoff stage 1 §2: this guard's own rule — a select reaches
+    /// `BUTTON_HEIGHT` — extended to `select_control` (`snora::design::
+    /// select`-based). **Not a text scan**: `select_control` never calls
+    /// `pick_list(`, so [`check_source`]'s pattern has nothing to match,
+    /// and `Select` exposes no `.height(...)` builder at all to scan for
+    /// (confirmed by reading its full builder surface,
+    /// `knotra-ui/src/widget/select.rs`'s own `select_control` doc
+    /// comment) — a rendered measurement is the only way to ask the same
+    /// question of this primitive. Renders both at the same logical size
+    /// and reads the drawn box's own height back from pixels (the same
+    /// technique RFC-075 stage 0 used for the focus ring, where
+    /// `Operation`-based introspection also could not reach).
+    ///
+    /// **Does not pass.** `select_control`'s drawn box measures 26px, not
+    /// `BUTTON_HEIGHT` (44) — `knotra-ui`'s own
+    /// `select_control_box_is_shorter_than_styled_pick_lists_at_rest`
+    /// (`crates/knotra-ui/src/widget/select.rs`) has the full measurement
+    /// and the traced cause (`Select`'s own fixed, non-configurable
+    /// padding). This test asserts the **found** height, not the target
+    /// one, so it still catches a regression (the gap closing or widening
+    /// without this guard, or the handoff report, being updated) rather
+    /// than silently passing or being deleted — see the handoff report
+    /// itself for how the owner wants this carried forward.
+    #[test]
+    fn select_control_height_is_measured_not_scanned_and_falls_short_of_button_height() {
+        use knotra_ui::test_support::Harness;
+        use knotra_ui::theme::KnotraTheme;
+
+        type Msg = ();
+        let tokens = KnotraTheme::light().tokens;
+        let size = iced_test::core::Size {
+            width: 220.0,
+            height: 60.0,
+        };
+        let select: iced::Element<'static, Msg> = knotra_ui::widget::select::select_control(
+            &tokens,
+            vec![("a", "Alpha".to_owned())],
+            Some("a"),
+            false,
+            |_| (),
+            |_| (),
+            iced::widget::Id::new("select"),
+        );
+        let theme = KnotraTheme::light();
+        let mut h = Harness::new(select, size, Some(knotra_ui::widget::icon::FONT_BYTES));
+        let (rgba, w, h_px) = h.screenshot(&theme.base);
+
+        let mut min_y = u32::MAX;
+        let mut max_y = 0u32;
+        for y in 0..h_px {
+            for x in 0..w.min(110) {
+                let i = (((y * w) + x) * 4) as usize;
+                if rgba[i..i + 3] != [255, 255, 255] {
+                    min_y = min_y.min(y);
+                    max_y = max_y.max(y);
+                }
+            }
+        }
+        let measured_height = max_y - min_y + 1;
+
+        assert_eq!(
+            measured_height, 26,
+            "select_control's measured height changed from 26px -- if this now reads \
+             knotra_ui::widget::BUTTON_HEIGHT (44), update this assertion to match and \
+             remove the \"does not pass\" framing above and in the handoff report; if it \
+             changed to some other value, the root cause in select.rs's own doc comment \
+             needs re-tracing before this assertion is simply updated to follow it"
+        );
+    }
 }

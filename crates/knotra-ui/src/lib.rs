@@ -9,3 +9,9 @@ pub mod theme;
 pub mod widget;
 
 pub use theme::{KnotraTheme, ThemeChoice};
+
+/// RFC-075 handoff stage 1 §1: the keyboard test harness. See its own
+/// module doc for why it lives here, behind `test-support`, rather than in
+/// `knotra-app` or behind a bare `#[cfg(test)]`.
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;

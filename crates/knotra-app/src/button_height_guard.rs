@@ -9,11 +9,22 @@
 //! own builder chain, rather than falling back to iced's own
 //! content-sized default.
 //!
+//! **RFC-075 handoff stage 1 §2: extended to `control(...)`, the same
+//! check for `snora::design::control`-based widgets (`buttons.rs`'s
+//! `_control` family, `chip::filter_control`) — `Control`'s own builder is
+//! `button`'s (`Control::height` takes the same `impl Into<Length>`), so
+//! the identical scan, parametrised over which callee name it looks for,
+//! covers both without a second copy of the walking logic.** Seen failing
+//! first: a scratch call `control(tokens, text("x")).on_press(Msg::X)`
+//! (no height) inserted into `buttons.rs`, reported by name and line, then
+//! removed.
+//!
 //! Scans only `crates/knotra-ui/src/widget/` — the helpers themselves, not
-//! every ad-hoc `button(` call site in `crates/knotra-app/src/view/`
-//! (Amendment A2's `button_style_guard.rs` already enumerates those by
-//! hand per D8's own "bring each to the rule or report why not"; this
-//! guard is the narrower "per helper" guarantee D8 separately asks for).
+//! every ad-hoc `button(`/`control(` call site in
+//! `crates/knotra-app/src/view/` (Amendment A2's `button_style_guard.rs`
+//! already enumerates those by hand per D8's own "bring each to the rule
+//! or report why not"; this guard is the narrower "per helper" guarantee
+//! D8 separately asks for).
 //!
 //! **Text-scanning, not a real parser**, the same tradeoff every guard in
 //! this project accepts.
@@ -76,11 +87,15 @@ mod tests {
             .join("\n")
     }
 
-    /// True if `callee` is a call to bare `button` — `button(` or
-    /// `iced::widget::button(`, never a longer identifier merely ending in
-    /// "button". Copied from `button_label_guard.rs`/`button_style_guard.rs`.
-    fn is_button_callee(callee: &str) -> bool {
-        let Some(rest) = callee.strip_suffix("button") else {
+    /// True if `callee` is a call to `name` itself — bare or path-qualified
+    /// (`button(`/`iced::widget::button(`, `control(`/`snora::design::
+    /// control(`) — never a longer identifier merely ending in `name`
+    /// (`my_control` must not match `control`). Generalised from
+    /// `button_label_guard.rs`'s/`button_style_guard.rs`'s own
+    /// `is_button_callee` to cover `control(...)` too (RFC-075 handoff
+    /// stage 1 §2), rather than a second, near-identical function.
+    fn is_callee(callee: &str, name: &str) -> bool {
+        let Some(rest) = callee.strip_suffix(name) else {
             return false;
         };
         rest.is_empty() || !rest.ends_with(|c: char| c.is_alphanumeric() || c == '_')
@@ -114,7 +129,7 @@ mod tests {
         location: String,
     }
 
-    /// Scans `source` for every bare `button(...)` call, and for each one,
+    /// Scans `source` for every bare `{name}(...)` call, and for each one,
     /// walks forward from its own closing paren through the rest of its
     /// builder chain — tracking bracket depth, stopping at the first
     /// `;`/`,` at depth 0 or the first point depth would go negative —
@@ -123,16 +138,23 @@ mod tests {
     /// (either name, bare or `Length::Fixed(...)`-wrapped — this guard
     /// only needs to know *a* height constant was named, not which one or
     /// in what shape; `button_label_guard.rs` separately proves a fixed
-    /// height's label is centred).
-    fn check_source(path: &std::path::Path, clean_source: &str, out: &mut Vec<Violation>) {
+    /// height's label is centred). `name` is `"button"` or `"control"`
+    /// (RFC-075 handoff stage 1 §2).
+    fn check_source(
+        path: &std::path::Path,
+        clean_source: &str,
+        name: &str,
+        out: &mut Vec<Violation>,
+    ) {
+        let needle = format!("{name}(");
         let mut search_from = 0;
-        while let Some(rel) = clean_source[search_from..].find("button(") {
+        while let Some(rel) = clean_source[search_from..].find(needle.as_str()) {
             let word_start = search_from + rel;
-            let paren_idx = word_start + "button".len();
+            let paren_idx = word_start + name.len();
             search_from = paren_idx + 1;
 
             let callee = clean_source[..paren_idx].trim_end();
-            if !is_button_callee(callee) {
+            if !is_callee(callee, name) {
                 continue;
             }
 
@@ -177,12 +199,13 @@ mod tests {
         }
     }
 
-    /// Every `button(...)` built in `crates/knotra-ui/src/widget/` names
-    /// an explicit minimum height — the expected set is empty by design,
-    /// the same shape every other guard in this project uses for a
-    /// regression that should never reappear.
+    /// Every `button(...)`/`control(...)` built in
+    /// `crates/knotra-ui/src/widget/` names an explicit minimum height —
+    /// the expected set is empty by design, the same shape every other
+    /// guard in this project uses for a regression that should never
+    /// reappear.
     #[test]
-    fn every_widget_helper_button_names_a_minimum_height() {
+    fn every_widget_helper_button_or_control_names_a_minimum_height() {
         let dir = scan_dir();
         let files = rust_files_under(&dir);
         assert!(
@@ -200,7 +223,8 @@ mod tests {
             };
             let clean = blank_comment_lines(&source);
             let mut violations = Vec::new();
-            check_source(file, &clean, &mut violations);
+            check_source(file, &clean, "button", &mut violations);
+            check_source(file, &clean, "control", &mut violations);
             for v in violations {
                 actual.push(v.location);
             }
@@ -208,7 +232,7 @@ mod tests {
 
         assert!(
             actual.is_empty(),
-            "button(...) site(s) found in a knotra-ui widget helper with no \
+            "button(...)/control(...) site(s) found in a knotra-ui widget helper with no \
              BUTTON_HEIGHT/SMALL_BUTTON_HEIGHT anywhere in their own builder \
              chain -- RFC-073 D8 requires every widget a knotra-ui helper \
              builds to be at least SMALL_BUTTON_HEIGHT tall: {actual:?}"
