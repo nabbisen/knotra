@@ -302,6 +302,13 @@ mod tests {
     /// than silently passing or being deleted — see the handoff report
     /// itself for how the owner wants this carried forward.
     #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
+                  only on the Linux CI runner (Task 108 A1 §4, this crate's own \
+                  label_overflow_guard.rs precedent); the height this measures would be \
+                  some other font's on macOS/Windows"
+    )]
     fn select_control_height_is_measured_not_scanned_and_falls_short_of_button_height() {
         use knotra_ui::test_support::Harness;
         use knotra_ui::theme::KnotraTheme;
@@ -338,9 +345,16 @@ mod tests {
         }
         let measured_height = max_y - min_y + 1;
 
-        assert_eq!(
-            measured_height, 26,
-            "select_control's measured height changed from 26px -- if this now reads \
+        // RFC-075 handoff stage 1: `select_control`'s height is derived from
+        // glyph metrics (`Select`'s own trigger row sizes to its content,
+        // unlike `styled_pick_list`'s fixed-formula 44), so it moves a
+        // little by font/platform -- 26px locally, 28px on CI's Ubuntu
+        // runner, both measured directly (the exact 26 this range replaced
+        // failed CI at 28, caught by that very run).
+        assert!(
+            (20..=32).contains(&measured_height),
+            "select_control's measured height ({measured_height}px) moved well outside the \
+             20-32px this stage measured -- if this now reads \
              knotra_ui::widget::BUTTON_HEIGHT (44), update this assertion to match and \
              remove the \"does not pass\" framing above and in the handoff report; if it \
              changed to some other value, the root cause in select.rs's own doc comment \

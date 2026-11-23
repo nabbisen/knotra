@@ -264,6 +264,15 @@ mod tests {
     /// colours — in all four themes. Same shape as `buttons.rs`'s own test
     /// of the same name.
     #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
+                  only on the Linux CI runner (Task 108 A1 §4, `crates/knotra-app/src/\
+                  label_overflow_guard.rs`'s own precedent); what this measures would be \
+                  some other font's on macOS/Windows — confirmed directly: this test failed \
+                  on CI's Windows runner before this gate was added, with no real diff in \
+                  the chip itself"
+    )]
     fn filter_control_draws_identically_to_filter_at_rest_in_every_theme() {
         use crate::test_support::{Harness, pixel_diff};
         use crate::theme::KnotraTheme;

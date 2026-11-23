@@ -288,6 +288,13 @@ mod tests {
     /// box shows is legible, which full pixel identity is not actually
     /// needed to prove.
     #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
+                  only on the Linux CI runner (Task 108 A1 §4, `crates/knotra-app/src/\
+                  label_overflow_guard.rs`'s own precedent); what this measures would be \
+                  some other font's on macOS/Windows"
+    )]
     fn checkbox_control_draws_a_legible_mark_whose_checked_state_differs_from_unchecked() {
         use crate::test_support::Harness;
         use crate::theme::KnotraTheme;

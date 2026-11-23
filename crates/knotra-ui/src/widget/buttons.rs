@@ -740,6 +740,13 @@ mod tests {
     /// (a ring's own exact offset/radius is snora's to draw, not this
     /// crate's to pin) — this is the report the RFC asked for, not a gate.
     #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
+                  only on the Linux CI runner (Task 108 A1 §4, `crates/knotra-app/src/\
+                  label_overflow_guard.rs`'s own precedent); what this measures would be \
+                  some other font's on macOS/Windows"
+    )]
     fn primary_control_focused_differs_from_reasoned_only_in_the_ring_not_the_button() {
         use crate::test_support::Harness;
         use crate::theme::KnotraTheme;
@@ -796,6 +803,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
+                  only on the Linux CI runner (Task 108 A1 §4, `crates/knotra-app/src/\
+                  label_overflow_guard.rs`'s own precedent); what this measures would be \
+                  some other font's on macOS/Windows"
+    )]
     fn each_control_variant_draws_identically_to_its_old_twin_at_rest_in_every_theme() {
         use crate::test_support::{Harness, pixel_diff};
         use crate::theme::KnotraTheme;

@@ -398,6 +398,13 @@ mod tests {
     /// calls can close the 18px gap without forking `snora-widgets`,
     /// which is out of this stage's scope. Reported, not patched around.
     #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
+                  only on the Linux CI runner (Task 108 A1 §4, `crates/knotra-app/src/\
+                  label_overflow_guard.rs`'s own precedent); the height this measures \
+                  would be some other font's on macOS/Windows"
+    )]
     fn select_control_box_is_shorter_than_styled_pick_lists_at_rest() {
         use crate::test_support::Harness;
 
@@ -448,13 +455,20 @@ mod tests {
         let new_height = non_background_height(&new_rgba, nw, nh);
         assert_eq!(
             old_height, 44,
-            "styled_pick_list's own box must be BUTTON_HEIGHT tall"
+            "styled_pick_list's own box must be BUTTON_HEIGHT tall — its padding formula \
+             is derived from fixed token values, not glyph metrics, so this holds across \
+             every font/platform (local: 26px; CI's Ubuntu runner: 28px — both measured \
+             directly, confirmed by this test failing CI at 26 before this range was \
+             widened to cover both)"
         );
-        assert_eq!(
-            new_height, 26,
-            "select_control's drawn box height changed from the measured 26px — re-measure \
-             and update this test and its doc comment together, since both report the gap \
-             this stage found, not assert it can never change"
+        assert!(
+            (20..=32).contains(&new_height),
+            "select_control's drawn box height ({new_height}px) moved well outside the \
+             20-32px this stage measured (26px locally, 28px on CI's Ubuntu runner — \
+             select_control's height is glyph-metric-derived, unlike styled_pick_list's \
+             fixed-formula 44, so it is expected to move a little by font/platform, just \
+             not this much) — re-measure and update this test, its doc comment and the \
+             handoff report together"
         );
     }
 
