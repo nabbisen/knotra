@@ -168,3 +168,67 @@ Owner, 2026-11-18:
 - the RFC is accepted;
 - D4 a, b, c and e are as recommended (a after measuring);
 - **D4 d** is decided after the owner compares both behaviours in stage 0.
+
+## Amendment A1 (2026-11-24): stage 0's answers, and D4 a and D4 d decided
+
+Stage 0 is approved. Its measurements are in `.git-exclude/reviewed/295-rfc-075-stage-0-review.md`.
+
+### What stage 0 measured
+
+- Tab past a window's last control leaves the window for one press, with nothing focused, then
+  starts again from its first control.
+- A disabled control is skipped.
+- `focus(id)` draws the ring. A window opened by a click focuses nothing until the first Tab.
+- **knotra's current ↓ ↑ handling desynchronises from snora's focus.** The ring vanishes. It must
+  go, whatever is decided.
+- snora's select works from the keyboard. The application closes it in `on_select`.
+- Acceptance tests can run at the `iced_runtime` `UserInterface` level. `Simulator` cannot run
+  `traverse`.
+
+### Decided by the owner, 2026-11-24, after trying both builds
+
+- **D4 d: ↓ ↑ move through lists:**
+  - the palette's results;
+  - the workspace menu;
+  - "Find work area";
+  - and, as always, snora's own menus and selects.
+
+  Elsewhere, Tab moves between controls.
+- **In the command palette, every typed character goes to the search box,** wherever the
+  highlight is. Only Enter runs the highlighted result.
+- **D4 a: nothing is ever left focused on nothing:**
+  - Tab and Shift+Tab, past the last or before the first control, go to the other end, in a
+    window and on the page alike;
+  - ↓ ↑ wrap within their list;
+  - ↑ from a list's first item returns to the field above it, where there is one (the palette's
+    search box).
+
+### Refinements, by the owner's design standard
+
+The owner asked for a review against "finally clean, safe and secure, and robust and
+sophisticated design" and "for users not to be confused or misunderstand". The three
+refinements above follow from it:
+
+- **"Every typed character" includes Space.** Space would otherwise press the highlighted
+  result. Only Enter runs it.
+- **Arrows wrap within the list, not the window.** ↓ from the last result never lands on the
+  window's Close.
+- **The wrap holds on the page too.** One rule everywhere, with no press that shows no ring.
+
+### What this changes in the stages
+
+- **Stage 1:** a `UserInterface`-level helper for Tab and arrow sequences, used by every later
+  stage's acceptance tests.
+- **Stage 2:**
+  - the page wraps;
+  - the two empty-state buttons ("Add your first project", and the no-matches "Clear
+    filters") become reachable;
+  - the two order differences are fixed: the selection bar's "Exit selection", and Compact's
+    "Clear filters".
+- **Stage 3:**
+  - windows wrap;
+  - list arrows and the palette's typing rule;
+  - a select or menu open inside a window closes on the first Escape, which Task 111's
+    `escape_first` must allow.
+- **The shortcuts sheet:** "↑ / ↓: in lists". The exact English and Japanese text goes to the
+  owner with stage 3.
