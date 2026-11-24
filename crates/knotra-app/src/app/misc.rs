@@ -330,22 +330,16 @@ pub(super) fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> T
     let ordered: Vec<knotra_vcs::ProjectId> = state.visible_project_ids();
 
     match msg {
-        // RFC-075 stage 2 §5 finding (the same one `ArrangeToggled` has
-        // its own fix for): entering selection mode gives every row a new
-        // checkbox and reveals the selection bar — the tree this control
-        // itself sits in changes shape, and the rebuilt tree's real focus
-        // comes back `None` (or, confirmed directly, wraps to the page's
-        // first control on the very next Tab) rather than staying on
-        // "Select". Re-asserted explicitly, in the same `Task`, the same
-        // shape every other focus-moving path in this app already uses.
-        SelectionMessage::ModeEntered => {
-            state.selection_mode = true;
-            return iced::widget::operation::focus(crate::view::ids::toolbar::select_mode());
-        }
-        SelectionMessage::ModeExited => {
-            state.clear_selection_mode();
-            return iced::widget::operation::focus(crate::view::ids::toolbar::select_mode());
-        }
+        // RFC-075 stage 2 Amendment A2 §2: entering/leaving selection
+        // mode changes the whole page body's own shape (every row gains
+        // or loses a checkbox, the selection bar appears or goes) —
+        // `knotra_ui::widget::focus_by_id` (`view.rs`'s own wrap of the
+        // page body) now keeps "Select" focused across that change on
+        // its own; no explicit `operation::focus` is needed here any
+        // more (stage 2's own fix, removed — its tests still pass
+        // against the general mechanism).
+        SelectionMessage::ModeEntered => state.selection_mode = true,
+        SelectionMessage::ModeExited => state.clear_selection_mode(),
         SelectionMessage::Toggled(id) => {
             let active_ids: std::collections::HashSet<_> = ordered.iter().cloned().collect();
             if !active_ids.contains(&id) {
@@ -360,10 +354,7 @@ pub(super) fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> T
             state.selection.clear();
             state.selection.select_all(&ids);
         }
-        SelectionMessage::Clear => {
-            state.clear_selection_mode();
-            return iced::widget::operation::focus(crate::view::ids::toolbar::select_mode());
-        }
+        SelectionMessage::Clear => state.clear_selection_mode(),
     }
     Task::none()
 }
@@ -435,18 +426,15 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
             if !state.dashboard_arrange_open {
                 state.arrange_select_open = None;
             }
-            // RFC-075 stage 2 §5 finding: revealing (or removing) the
-            // panel inserts (or removes) a sibling in the toolbar's own
-            // `column![row![...], arrange_panel]` — the tree shape this
-            // control itself sits in changes, and the rebuilt tree's real
-            // focus comes back `None`, not still on "Arrange" (confirmed
-            // directly, `keyboard_acceptance.rs`'s own
-            // `opening_the_arrange_panel_loses_real_focus`). Re-asserting
-            // focus on this same control explicitly, in the same `Task`,
-            // is the same fix shape every other focus-moving path in this
-            // app already uses (`operation::focus(id)`) — not a workaround
-            // specific to this one control.
-            iced::widget::operation::focus(crate::view::ids::toolbar::arrange())
+            // RFC-075 stage 2 Amendment A2 §2: revealing/removing the
+            // panel inserts/removes a sibling in the toolbar's own
+            // `column![row![...], arrange_panel]`, the same shape of
+            // change `knotra_ui::widget::focus_by_id` (`view.rs`'s own
+            // wrap of the page body) now keeps "Arrange" focused across
+            // on its own; the explicit `operation::focus` stage 2 shipped
+            // for this is removed (its own test still passes against the
+            // general mechanism).
+            Task::none()
         }
         DashboardMessage::ArrangeSelectOpenChanged(which, opened) => {
             state.arrange_select_open = opened.then_some(which);

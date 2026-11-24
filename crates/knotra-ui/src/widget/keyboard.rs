@@ -63,29 +63,101 @@ pub fn focused_id() -> Task<Option<Id>> {
 /// and fall through on `None`, the same contract `traverse` itself offers).
 ///
 /// Runs `traverse` once; if that leaves nothing focused (the group's own
-/// last-press behaviour), runs it a **second** time in the same `Task` —
-/// which, with nothing focused and no click-remembered starting point
-/// (`traverse`'s own doc: a click's mark is cleared on every traversal,
-/// focused or not), lands on the first target going forward or the last
-/// going backward. That is the wrap.
+/// last-press behaviour), checks whether `knotra_ui::widget::keyed`'s own
+/// page-wide wrapper still remembers a control focus belongs to even
+/// though it cannot report real focus right now — a control that
+/// disables itself when pressed (Amendment A2 §3: "Check now" mid-
+/// refresh, the selection bar's "Check for updates" mid-fetch): with
+/// nothing really focused, `snora::keyboard::traverse` itself cannot tell
+/// this apart from "nothing has ever been focused", and would restart
+/// from the very first control in the whole page — the "no ring, then
+/// Tab jumps to the top" Amendment A1 exists to rule out. Only when there
+/// is no such remembered control (or no page-wide wrapper at all) does
+/// this run `traverse` a **second** time in the same `Task` — which, with
+/// nothing focused and no click-remembered starting point (`traverse`'s
+/// own doc: a click's mark is cleared on every traversal, focused or
+/// not), lands on the first target going forward or the last going
+/// backward. That is the wrap.
 #[must_use]
 pub fn traverse_wrapping<Message: Send + 'static>(
     key: Key,
     modifiers: Modifiers,
 ) -> Option<Task<Message>> {
-    let first = snora::keyboard::traverse::<Message>(key.clone(), modifiers)?;
-    Some(
-        first
-            .discard::<Option<Id>>()
-            .chain(focused_id())
-            .then(move |focused: Option<Id>| {
-                if focused.is_some() {
-                    Task::none()
+    // Confirms the key is claimed (plain Tab/Shift+Tab) without running
+    // anything yet — `traverse` is a pure function of its own arguments,
+    // so building it again below, only in the branch that needs it, has
+    // no effect beyond the confirmation this discards.
+    let _ = snora::keyboard::traverse::<Message>(key.clone(), modifiers)?;
+
+    let forward = !modifiers.shift();
+    Some(focused_id().then(move |before: Option<Id>| {
+        let key = key.clone();
+        if before.is_some() {
+            // The reader's own Tab, from a control that really holds
+            // focus right now: run the real traversal; if that leaves
+            // nothing focused (the group's own last-press behaviour),
+            // run it a **second** time in the same `Task` — which, with
+            // nothing focused and no click-remembered starting point
+            // (`traverse`'s own doc: a click's mark is cleared on every
+            // traversal, focused or not), lands on the first target
+            // going forward or the last going backward. That is the
+            // wrap.
+            let real = snora::keyboard::traverse::<Message>(key.clone(), modifiers)
+                .unwrap_or_else(Task::none);
+            real.discard::<Option<Id>>()
+                .chain(focused_id())
+                .then(move |after: Option<Id>| {
+                    if after.is_some() {
+                        Task::none()
+                    } else {
+                        snora::keyboard::traverse(key.clone(), modifiers).unwrap_or_else(Task::none)
+                    }
+                })
+        } else {
+            // Nothing is really focused **before** this press at all —
+            // `sequential_focus`'s own "nothing focused → start from the
+            // first target" fallback would fire unconditionally here,
+            // which is indistinguishable from the reader's own Tab
+            // correctly landing somewhere (both report "something is
+            // focused afterward"), so this must be checked *first*, not
+            // inferred from the real traversal's own result. Amendment
+            // A2 §3: a page-wide `focus_by_id` wrapper may still
+            // remember a control focus belongs to even though that
+            // control cannot report real focus right now (it disabled
+            // itself on its own press) — ask it before falling back to
+            // `traverse`'s own natural "start from the first/last"
+            // behaviour, which is right only when nothing has ever been
+            // focused at all.
+            super::keyed::tab_anchor().then(move |anchor| {
+                let reinstated = anchor.and_then(|a| {
+                    let remembered = a.focused?;
+                    neighbour(&a.ids, &remembered, forward)
+                });
+                if let Some(next) = reinstated {
+                    iced::widget::operation::focus(next)
                 } else {
                     snora::keyboard::traverse(key.clone(), modifiers).unwrap_or_else(Task::none)
                 }
-            }),
-    )
+            })
+        }
+    }))
+}
+
+/// The id right after (`forward`) or right before `from` in `ids`, or
+/// `None` at either end — deliberately **not** wrapping on its own: when
+/// there is no neighbour this way, [`traverse_wrapping`]'s own fallback
+/// (`snora::keyboard::traverse`, run with nothing focused) already lands
+/// on the first/last target in the whole page, which is the same
+/// destination a wrap from here would reach.
+fn neighbour(ids: &[Id], from: &Id, forward: bool) -> Option<Id> {
+    let at = ids.iter().position(|id| id == from)?;
+    if forward {
+        ids.get(at + 1).cloned()
+    } else {
+        at.checked_sub(1)
+            .and_then(|before| ids.get(before))
+            .cloned()
+    }
 }
 
 /// Moves real focus to the id after (`forward`) or before the one `ids`

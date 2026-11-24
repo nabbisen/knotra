@@ -633,18 +633,20 @@ mod findings {
         state
     }
 
-    /// **Found while capturing this stage's GUI evidence (C1), and
+    /// **Found while capturing stage 2's own GUI evidence (C1), and
     /// fixed**: opening the Arrange panel from the keyboard used to lose
     /// real focus entirely, rather than leaving it on "Arrange" — the
     /// very next Tab wrapped all the way back to the page's first control
     /// instead of continuing into Group/Sort, defeating the behaviour
     /// RFC-075 exists to provide.
     ///
-    /// **Stays under Amendment A1**: this is a *toolbar* control, outside
-    /// the region `knotra_ui::widget::focus_by_key` wraps (the dashboard's
-    /// row content — see that module's own doc comment for why it stops
-    /// there) — A1's own mechanism does not reach the toolbar, so it
-    /// cannot make this fix unnecessary.
+    /// **The explicit fix (`1144026`) is gone** (Amendment A2 §2): this
+    /// test is unchanged, and passes with no explicit `operation::focus`
+    /// behind it at all — `knotra_ui::widget::focus_by_id`'s own one,
+    /// whole-page wrap keeps real focus on "Arrange" (it is still really
+    /// focused, nothing moved it away) through the same rebuild that
+    /// reveals the panel, the same way it keeps any other control focused
+    /// across any other reorder.
     #[test]
     fn opening_the_arrange_panel_keeps_focus_on_arrange() {
         let mut state = one_project_state();
@@ -689,8 +691,8 @@ mod findings {
         );
     }
 
-    /// The same finding, the same fix, for "Select" — also a toolbar
-    /// control, also outside A1's own wrap.
+    /// The same finding, for "Select" — its own explicit fix (`279c0ee`)
+    /// is gone too (Amendment A2 §2), for the same reason.
     #[test]
     fn entering_selection_mode_keeps_focus_on_select() {
         let mut state = one_project_state();
@@ -974,16 +976,22 @@ mod focus_follows_its_id {
         );
     }
 
-    /// The reverse direction of the same guarantee: the stage-2 fixes
-    /// already shipped (`ArrangeToggled`/`SelectionMessage::ModeEntered`
-    /// re-asserting focus on a *toolbar* control once their own panel or
-    /// selection bar appears) are not undone by this content's own
-    /// reconciliation, even though entering selection mode also changes
-    /// this content's own key set in the very same step (every row gains
-    /// a checkbox). Without `FollowsId::resync`, this would regress: see
-    /// its own doc comment for why.
+    /// A structural change *elsewhere* on the page (every row gains a
+    /// checkbox once selection mode turns on) must not disturb a focus
+    /// that has nothing to do with it: Alpha's own name, still really
+    /// focused through the same rebuild, must stay put — not be pulled
+    /// onto some other id by this reconciliation mistaking "nothing of
+    /// mine changed" for "something must be reassigned". (Amendment A1's
+    /// own version of this test instead pressed "Select" first and
+    /// expected focus to land back on it — that was really testing the
+    /// stage-2 `operation::focus` fix A2 §2 removes, not this mechanism;
+    /// `keyboard_acceptance::findings::entering_selection_mode_keeps_
+    /// focus_on_select` already covers that real "Select" press, and
+    /// still passes with no explicit fix behind it at all — see A2's own
+    /// report for why: with the whole page under one wrap, nothing here
+    /// moves "Select" away from itself in the first place.)
     #[test]
-    fn entering_selection_mode_does_not_undo_its_own_refocus_on_select() {
+    fn entering_selection_mode_elsewhere_does_not_move_focus_off_alphas_row() {
         let (mut state, alpha_id, _beta_id) = two_needs_help_projects();
         let mut rig = Rig::new(SIZE);
 
@@ -1004,35 +1012,21 @@ mod focus_follows_its_id {
         );
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(ids::toolbar::select_mode()),
-            "the existing stage-2 fix must still win: focus on \"Select\", not pulled back \
-             onto Alpha's row by this content's own reconciliation"
+            Some(ids::row::name(&alpha_id)),
+            "Alpha's own name must still be focused once every row gains a checkbox"
         );
     }
 
-    /// Amendment A1 §1's own measurement: "Check now" (`ids::shell::
-    /// refresh`) is a *shell* control, outside the region `focus_by_key`
-    /// wraps (see that module's own doc comment for why it stops at the
-    /// dashboard's row content) — a refresh disabling it mid-flight is not
-    /// this mechanism's concern at all, and nothing here changes it. This
-    /// records the observed behaviour rather than assuming it: pressing
-    /// Enter disables "Check now" (`on_press_maybe(None)` while
-    /// `is_refreshing`), and `snora::design::Control::operate`'s own rule
-    /// ("registers as a focus target — if it can be pressed") means a
-    /// disabled control stops reporting as focused at all, the same way
-    /// `focused_id` finds nothing focused immediately afterward. The
-    /// handoff's own worry — "a Tab pressed during the refresh must not
-    /// start again from the top of the page" — does not materialize:
-    /// `traverse_wrapping`'s own "nothing focused → start from the first
-    /// target going forward" rule means the *next* Tab after "Check now"
-    /// going disabled correctly continues to whatever comes after it in
-    /// reading order (History, here), not back to the page's own start —
-    /// because "the first target going forward" and "the control after
-    /// Check now" are the same thing from a still-disabled Check now's own
-    /// position; only Shift+Tab from here would reveal the difference,
-    /// and it is not this table row's own question.
+    /// Amendment A2 §3, rows 1-3, with "Check now" disabled by its own
+    /// Enter press. `ids::shell::refresh()` is one of `view.rs`'s own
+    /// `reserved` ids (`knotra_ui::widget::focus_by_id`'s own parameter):
+    /// gone from a real survey the moment it disables, but never treated
+    /// as removed outright. Named here rather than "the shell's own
+    /// shape never changes" alone, since Amendment A1's own version of
+    /// this test asserted today's *bug* as if it were the fix — see
+    /// A2's own review (F3) for why that assertion was backwards.
     #[test]
-    fn check_now_disabling_mid_refresh_is_measured_not_fixed() {
+    fn check_now_keeps_its_place_during_a_refresh_started_by_its_own_press() {
         use crate::message::WorkspaceMessage;
 
         let mut state = one_project_state();
@@ -1066,11 +1060,47 @@ mod focus_follows_its_id {
         // `is_refreshing` matters here, so that one field is set directly
         // rather than driving the message itself through `app::update`.
         state.is_refreshing = true;
+
+        // 1. No other control takes focus, no ring appears elsewhere.
         assert_eq!(
             focused_id(&mut rig, &state),
             None,
-            "measured: a disabled control stops reporting as focused at all"
+            "nothing should report as focused while \"Check now\" is disabled"
         );
+
+        // 3. When the refresh ends, with the reader having not moved,
+        // focus is on "Check now" again.
+        state.is_refreshing = false;
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::refresh()),
+            "\"Check now\" must be focused again once the refresh ends"
+        );
+    }
+
+    /// Row 2, the forward direction: Tab, with "Check now" disabled and
+    /// nothing really focused, reaches the control after it — not the
+    /// page's own first control, which is what `sequential_focus`'s own
+    /// "nothing focused" fallback would otherwise land on.
+    #[test]
+    fn tab_reaches_the_control_after_check_now_once_it_disables() {
+        let mut state = one_project_state();
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        assert_eq!(focused_id(&mut rig, &state), Some(ids::shell::refresh()));
+
+        state.is_refreshing = true;
+        assert_eq!(focused_id(&mut rig, &state), None);
 
         drive(
             &mut rig,
@@ -1079,9 +1109,414 @@ mod focus_follows_its_id {
         );
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(ids::shell::nav_history()),
-            "measured: Tab continues to the control after the now-disabled \"Check now\", \
-             not back to the page's own start"
+            Some(ids::shell::palette()),
+            "Tab must continue to the control after the disabled \"Check now\", \
+             not restart from the page's own first control"
         );
+    }
+
+    /// Row 2, the backward direction: Shift+Tab, under the same
+    /// conditions, reaches the control before it.
+    #[test]
+    fn shift_tab_reaches_the_control_before_check_now_once_it_disables() {
+        let mut state = one_project_state();
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        assert_eq!(focused_id(&mut rig, &state), Some(ids::shell::refresh()));
+
+        state.is_refreshing = true;
+        assert_eq!(focused_id(&mut rig, &state), None);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusPrevious),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::nav_history()),
+            "Shift+Tab must reach the control before the disabled \"Check now\", \
+             not wrap to the page's own last control"
+        );
+    }
+
+    /// The same three rows, this time for a refresh an automatic trigger
+    /// starts (a periodic timer, a filesystem watcher) while "Check now"
+    /// already holds focus from an earlier Tab, never itself pressed.
+    #[test]
+    fn check_now_keeps_its_place_during_an_automatic_refresh() {
+        let mut state = one_project_state();
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        assert_eq!(focused_id(&mut rig, &state), Some(ids::shell::refresh()));
+
+        // No press at all — the refresh starts on its own.
+        state.is_refreshing = true;
+        assert_eq!(focused_id(&mut rig, &state), None);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        assert_eq!(focused_id(&mut rig, &state), Some(ids::shell::palette()));
+
+        state.is_refreshing = false;
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::palette()),
+            "the reader did move (Tab, above) before the refresh ended — \"Check now\" \
+             must not steal focus back from where they actually are"
+        );
+    }
+
+    /// Amendment A2 §3's own "any other page control that disables itself
+    /// when pressed" — the selection bar's "Check for updates"
+    /// (`ids::selection_bar::fetch()`), the other `reserved` id `view.rs`
+    /// passes: pressing it acquires `operation_interlock` (`OperationOwner
+    /// ::BulkFetch`), and the same lock gates its own `can_act`, so it
+    /// disables itself exactly the way "Check now" does. One
+    /// representative row of the same table (Tab reaches the control
+    /// after it) rather than the full 1-3 set again, since the mechanism
+    /// itself (`reserved`) is the same one "Check now"'s own tests
+    /// already exercise in full.
+    #[test]
+    fn tab_reaches_the_control_after_selection_bar_fetch_once_it_disables() {
+        use crate::state::OperationOwner;
+
+        let mut state = one_project_state();
+        let project_id = state.workspace.as_ref().unwrap().projects[0].id.clone();
+        state.selection_mode = true;
+        state.selection.toggle(project_id);
+        let mut rig = Rig::new(SIZE);
+
+        // Shell (4) + chips (5) + Arrange + search + Select (12) + the
+        // row's own checkbox, name, action (3, NeedsHelp) + Exit (1) = 16
+        // presses; the 17th reaches "Check for updates", the selection
+        // bar's own first bulk action.
+        for _ in 0..17 {
+            drive(
+                &mut rig,
+                &mut state,
+                Message::Shortcut(ShortcutMessage::FocusNext),
+            );
+        }
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::selection_bar::fetch())
+        );
+
+        state
+            .operation_interlock
+            .try_acquire(OperationOwner::BulkFetch)
+            .expect("the interlock starts idle");
+        assert_eq!(focused_id(&mut rig, &state), None);
+
+        // Unlike "Check now" (whose own neighbours, History and Command
+        // palette, stay enabled while it disables), "Check for updates"'s
+        // own siblings (Get latest safely, Save release point, Switch
+        // work area) share the *same* `operation_interlock` gate, so all
+        // three go disabled in the same step too — they are not
+        // themselves `reserved` (their own press is not what disabled
+        // them, so Amendment A2 §3's own rule does not name them). With
+        // nothing left enabled after "Check for updates" anywhere on the
+        // page, Tab correctly wraps to the page's own first control
+        // (Amendment A1) rather than landing on a sibling that is just as
+        // unavailable.
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::nav_history()),
+            "with every selection-bar action disabled, Tab must wrap to the page's own first \
+             control, not stop on an equally-disabled sibling"
+        );
+    }
+
+    /// Amendment A2 §4's own new row: a reorder where the **count** of
+    /// tracked ids does not change at all — the old, hand-maintained-key
+    /// design (A1) would have had no reason to "stand aside" here either,
+    /// so this guards the *new* id-based mechanism specifically, not the
+    /// count mismatch A1's own tests already covered. Passes on `c913ffa`
+    /// too (the hand-made list was already right for this one case) —
+    /// its own job is to keep that true now that nothing is hand-made at
+    /// all.
+    #[test]
+    fn a_same_count_reorder_by_sort_still_follows_the_id() {
+        let mut state = AppState::new(AppConfig::default());
+        let zed = Project::new("Zed", "/tmp");
+        let alpha = Project::new("Alpha", "/tmp");
+        let (zed_id, alpha_id) = (zed.id.clone(), alpha.id.clone());
+        state.workspace = Some(Workspace {
+            projects: vec![zed, alpha],
+            ..Workspace::new("Main")
+        });
+        state.load_phase = crate::state::LoadPhase::Ready;
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::ArrowDown),
+        );
+        let first_focused = focused_id(&mut rig, &state);
+        assert!(
+            first_focused == Some(ids::row::name(&zed_id))
+                || first_focused == Some(ids::row::name(&alpha_id)),
+            "sanity: ↓ must focus one of the two project names"
+        );
+
+        // Whichever order "Recommended" happens to use for two equally
+        // unclassified projects, name-ascending reorders them (Alpha
+        // before Zed) — the point is the same-count reorder itself, not
+        // which project was first.
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Dashboard(crate::message::DashboardMessage::SortChanged(
+                crate::config::DashboardSort::NameAscending,
+            )),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            first_focused,
+            "the same project's own name must still be focused after a same-count reorder — \
+             the id, not the position"
+        );
+    }
+
+    /// Amendment A2 §2/§4: "the page's root is covered" — a chip press
+    /// adding "Clear filters" to the toolbar must not disturb a focus
+    /// that has nothing to do with it, proving the wrap really spans the
+    /// whole page body (not only the rows, as A1's own narrower wrap did).
+    #[test]
+    fn select_stays_focused_when_a_chip_press_adds_clear_filters() {
+        let mut state = one_project_state();
+        let mut rig = Rig::new(SIZE);
+
+        // Shell (4) + chips (5) + Arrange + search = 11 presses; the 12th
+        // reaches "Select" (no filter active yet, so "Clear filters" is
+        // not drawn).
+        for _ in 0..12 {
+            drive(
+                &mut rig,
+                &mut state,
+                Message::Shortcut(ShortcutMessage::FocusNext),
+            );
+        }
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::toolbar::select_mode())
+        );
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Filter(crate::message::FilterMessage::StatusFilterToggled(
+                crate::message::StatusFilter::NeedsHelp,
+            )),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::toolbar::select_mode()),
+            "\"Select\" must still be focused once a chip press reveals \"Clear filters\" \
+             right next to it"
+        );
+    }
+
+    /// The same guarantee, the other direction: a chip stays focused when
+    /// *it* is the one pressed, revealing the Arrange panel below it.
+    #[test]
+    fn a_chip_stays_focused_when_the_arrange_panel_opens() {
+        let mut state = one_project_state();
+        let mut rig = Rig::new(SIZE);
+
+        for _ in 0..5 {
+            drive(
+                &mut rig,
+                &mut state,
+                Message::Shortcut(ShortcutMessage::FocusNext),
+            );
+        }
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::toolbar::filter_needs_help())
+        );
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Dashboard(crate::message::DashboardMessage::ArrangeToggled),
+        );
+        assert!(
+            state.dashboard_arrange_open,
+            "sanity: the panel must now be open"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::toolbar::filter_needs_help()),
+            "the chip must still be focused once the Arrange panel appears below the toolbar"
+        );
+    }
+
+    /// Amendment A2 §2/§4's own last row: the header gains a new leading
+    /// control (the workspace switcher) once a second workspace exists —
+    /// a focus on the header's own last control must survive it, proving
+    /// the wrap reaches the header too, not only the body.
+    #[test]
+    fn settings_stays_focused_when_the_switcher_appears() {
+        let mut state = one_project_state();
+        let mut rig = Rig::new(SIZE);
+
+        // Shell: nav_history, refresh, palette, settings (nav_dashboard
+        // is already active, D4 b) — the 4th Tab reaches "Settings".
+        for _ in 0..4 {
+            drive(
+                &mut rig,
+                &mut state,
+                Message::Shortcut(ShortcutMessage::FocusNext),
+            );
+        }
+        assert_eq!(focused_id(&mut rig, &state), Some(ids::shell::settings()));
+
+        state.all_workspaces = vec![
+            knotra_vcs::Workspace::new("Main"),
+            knotra_vcs::Workspace::new("Second"),
+        ];
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::settings()),
+            "\"Settings\" must still be focused once the workspace switcher appears before it"
+        );
+    }
+}
+
+/// Amendment A2 §1: "a focus target without an id cannot be followed"
+/// (`knotra_ui::widget::keyed`'s own doc comment) — this is what stands
+/// behind the claim that it never actually happens on the page, across
+/// every layout §4 names, rather than leaving it asserted only in prose.
+#[cfg(test)]
+mod every_focus_target_has_an_id {
+    use super::{Rig, SIZE};
+    use crate::config::AppConfig;
+    use crate::state::AppState;
+    use iced::Rectangle;
+    use iced::advanced::widget::operation::Focusable;
+    use iced::advanced::widget::{Id, Operation};
+    use knotra_vcs::{Project, Workspace};
+
+    struct IdlessFocusables(Vec<()>);
+
+    impl Operation for IdlessFocusables {
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
+            operate(self);
+        }
+        fn focusable(&mut self, id: Option<&Id>, _bounds: Rectangle, _state: &mut dyn Focusable) {
+            if id.is_none() {
+                self.0.push(());
+            }
+        }
+    }
+
+    /// Builds a real view and asserts that nothing `app_view` itself
+    /// draws registers as a focus target with no id at all —
+    /// `super::rebuild`/`Rig` are private to `keyboard_acceptance`'s own
+    /// module, visible here as one of its child modules, not a second
+    /// copy.
+    fn assert_every_focus_target_has_an_id(label: &str, state: &AppState) {
+        let mut rig = Rig::new(SIZE);
+        let mut ui = super::rebuild(&mut rig, state);
+        let mut found = IdlessFocusables(Vec::new());
+        ui.operate(&rig.renderer, &mut found);
+        assert!(
+            found.0.is_empty(),
+            "{label}: {} focus target(s) with no id at all",
+            found.0.len()
+        );
+    }
+
+    fn base_state() -> AppState {
+        let mut state = AppState::new(AppConfig::default());
+        let alpha = Project::new("Alpha", "/tmp");
+        let beta = Project::new("Beta", "/tmp");
+        state.workspace = Some(Workspace {
+            projects: vec![alpha, beta],
+            ..Workspace::new("Main")
+        });
+        state.load_phase = crate::state::LoadPhase::Ready;
+        state
+    }
+
+    #[test]
+    fn wide_and_compact() {
+        for (label, width) in [("wide", 1400.0_f32), ("compact", 700.0_f32)] {
+            let mut state = base_state();
+            state.width_mode = crate::view::dashboard::WidthMode::from_width(width);
+            assert_every_focus_target_has_an_id(label, &state);
+        }
+    }
+
+    #[test]
+    fn selection_mode_on_and_off() {
+        for (label, on) in [("selection mode on", true), ("selection mode off", false)] {
+            let mut state = base_state();
+            state.selection_mode = on;
+            assert_every_focus_target_has_an_id(label, &state);
+        }
+    }
+
+    #[test]
+    fn empty_workspace() {
+        let mut state = AppState::new(AppConfig::default());
+        state.workspace = Some(Workspace::new("Main"));
+        state.load_phase = crate::state::LoadPhase::Ready;
+        assert_every_focus_target_has_an_id("empty workspace", &state);
+    }
+
+    #[test]
+    fn no_matches() {
+        let mut state = base_state();
+        state.filter.search_text = "does-not-match-anything".to_owned();
+        assert_every_focus_target_has_an_id("no matches", &state);
+    }
+
+    #[test]
+    fn arrange_panel_open() {
+        let mut state = base_state();
+        state.dashboard_arrange_open = true;
+        assert_every_focus_target_has_an_id("Arrange panel open", &state);
+    }
+
+    #[test]
+    fn two_workspaces() {
+        let mut state = base_state();
+        state.all_workspaces = vec![
+            knotra_vcs::Workspace::new("Main"),
+            knotra_vcs::Workspace::new("Second"),
+        ];
+        assert_every_focus_target_has_an_id("two workspaces", &state);
     }
 }

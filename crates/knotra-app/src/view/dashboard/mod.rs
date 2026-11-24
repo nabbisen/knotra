@@ -17,10 +17,7 @@ use knotra_ui::widget::{WIDE_CONTENT_WIDTH, strong};
 
 use crate::{
     message::Message,
-    state::{
-        AppState, LoadPhase,
-        dashboard::{DashboardCause, DashboardSectionKey, DashboardTier},
-    },
+    state::{AppState, LoadPhase},
 };
 
 mod empty;
@@ -61,72 +58,6 @@ pub fn card_focus_ids(state: &AppState) -> Vec<iced::widget::Id> {
     ids
 }
 
-/// RFC-075 stage 2 Amendment A1 §1: every real focus target `view_body`
-/// draws, in exactly the order it draws them — the `keys` list
-/// `knotra_ui::widget::focus_by_key` wraps `view_body`'s own output with,
-/// so a rebuild that reorders, adds, or removes rows under the reader's
-/// focus does not hand it to whatever row now sits at the same tree
-/// position (Review 299 F1).
-///
-/// Mirrors `view_body`'s own branches and `row.rs`/`section.rs`'s own
-/// conditions for what is actually drawn as a *real, enabled* target
-/// (`snora::design::Control::operate`'s own rule: a control with no
-/// `on_press` never registers as focusable at all) — not everything on
-/// screen, only what `focus_by_key`'s own "one key per target" check
-/// needs to match:
-///
-/// - nothing, with no workspace at all (`view_without_workspace`: a
-///   status line, no control);
-/// - `ids::empty::add_first_project()` alone, with a workspace and no
-///   projects (`empty_workspace`);
-/// - `ids::empty::clear_filters()` alone, with projects but no matches
-///   (`no_matches`);
-/// - otherwise, each section's own toggle (tiers only, and never
-///   `NeedsHelp`'s — `section.rs`'s own `section_header`), then, for an
-///   expanded section, every visible row's checkbox (selection mode
-///   only), name, and action (`NeedsHelp` only, and only while its own
-///   conflict-resolution control is not disabled by the busy interlock —
-///   `row.rs`'s `row_action`).
-pub fn dashboard_content_focus_keys(state: &AppState) -> Vec<iced::widget::Id> {
-    if state.workspace.is_none() {
-        return Vec::new();
-    }
-    if has_no_projects(state) {
-        return vec![crate::view::ids::empty::add_first_project()];
-    }
-
-    let display = state.dashboard_display();
-    if display.sections.is_empty() {
-        return vec![crate::view::ids::empty::clear_filters()];
-    }
-
-    let mut keys = Vec::new();
-    for section in &display.sections {
-        if let DashboardSectionKey::Tier(tier) = section.key
-            && tier != DashboardTier::NeedsHelp
-        {
-            keys.push(crate::view::ids::section::toggle(tier));
-        }
-        if section.collapsed {
-            continue;
-        }
-        for entry in &section.entries {
-            if state.selection_mode {
-                keys.push(crate::view::ids::row::checkbox(&entry.project.id));
-            }
-            keys.push(crate::view::ids::row::name(&entry.project.id));
-            if entry.tier == DashboardTier::NeedsHelp {
-                let busy_conflict = entry.cause == Some(DashboardCause::Conflict)
-                    && state.operation_interlock.is_busy();
-                if !busy_conflict {
-                    keys.push(crate::view::ids::row::action(&entry.project.id));
-                }
-            }
-        }
-    }
-    keys
-}
-
 /// `mode` is `state.width_mode`, read once in `view.rs` and passed to both
 /// `dashboard::view` and `selection_bar::view` (Handoff 027 Ruling 6.2;
 /// reversed from a `responsive` measurement to a state field by Handoff 029
@@ -141,14 +72,7 @@ pub fn view(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     if !has_no_projects(state) {
         body = body.push(view_toolbar(state, mode));
     }
-    let keys = dashboard_content_focus_keys(state);
-    body = body.push(
-        scrollable(knotra_ui::widget::focus_by_key(
-            view_body(state, mode),
-            &keys,
-        ))
-        .height(Length::Fill),
-    );
+    body = body.push(scrollable(view_body(state, mode)).height(Length::Fill));
 
     // RFC-071 Amendment A3 D14: a status message — `body`.
     if let Some(message) = &state.status_bar {

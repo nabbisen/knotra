@@ -144,6 +144,29 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
         main_col.into()
     };
 
+    // RFC-075 stage 2 Amendment A2 §2 (Review 300 F2): one `focus_by_id`
+    // wrap for the **whole page** — the header and the body together, not
+    // two separate wraps. Two separate instances were tried first and
+    // found broken: whichever one focus had just left (crossing from the
+    // header into the body, say) could not tell "my own remembered
+    // control moved elsewhere, deliberately" from "my own remembered
+    // control lost its spot" — both look identical from inside a
+    // region that cannot see focus outside itself — so it reclaimed
+    // focus right back, and Tab could never leave the header at all
+    // (seen directly: every acceptance test got stuck on the first
+    // chip). One wrap removes the "outside" entirely. `AppLayout`'s own
+    // header/body composition (`build_skeleton`, `snora-0.65.0/src/
+    // render.rs`) is itself nothing more than `column![container(header)
+    // ..., container(body)...]` with no special stickiness — reproduced
+    // here directly, through `AppLayout::new(page)` with no `.header(...)`
+    // call, rather than fighting that slot apart again afterward (an
+    // `Element` cannot be un-wrapped). The only thing this gives up is
+    // `HEADER_REGION`/`BODY_REGION` (`.header(...)`'s own ids for snora's
+    // F6 zone cycling) — knotra does not bind F6 to anything today.
+    let page = column![shell::view(state), body];
+    let page: Element<'_, Message> =
+        knotra_ui::widget::focus_by_id(page, &[ids::shell::refresh(), ids::selection_bar::fetch()]);
+
     // -----------------------------------------------------------------------
     // snora AppLayout: skeleton + standard modal overlays (RFC-0013).
     //
@@ -161,8 +184,7 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // on_close_modals dispatches ShortcutMessage::Close. The update layer
     // closes exactly one topmost visible layer per close action.
     // -----------------------------------------------------------------------
-    let mut layout = AppLayout::new(body)
-        .header(shell::view(state))
+    let mut layout = AppLayout::new(page)
         .direction(knotra_ui::widget::APP_DIRECTION)
         .on_close_modals(Message::Shortcut(ShortcutMessage::Close));
 

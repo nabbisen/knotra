@@ -1,132 +1,222 @@
-//! RFC-075 stage 2 Amendment A1 §1: focus follows the control it is on, by
-//! its own [`iced::widget::Id`] — not by its place in the tree, which is
-//! how iced actually keeps a widget's state (focus included). Review 299
-//! F1 found the gap directly: a background refresh that moves a project
-//! between the dashboard's own tiers can hand keyboard focus to a
-//! **different** project's row, with no key pressed, because the rebuilt
-//! tree's position that used to be "Alpha's name" is now "Beta's name",
-//! and iced's own diffing keeps whatever was focused at that position.
+//! RFC-075 stage 2 Amendment A1 §1, corrected by Amendment A2 §1: focus
+//! follows the control it is on, by its own [`iced::widget::Id`] — not by
+//! its place in the tree, which is how iced actually keeps a widget's
+//! state (focus included). Review 299 F1 found the gap directly: a
+//! background refresh that moves a project between the dashboard's own
+//! tiers can hand keyboard focus to a **different** project's row, with
+//! no key pressed, because the rebuilt tree's position that used to be
+//! "Alpha's name" is now "Beta's name", and iced's own diffing keeps
+//! whatever was focused at that position.
 //!
-//! **The shape is snora's own**, read directly rather than guessed:
-//! `snora::Keyed` (`snora-interaction-0.65.0/src/keyed.rs`) does exactly
-//! this for its toast stack, keyed by a `u64`. It is `pub`, but its own
-//! module doc says "it is not for applications", and the umbrella `snora`
-//! crate does not re-export it — only `snora-interaction` does — so this
-//! is knotra's own copy of the same algorithm, not a dependency on an
-//! internal crate its own maintainers did not mean to expose this way.
-//! The two private operations it drives its content with
-//! (`crate::inert::{Refocus, Unfocus}`) are a few lines each,
-//! reimplemented here rather than reached for.
+//! **A2 F1: the ids are read from the tree, not copied by hand.**
+//! `Operation::focusable` already hands every target its own `id` — the
+//! same `id` stage 2's `view::ids` gives every page control — so this
+//! widget's own survey (`Survey`, below) collects `(Id, is_focused)` for
+//! every target it sees, in the order it sees them, and refocuses **by
+//! id** (`FocusById`), never by counting positions. The hand-maintained
+//! `dashboard_content_focus_keys` list and its "exactly one target per
+//! key, or stand aside" guess are both gone with it — there is nothing
+//! left for a view change to silently fall out of step with, because
+//! nothing is derived from the view a second time.
 //!
-//! **Where it wraps, and why there**: around the dashboard's own row
-//! content (`view::dashboard::view_body`'s output) — the one region whose
-//! set of focus targets actually reorders (a refresh, a filter, a sort, a
-//! group, a collapse, selection mode, a project added or removed). The
-//! shell and the toolbar above it never reorder their own controls, so
-//! they are outside it; the two existing stage-2 fixes
-//! (`ArrangeToggled`/`SelectionMessage::ModeEntered` re-asserting focus
-//! after their own panel/selection-bar appears) stay for exactly that
-//! reason — they are *toolbar* controls, a different region this wrapper
-//! does not reach, so neither fix becomes unnecessary here.
+//! **A focus target with no id cannot be followed.** `Survey::focusable`
+//! only records a target it is given an `id` for; one with none is
+//! invisible to this widget — if it is genuinely focused, that reads as
+//! "nothing is focused" here, and if this widget later decides something
+//! else should be focused, the id-less target is unfocused along with
+//! everything else and never gets it back. Every control RFC-075 stage 2
+//! draws carries its own id (`view::ids`), so this should never actually
+//! happen on the page; `keyboard_acceptance`'s own
+//! `every_focus_target_on_the_page_has_an_id` test is what stands behind
+//! that claim instead of just asserting it.
 //!
-//! **One mechanism, not one per message**: it hooks
-//! `Event::Window(window::Event::RedrawRequested)`, which fires once per
-//! frame regardless of which message caused the rebuild — a refresh, a
-//! filter, a sort, a collapse, selection mode, or a project add/remove all
-//! reach it the same way, with no call site needing its own fix.
+//! **A2 F2: wraps the whole page, in one call, not only the dashboard's
+//! own rows.** Review 299's two findings (opening Arrange, entering
+//! selection mode) were both *toolbar* controls, outside stage 2's own
+//! narrower wrap — each needed its own `operation::focus(id)` fix
+//! because of it. **Two separate `focus_by_id` calls (header, body) were
+//! tried first and found broken**: whichever region focus had just left
+//! (crossing from the header into the body, say) cannot tell "my own
+//! remembered control moved elsewhere, deliberately" from "my own
+//! remembered control lost its spot structurally" — both present
+//! identically as "nothing of mine is focused right now" from inside a
+//! region that cannot see focus outside itself — so the region focus
+//! left kept reclaiming it, and Tab could never leave the header at all
+//! (every acceptance test got stuck on the shell's first control). One
+//! wrap, around the whole page (`view.rs`'s own `page`, built as
+//! `column![shell::view(state), body]` and given to `AppLayout::new`
+//! with no separate `.header(...)` call — see that call site's own
+//! comment for why bypassing that slot is safe here), removes the
+//! "outside" entirely: both findings' own explicit `operation::focus`
+//! fixes are gone from `app/misc.rs`, and their own tests
+//! (`keyboard_acceptance::findings`) pass with no explicit fix behind
+//! them at all, since nothing now moves focus away from the control
+//! that was just pressed in the first place.
 //!
-//! **Its stated limit does not carry over, read directly rather than
-//! assumed**: `keyed.rs`'s own doc warns that pressing Tab in the very
-//! frame the set of ids changes puts focus back on the id last *seen*
-//! focused (from the previous redraw), not the one Tab chose — because
-//! its own bookkeeping (`remember`) only updates on a raw `KeyPressed`
-//! event. Knotra's own Tab/arrow moves never reach a widget as a raw key
-//! at all (RFC-075 D1: they are routed through `app::update` and applied
-//! as a `Task`'s own `operate()` calls, such as `operation::focus(id)`),
-//! so that hook alone would never see them. [`FollowsId::resync`] closes
-//! this more generally: it keeps `state.focused` true to **whatever is
-//! actually focused** after *any* `operate()` call reaches this content
-//! — Tab's own move among them — not only after a raw key press, so a
-//! Task-driven move (Tab's own, or an existing fix's own
-//! `operation::focus` to a sibling, such as "Select"'s) is already
-//! reflected before the next redraw ever has to guess.
-//! `keyboard_acceptance::focus_follows_its_id`'s own tests confirm both:
-//! a same-step Tab move stands, and the existing Select/Arrange fixes are
-//! not undone by this one.
+//! **A2 F3: a control that disables itself when pressed has not gone.**
+//! `snora::design::Control::operate` only reports a control's own id
+//! while it can be pressed (`on_press.is_some()`) — a disabled control is
+//! invisible to `Survey`, the same as one with no id at all, so without
+//! more information this widget cannot tell "Check now, mid-refresh"
+//! from "Alpha's row, removed outright": both simply vanish from the
+//! survey. `reserved` is that information: ids the caller already knows
+//! disable themselves without leaving — `view.rs` passes
+//! `ids::shell::refresh()` and `ids::selection_bar::fetch()` (the two
+//! found by reading every `view/` site gated on `is_refreshing`/
+//! `operation_interlock.is_busy()` whose own press is what sets the
+//! flag — see that call site's own comment for the rest, excluded for
+//! not being *self*-disabling). [`merge_reserved`] reinstates a missing
+//! reserved id into the tracked order at its last-known relative
+//! position, so [`belongs_on`] still finds it (not a neighbour) once it
+//! is disabled, and [`follow`](FollowsId::follow) leaves real focus at
+//! none rather than assigning it to a reinstated-but-still-disabled id
+//! (nothing to call `.focus()` on, and no ring would show regardless) —
+//! when the id reappears enabled, the same "still in the tracked list"
+//! path refocuses it for real, with no special case for "coming back".
+//!
+//! **Tab must still reach past a disabled-but-reserved control.**
+//! `snora::keyboard::traverse`'s own `sequential_focus` counts only real
+//! `focusable()` targets; with nothing really focused (Check now, once
+//! disabled, cannot be) it restarts from the very first target in the
+//! whole page, exactly the "no ring, then Tab jumps to the top" Amendment
+//! A1 was written to rule out. [`tab_anchor`] answers the one question
+//! `knotra_ui::widget::keyboard::traverse_wrapping` needs to do better:
+//! "what does this wrapper itself still consider focus to belong to, and
+//! in what order are its own tracked ids" — read directly off this
+//! widget's own `State` via `Operation::custom`'s `&mut dyn Any` channel
+//! (the same channel `snora_interaction::sequence::sequential_focus`
+//! itself uses for its own "last clicked" mark), so a caller one level up
+//! never needs its own private copy of what this widget already knows.
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::any::Any;
 
-use iced::advanced::widget::operation::Focusable;
-use iced::advanced::widget::{Id, Operation, Tree, tree};
+use iced::Task;
+use iced::advanced::widget::operation::{Focusable, Outcome};
+use iced::advanced::widget::{self, Id, Operation, Tree, tree};
 use iced::advanced::{Clipboard, Shell, Widget, layout, mouse, overlay, renderer};
 use iced::{Element, Event, Length, Rectangle, Size, Theme, Vector, window};
 
+/// What [`tab_anchor`] answers: every id this wrapper currently tracks, in
+/// order, and which one (if any) it considers focus to belong to — real
+/// or reserved-but-disabled.
+#[derive(Clone, Default)]
+pub struct Anchor {
+    pub ids: Vec<Id>,
+    pub focused: Option<Id>,
+}
+
+struct AnchorQuery {
+    found: Option<Anchor>,
+}
+
+impl Operation<Option<Anchor>> for AnchorQuery {
+    fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation<Option<Anchor>>)) {
+        operate(self);
+    }
+
+    fn custom(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Any) {
+        if let Some(anchor) = state.downcast_ref::<Anchor>() {
+            self.found = Some(anchor.clone());
+        }
+    }
+
+    fn finish(&self) -> Outcome<Option<Anchor>> {
+        Outcome::Some(self.found.clone())
+    }
+}
+
+/// The nearest `focus_by_id` wrapper's own tracked ids and the id it
+/// considers focus to belong to, or `None` if this page has no such
+/// wrapper at all — always resolves (never `Outcome::None`, which
+/// `task::widget`'s channel can never turn into a delivered value), the
+/// same reason `knotra_ui::widget::keyboard::focused_id` does.
+pub fn tab_anchor() -> Task<Option<Anchor>> {
+    widget::operate(AnchorQuery { found: None })
+}
+
 /// Wraps `content` so real keyboard focus follows the control it is on by
 /// its own [`Id`], across a rebuild that reorders, adds, or removes the
-/// focus targets inside it — see the module doc for the mechanism and
-/// where it wraps. `ids` must be every focus target `content` draws, one
-/// key per target, in the order they appear (Tab order): with any other
-/// count, this stands aside and does nothing for that one redraw, the
-/// same as `snora::Keyed` does, rather than guess at a mismatched tree.
-pub fn focus_by_key<'a, Message: 'a>(
+/// focus targets inside it — see the module doc for the mechanism, where
+/// it wraps, and what `reserved` is for. Pass `&[]` when nothing in
+/// `content` disables itself on its own press.
+pub fn focus_by_id<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
-    ids: &[Id],
+    reserved: &[Id],
 ) -> Element<'a, Message> {
     FollowsId {
         content: content.into(),
-        keys: ids.iter().map(hash_id).collect(),
+        reserved: reserved.to_vec(),
     }
     .into()
 }
 
-/// `Id` has no public integer of its own; this is deterministic for a
-/// fixed `Id` (it derives `Hash`, and `DefaultHasher`'s initial state is
-/// fixed, not randomized per run the way `HashMap`'s `RandomState` is), so
-/// the same control hashes to the same key on every redraw. A collision
-/// between two of a page's few dozen ids is astronomically unlikely for a
-/// 64-bit digest, and would only mean this stands aside for that one case
-/// (its own documented behaviour for a repeated key) — never a wrong
-/// focus.
-fn hash_id(id: &Id) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    id.hash(&mut hasher);
-    hasher.finish()
-}
-
 #[derive(Default)]
 struct State {
-    /// The keys as they were at the last redraw.
-    keys: Vec<u64>,
-    /// The key whose item held focus at the last redraw.
-    focused: Option<u64>,
+    /// Every id tracked as of the last redraw — the real survey, with any
+    /// `reserved` id reinstated at its last-known relative position when
+    /// the real survey is currently missing it.
+    ids: Vec<Id>,
+    /// The id this widget currently considers focus belongs to — real or
+    /// reserved-but-disabled.
+    focused: Option<Id>,
 }
 
 struct FollowsId<'a, Message> {
     content: Element<'a, Message>,
-    keys: Vec<u64>,
+    reserved: Vec<Id>,
 }
 
-/// Which focus targets are focused, in Tab order — the same one-pass
-/// survey `snora::Keyed`'s own `Flags` takes.
+/// Every focus target's own id, in order, and which one (if any) is
+/// really, currently focused — the one pass `follow` needs, direct from
+/// `Operation::focusable`'s own `id` rather than a count of `bool`s.
 #[derive(Default)]
-struct Flags(Vec<bool>);
+struct Survey {
+    ids: Vec<Id>,
+    focused: Option<Id>,
+}
 
-impl Operation for Flags {
+impl Operation for Survey {
     fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
         operate(self);
     }
 
-    fn focusable(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
-        self.0.push(state.is_focused());
+    fn focusable(&mut self, id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
+        let Some(id) = id else {
+            return;
+        };
+        self.ids.push(id.clone());
+        if state.is_focused() {
+            self.focused = Some(id.clone());
+        }
     }
 }
 
-/// Takes focus from every target, so none is left focused once another
-/// is given it below.
-struct Unfocus;
+/// Unfocuses every target, then focuses the one whose id matches `target`
+/// — the same one-pass "unfocus everyone else, focus the match"
+/// `iced::widget::operation::focus` itself uses
+/// (`iced_core-0.14.0/src/widget/operation/focusable.rs`).
+struct FocusById<'a> {
+    target: &'a Id,
+}
 
-impl Operation for Unfocus {
+impl Operation for FocusById<'_> {
+    fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
+        operate(self);
+    }
+
+    fn focusable(&mut self, id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
+        match id {
+            Some(id) if id == self.target => state.focus(),
+            _ => state.unfocus(),
+        }
+    }
+}
+
+/// Unfocuses every target, with nothing taking its place — "nothing
+/// should be focused at all" has no single id to give `FocusById`.
+struct UnfocusAll;
+
+impl Operation for UnfocusAll {
     fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
         operate(self);
     }
@@ -136,119 +226,93 @@ impl Operation for Unfocus {
     }
 }
 
-/// Gives focus to the target at one ordinal position among this content's
-/// own focus targets.
-struct Refocus {
-    at: usize,
-    seen: usize,
-}
-
-impl Operation for Refocus {
-    fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
-        operate(self);
-    }
-
-    fn focusable(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
-        if self.seen == self.at {
-            state.focus();
+/// Reinstates each `reserved` id that `survey_ids` is currently missing
+/// back into the tracked order, at the position its own surviving
+/// neighbours (from `old_ids`, the order as of the *previous* redraw)
+/// suggest — so a merely-disabled control is not mistaken for one that
+/// has genuinely gone. An id `reserved` names that has never once been
+/// seen (not in `old_ids` either — nothing to place it relative to) is
+/// left out; it was never really there to begin with.
+fn merge_reserved(old_ids: &[Id], survey_ids: &[Id], reserved: &[Id]) -> Vec<Id> {
+    let mut merged = survey_ids.to_vec();
+    for id in reserved {
+        if merged.contains(id) {
+            continue;
         }
-        self.seen += 1;
+        let Some(old_pos) = old_ids.iter().position(|old| old == id) else {
+            continue;
+        };
+        let insert_at = old_ids[..old_pos]
+            .iter()
+            .filter(|old| merged.contains(old))
+            .count();
+        merged.insert(insert_at.min(merged.len()), id.clone());
     }
+    merged
 }
 
-/// Where focus belongs after the keys changed: the item it was on, else
-/// its neighbour that is still there (next in the old order, else
-/// previous), else nowhere — RFC-120 R-1's own rule, keyed here by this
-/// page's own control ids instead of a toast's.
-fn belongs_on(old: &[u64], now: &[u64], focused: u64) -> Option<usize> {
-    if let Some(at) = now.iter().position(|k| *k == focused) {
-        return Some(at);
+/// Where focus belongs when `focused`'s own id is not the one really
+/// focused right now: still itself, if `now` still carries it (reordered,
+/// or merely reinstated as disabled-but-not-gone by [`merge_reserved`]);
+/// else its neighbour that is still there — the one after it in the old
+/// order, else the one before — else nowhere. RFC-120 R-1's own rule,
+/// read by id instead of counted by position.
+fn belongs_on(old: &[Id], now: &[Id], focused: &Id) -> Option<Id> {
+    if now.contains(focused) {
+        return Some(focused.clone());
     }
-    let was = old.iter().position(|k| *k == focused)?;
-    let survivor = |k: &&u64| now.contains(*k);
-    let neighbour = old[was + 1..]
+    let was = old.iter().position(|id| id == focused)?;
+    let survivor = |id: &&Id| now.contains(*id);
+    old[was + 1..]
         .iter()
         .find(survivor)
-        .or_else(|| old[..was].iter().rev().find(survivor))?;
-    now.iter().position(|k| k == neighbour)
+        .or_else(|| old[..was].iter().rev().find(survivor))
+        .cloned()
 }
 
 impl<Message> FollowsId<'_, Message> {
-    /// Keeps `state.focused` true to what is **actually, currently**
-    /// focused inside this content, after any `Operation` has just run
-    /// through it (not only Tab/Shift+Tab's own — any `widget::operate`
-    /// call reaches here, the same single traversal that, say,
-    /// `operation::focus(some_sibling_id)` makes across the *whole* tree
-    /// to move focus elsewhere and unfocus everything else on the way).
-    ///
-    /// Without this, a message that explicitly, deliberately moves real
-    /// focus to a control **outside** this content (the Arrange/Select
-    /// fixes RFC-075 stage 2 already ships) while *also* changing this
-    /// content's own key set in the same step (entering selection mode
-    /// does both at once: it reveals every row's checkbox, and re-asserts
-    /// focus on "Select") would leave `state.focused` holding a stale key
-    /// from the content's own last redraw — and the very next redraw's
-    /// [`follow`](Self::follow), seeing the key set changed and nothing
-    /// of its own currently focused, would "reclaim" focus back onto
-    /// that stale key's new position, undoing the deliberate move. This
-    /// runs on every `operate()` specifically so it observes the
-    /// unfocus-everything-else side effect `operation::focus` itself
-    /// causes, in the same pass that causes it — not a frame later.
-    fn resync(&mut self, tree: &mut Tree, layout: layout::Layout<'_>, renderer: &iced::Renderer) {
-        let mut flags = Flags::default();
-        self.content
-            .as_widget_mut()
-            .operate(&mut tree.children[0], layout, renderer, &mut flags);
-        if flags.0.len() == self.keys.len() {
-            let state = tree.state.downcast_mut::<State>();
-            state.focused = flags.0.iter().position(|f| *f).map(|at| self.keys[at]);
-        }
-    }
-
     fn follow(&mut self, tree: &mut Tree, layout: layout::Layout<'_>, renderer: &iced::Renderer) {
-        let mut flags = Flags::default();
+        let mut survey = Survey::default();
         self.content
             .as_widget_mut()
-            .operate(&mut tree.children[0], layout, renderer, &mut flags);
-        let state = tree.state.downcast_mut::<State>();
+            .operate(&mut tree.children[0], layout, renderer, &mut survey);
 
-        // One target per key, or this does not know what it is looking at.
-        if flags.0.len() != self.keys.len() {
-            state.keys = self.keys.clone();
-            state.focused = None;
-            return;
-        }
+        let state = tree.state.downcast_ref::<State>();
+        let new_ids = merge_reserved(&state.ids, &survey.ids, &self.reserved);
 
-        let now = flags.0.iter().position(|f| *f);
-        let want = if state.keys == self.keys {
-            // Nothing changed shape: focus moved only if the reader moved it.
-            now
-        } else if let Some(focused) = state.focused {
-            belongs_on(&state.keys, &self.keys, focused)
+        let want = if let Some(now) = &survey.focused {
+            // Something is really, currently focused — trust it
+            // completely: the reader's own move (Tab, an arrow), another
+            // fix's own `operation::focus` to a sibling, or simply
+            // nothing having changed. Never second-guessed.
+            Some(now.clone())
+        } else if let Some(remembered) = &state.focused {
+            belongs_on(&state.ids, &new_ids, remembered)
         } else {
-            now
+            None
         };
 
-        if want != now {
-            self.content.as_widget_mut().operate(
-                &mut tree.children[0],
-                layout,
-                renderer,
-                &mut Unfocus,
-            );
-            if let Some(at) = want {
+        if want != survey.focused {
+            if let Some(id) = &want {
                 self.content.as_widget_mut().operate(
                     &mut tree.children[0],
                     layout,
                     renderer,
-                    &mut Refocus { at, seen: 0 },
+                    &mut FocusById { target: id },
+                );
+            } else {
+                self.content.as_widget_mut().operate(
+                    &mut tree.children[0],
+                    layout,
+                    renderer,
+                    &mut UnfocusAll,
                 );
             }
         }
 
         let state = tree.state.downcast_mut::<State>();
-        state.keys = self.keys.clone();
-        state.focused = want.map(|at| self.keys[at]);
+        state.ids = new_ids;
+        state.focused = want;
     }
 }
 
@@ -298,12 +362,17 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for FollowsId<'_, Message> 
         self.content
             .as_widget_mut()
             .operate(&mut tree.children[0], layout, renderer, operation);
-        // See `resync`'s own doc comment: an operation already forwarded
-        // above (an explicit `operation::focus(elsewhere)`, among others)
-        // may have just changed what, if anything, is focused in here —
-        // keep `state.focused` honest about it immediately, not only on
-        // the next redraw.
-        self.resync(tree, layout, renderer);
+        // Offers `tab_anchor`'s own query a look at this widget's current
+        // `State` through `Operation::custom`'s `&mut dyn Any` channel —
+        // a no-op for every operation that does not ask for it (its own
+        // default body), the same shape `sequential_focus`'s own "last
+        // clicked" mark already uses this channel for.
+        let state = tree.state.downcast_ref::<State>();
+        let mut anchor = Anchor {
+            ids: state.ids.clone(),
+            focused: state.focused.clone(),
+        };
+        operation.custom(None, layout.bounds(), &mut anchor);
     }
 
     fn update(
@@ -396,28 +465,87 @@ impl<'a, Message: 'a> From<FollowsId<'a, Message>> for Element<'a, Message> {
 
 #[cfg(test)]
 mod tests {
-    use super::belongs_on;
+    use super::{belongs_on, merge_reserved};
+    use iced::widget::Id;
+
+    fn id(name: &'static str) -> Id {
+        Id::new(name)
+    }
+
+    fn ids(names: &[&'static str]) -> Vec<Id> {
+        names.iter().map(|n| id(n)).collect()
+    }
 
     #[test]
     fn focus_stays_on_its_item_when_another_goes() {
-        assert_eq!(belongs_on(&[3, 2, 1], &[2, 1], 2), Some(0));
-        assert_eq!(belongs_on(&[3, 2, 1], &[3, 1], 1), Some(1));
+        assert_eq!(
+            belongs_on(&ids(&["c", "b", "a"]), &ids(&["b", "a"]), &id("b")),
+            Some(id("b"))
+        );
+        assert_eq!(
+            belongs_on(&ids(&["c", "b", "a"]), &ids(&["c", "a"]), &id("a")),
+            Some(id("a"))
+        );
     }
 
     #[test]
     fn a_removed_item_hands_focus_to_the_next_then_the_previous() {
-        assert_eq!(belongs_on(&[3, 2, 1], &[3, 1], 2), Some(1));
-        assert_eq!(belongs_on(&[3, 2, 1], &[2, 1], 3), Some(0));
-        assert_eq!(belongs_on(&[3, 2, 1], &[3, 2], 1), Some(1));
+        // Middle: the one after it.
+        assert_eq!(
+            belongs_on(&ids(&["c", "b", "a"]), &ids(&["c", "a"]), &id("b")),
+            Some(id("a"))
+        );
+        // First: the one after it.
+        assert_eq!(
+            belongs_on(&ids(&["c", "b", "a"]), &ids(&["b", "a"]), &id("c")),
+            Some(id("b"))
+        );
+        // Last: the one before it.
+        assert_eq!(
+            belongs_on(&ids(&["c", "b", "a"]), &ids(&["c", "b"]), &id("a")),
+            Some(id("b"))
+        );
     }
 
     #[test]
     fn nothing_left_is_nowhere() {
-        assert_eq!(belongs_on(&[1], &[], 1), None);
+        assert_eq!(belongs_on(&ids(&["a"]), &[], &id("a")), None);
     }
 
     #[test]
     fn the_nearest_survivor_is_used_when_the_next_one_went_too() {
-        assert_eq!(belongs_on(&[3, 2, 1], &[3], 2), Some(0));
+        // "b" and the one after it ("a") both went; "c" is what is left.
+        assert_eq!(
+            belongs_on(&ids(&["c", "b", "a"]), &ids(&["c"]), &id("b")),
+            Some(id("c"))
+        );
+    }
+
+    #[test]
+    fn a_reserved_id_missing_from_the_survey_is_reinstated_at_its_old_place() {
+        let old = ids(&["history", "refresh", "palette", "settings"]);
+        let survey = ids(&["history", "palette", "settings"]); // "refresh" disabled
+        let merged = merge_reserved(&old, &survey, &ids(&["refresh"]));
+        assert_eq!(merged, ids(&["history", "refresh", "palette", "settings"]));
+    }
+
+    #[test]
+    fn a_reserved_id_never_seen_before_is_left_out() {
+        let merged = merge_reserved(&[], &ids(&["a"]), &ids(&["refresh"]));
+        assert_eq!(merged, ids(&["a"]));
+    }
+
+    #[test]
+    fn belongs_on_finds_a_reinstated_reserved_id_rather_than_its_neighbour() {
+        let old = ids(&["history", "refresh", "palette", "settings"]);
+        let merged = merge_reserved(
+            &old,
+            &ids(&["history", "palette", "settings"]),
+            &ids(&["refresh"]),
+        );
+        assert_eq!(
+            belongs_on(&old, &merged, &id("refresh")),
+            Some(id("refresh"))
+        );
     }
 }
