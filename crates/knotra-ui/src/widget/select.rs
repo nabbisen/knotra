@@ -285,32 +285,44 @@ mod tests {
         )
     }
 
+    /// RFC-075 stage 2 §0 (Review 298 F1): `view` alone, as stage 1's own
+    /// test built it, answers no ↓/↑ at all — snora answers them through
+    /// `MenuKeys`, which only `snora::render` installs
+    /// (`snora-0.65.0/src/render.rs:327`, confirmed directly: `MenuKeys::
+    /// new(layers)` wraps the whole stack unconditionally). knotra's own
+    /// real view goes through `snora::render` too (`view.rs`'s `app_view`),
+    /// so a test that skips it is testing a shape the app never draws.
+    /// Confirmed failing before this wrapping was added: stage 1's own
+    /// `ArrowDown` press against the bare `view()` left `focused_id()`
+    /// unchanged, which is the "not checked" limitation Review 298 found.
+    fn rendered(
+        tokens: &Tokens,
+        selected: Option<&'static str>,
+        opened: bool,
+    ) -> iced::Element<'static, Msg> {
+        let layout = snora::AppLayout::new(view(tokens, selected, opened))
+            .direction(super::super::layout::APP_DIRECTION);
+        snora::render(layout)
+    }
+
     const SIZE: iced_test::core::Size = iced_test::core::Size {
         width: 400.0,
         height: 400.0,
     };
 
-    /// RFC-075 handoff stage 1 §3, row 4. Three closed-trigger openers
-    /// (Enter, Space, ↓ — all three, since `Select::on_open_change`'s own
-    /// doc comment names exactly these three plus the trigger's own press);
-    /// choosing an item by Tab then Enter, with no close published by
-    /// `on_select` itself (**"the caller closes it"** — confirmed directly
-    /// against `snora_widgets::form::Select`'s own doc comment, in the
-    /// registry: "What opening and closing make: `true` from the trigger,
-    /// Enter, Space and ↓ ... `false` from Escape and from the trigger when
-    /// open" — choosing is in neither list); and Escape closing with focus
-    /// back on the trigger.
+    /// RFC-075 handoff stage 1 §3, row 4, corrected by stage 2 §0 (Review
+    /// 298 F1). Three closed-trigger openers (Enter, Space, ↓ — all three,
+    /// since `Select::on_open_change`'s own doc comment names exactly these
+    /// three plus the trigger's own press); choosing an item by Tab then
+    /// Enter, with no close published by `on_select` itself (**"the caller
+    /// closes it"** — confirmed directly against `snora_widgets::form::
+    /// Select`'s own doc comment, in the registry: "What opening and
+    /// closing make: `true` from the trigger, Enter, Space and ↓ ...
+    /// `false` from Escape and from the trigger when open" — choosing is in
+    /// neither list); and Escape closing with focus back on the trigger.
     ///
-    /// **"↓ moves" inside the open menu is not checked here.** Tried
-    /// directly: with an item already Tab-focused inside the open
-    /// dropdown, a raw `ArrowDown` moves nothing this harness can see —
-    /// `focused_id()` (built on `operation::Focusable`) reports the same
-    /// id before and after. Whatever moves the open menu's own highlighted
-    /// row is internal to `snora_widgets::form::Select`'s menu overlay, not
-    /// a second `Focusable` target `operate()` can read — the same kind of
-    /// gap stage 0's own report named for the focus ring ("read from
-    /// pixels", not `Operation`), and not one this stage's harness builds
-    /// pixel-sampling for. Reported here rather than asserted on a guess.
+    /// Every view here is built through [`rendered`], not the bare
+    /// [`view`] stage 1 used — see that helper's own doc comment for why.
     #[test]
     fn opens_on_enter_space_or_down_enter_chooses_escape_closes_and_returns_focus() {
         use crate::test_support::Harness;
@@ -325,7 +337,7 @@ mod tests {
             ("ArrowDown", Harness::arrow_down),
         ];
         for (name, press) in openers {
-            let mut h = Harness::new(view(&tokens, None, false), SIZE, None);
+            let mut h = Harness::new(rendered(&tokens, None, false), SIZE, None);
             h.tab(false);
             assert_eq!(
                 h.focused_id(),
@@ -341,10 +353,10 @@ mod tests {
         }
 
         // Tab into the open dropdown, Enter chooses — no close published.
-        let mut h = Harness::new(view(&tokens, None, false), SIZE, None);
+        let mut h = Harness::new(rendered(&tokens, None, false), SIZE, None);
         h.tab(false);
         h.enter();
-        let mut h = h.rebuilt(view(&tokens, None, true));
+        let mut h = h.rebuilt(rendered(&tokens, None, true));
         h.tab(false); // "Alpha"
         h.tab(false); // "Beta"
         h.enter();
@@ -356,11 +368,11 @@ mod tests {
         );
 
         // Escape: closes, and returns focus to the trigger.
-        let mut h = Harness::new(view(&tokens, Some("a"), true), SIZE, None);
+        let mut h = Harness::new(rendered(&tokens, Some("a"), true), SIZE, None);
         h.tab(false);
         h.escape();
         assert_eq!(h.messages(), [Msg::OpenChanged(false)]);
-        let mut h = h.rebuilt(view(&tokens, Some("a"), false));
+        let mut h = h.rebuilt(rendered(&tokens, Some("a"), false));
         assert_eq!(
             h.focused_id(),
             Some(id),
@@ -368,24 +380,103 @@ mod tests {
         );
     }
 
-    /// RFC-075 handoff stage 1 §3, row 2. **Found, not achieved**: the
-    /// table's own "44 px tall like today" does not hold for
-    /// `select_control`, measured directly (both rendered at 220×60,
-    /// `KnotraTheme::light()`, read back and the non-background bounding
-    /// box found by scanning pixels, not inferred):
+    /// RFC-075 stage 2 §0 (Review 298 F1): snora answers ↓ ↑ in an open
+    /// select's list through `MenuKeys` — confirmed by reading
+    /// `snora-interaction-0.65.0/src/menu_keys.rs` directly: it moves real
+    /// `operation::Focusable` state (rules 1-2), captures the key before
+    /// the tree sees it (rule 4), and never publishes a message itself
+    /// (rule 5, "moving never presses") — so the only way to observe where
+    /// it landed from outside is to press Enter and read which item was
+    /// chosen. The list's own items carry no `Id` of their own (built from
+    /// `LabeledOption`, never `.id(...)`), so `focused_id()` cannot name
+    /// them the way it names the trigger; choosing is the honest signal.
     ///
-    /// - `styled_pick_list`'s own box: `y[0..43]`, **44px** — its
-    ///   `.padding([(BUTTON_HEIGHT - line_height) / 2.0, 12.0])` is built
-    ///   to land exactly there (this module's own doc comment on
-    ///   `styled_pick_list`).
-    /// - `select_control`'s own box: `y[9..34]`, **26px**, inset within
-    ///   the 44px the control's own min-target floor reserves —
-    ///   `(44 - 26) / 2 = 9`, the measured top inset exactly. **The floor
-    ///   does reserve 44px** (confirmed: `tokens.targets.min` is wired to
-    ///   `BUTTON_HEIGHT` for every `KnotraTheme` preset, `theme.rs`), so
-    ///   Tab's target and the row spacing around it are the full 44px —
-    ///   what is smaller is the **drawn** border and fill, 18px shorter
-    ///   than `styled_pick_list`'s.
+    /// Three items ("a"/"b"/"c"), not the two the rest of this file's tests
+    /// use: with only two, wrapping from the first to the last and simply
+    /// moving to the next land on the same item, which would not tell
+    /// "wraps" apart from "moves". **Confirmed failing before stage 2 §0's
+    /// fix**: built against the bare [`view`]-equivalent (no
+    /// `snora::render`), the first case below published nothing at all —
+    /// nothing answers ↓ without `MenuKeys`, so Enter afterward chose
+    /// whatever `on_select` was last given, not "a".
+    #[test]
+    fn arrow_down_focuses_and_moves_in_the_open_list_arrow_up_wraps_to_the_last() {
+        use crate::test_support::Harness;
+
+        fn three_item_select(opened: bool) -> iced::Element<'static, Msg> {
+            let tokens = crate::theme::KnotraTheme::light().tokens;
+            let content = select_control(
+                &tokens,
+                vec![
+                    ("a", "Alpha".to_owned()),
+                    ("b", "Beta".to_owned()),
+                    ("c", "Gamma".to_owned()),
+                ],
+                None,
+                opened,
+                Msg::Selected,
+                Msg::OpenChanged,
+                iced::widget::Id::new("select"),
+            );
+            snora::render(
+                snora::AppLayout::new(content).direction(super::super::layout::APP_DIRECTION),
+            )
+        }
+
+        // ↓ with nothing focused in the open list starts at the first item.
+        let mut h = Harness::new(three_item_select(true), SIZE, None);
+        h.arrow_down();
+        h.enter();
+        assert_eq!(
+            h.messages(),
+            [Msg::Selected("a")],
+            "the first ↓ in an open list must land on the first item"
+        );
+
+        // A second ↓ moves to the next item.
+        let mut h = Harness::new(three_item_select(true), SIZE, None);
+        h.arrow_down();
+        h.arrow_down();
+        h.enter();
+        assert_eq!(
+            h.messages(),
+            [Msg::Selected("b")],
+            "a second ↓ must move to the item after the first"
+        );
+
+        // ↑ on the first item wraps to the last, skipping the middle one —
+        // the three-item list is what makes this distinguishable from a
+        // plain move.
+        let mut h = Harness::new(three_item_select(true), SIZE, None);
+        h.arrow_down(); // -> "a", the first item
+        h.arrow_up(); // wraps -> "c", the last item
+        h.enter();
+        assert_eq!(
+            h.messages(),
+            [Msg::Selected("c")],
+            "↑ on the first item must wrap to the last, not move to nothing"
+        );
+    }
+
+    /// RFC-075 handoff stage 1 §3, row 2, re-measured by stage 2 §1 (Review
+    /// 298 F2) after `label` became the same size as `body`. **Found, not
+    /// achieved**: the table's own "44 px tall like today" still does not
+    /// hold for `select_control`, measured directly (both rendered at
+    /// 220×60, `KnotraTheme::light()`, read back and the non-background
+    /// bounding box found by scanning pixels, not inferred):
+    ///
+    /// - `styled_pick_list`'s own box: `y[0..43]`, **44px**, unchanged —
+    ///   its `.padding([(BUTTON_HEIGHT - line_height) / 2.0, 12.0])` is
+    ///   built to land exactly there (this module's own doc comment on
+    ///   `styled_pick_list`) and was already measured against `body`.
+    /// - `select_control`'s own box: **28px locally** (stage 1 measured
+    ///   26px, against the 14px `label` of that stage; §1's change to
+    ///   `body`'s 16px grew the drawn glyphs, and so this), inset within
+    ///   the 44px the control's own min-target floor reserves. **The
+    ///   floor does reserve 44px** (confirmed: `tokens.targets.min` is
+    ///   wired to `BUTTON_HEIGHT` for every `KnotraTheme` preset,
+    ///   `theme.rs`), so Tab's target and the row spacing around it are
+    ///   the full 44px — what is smaller is the **drawn** border and fill.
     ///
     /// Root cause, read directly rather than guessed: `Select`'s own
     /// trigger padding comes from `Skin::designed`'s own `padding:
@@ -457,14 +548,13 @@ mod tests {
             old_height, 44,
             "styled_pick_list's own box must be BUTTON_HEIGHT tall — its padding formula \
              is derived from fixed token values, not glyph metrics, so this holds across \
-             every font/platform (local: 26px; CI's Ubuntu runner: 28px — both measured \
-             directly, confirmed by this test failing CI at 26 before this range was \
-             widened to cover both)"
+             every font/platform"
         );
         assert!(
-            (20..=32).contains(&new_height),
+            (22..=34).contains(&new_height),
             "select_control's drawn box height ({new_height}px) moved well outside the \
-             20-32px this stage measured (26px locally, 28px on CI's Ubuntu runner — \
+             22-34px re-measured by stage 2 §1 (28px locally, after `label` became `body`'s \
+             16px — up from stage 1's 26px against the 14px `label` of that stage) — \
              select_control's height is glyph-metric-derived, unlike styled_pick_list's \
              fixed-formula 44, so it is expected to move a little by font/platform, just \
              not this much) — re-measure and update this test, its doc comment and the \

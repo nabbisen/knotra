@@ -409,6 +409,15 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
         }
         DashboardMessage::ArrangeToggled => {
             state.dashboard_arrange_open = !state.dashboard_arrange_open;
+            // RFC-075 stage 2 §3: closing the panel closes whichever
+            // select was open inside it too — it is about to stop being
+            // drawn at all.
+            if !state.dashboard_arrange_open {
+                state.arrange_select_open = None;
+            }
+        }
+        DashboardMessage::ArrangeSelectOpenChanged(which, opened) => {
+            state.arrange_select_open = opened.then_some(which);
         }
     }
     Task::none()

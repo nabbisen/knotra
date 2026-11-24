@@ -3,13 +3,14 @@
 //! `view::remove_project_dialog` (RFC-066 D6) — it is a real dialog over
 //! any screen now, not a dashboard-only inline block.
 
-use iced::widget::{button, column, container, text};
+use iced::widget::{column, container, text};
 use iced::{Alignment, Element, Length};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, style};
+use knotra_ui::widget::{Tokens, primary_control, secondary_control};
 
 use crate::{
     message::{FilterMessage, Message, WorkspaceMessage},
     state::AppState,
+    view::ids,
 };
 
 pub(super) fn view_without_workspace(state: &AppState) -> Element<'_, Message> {
@@ -19,9 +20,9 @@ pub(super) fn view_without_workspace(state: &AppState) -> Element<'_, Message> {
 pub(super) fn empty_workspace(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     // RFC-073 Amendment A2: `primary` — the sole action on this screen
-    // (RFC-071 D5's "one filled button per area"), unwired like every
-    // other not-yet-`FocusTarget`-wired dashboard-empty-state control.
-    let t = tokens.clone();
+    // (RFC-071 D5's "one filled button per area"). RFC-075 stage 2 §3
+    // (Review 298 inventory §2d): now reachable by Tab, where it was not
+    // before.
     container(
         column![
             text(state.t("plain.empty.welcome_title"))
@@ -29,14 +30,12 @@ pub(super) fn empty_workspace(state: &AppState) -> Element<'_, Message> {
             text(state.t("plain.empty.welcome_body"))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
-            button(centered_button_label(text(
-                state.t("plain.empty.add_first")
-            )))
-            .height(BUTTON_HEIGHT)
-            .on_press(Message::Workspace(WorkspaceMessage::AddProjectDialogOpened,))
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, false, style::primary(&t, status))
-            }),
+            primary_control(
+                tokens,
+                state.t("plain.empty.add_first"),
+                Message::Workspace(WorkspaceMessage::AddProjectDialogOpened),
+                ids::empty::add_first_project(),
+            ),
         ]
         .spacing(14)
         .align_x(Alignment::Center),
@@ -49,25 +48,21 @@ pub(super) fn empty_workspace(state: &AppState) -> Element<'_, Message> {
 
 pub(super) fn no_matches(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
-    // RFC-073 Amendment A2/D8: `secondary`, `BUTTON_HEIGHT` — matching the
-    // toolbar's own `clear_filters_button` in both style and size, since
-    // it is the same action.
-    let t = tokens.clone();
+    // RFC-073 Amendment A2/D8: matching the toolbar's own
+    // `clear_filters_button` in both style and size, since it is the same
+    // action. RFC-075 stage 2 §3 (Review 298 inventory §2d): now reachable
+    // by Tab, with its own id distinct from the toolbar's own Clear
+    // filters (`view::ids::empty::clear_filters`).
     container(
         column![
             text(state.t("plain.empty.no_match"))
                 .size(snora::design::style::text::title_size(tokens)),
-            button(centered_button_label(
-                text(state.t("dashboard.clear_filters"))
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens))
-            ))
-            .height(BUTTON_HEIGHT)
-            .padding([0, 12])
-            .on_press(Message::Filter(FilterMessage::AllFiltersCleared))
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, false, style::secondary(&t, status))
-            }),
+            secondary_control(
+                tokens,
+                state.t("dashboard.clear_filters"),
+                Message::Filter(FilterMessage::AllFiltersCleared),
+                ids::empty::clear_filters(),
+            ),
         ]
         .spacing(10)
         .align_x(Alignment::Center),

@@ -9,51 +9,35 @@
 //! gone.
 //!
 //! RFC-035 Stage 4/Handoff 028 added a second, compact composition
-//! (`view_compact_toolbar`/`compact_focus_order`): chips beyond the first
-//! three behind a `⋯` overflow, both selectors behind a `▾` disclosure.
-//! Handoff 028 §4's "standard stays byte-for-byte unchanged" rule held
-//! until RFC-073 D2, which explicitly changes the standard/wide composition
-//! too: Group and Sort move into one "Arrange" control, shared by both
-//! bands (`arrange_button`/`arrange_panel`) — the duplication Handoff 028
-//! accepted between the two compositions' grouping/sorting construction is
-//! gone with it, since both bands now call the same panel builder.
+//! (`view_compact_toolbar`): chips beyond the first three behind a `⋯`
+//! overflow, both selectors behind a `▾` disclosure. Handoff 028 §4's
+//! "standard stays byte-for-byte unchanged" rule held until RFC-073 D2,
+//! which explicitly changes the standard/wide composition too: Group and
+//! Sort move into one "Arrange" control, shared by both bands
+//! (`arrange_button`/`arrange_panel`).
+//!
+//! **RFC-075 stage 2 §3/§4**: every control here is a real snora Tab stop
+//! now (`view::ids::toolbar`), and `focus_order` is gone — reading order
+//! is the layout itself (D2). The Arrange panel's two selects are
+//! `select_control`, closing RFC-075's own problem #2 (a select unreachable
+//! by keyboard); their open state lives in `AppState::arrange_select_open`
+//! (see that field's own doc comment).
 
-use iced::widget::{Space, button, column, container, row, text};
+use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Element, Length, Padding};
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, centered_button_row, chip, icon, select, style,
+    Tokens, centered_button_row, chip::filter_control, icon, secondary_control,
+    secondary_control_maybe, select::select_control,
 };
 
 use crate::{
     config::{DashboardGrouping, DashboardSort},
     message::{DashboardMessage, FilterMessage, Message, SelectionMessage, StatusFilter},
-    state::{
-        AppState, SelectionSummary,
-        dashboard::badge_for_filter,
-        focus::{FocusOrder, FocusTarget},
-    },
+    state::{AppState, ArrangeSelect, SelectionSummary, dashboard::badge_for_filter},
+    view::ids,
 };
 
 use super::width_mode::WidthMode;
-
-/// Stable keys for the toolbar's `FocusTarget`s (RFC-036), shared between
-/// [`focus_order`] (Tab/Shift-Tab + activation) and [`view_toolbar`] (which
-/// control currently draws the ring). Kept as one list so the two cannot
-/// drift — same discipline as `shell.rs`'s and `workspace_manager.rs`'s own
-/// `focus_target` modules.
-mod focus_target {
-    pub const FILTER_NEEDS_HELP: &str = "dashboard.toolbar.filter.needs_help";
-    pub const FILTER_DIRTY: &str = "dashboard.toolbar.filter.dirty";
-    pub const FILTER_BEHIND: &str = "dashboard.toolbar.filter.behind";
-    pub const FILTER_AHEAD: &str = "dashboard.toolbar.filter.ahead";
-    pub const FILTER_ALL_SET: &str = "dashboard.toolbar.filter.all_set";
-    /// RFC-073 D2: replaces the old separate `GROUP_SELECT`/`SORT_SELECT`
-    /// targets in both bands — one "Arrange" control, opening a menu that
-    /// holds both selects unchanged, is now the single Tab stop.
-    pub const ARRANGE: &str = "dashboard.toolbar.arrange";
-    pub const CLEAR_FILTERS: &str = "dashboard.toolbar.clear_filters";
-    pub const SELECT_MODE: &str = "dashboard.toolbar.select_mode";
-}
 
 /// The five status filters, in the order the chip row renders them.
 /// RFC-073 D5 removed the sixth, `Conflict` ("Needs a choice") — every
@@ -67,26 +51,19 @@ const FILTERS: [StatusFilter; 5] = [
     StatusFilter::AllSet,
 ];
 
-fn filter_focus_key(filter: &StatusFilter) -> &'static str {
+fn filter_id(filter: &StatusFilter) -> iced::widget::Id {
     match filter {
-        StatusFilter::NeedsHelp => focus_target::FILTER_NEEDS_HELP,
-        StatusFilter::Dirty => focus_target::FILTER_DIRTY,
-        StatusFilter::Behind => focus_target::FILTER_BEHIND,
-        StatusFilter::Ahead => focus_target::FILTER_AHEAD,
-        StatusFilter::AllSet => focus_target::FILTER_ALL_SET,
+        StatusFilter::NeedsHelp => ids::toolbar::filter_needs_help(),
+        StatusFilter::Dirty => ids::toolbar::filter_dirty(),
+        StatusFilter::Behind => ids::toolbar::filter_behind(),
+        StatusFilter::Ahead => ids::toolbar::filter_ahead(),
+        StatusFilter::AllSet => ids::toolbar::filter_all_set(),
     }
 }
 
-/// Whether the toolbar control keyed `key` currently draws the RFC-036
-/// focus ring — plain equality against `state.dashboard_focus`, same
-/// pattern as `shell.rs`'s/`workspace_manager.rs`'s own `is_focused`.
-fn is_focused(state: &AppState, key: &'static str) -> bool {
-    state.dashboard_focus.as_ref() == Some(&FocusTarget::control(key))
-}
-
 /// A single filter chip, built once and shared between the standard chip
-/// row and the compact composition's visible/overflow chip groups — same
-/// discipline as `row.rs`'s shared `selection_checkbox`/`name_button`.
+/// row and the compact composition's chip row — same discipline as
+/// `row.rs`'s shared `selection_checkbox`/`name_button`.
 fn chip_element<'a>(
     state: &'a AppState,
     tokens: &Tokens,
@@ -95,16 +72,14 @@ fn chip_element<'a>(
     let active = state.filter.has_status_filter(filter);
     let (tone, glyph) = badge_for_filter(filter);
     let count = state.status_filter_count(filter);
-    chip::filter(
+    filter_control(
         tokens,
         state.t(filter.label_key()),
         (tone, &glyph),
         count,
         active,
-        is_focused(state, filter_focus_key(filter)),
-        Some(Message::Filter(FilterMessage::StatusFilterToggled(
-            filter.clone(),
-        ))),
+        Message::Filter(FilterMessage::StatusFilterToggled(filter.clone())),
+        filter_id(filter),
     )
 }
 
@@ -126,122 +101,6 @@ fn select_mode_reason(state: &AppState, summary: &SelectionSummary) -> Option<&'
         .map(|key| state.t(key))
 }
 
-pub(super) fn focus_order(state: &AppState, mode: WidthMode) -> FocusOrder<Message> {
-    match mode {
-        WidthMode::Compact => compact_focus_order(state),
-        WidthMode::Standard | WidthMode::Wide => standard_focus_order(state),
-    }
-}
-
-/// The toolbar's Tab/Shift-Tab focus targets (RFC-036 R2), in visual order:
-/// the five filter chips, Arrange, search, Clear filters (when rendered),
-/// then the bulk-selection entry point — **before** `dashboard::focus_order`
-/// appends its section/row targets (RFC-035 Handoff 022 §7.4). Without
-/// this, `chip::filter`'s `is_focused` has nothing to ever be `true`, and
-/// its ring is dead code.
-///
-/// **Clear filters is guarded on the same condition that renders it**
-/// (`state.filter.is_active()`, matching `view_toolbar`'s own condition
-/// exactly) — same shape as `dashboard/mod.rs`'s row-checkbox target being
-/// guarded on `state.selection_mode`. An unconditional target here would
-/// be a focus black hole: Tab would stop on a control that is not on
-/// screen (Handoff 023 §5).
-///
-/// RFC-073 D2: Arrange carries `Some(ArrangeToggled)` — unlike the two
-/// selects it replaces, it is a real button with a real activation message,
-/// so this is a genuine keyboard-operability gain, not just a rename. The
-/// grouping/sorting selects themselves keep no `FocusTarget` of their own
-/// any more (see `arrange_panel`'s own doc comment for why that loses
-/// nothing a plain Tab stop on them ever bought).
-fn standard_focus_order(state: &AppState) -> FocusOrder<Message> {
-    let mut order: FocusOrder<Message> = FILTERS
-        .iter()
-        .map(|filter| {
-            (
-                FocusTarget::control(filter_focus_key(filter)),
-                Some(Message::Filter(FilterMessage::StatusFilterToggled(
-                    filter.clone(),
-                ))),
-            )
-        })
-        .collect();
-
-    order.push((
-        FocusTarget::control(focus_target::ARRANGE),
-        Some(Message::Dashboard(DashboardMessage::ArrangeToggled)),
-    ));
-    order.push((
-        FocusTarget::text_input(knotra_ui::widget::focus_id::SEARCH.clone()),
-        None,
-    ));
-
-    if state.filter.is_active() {
-        order.push((
-            FocusTarget::control(focus_target::CLEAR_FILTERS),
-            Some(Message::Filter(FilterMessage::AllFiltersCleared)),
-        ));
-    }
-
-    let summary = state.selection_summary();
-    let select_message = (!summary.visible_ids.is_empty())
-        .then_some(Message::Selection(SelectionMessage::ModeEntered));
-    order.push((
-        FocusTarget::control(focus_target::SELECT_MODE),
-        select_message,
-    ));
-
-    order
-}
-
-/// Compact's order (RFC-035 R8, Handoff 028 §5; RFC-073 Amendment A6 §1):
-/// all five chips now — the three-visible/overflow split and its own
-/// `TOOLBAR_OVERFLOW` target are gone along with the "⋯" control itself.
-/// Search, then Arrange (sharing `standard_focus_order`'s single `ARRANGE`
-/// target and `ArrangeToggled` message — the same control, not a
-/// compact-only pair, since `view_compact_toolbar` now calls
-/// [`arrange_button`] directly). Clear filters and the bulk-selection
-/// entry point keep the same guards `standard_focus_order` uses.
-fn compact_focus_order(state: &AppState) -> FocusOrder<Message> {
-    let mut order: FocusOrder<Message> = FILTERS
-        .iter()
-        .map(|filter| {
-            (
-                FocusTarget::control(filter_focus_key(filter)),
-                Some(Message::Filter(FilterMessage::StatusFilterToggled(
-                    filter.clone(),
-                ))),
-            )
-        })
-        .collect();
-
-    order.push((
-        FocusTarget::text_input(knotra_ui::widget::focus_id::SEARCH.clone()),
-        None,
-    ));
-
-    order.push((
-        FocusTarget::control(focus_target::ARRANGE),
-        Some(Message::Dashboard(DashboardMessage::ArrangeToggled)),
-    ));
-
-    if state.filter.is_active() {
-        order.push((
-            FocusTarget::control(focus_target::CLEAR_FILTERS),
-            Some(Message::Filter(FilterMessage::AllFiltersCleared)),
-        ));
-    }
-
-    let summary = state.selection_summary();
-    let select_message = (!summary.visible_ids.is_empty())
-        .then_some(Message::Selection(SelectionMessage::ModeEntered));
-    order.push((
-        FocusTarget::control(focus_target::SELECT_MODE),
-        select_message,
-    ));
-
-    order
-}
-
 pub(super) fn view_toolbar(state: &AppState, mode: WidthMode) -> Element<'_, Message> {
     match mode {
         WidthMode::Compact => view_compact_toolbar(state),
@@ -254,7 +113,8 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
 
     // RFC-071 Amendment A6 §1: the chip row wraps onto a second line when
     // it does not fit, rather than letting a chip's own label wrap inside
-    // it (`chip::filter`'s `Wrapping::None` is the other half of this).
+    // it (`chip::filter_control`'s `Wrapping::None` is the other half of
+    // this).
     let chips = row(FILTERS
         .iter()
         .map(|filter| chip_element(state, tokens, filter))
@@ -279,11 +139,7 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
     .width(Length::Fixed(220.0));
 
     let clear: Element<'_, Message> = if state.filter.is_active() {
-        clear_filters_button(
-            tokens,
-            state.t("dashboard.clear_filters"),
-            is_focused(state, focus_target::CLEAR_FILTERS),
-        )
+        clear_filters_button(tokens, state.t("dashboard.clear_filters"))
     } else {
         Space::new().width(Length::Shrink).into()
     };
@@ -296,7 +152,6 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
         state.t("plain.selection.enter"),
         select_message,
         select_mode_reason(state, &summary),
-        is_focused(state, focus_target::SELECT_MODE),
     );
 
     // RFC-073 Amendment A2: aligned to the top (`Start`, not `Center`), so
@@ -328,58 +183,46 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
 /// RFC-073 D2: the single control, beside Search, that opens
 /// [`arrange_panel`] — replacing the two always-visible selects
 /// `view_standard_toolbar` drew directly before this change.
-/// `with_focus_ring`/`ghost` styled, with a text label (`dashboard.arrange`)
-/// rather than a bare glyph. RFC-073 Amendment A6 §1: now also
-/// `view_compact_toolbar`'s own Arrange control, verbatim — Compact no
-/// longer builds a bare-glyph disclosure trigger of its own.
+/// RFC-073 Amendment A6 §1: now also `view_compact_toolbar`'s own Arrange
+/// control, verbatim — Compact no longer builds a bare-glyph disclosure
+/// trigger of its own. RFC-075 stage 2 §3: on `snora::design::control`.
 fn arrange_button<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Message> {
     let t = tokens.clone();
-    let focused = is_focused(state, focus_target::ARRANGE);
     // RFC-073 Amendment A1: a chevron follows the label, the same icon
-    // helper and size as the workspace switcher's own disclosure cue
-    // (`shell.rs`'s `switcher_trigger`) — down while closed, up while
-    // open, so "Arrange" shows that it opens something before it is ever
-    // pressed.
+    // helper and size as the workspace switcher's own disclosure cue —
+    // down while closed, up while open, so "Arrange" shows that it opens
+    // something before it is ever pressed.
     let chevron = if state.dashboard_arrange_open {
         icon::chevron_up()
     } else {
         icon::chevron_down()
     };
-    // RFC-073 Amendment A2: `centered_button_row` is `centered_button_label`
-    // for a `Row` — an icon+text row can't go through the `Text`-only
-    // helper, so this centres the row itself, the same way
-    // `header_control` does. The button's own fixed height is spelled
-    // `Length::Fixed(BUTTON_HEIGHT)`; `button_label_guard` now treats that
-    // the same as the bare constant it always scanned for.
-    button(centered_button_row(
-        row![
-            text(state.t("dashboard.arrange"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-            icon::icon_element(&chevron),
-        ]
-        .spacing(6),
-    ))
-    .height(Length::Fixed(BUTTON_HEIGHT))
-    .padding([0, 18])
+    snora::design::control(
+        tokens,
+        centered_button_row(
+            row![
+                text(state.t("dashboard.arrange"))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+                icon::icon_element(&chevron),
+            ]
+            .spacing(6),
+        ),
+    )
+    .height(Length::Fixed(knotra_ui::widget::BUTTON_HEIGHT))
+    .id(ids::toolbar::arrange())
+    .padding([0.0, 18.0])
     .on_press(Message::Dashboard(DashboardMessage::ArrangeToggled))
-    .style(move |_theme, status| style::with_focus_ring(&t, focused, style::ghost(&t, status)))
+    .style(move |_theme, status| knotra_ui::widget::style::ghost(&t, status))
     .into()
 }
 
 /// The grouping/sorting selects, revealed beneath [`arrange_button`] (or
-/// beside compact's own `▾` trigger) while `state.dashboard_arrange_open`.
-/// RFC-073 D2 unified what Handoff 028 had kept as two separate
-/// constructions (standard's always-visible row and compact's
-/// `compact_selectors_row`) — the panel's content and behaviour are
-/// identical in both bands now, so one function serves both.
-///
-/// Neither select carries a `FocusTarget` of its own: Tab now stops once,
-/// on `arrange_button`/its compact equivalent (D2's own focus-order
-/// change), and opening either select's own menu was already a
-/// pointer-only interaction before this change — the `is_focused: false`
-/// here is an explicit, honest "unwired", not a regression from a working
-/// ring to a dead one.
+/// beside compact's own trigger) while `state.dashboard_arrange_open`.
+/// RFC-075 stage 2 §3: each is now `select_control`, reachable and
+/// operable from the keyboard — the exact gap RFC-075 exists to close
+/// (problem #2). Each carries its own `.id(...)` now; at most one is open
+/// at a time, tracked in `AppState::arrange_select_open`.
 fn arrange_panel<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Message> {
     let grouping_options = vec![
         (
@@ -400,12 +243,17 @@ fn arrange_panel<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Messag
         text(state.t("dashboard.grouping"))
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-        select::styled_pick_list(
+        select_control(
             tokens,
             grouping_options,
             Some(state.config.dashboard_grouping),
-            false,
+            state.arrange_select_open == Some(ArrangeSelect::Group),
             |value| Message::Dashboard(DashboardMessage::GroupingChanged(value)),
+            |opened| Message::Dashboard(DashboardMessage::ArrangeSelectOpenChanged(
+                ArrangeSelect::Group,
+                opened
+            )),
+            ids::toolbar::arrange_group(),
         ),
     ]
     .spacing(4)
@@ -426,12 +274,17 @@ fn arrange_panel<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Messag
         text(state.t("dashboard.sorting"))
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
-        select::styled_pick_list(
+        select_control(
             tokens,
             sorting_options,
             Some(state.config.dashboard_sort),
-            false,
+            state.arrange_select_open == Some(ArrangeSelect::Sort),
             |value| Message::Dashboard(DashboardMessage::SortChanged(value)),
+            |opened| Message::Dashboard(DashboardMessage::ArrangeSelectOpenChanged(
+                ArrangeSelect::Sort,
+                opened
+            )),
+            ids::toolbar::arrange_sort(),
         ),
     ]
     .spacing(4)
@@ -445,11 +298,9 @@ fn arrange_panel<'a>(state: &'a AppState, tokens: &Tokens) -> Element<'a, Messag
 
 /// Compact (RFC-035 R8, Handoff 028 §4; RFC-073 Amendment A6 §1). Since
 /// Task 110 the chip row wraps onto a second line rather than clamping or
-/// running off-screen, so the reason Handoff 028 hid two chips behind a
-/// `⋯` overflow (and Group/Sort behind a bare `▾`) is gone: Compact now
-/// shows every status filter directly, in the same wrapping row Standard
-/// uses, and reuses [`arrange_button`] byte-for-byte rather than a
-/// glyph-only disclosure trigger of its own.
+/// running off-screen, so Compact shows every status filter directly, in
+/// the same wrapping row Standard uses, and reuses [`arrange_button`]
+/// byte-for-byte rather than a glyph-only disclosure trigger of its own.
 fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
 
@@ -484,7 +335,6 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         state.t("plain.selection.enter"),
         select_message,
         select_mode_reason(state, &summary),
-        is_focused(state, focus_target::SELECT_MODE),
     );
 
     // RFC-073 Amendment A2: top-aligned, same reason as the standard band.
@@ -503,7 +353,6 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         controls = controls.push(clear_filters_button(
             tokens,
             state.t("dashboard.clear_filters"),
-            is_focused(state, focus_target::CLEAR_FILTERS),
         ));
     }
 
@@ -518,36 +367,17 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         .into()
 }
 
-/// The bulk-selection entry point, token-styled with a working focus ring
-/// (RFC-036 R2/D7) — `guided_button` cannot carry `is_focused` (RFC-034 R7
-/// keeps it stable for rows until Stage 3), so this reproduces its
-/// disabled-reason-text composition on top of a real `secondary` button
-/// style instead, via `style::with_focus_ring` directly (the same pattern
-/// `workspace_manager.rs`'s dialog buttons use), so the control this
-/// handoff explicitly adds to `focus_order` (§7.4) actually renders a
-/// ring rather than becoming a second instance of the gap `chip` had
-/// before Handoff 020.
+/// The bulk-selection entry point, token-styled — RFC-075 stage 2 §3: on
+/// `secondary_control_maybe`, reproducing `reasoned`'s disabled-reason-
+/// beneath composition (the ring itself is now `Control`'s own).
 fn select_mode_button<'a>(
     tokens: &Tokens,
     label: &'a str,
     on_press: Option<Message>,
     reason: Option<&'a str>,
-    is_focused: bool,
 ) -> Element<'a, Message> {
-    let t = tokens.clone();
     let show_reason = on_press.is_none();
-
-    let btn = button(centered_button_label(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 18])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| {
-        style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
-    });
+    let btn = secondary_control_maybe(tokens, label, on_press, ids::toolbar::select_mode());
 
     match reason {
         // RFC-071 Amendment A3 D14: a reason — `body`.
@@ -559,34 +389,18 @@ fn select_mode_button<'a>(
         ]
         .spacing(6)
         .into(),
-        _ => btn.into(),
+        _ => btn,
     }
 }
 
-/// Clear filters, token-styled with a working focus ring — the same
-/// `style::secondary` + `with_focus_ring` treatment as
-/// [`select_mode_button`] (Handoff 023 §6), since this control gained a
-/// real `focus_order` entry and would otherwise be reachable and operable
-/// but invisible.
-fn clear_filters_button<'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    is_focused: bool,
-) -> Element<'a, Message> {
-    let t = tokens.clone();
-    // RFC-071 Amendment A3 D14: a button label — `body`.
-    // RFC-073 D8: `BUTTON_HEIGHT`, matching Arrange/Search/Select in the
-    // same controls row.
-    button(centered_button_label(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 12])
-    .on_press(Message::Filter(FilterMessage::AllFiltersCleared))
-    .style(move |_theme, status| {
-        style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
-    })
-    .into()
+/// Clear filters, token-styled — RFC-075 stage 2 §3: on `secondary_control`
+/// directly, since it always carries a real `on_press` while it is drawn
+/// at all.
+fn clear_filters_button<'a>(tokens: &Tokens, label: &'a str) -> Element<'a, Message> {
+    secondary_control(
+        tokens,
+        label,
+        Message::Filter(FilterMessage::AllFiltersCleared),
+        ids::toolbar::clear_filters(),
+    )
 }

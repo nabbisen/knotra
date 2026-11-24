@@ -13,7 +13,9 @@ mod escape_first;
 mod field;
 mod focus;
 pub mod icon;
+pub mod keyboard;
 mod layout;
+mod link;
 mod list;
 pub mod notice;
 pub mod overlay;
@@ -29,7 +31,7 @@ pub use buttons::{
     primary_maybe, reasoned, secondary, secondary_control, secondary_control_maybe,
     secondary_maybe, style,
 };
-pub use checkbox::{checkbox, checkbox_control};
+pub use checkbox::{checkbox, checkbox_control, checkbox_control_unlabeled};
 pub use escape_first::escape_first;
 pub use field::{
     guided_field, guided_field_focused, styled_text_input, text_input_style, validated_field,
@@ -40,6 +42,7 @@ pub use layout::{
     SMALL_BUTTON_HEIGHT, STRONG_FONT, WIDE_CONTENT_WIDTH, button, column, container, row,
     scrollable, strong, text, text_input,
 };
+pub use link::name_link;
 pub use list::list;
 pub use notice::{NoticeAction, NoticeTone, notice};
 pub use record::record_row;

@@ -80,6 +80,13 @@ impl KnotraTheme {
         // already holds its own widgets to (RFC-073 D8) — from this one
         // value, in every theme.
         tokens.targets.min = crate::widget::BUTTON_HEIGHT;
+        // RFC-075 stage 2 §1 (Review 298 F2): knotra draws every one of
+        // its own controls and fields in `body` (RFC-056); snora draws a
+        // select's value, its menu's rows, and a checkbox's label in
+        // `label` (`snora_widgets::form::Skin::designed`). Derived from
+        // `body` here, not a separate size, so the two cannot drift apart
+        // — one size of control text, not two.
+        tokens.typography.label = tokens.typography.body;
         KnotraTheme {
             // RFC-057 D1/R1: `base` is what `main.rs` hands to iced as the
             // application theme — every widget with no explicit `.style()`
@@ -97,6 +104,8 @@ impl KnotraTheme {
     pub fn dark() -> Self {
         let mut tokens = snora::design::Tokens::dark_aaa();
         tokens.targets.min = crate::widget::BUTTON_HEIGHT;
+        // RFC-075 stage 2 §1: see `light`'s own comment.
+        tokens.typography.label = tokens.typography.body;
         KnotraTheme {
             base: snora::design::theme(&tokens),
             tokens,
@@ -109,6 +118,8 @@ impl KnotraTheme {
     pub fn high_contrast_light() -> Self {
         let mut tokens = snora::design::Tokens::high_contrast_light();
         tokens.targets.min = crate::widget::BUTTON_HEIGHT;
+        // RFC-075 stage 2 §1: see `light`'s own comment.
+        tokens.typography.label = tokens.typography.body;
         KnotraTheme {
             base: snora::design::theme(&tokens),
             tokens,
@@ -120,6 +131,8 @@ impl KnotraTheme {
     pub fn high_contrast_dark() -> Self {
         let mut tokens = snora::design::Tokens::high_contrast_dark();
         tokens.targets.min = crate::widget::BUTTON_HEIGHT;
+        // RFC-075 stage 2 §1: see `light`'s own comment.
+        tokens.typography.label = tokens.typography.body;
         KnotraTheme {
             base: snora::design::theme(&tokens),
             tokens,

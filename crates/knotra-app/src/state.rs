@@ -53,6 +53,17 @@ pub enum Screen {
     Settings,
 }
 
+/// RFC-075 stage 2 §3: which of the Arrange panel's two selects, if any,
+/// is open — `AppState::arrange_select_open`'s own value type. At most one
+/// is ever open at a time (the panel's own rule); opening either closes
+/// the other, by construction, since this is `Option<ArrangeSelect>`, not
+/// two independent booleans.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArrangeSelect {
+    Group,
+    Sort,
+}
+
 // ---------------------------------------------------------------------------
 // Filter state
 // ---------------------------------------------------------------------------
@@ -535,6 +546,17 @@ pub struct AppState {
     /// resize (a stale `true` while the panel happens to be hidden is
     /// harmless).
     pub dashboard_arrange_open: bool,
+    /// RFC-075 stage 2 §3: which Arrange select is open, if any — `None`
+    /// whenever the panel itself is closed (`ArrangeToggled`'s own
+    /// handler clears it), and always cleared on leaving the dashboard
+    /// (`Message::Navigate`), so it can never point at a select that is
+    /// not drawn. Escape closes only the open select, never this plus the
+    /// panel: snora's own `Select` captures Escape itself while open and
+    /// answers with `on_open_change(false)` directly (confirmed from its
+    /// own doc comment, `select.rs`), before knotra's subscription-level
+    /// `ShortcutMessage::Close` could ever see the key — so no extra
+    /// routing is needed here for that rule to hold.
+    pub arrange_select_open: Option<ArrangeSelect>,
     /// RFC-073 D11: whether Settings' "Advanced" disclosure is open.
     /// **Not saved** — `app.rs`'s `Message::Navigate` resets this to
     /// `false` every time Settings is entered, so it is always closed on
@@ -543,21 +565,16 @@ pub struct AppState {
     /// A recently removed project eligible for undo (cleared by next action or timeout).
     pub recent_removal: Option<UndoableRemoval>,
     // ------------------------------------------------------------------
-    // RFC-036 keyboard focus traversal
+    // RFC-036 keyboard focus traversal (windows only, RFC-075: the page
+    // itself has no knotra-focus value left — see `app/focus_ops.rs`)
     // ------------------------------------------------------------------
-    /// Current knotra-focus target for the dashboard/shell context.
-    /// Presentation state only — not persisted, not in `AppConfig`.
-    pub dashboard_focus: Option<focus::FocusTarget>,
-    /// Current knotra-focus target while an overlay is open. Kept separate
-    /// from `dashboard_focus` because R5 confines Tab/Shift-Tab to the
-    /// overlay while it is open, and R7 needs `dashboard_focus` untouched
-    /// underneath so focus can return to it when the overlay closes.
+    /// Current knotra-focus target while an overlay is open.
     pub overlay_focus: Option<focus::FocusTarget>,
-    /// RFC-066 D4: whether the focus outline should be drawn right now.
-    /// `true` from Tab/Shift-Tab/an arrow key/`j`/`k`; `false` from a mouse
-    /// button press — the browser's `:focus-visible` behaviour. Focus
-    /// itself (`dashboard_focus`/`overlay_focus`) is never cleared by
-    /// either; only whether its ring is drawn changes.
+    /// RFC-066 D4: whether the focus outline should be drawn right now, for
+    /// a window still on knotra's own model. `true` from Tab/Shift-Tab/an
+    /// arrow key/`j`/`k`; `false` from a mouse button press — the
+    /// browser's `:focus-visible` behaviour. Focus itself (`overlay_focus`)
+    /// is never cleared by either; only whether its ring is drawn changes.
     pub focus_visible: bool,
     // ------------------------------------------------------------------
     // RFC-035 R8 responsive mode
@@ -631,9 +648,9 @@ impl AppState {
             selection_mode: false,
             show_op_details: false,
             dashboard_arrange_open: false,
+            arrange_select_open: None,
             settings_advanced_open: false,
             recent_removal: None,
-            dashboard_focus: None,
             overlay_focus: None,
             focus_visible: false,
             width_mode: WidthMode::from_width(INITIAL_WINDOW_SIZE.width),

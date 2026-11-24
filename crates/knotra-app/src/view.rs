@@ -27,6 +27,7 @@ pub(crate) use overlays as bulk_modals;
 
 pub mod dashboard;
 pub mod history;
+pub mod ids;
 pub mod settings;
 
 use crate::{message::Message, state::AppState};

@@ -1,11 +1,11 @@
 //! A single dashboard project row: identity, status/progress summary, and
 //! the tier-specific action.
 
-use iced::widget::{Space, button, column, container, rich_text, row, span, text};
-use iced::{Alignment, Element, Length, Padding};
+use iced::widget::{Space, column, container, row, text};
+use iced::{Alignment, Element, Length};
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, STRONG_FONT, Tokens, body_badge_diameter, centered_button_label,
-    centered_button_row, checkbox, status_badge, style,
+    Tokens, body_badge_diameter, checkbox_control_unlabeled, ghost_control, name_link,
+    secondary_control_maybe, status_badge,
 };
 use knotra_vcs::model::project::Project;
 
@@ -17,8 +17,8 @@ use crate::{
             DashboardCause, DashboardEntry, DashboardTier, ProgressKind, badge_for_all_set,
             badge_for_cause, badge_for_progress, workspace_has_mixed_vcs_kinds,
         },
-        focus::FocusTarget,
     },
+    view::ids,
 };
 
 use super::width_mode::WidthMode;
@@ -70,52 +70,6 @@ const MIDDLE_TRACK_WIDTH: f32 = 320.0;
 /// nothing.
 const ACTION_TRACK_WIDTH: f32 = 160.0;
 
-/// Stable per-row `FocusTarget` keys, shared between `dashboard/mod.rs`'s
-/// `focus_order` and this module's [`is_focused`] — one expression per
-/// target rather than the `format!` string duplicated in each place
-/// (Handoff 025 §7.5, same discipline as `toolbar.rs`/`section.rs`).
-pub(super) fn checkbox_key(id: &knotra_vcs::ProjectId) -> String {
-    format!("dashboard.row.{id}.checkbox")
-}
-
-pub(super) fn name_key(id: &knotra_vcs::ProjectId) -> String {
-    format!("dashboard.row.{id}.name")
-}
-
-pub(super) fn action_key(id: &knotra_vcs::ProjectId) -> String {
-    format!("dashboard.row.{id}.action")
-}
-
-fn is_focused(state: &AppState, key: &str) -> bool {
-    state.dashboard_focus.as_ref() == Some(&FocusTarget::control_dynamic(key.to_owned()))
-}
-
-/// RFC-071 D4: the project-name button's own text colour — `accent` on
-/// hover, press, or keyboard focus; `text_primary` at rest. Kept in step
-/// with `name_button`'s span, which applies the same rule statically for
-/// `focused` (see that function's own doc comment for why hover alone
-/// cannot drive the span's underline the same way).
-fn project_name_style(
-    tokens: &Tokens,
-    status: iced::widget::button::Status,
-    focused: bool,
-) -> iced::widget::button::Style {
-    use iced::widget::button::Status;
-
-    let text_primary = snora::design::style::color::to_iced_color(tokens.palette.text_primary);
-    let accent = snora::design::style::color::to_iced_color(tokens.palette.accent);
-    let text_color = if focused || matches!(status, Status::Hovered | Status::Pressed) {
-        accent
-    } else {
-        text_primary
-    };
-    iced::widget::button::Style {
-        background: None,
-        text_color,
-        ..iced::widget::button::Style::default()
-    }
-}
-
 pub(super) fn view_project_row<'a>(
     state: &'a AppState,
     entry: DashboardEntry<'a>,
@@ -125,8 +79,8 @@ pub(super) fn view_project_row<'a>(
     let project = entry.project;
 
     let checkbox_element = selection_checkbox(state, tokens, project);
-    let name = name_button(state, tokens, project);
-    let action = row_action(state, tokens, &entry, project);
+    let name = name_button(tokens, project);
+    let action = row_action(tokens, state, &entry, project);
     // RFC-073 Amendment A6 §2: an unborn HEAD's own `context.label` is just
     // the branch name — on its own indistinguishable from an ordinary
     // branch with commits — so this composes "<branch> · No commits yet"
@@ -170,104 +124,61 @@ fn selection_checkbox<'a>(
     }
     let id = project.id.clone();
     let is_checked = state.selection.contains(&project.id);
-    Some(checkbox(
+    let accessible_label = format!(
+        "{} — {}",
+        state.t("plain.selection.select_project"),
+        project.name
+    );
+    let box_widget = checkbox_control_unlabeled(
         tokens,
-        format!(
-            "{} — {}",
-            state.t("plain.selection.select_project"),
-            project.name
-        ),
         is_checked,
         move |_checked| Message::Selection(SelectionMessage::Toggled(id.clone())),
-        is_focused(state, &checkbox_key(&project.id)),
-    ))
+        ids::row::checkbox(&project.id),
+    );
+    Some(
+        iced::widget::tooltip(
+            box_widget,
+            knotra_ui::widget::overlay::raised_card(
+                tokens,
+                // RFC-071 Amendment A3 D14: a tooltip is a transient hint,
+                // not primary content read to act — `body_small`, the same
+                // size the old `checkbox`'s own accessible-label tooltip
+                // used (`knotra_ui::widget::checkbox`).
+                text(accessible_label)
+                    .size(snora::design::style::text::body_small_size(tokens))
+                    .line_height(snora::design::style::text::body_small_line_height(tokens)),
+            ),
+            iced::widget::tooltip::Position::Bottom,
+        )
+        .into(),
+    )
 }
 
-/// RFC-071 D4: a project name is `text_primary` at rest — blue is for
-/// what acts, and a name's own click target/message are unchanged, but it
-/// no longer looks like a link by default. On hover or keyboard focus it
-/// becomes `accent`, with an underline, so what is clickable is visible
-/// when it matters (never only on hover — A1 D13 item 2).
-///
-/// **Hover and focus are not symmetric here, and that is reported, not
-/// silently accepted**: a plain `iced::widget::Text`'s colour has no
-/// per-`button::Status` hook of its own, so hover's colour change is driven
-/// entirely by the button's own `.style(...)` closure (which iced already
-/// re-evaluates every frame from real pointer state) — the name's `Span`
-/// leaves its colour unset there, inheriting the button's. The underline
-/// has no such ambient hook: `iced::widget::text::Style` carries only a
-/// colour, and `Span::underline` is static content built once per `view()`
-/// call, with no per-`Status` variant at all. Keyboard focus already is
-/// app state the view rebuilds on, so the span can set its own colour and
-/// underline statically whenever `focused` is true; mouse hover is not
-/// tracked as app state anywhere, and adding live pointer-position
-/// tracking to get a reactive underline on hover alone was judged
-/// disproportionate to this one cosmetic detail.
-fn name_button<'a>(
-    state: &'a AppState,
-    tokens: &Tokens,
-    project: &'a Project,
-) -> Element<'a, Message> {
-    let focused = is_focused(state, &name_key(&project.id));
-    let t = tokens.clone();
-
-    let mut name_span: iced::advanced::text::Span<'_, ()> =
-        span(project.name.as_str()).font(STRONG_FONT);
-    if focused {
-        name_span = name_span
-            .color(snora::design::style::color::to_iced_color(
-                tokens.palette.accent,
-            ))
-            .underline(true);
-    }
-    let label = rich_text![name_span]
-        .size(snora::design::style::text::body_size(tokens))
-        .line_height(snora::design::style::text::body_line_height(tokens));
-
-    // RFC-071 A1 D13 item 2: a small "›" follows the name, in
-    // `text_secondary`, always visible — so what a name does is
-    // recognisable without hovering, not only on hover or focus.
-    let cue = knotra_ui::widget::icon::colored_icon_element(
-        &knotra_ui::widget::icon::chevron_right(),
-        snora::design::style::text::body_small_size(tokens).0,
-        snora::design::style::color::to_iced_color(tokens.palette.text_secondary),
-    );
-
-    // RFC-071 D8: `left: 0.0` — a plain `button` otherwise opens with
-    // `button::DEFAULT_PADDING`'s 10px left inset, which the VCS kind text
-    // pushed directly beneath it (`identity_details`, no padding of its
-    // own) does not share; without this the name's own glyphs start 10px
-    // right of where "Git"/"jj" starts, even though both are meant to line
-    // up at the identity column's left edge.
-    // RFC-073 D8: at least `SMALL_BUTTON_HEIGHT`, here `BUTTON_HEIGHT` — a
-    // project name is the dashboard's single most-clicked target.
-    button(centered_button_row(row![label, cue].spacing(2)))
-        .height(Length::Fixed(BUTTON_HEIGHT))
-        .padding(Padding {
-            left: 0.0,
-            ..button::DEFAULT_PADDING
-        })
-        .on_press(Message::DetailPanel(DetailPanelMessage::Opened(
-            project.id.clone(),
-        )))
-        .style(move |_theme, status| {
-            style::with_focus_ring(&t, focused, project_name_style(&t, status, focused))
-        })
-        .into()
+/// RFC-075 stage 2 §3: the project-name link, on `knotra_ui::widget::
+/// name_link` — see that primitive's own doc comment for the one "same
+/// look" difference this stage reports (the underline-on-focus, lost
+/// along with knotra's own manually-drawn ring).
+fn name_button<'a>(tokens: &Tokens, project: &'a Project) -> Element<'a, Message> {
+    name_link(
+        tokens,
+        project.name.clone(),
+        Message::DetailPanel(DetailPanelMessage::Opened(project.id.clone())),
+        ids::row::name(&project.id),
+    )
 }
 
 /// The tier-specific row action — shared between layouts. `Space::new()` for
 /// InProgress/AllSet (no action slot, per RFC-032 R10's tier density).
 fn row_action<'a>(
-    state: &'a AppState,
     tokens: &Tokens,
+    state: &'a AppState,
     entry: &DashboardEntry<'a>,
     project: &'a Project,
 ) -> Element<'a, Message> {
     if entry.tier != DashboardTier::NeedsHelp {
         return Space::new().into();
     }
-    let focused = is_focused(state, &action_key(&project.id));
+    let id = ids::row::action(&project.id);
     if entry.cause == Some(DashboardCause::Conflict) {
         // The row's one mutating action (RFC-032 R10): opens the
         // conflict-resolution overlay, so it carries `secondary`'s
@@ -277,33 +188,27 @@ fn row_action<'a>(
         // With multiple needs-help/conflict rows on screen, each printing
         // "Busy" while the interlock is held is the same duplication R13
         // targets in the selection bar, just repeated per row instead of
-        // per action. The button still disables correctly (`on_press_maybe`
+        // per action. The control still disables correctly (`on_press_maybe`
         // stays gated on `!is_busy()`); it just stops re-explaining why,
         // the same way row.rs's other actions never explained "busy" either.
-        row_action_button(
+        secondary_control_maybe(
             tokens,
             state.t("dashboard.resolve"),
-            style::secondary,
             (!state.operation_interlock.is_busy()).then_some(Message::ConflictOps(
                 ConflictOpsMessage::OpenRequested(Some(project.id.clone())),
             )),
-            None,
-            focused,
+            id,
         )
     } else {
         // Dispatches the same `DetailPanel::Opened` message the project
         // name does — a link-weight affordance to the same destination,
         // not a distinct mutating action, so `ghost` matches the name's
         // own treatment rather than `secondary`.
-        row_action_button(
+        ghost_control(
             tokens,
             state.t("plain.show_details"),
-            style::ghost,
-            Some(Message::DetailPanel(DetailPanelMessage::Opened(
-                project.id.clone(),
-            ))),
-            None,
-            focused,
+            Message::DetailPanel(DetailPanelMessage::Opened(project.id.clone())),
+            id,
         )
     }
 }
@@ -501,50 +406,6 @@ fn compact_status_line(state: &AppState, entry: &DashboardEntry<'_>, work_area: 
             format!("{work_area} · {count}")
         }
         DashboardTier::AllSet => work_area.to_owned(),
-    }
-}
-
-/// The row's tier-specific action (R6): `secondary` for the row's one
-/// mutating action, `ghost` for a link-weight affordance — the caller
-/// chooses which via `style_fn`, one of `style::secondary`/`style::ghost`'s
-/// plain-function signatures (same shape `select_mode_button` in
-/// `toolbar.rs` closes over, but parametrized here since a row's action
-/// varies by cause). Replaces `guided_button`'s disabled-reason-text
-/// composition on top of a real semantic style plus a working focus ring,
-/// keyed to the row's `dashboard.row.{id}.action` target.
-fn row_action_button<'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
-    on_press: Option<Message>,
-    reason: Option<&'a str>,
-    is_focused: bool,
-) -> Element<'a, Message> {
-    let t = tokens.clone();
-    let show_reason = on_press.is_none();
-
-    // RFC-071 Amendment A3 D14: a button label, then its disabled-reason —
-    // both `body`.
-    let btn = button(centered_button_label(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 12])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)));
-
-    match reason {
-        Some(r) if show_reason => column![
-            btn,
-            text(r)
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens))
-        ]
-        .spacing(4)
-        .into(),
-        _ => btn.into(),
     }
 }
 

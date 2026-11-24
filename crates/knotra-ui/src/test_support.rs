@@ -195,13 +195,25 @@ impl<Message: 'static> Harness<Message> {
         else {
             panic!("snora::keyboard::traverse did not produce a widget operation");
         };
-        let mut current = op;
+        self.run_operation(op);
+    }
+
+    /// Runs one widget operation, as taken out of an `Action::Widget`, to
+    /// completion against this harness's own `UserInterface` — the driving
+    /// loop [`tab`](Self::tab) uses for `snora::keyboard::traverse`'s own
+    /// operation, exposed so a `Task`-returning helper built on more than
+    /// one operation (RFC-075 stage 2's `knotra_ui::widget::keyboard`) can
+    /// be driven through the same `UserInterface` one `Action::Widget` at a
+    /// time, by whatever takes its `Task` apart — the same take-apart
+    /// `snora`'s own `tests/modal_keyboard.rs::Rig::traverse_tab` does for
+    /// a single operation.
+    pub fn run_operation(&mut self, mut op: Box<dyn Operation<()>>) {
         loop {
             self.ui
-                .operate(&self.renderer, &mut operation::black_box(current.as_mut()));
-            match current.finish() {
+                .operate(&self.renderer, &mut operation::black_box(op.as_mut()));
+            match op.finish() {
                 Outcome::None | Outcome::Some(()) => return,
-                Outcome::Chain(next) => current = next,
+                Outcome::Chain(next) => op = next,
             }
         }
     }

@@ -22,80 +22,16 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, column, container, row, text},
+    widget::{Space, column, container, row, text},
 };
 
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_label, style};
+use knotra_ui::widget::{ghost_control, secondary_control_maybe};
 
 use crate::{
     message::{ContextMessage, FreezerMessage, Message, SelectionMessage, SyncMessage},
-    state::{
-        AppState,
-        focus::{FocusOrder, FocusTarget},
-    },
-    view::dashboard::WidthMode,
+    state::AppState,
+    view::{dashboard::WidthMode, ids},
 };
-
-/// Stable keys for the selection bar's `FocusTarget`s (RFC-036/Handoff 031),
-/// shared between [`focus_order`] and [`view`] — same discipline as
-/// `toolbar.rs`'s own `focus_target` module.
-mod focus_target {
-    pub const FETCH: &str = "dashboard.selection_bar.fetch";
-    pub const PULL: &str = "dashboard.selection_bar.pull";
-    pub const TAG: &str = "dashboard.selection_bar.tag";
-    pub const SWITCH: &str = "dashboard.selection_bar.switch";
-    pub const EXIT: &str = "dashboard.selection_bar.exit";
-}
-
-/// Handoff 031 Finding 1: the selection bar's five controls (four bulk
-/// actions plus Exit selection) had no `focus_order` entry at all — RFC-035
-/// R22 requires every control the dashboard renders be keyboard-reachable,
-/// and the RFC's Related files list names this file explicitly.
-///
-/// Not part of `dashboard::focus_order`'s tree (`selection_bar::view` is
-/// composed alongside `dashboard::view` in `view.rs`, not inside it), so
-/// this gets its own entry point, appended **after** the dashboard's targets
-/// in `app/focus_ops.rs::shell_and_dashboard_focus_order` — the bar renders
-/// beneath the content, matching visual order.
-///
-/// **Guarded on `state.selection_mode`** the same shape as the row checkbox
-/// target and Clear filters: when the bar is not rendered, none of its
-/// targets may be in the order (Stage 4's no-focus-black-hole invariant).
-///
-/// Duplicates the four buttons' enablement computation from [`view`] rather
-/// than sharing it — the same choice `toolbar.rs`'s `standard_focus_order`/
-/// `compact_focus_order`/`view_standard_toolbar`/`view_compact_toolbar` each
-/// make for `select_message`, so `focus_order` and `view` stay independent
-/// pure functions of `state`.
-pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
-    if !state.selection_mode {
-        return Vec::new();
-    }
-
-    let summary = state.selection_summary();
-    let count = summary.selected_count;
-    let busy = state.operation_interlock.is_busy();
-    let can_act = count > 0 && !busy;
-
-    let fetch_msg = (can_act && !summary.fetchable_ids.is_empty())
-        .then_some(Message::Sync(SyncMessage::BulkFetchRequested));
-    let pull_msg =
-        (can_act && summary.has_upstream).then_some(Message::Sync(SyncMessage::BulkPullRequested));
-    let tag_msg = can_act.then_some(Message::Freezer(FreezerMessage::BulkOpenRequested));
-    let switch_msg =
-        (count == 1 && !busy).then_some(Message::Context(ContextMessage::BulkOpenRequested));
-
-    vec![
-        (FocusTarget::control(focus_target::FETCH), fetch_msg),
-        (FocusTarget::control(focus_target::PULL), pull_msg),
-        (FocusTarget::control(focus_target::TAG), tag_msg),
-        (FocusTarget::control(focus_target::SWITCH), switch_msg),
-        (
-            FocusTarget::control(focus_target::EXIT),
-            Some(Message::Selection(SelectionMessage::ModeExited)),
-        ),
-    ]
-}
 
 pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
     // Selection bar only shown while in selection mode.
@@ -168,35 +104,38 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
     }
 
     let tokens = &state.theme.tokens;
-    let fetch_btn = action_button(
+    let fetch_btn = secondary_control_maybe(
         tokens,
         state.t("plain.check_for_updates"),
         fetch_msg,
-        crate::app::ring(state, &FocusTarget::control(focus_target::FETCH)),
+        ids::selection_bar::fetch(),
     );
-    let pull_btn = action_button(
+    let pull_btn = secondary_control_maybe(
         tokens,
         state.t("plain.get_latest"),
         pull_msg,
-        crate::app::ring(state, &FocusTarget::control(focus_target::PULL)),
+        ids::selection_bar::pull(),
     );
-    let tag_btn = action_button(
+    let tag_btn = secondary_control_maybe(
         tokens,
         state.t("plain.save_release_point"),
         tag_msg,
-        crate::app::ring(state, &FocusTarget::control(focus_target::TAG)),
+        ids::selection_bar::tag(),
     );
-    let switch_btn = action_button(
+    let switch_btn = secondary_control_maybe(
         tokens,
         state.t("plain.change_work_area"),
         switch_msg,
-        crate::app::ring(state, &FocusTarget::control(focus_target::SWITCH)),
+        ids::selection_bar::switch(),
     );
 
-    let clear_btn = exit_button(
+    // Exit selection: `ghost`-styled, matching `row.rs`'s "Show details" —
+    // a non-mutating, lower-weight action, not a fourth `secondary` button.
+    let clear_btn = ghost_control(
         tokens,
         state.t("plain.exit_selection"),
-        crate::app::ring(state, &FocusTarget::control(focus_target::EXIT)),
+        Message::Selection(SelectionMessage::ModeExited),
+        ids::selection_bar::exit(),
     );
 
     // RFC-071 Amendment A3 D14: the selection count is this bar's own
@@ -268,89 +207,35 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
     Some(bar.into())
 }
 
-/// A selection-bar action button, without `guided_button`'s
-/// reason-beneath-itself composition — R13/R14 already render the reason
-/// (shared or action-specific) in a slot outside the button, so a copy
-/// here would just reintroduce the duplication this migration removes.
-///
-/// Handoff 031 §2.3: checked before building whether the reason-composition
-/// wrapper `select_mode_button`/`row_action_button` use was still needed
-/// here. **It is not** — Stage 5 commit 3 already moved every reason this
-/// button might have shown into `group_reason`/`contextual_reasons`, so
-/// `action_button` never had a `reason` parameter to begin with. Only the
-/// ring needed adding: `style::secondary` + `style::with_focus_ring`, the
-/// same base `select_mode_button`/row.rs's Conflict action use for a
-/// similarly-weighted mutating action.
-fn action_button<'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    on_press: Option<Message>,
-    is_focused: bool,
-) -> Element<'a, Message> {
-    let t = tokens.clone();
-    button(centered_button_label(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 18])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| {
-        style::with_focus_ring(&t, is_focused, style::secondary(&t, status))
-    })
-    .into()
-}
-
-/// Exit selection: `ghost`-styled, matching `row.rs`'s "Show details" —
-/// a non-mutating, lower-weight action, not a fourth `secondary` button.
-fn exit_button<'a>(tokens: &Tokens, label: &'a str, is_focused: bool) -> Element<'a, Message> {
-    let t = tokens.clone();
-    // RFC-071 Amendment A3 D14: a button label — `body`.
-    button(centered_button_label(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .on_press(Message::Selection(SelectionMessage::ModeExited))
-    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style::ghost(&t, status)))
-    .into()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::AppConfig;
     use crate::state::AppState;
 
-    /// Handoff 031's no-focus-black-hole invariant (Stage 4's own rule,
-    /// applied here): the bar is not rendered while `selection_mode` is
-    /// false, so none of its five controls may be a Tab stop then either.
+    /// The bar is not rendered while `selection_mode` is false, so none of
+    /// its five controls can be a Tab stop then either — true by
+    /// construction now (RFC-075: nothing declares an order any more),
+    /// checked here the same way every other "not drawn" case is: `view`
+    /// returns `None`.
     #[test]
-    fn focus_order_is_empty_when_not_in_selection_mode() {
+    fn view_is_none_when_not_in_selection_mode() {
         let state = AppState::new(AppConfig::default());
         assert!(!state.selection_mode);
-        assert!(focus_order(&state).is_empty());
+        assert!(view(&state, WidthMode::Standard).is_none());
     }
 
-    /// Selection mode with nothing selected: `can_act` is false for all
-    /// four bulk actions, but Exit selection stays a live target — the same
-    /// "still a Tab stop, activation is a no-op" shape `focus::FocusOrder`'s
-    /// own doc comment describes for a disabled control.
+    /// Selection mode with nothing selected still draws the bar — Exit
+    /// selection is reachable either way; the four bulk actions become
+    /// disabled controls (RFC-075 D4 b: not Tab stops at all, unlike
+    /// knotra's own retired "still a Tab stop, activation is a no-op"
+    /// rule) rather than being removed from the tree. The disabled-is-not-
+    /// a-Tab-stop behaviour itself is `*_control`'s own, covered by
+    /// `knotra-ui`'s primitive tests, not re-tested per view here.
     #[test]
-    fn focus_order_has_five_targets_with_only_exit_active_when_nothing_selected() {
+    fn view_still_renders_with_nothing_selected() {
         let mut state = AppState::new(AppConfig::default());
         state.selection_mode = true;
-
-        let order = focus_order(&state);
-        assert_eq!(order.len(), 5);
-
-        let live: Vec<_> = order
-            .iter()
-            .filter(|(_, message)| message.is_some())
-            .collect();
-        assert_eq!(live.len(), 1);
-        assert_eq!(live[0].0, FocusTarget::control(focus_target::EXIT));
+        assert!(view(&state, WidthMode::Standard).is_some());
     }
 }

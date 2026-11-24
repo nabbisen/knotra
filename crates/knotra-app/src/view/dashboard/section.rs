@@ -1,17 +1,17 @@
 //! Dashboard section rendering: the collapsible tier/group header and the
 //! list of rows beneath it.
 
-use iced::widget::{button, column, container, row, text};
-use iced::{Color, Element, Length};
-use knotra_ui::widget::{BUTTON_HEIGHT, Tokens, centered_button_row, icon, list, strong, style};
+use iced::widget::{column, container, row, text};
+use iced::{Element, Length};
+use knotra_ui::widget::{Tokens, centered_button_row, icon, list, strong};
 
 use crate::{
     message::{DashboardMessage, Message},
     state::{
         AppState,
         dashboard::{DashboardSection, DashboardSectionKey, DashboardTier},
-        focus::FocusTarget,
     },
+    view::ids,
 };
 
 use super::row::view_project_row;
@@ -44,35 +44,20 @@ pub(super) fn view_section<'a>(
         .into()
 }
 
-/// The `dashboard.section.{tier:?}` focus key, shared between
-/// `dashboard/mod.rs`'s `focus_order` and this module's [`is_focused`] — one
-/// expression rather than a `format!` string duplicated in both places
-/// (Handoff 025 §7.5, same discipline as `toolbar.rs`'s `filter_focus_key`).
-pub(super) fn focus_key(tier: DashboardTier) -> String {
-    format!("dashboard.section.{tier:?}")
-}
-
-fn is_focused(state: &AppState, key: &str) -> bool {
-    state.dashboard_focus.as_ref() == Some(&FocusTarget::control_dynamic(key.to_owned()))
-}
-
 /// RFC-071 D4: a group toggle is `text_secondary`, not `accent` — the
 /// chevron beside it, not its colour, says "this opens and closes". Unlike
-/// `project_name_style` (`row.rs`), this has no hover/focus colour change
-/// to make: D4 names only the one colour for toggles.
-fn group_toggle_style(tokens: &Tokens, status: button::Status) -> button::Style {
+/// `name_link`'s style (`row.rs`), this has no hover colour change to
+/// make: D4 names only the one colour for toggles, and this control is
+/// never disabled, so there is no second branch to keep either.
+fn group_toggle_style(
+    tokens: &Tokens,
+    _status: iced::widget::button::Status,
+) -> iced::widget::button::Style {
     let text_secondary = snora::design::style::color::to_iced_color(tokens.palette.text_secondary);
-    let text_color = match status {
-        button::Status::Disabled => Color {
-            a: text_secondary.a * 0.5,
-            ..text_secondary
-        },
-        _ => text_secondary,
-    };
-    button::Style {
+    iced::widget::button::Style {
         background: None,
-        text_color,
-        ..button::Style::default()
+        text_color: text_secondary,
+        ..iced::widget::button::Style::default()
     }
 }
 
@@ -100,7 +85,6 @@ fn section_header<'a>(
 
     if let Some(tier) = toggle {
         let tokens = state.theme.tokens.clone();
-        let focused = is_focused(state, &focus_key(tier));
         // Right reads as "click to open"; down reads as "already open,
         // contents below" — the disclosure idiom, and the direction
         // `chevron_down` already carries at the workspace switcher
@@ -112,20 +96,23 @@ fn section_header<'a>(
         };
         // RFC-073 D8: at least `SMALL_BUTTON_HEIGHT`, here `BUTTON_HEIGHT`
         // — a group toggle is a frequent, full-width target, grouped with
-        // chips/project names/Arrange under the same rule.
-        button(centered_button_row(
-            row![
-                strong(text(label).size(snora::design::style::text::title_size(&tokens))),
-                icon::icon_element(&chevron)
-            ]
-            .spacing(6),
-        ))
-        .height(Length::Fixed(BUTTON_HEIGHT))
+        // chips/project names/Arrange under the same rule. RFC-075 stage 2
+        // §3: on `snora::design::control`.
+        snora::design::control(
+            &tokens,
+            centered_button_row(
+                row![
+                    strong(text(label).size(snora::design::style::text::title_size(&tokens))),
+                    icon::icon_element(&chevron)
+                ]
+                .spacing(6),
+            ),
+        )
+        .height(Length::Fixed(knotra_ui::widget::BUTTON_HEIGHT))
         .width(Length::Fill)
+        .id(ids::section::toggle(tier))
         .on_press(Message::Dashboard(DashboardMessage::TierToggled(tier)))
-        .style(move |_theme, status| {
-            style::with_focus_ring(&tokens, focused, group_toggle_style(&tokens, status))
-        })
+        .style(move |_theme, status| group_toggle_style(&tokens, status))
         .into()
     } else {
         container(strong(text(label).size(

@@ -18,7 +18,7 @@ use crate::{
             changelog_layer_focus, conflict_close_message, conflict_layer_focus,
             context_switch_layer_focus, freezer_layer_focus, smart_pull_layer_focus,
         },
-        remove_project_dialog, selection_bar, shell, shortcuts_overlay, workspace_manager,
+        remove_project_dialog, shell, shortcuts_overlay, workspace_manager,
     },
 };
 
@@ -72,93 +72,74 @@ pub(super) fn layer_focus(state: &AppState, layer: &Layer) -> focus::LayerFocus<
     }
 }
 
+/// RFC-075 D1: Tab/Shift-Tab on the page itself no longer calls this at
+/// all — `app.rs`'s `handle_shortcut` routes those through `knotra_ui::
+/// widget::keyboard::traverse_wrapping` directly whenever no window is
+/// open. This stays for exactly the case the handoff leaves untouched this
+/// stage: a window is open, and still uses knotra's own declared order.
 pub(super) fn advance_focus(state: &mut AppState, direction: focus::Direction) -> Task<Message> {
-    if let Some(order) = overlay_focus_order(state) {
-        advance_in(&order, &mut state.overlay_focus, direction)
-    } else {
-        let order = shell_and_dashboard_focus_order(state);
-        advance_in(&order, &mut state.dashboard_focus, direction)
-    }
+    let Some(order) = overlay_focus_order(state) else {
+        return Task::none();
+    };
+    advance_in(&order, &mut state.overlay_focus, direction)
 }
 
+/// See [`advance_focus`]'s own doc comment — the page's own Enter/Space no
+/// longer reaches this either (RFC-075 §2: snora's `Control` presses
+/// itself, through the ordinary event path, before this subscription-level
+/// message could even be produced).
 pub(super) fn activate_focused(state: &mut AppState) -> Task<Message> {
-    if let Some(order) = overlay_focus_order(state) {
-        activate_in(&order, &state.overlay_focus)
-    } else {
-        let order = shell_and_dashboard_focus_order(state);
-        activate_in(&order, &state.dashboard_focus)
-    }
+    let Some(order) = overlay_focus_order(state) else {
+        return Task::none();
+    };
+    activate_in(&order, &state.overlay_focus)
 }
 
-/// RFC-035 R22's card arrow-navigation (Handoff 032): `↑`/`↓`/`j`/`k` move
-/// between `dashboard::card_focus_order`'s row-name targets — a distinct,
-/// narrower traversal from Tab's, not a change to `advance_focus` or the
-/// order it walks. A no-op on any screen but the dashboard, and while an
-/// overlay holds Tab/Enter routing (`overlay_focus_order(state).is_some()`)
-/// — the same two conditions that already gate `advance_focus` itself, kept
-/// here rather than folded into it.
+/// RFC-035 R22's card arrow-navigation (Handoff 032), RFC-075 D6: `↑`/`↓`/
+/// `j`/`k` move real focus among `dashboard::card_focus_ids`'s row-name
+/// ids — a distinct, narrower traversal from Tab's. A no-op on any screen
+/// but the dashboard, and while a window is open (D6: "the dashboard's own
+/// keys stay knotra's" means *this* mechanism; a window's own order is
+/// untouched, handled entirely by `handle_shortcut`'s own window branch
+/// before this is ever called).
+///
+/// **Not synchronous any more**: with no `state.dashboard_focus` left to
+/// read (RFC-075 retires it — nothing on the page tracks its own focus any
+/// more, snora's real widget focus is the only copy), "which card, if any,
+/// holds focus right now" can only be asked of the live tree, the same way
+/// [`knotra_ui::widget::keyboard::traverse_wrapping`] asks it. Also guards
+/// the one case D6 and the handoff's §2 both call out: the search field is
+/// a real Tab target too (an ordinary `text_input`), and arrow keys must
+/// not steal focus away from it — compared by id, since it is the one and
+/// only text field in this traversal's reach.
 ///
 /// **Entry from off-card focus** (the toolbar, a section header, the
-/// selection bar, or the search field — none of which are members of
-/// `card_focus_order`) **always lands on the first card, for either
-/// direction.** This is deliberately *not* `advance_in`/`focus::advance`
-/// applied directly: `focus::resolve`'s stale-target fallback already
-/// returns the order's first entry for an unrecognized `current`, and
-/// `focus::advance` would then step **one further** from that resolved
-/// position — landing on the *second* card, not the first, for
-/// `Direction::Next`. Handoff 032 §3 left this entry behavior to this
-/// handoff's judgment rather than specifying it; "first card either way" was
-/// chosen for being simpler to predict than a direction-dependent entry
-/// point, and nothing else in this codebase enters a list from its far end.
-/// Once focus is already on a card, this defers to `focus::advance`'s own
-/// wrap-around semantics unchanged — same wrap Tab already uses, chosen for
-/// consistency over a stop-at-the-edge alternative (Handoff 032 §3).
-pub(super) fn advance_card_focus(
-    state: &mut AppState,
-    direction: focus::Direction,
-) -> Task<Message> {
-    if overlay_focus_order(state).is_some() || !matches!(state.screen, Screen::Dashboard) {
+/// selection bar, or nothing at all — none of which are members of
+/// `card_focus_ids`) **always lands on the first card, for either
+/// direction** — [`knotra_ui::widget::keyboard::focus_among`]'s own "focus
+/// on none of `ids` lands on `ids[0]`" rule, unchanged from the retired
+/// synchronous version's own entry behaviour (Handoff 032 §3: "first card
+/// either way", chosen for being simpler to predict than a
+/// direction-dependent entry point).
+pub(super) fn advance_card_focus(state: &AppState, direction: focus::Direction) -> Task<Message> {
+    if layer::top_layer(state).is_some() || !matches!(state.screen, Screen::Dashboard) {
         return Task::none();
     }
 
-    let order = dashboard::card_focus_order(state);
-    if order.is_empty() {
+    let ids = dashboard::card_focus_ids(state);
+    if ids.is_empty() {
         return Task::none();
     }
+    let forward = matches!(direction, focus::Direction::Next);
+    let search_id = knotra_ui::widget::focus_id::SEARCH.clone();
 
-    let previous = state.dashboard_focus.clone();
-    let already_on_a_card = previous
-        .as_ref()
-        .is_some_and(|target| order.iter().any(|(t, _)| t == target));
-
-    let next = if already_on_a_card {
-        focus::advance(&order, previous.as_ref(), direction).cloned()
-    } else {
-        order.first().map(|(target, _)| target.clone())
-    };
-
-    state.dashboard_focus = next.clone();
-    reconciliation_task(focus::reconcile(previous.as_ref(), next.as_ref()))
-}
-
-/// The shell's order, plus dashboard-row targets (RFC-036 R2, Stage 4) when
-/// the dashboard is the active screen. The toolbar (filter chips, group/sort,
-/// search, select) is not included - it stays RFC-035's, unstyled and
-/// unwired, matching Stage 2's precedent.
-///
-/// `selection_bar::focus_order` is appended **after** `dashboard::focus_order`
-/// (Handoff 031 Finding 1) — the bar is not part of `dashboard::view`'s own
-/// tree (`view.rs` composes it alongside `dashboard::view`, not inside it),
-/// so it needs its own call here rather than folding into `dashboard`'s.
-/// Positioned last to match visual order: the bar renders beneath the
-/// dashboard's content.
-fn shell_and_dashboard_focus_order(state: &AppState) -> focus::FocusOrder<Message> {
-    let mut order = shell::focus_order(state);
-    if matches!(state.screen, Screen::Dashboard) {
-        order.extend(dashboard::focus_order(state));
-        order.extend(selection_bar::focus_order(state));
-    }
-    order
+    knotra_ui::widget::keyboard::focused_id().then(move |current| {
+        if current.as_ref() == Some(&search_id) {
+            Task::none()
+        } else {
+            knotra_ui::widget::keyboard::focus_among(ids.clone(), forward)
+        }
+    })
 }
 
 /// RFC-066 D4: whether `target`'s focus outline should be drawn right now —
@@ -172,6 +153,15 @@ fn shell_and_dashboard_focus_order(state: &AppState) -> focus::FocusOrder<Messag
 /// shared implementation D4 asks for in place of the three per-module
 /// `is_focused` copies this replaces (`shell.rs`, `selection_bar.rs`,
 /// `workspace_manager.rs`).
+/// RFC-075 §3: the page no longer has a knotra-drawn ring at all — every
+/// control there is a snora `Control`/`select_control`/`checkbox_control`
+/// now, each drawing its own ring from real focus directly, with no
+/// `FocusTarget`/`ring()` call of its own. `None` (no window open) is kept
+/// only because every `Layer::WorkspaceMenu` call still reaches this
+/// function through the `Some` arm below (the switcher's own dropdown
+/// stays knotra's model this stage) — a `target` can never resolve while
+/// nothing is open, so this just states that rather than building an order
+/// with nothing left to populate it.
 pub(crate) fn ring(state: &AppState, target: &focus::FocusTarget) -> bool {
     if !state.focus_visible {
         return false;
@@ -181,10 +171,7 @@ pub(crate) fn ring(state: &AppState, target: &focus::FocusTarget) -> bool {
             let lf = layer_focus(state, &layer);
             focus::resolve(&lf.order, state.overlay_focus.as_ref()) == Some(target)
         }
-        None => {
-            let order = shell_and_dashboard_focus_order(state);
-            focus::resolve(&order, state.dashboard_focus.as_ref()) == Some(target)
-        }
+        None => false,
     }
 }
 
@@ -247,32 +234,23 @@ pub(super) fn close_overlay_focus(state: &mut AppState) -> Task<Message> {
     reconciliation_task(focus::reconcile(previous.as_ref(), None))
 }
 
-/// R4: switches to the dashboard and moves knotra-focus (and iced's own
-/// text-input focus, in the same `Task`) onto the search field. The search
-/// field is not part of any declared `FocusOrder` (the toolbar stays
-/// RFC-035's, per Stage 2/4's scope), so this sets `dashboard_focus`
-/// directly rather than going through `advance`/`settle_layer_focus`.
+/// R4, RFC-075 D6: switches to the dashboard and moves real focus onto the
+/// search field. No knotra-focus value to set any more — the search field
+/// is a real, ordinary `text_input`, so `operation::focus` alone (via
+/// `focus_input`) is enough; nothing reconciles against it because nothing
+/// else on the page holds a value that could disagree with it.
 pub(super) fn focus_search(state: &mut AppState) -> Task<Message> {
     state.screen = Screen::Dashboard;
-    let target = focus::FocusTarget::text_input(knotra_ui::widget::focus_id::SEARCH.clone());
-    let previous = state.dashboard_focus.replace(target.clone());
-    reconciliation_task(focus::reconcile(previous.as_ref(), Some(&target)))
+    knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::SEARCH)
 }
 
-/// Whether the *current* context's knotra-focus target is a text input,
-/// checked directly rather than through `focus::resolve` — the search field
-/// is not a member of any declared order, so `resolve`'s "is this target
-/// still in the order" fallback would (wrongly) say no even while the field
-/// genuinely holds focus. R3a's gate can stay order-relative because
-/// activation always needs an order to look an activation message up in;
-/// this gate only needs to know what was last explicitly focused.
+/// Whether a window's own current target is a text input (R3a's gate) —
+/// windows only; the page has nothing left to ask this of (RFC-075: no
+/// `dashboard_focus` any more, and `ShortcutMessage::FocusSearchBare`'s own
+/// page-only call site no longer needs this check at all, see its own
+/// comment in `app.rs`).
 pub(super) fn current_target_is_text_input(state: &AppState) -> bool {
-    let current = if overlay_focus_order(state).is_some() {
-        &state.overlay_focus
-    } else {
-        &state.dashboard_focus
-    };
-    matches!(current, Some(focus::FocusTarget::TextInput(_)))
+    matches!(state.overlay_focus, Some(focus::FocusTarget::TextInput(_)))
 }
 
 /// RFC-066 D1/R1: one exhaustive match over [`layer::top_layer`], sending
@@ -421,58 +399,32 @@ mod tests {
         }
     }
 
-    #[test]
-    fn advance_card_focus_moves_through_row_name_targets_only_and_wraps() {
-        let mut state = AppState::new(AppConfig::default());
-        state.workspace = Some(workspace_with_projects(&["alpha", "beta", "gamma"]));
-
-        let order = dashboard::card_focus_order(&state);
-        assert_eq!(
-            order.len(),
-            3,
-            "all three NeedsHelp rows should be card targets, nothing else"
-        );
-
-        for target in &order {
-            let _ = advance_card_focus(&mut state, focus::Direction::Next);
-            assert_eq!(state.dashboard_focus, Some(target.0.clone()));
-        }
-
-        // A fourth Next wraps back to the first target — consistent with
-        // Tab's own `focus::advance` wrap semantics (Handoff 032 §3).
-        let _ = advance_card_focus(&mut state, focus::Direction::Next);
-        assert_eq!(state.dashboard_focus, Some(order[0].0.clone()));
+    /// Whether `task` is a plain no-op — `Task::none()`, or one of this
+    /// function's own early-return guards, never issues any work at all.
+    fn is_noop(task: Task<Message>) -> bool {
+        iced_test::runtime::task::into_stream(task).is_none()
     }
 
-    #[test]
-    fn advance_card_focus_from_off_card_focus_lands_on_the_first_card_either_direction() {
-        let mut state = AppState::new(AppConfig::default());
-        state.workspace = Some(workspace_with_projects(&["alpha", "beta"]));
-        let order = dashboard::card_focus_order(&state);
-
-        // Simulate focus sitting on a toolbar control — a real target, but
-        // not a member of `card_focus_order`.
-        state.dashboard_focus = Some(focus::FocusTarget::control("dashboard.toolbar.select_mode"));
-        let _ = advance_card_focus(&mut state, focus::Direction::Previous);
-        assert_eq!(
-            state.dashboard_focus,
-            Some(order[0].0.clone()),
-            "Previous from off-card focus must not land on the second card \
-             the way resolve-then-advance's stale-target fallback would"
-        );
-
-        state.dashboard_focus = Some(focus::FocusTarget::control("dashboard.toolbar.select_mode"));
-        let _ = advance_card_focus(&mut state, focus::Direction::Next);
-        assert_eq!(state.dashboard_focus, Some(order[0].0.clone()));
-    }
-
+    /// RFC-075 D6: `advance_card_focus`'s own guards, checked without
+    /// needing to drive its real-focus query — each of these returns
+    /// before ever building one. The full moves-and-wraps behaviour (this
+    /// function's old synchronous test, before RFC-075) is now an
+    /// acceptance test driven through the real view and harness instead
+    /// (`crates/knotra-app/src/keyboard_acceptance.rs`, RFC-075 stage 2
+    /// §5), since there is no `state.dashboard_focus` left to read here —
+    /// only the live tree knows where focus is.
     #[test]
     fn advance_card_focus_is_a_noop_off_the_dashboard_screen() {
         let mut state = AppState::new(AppConfig::default());
         state.workspace = Some(workspace_with_projects(&["alpha"]));
         state.screen = Screen::History;
 
-        let _ = advance_card_focus(&mut state, focus::Direction::Next);
-        assert_eq!(state.dashboard_focus, None);
+        assert!(is_noop(advance_card_focus(&state, focus::Direction::Next)));
+    }
+
+    #[test]
+    fn advance_card_focus_is_a_noop_with_nothing_to_focus() {
+        let state = AppState::new(AppConfig::default());
+        assert!(is_noop(advance_card_focus(&state, focus::Direction::Next)));
     }
 }

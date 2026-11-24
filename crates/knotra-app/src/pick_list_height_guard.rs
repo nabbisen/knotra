@@ -291,7 +291,9 @@ mod tests {
     /// technique RFC-075 stage 0 used for the focus ring, where
     /// `Operation`-based introspection also could not reach).
     ///
-    /// **Does not pass.** `select_control`'s drawn box measures 26px, not
+    /// **Does not pass.** `select_control`'s drawn box measures 28px
+    /// (re-measured by stage 2 §1, after `label` became `body`'s 16px —
+    /// stage 1 measured 26px against the 14px `label` of that stage), not
     /// `BUTTON_HEIGHT` (44) — `knotra-ui`'s own
     /// `select_control_box_is_shorter_than_styled_pick_lists_at_rest`
     /// (`crates/knotra-ui/src/widget/select.rs`) has the full measurement
@@ -345,16 +347,16 @@ mod tests {
         }
         let measured_height = max_y - min_y + 1;
 
-        // RFC-075 handoff stage 1: `select_control`'s height is derived from
-        // glyph metrics (`Select`'s own trigger row sizes to its content,
-        // unlike `styled_pick_list`'s fixed-formula 44), so it moves a
-        // little by font/platform -- 26px locally, 28px on CI's Ubuntu
-        // runner, both measured directly (the exact 26 this range replaced
-        // failed CI at 28, caught by that very run).
+        // RFC-075 handoff stage 1, re-measured stage 2 §1: `select_control`'s
+        // height is derived from glyph metrics (`Select`'s own trigger row
+        // sizes to its content, unlike `styled_pick_list`'s fixed-formula
+        // 44), so it moves a little by font/platform -- 28px locally, after
+        // §1 made `label` the same size as `body` (stage 1 measured 26px
+        // against the 14px `label` of that stage).
         assert!(
-            (20..=32).contains(&measured_height),
+            (22..=34).contains(&measured_height),
             "select_control's measured height ({measured_height}px) moved well outside the \
-             20-32px this stage measured -- if this now reads \
+             22-34px stage 2 §1 re-measured -- if this now reads \
              knotra_ui::widget::BUTTON_HEIGHT (44), update this assertion to match and \
              remove the \"does not pass\" framing above and in the handoff report; if it \
              changed to some other value, the root cause in select.rs's own doc comment \

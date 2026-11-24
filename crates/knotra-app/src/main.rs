@@ -17,6 +17,8 @@ mod headless;
 #[cfg(test)]
 mod headless_probe;
 #[cfg(test)]
+mod keyboard_acceptance;
+#[cfg(test)]
 mod label_overflow_guard;
 mod message;
 mod persistence;

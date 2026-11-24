@@ -308,6 +308,12 @@ pub enum DashboardMessage {
     /// RFC-035 R8/Handoff 028 Ruling 6.1, renamed by RFC-073 D2: the
     /// "Arrange" disclosure holding the grouping/sorting selects.
     ArrangeToggled,
+    /// RFC-075 stage 2 §3: one Arrange select's own `on_open_change` —
+    /// `true` opens it (closing the other, since `AppState::
+    /// arrange_select_open` is an `Option`, not two booleans), `false`
+    /// closes it (the trigger pressed again while open, a choice made, or
+    /// snora's own Escape handling — see that field's own doc comment).
+    ArrangeSelectOpenChanged(crate::state::ArrangeSelect, bool),
 }
 
 // --- Conflict resolution ---

@@ -778,14 +778,6 @@ fn load_workspaces_blocked_by_a_plain_file_reports_an_error() {
 // RFC-036 Stage 3 — overlay focus trap, entry, and return
 // ---------------------------------------------------------------------------
 
-/// A stand-in for "the shell control that had knotra-focus before the
-/// dialog opened" — the exact key `view/shell.rs` mints for the workspace
-/// switcher trigger. Using the real key (not an arbitrary test string)
-/// means this test would still catch a rename of that key breaking R7.
-fn shell_switcher_target() -> FocusTarget {
-    FocusTarget::control("shell.workspace_switcher")
-}
-
 #[test]
 fn create_dialog_open_enters_focus_at_the_name_field_r6() {
     let mut state = make_state();
@@ -804,10 +796,6 @@ fn create_dialog_open_enters_focus_at_the_name_field_r6() {
 #[test]
 fn create_dialog_tab_wraps_within_the_dialog_and_never_touches_shell_focus_r5() {
     let mut state = make_state();
-    // Simulate the workspace switcher having had keyboard focus before the
-    // dialog opened, so an untouched `dashboard_focus` is a meaningful
-    // assertion rather than trivially `None` either way.
-    state.dashboard_focus = Some(shell_switcher_target());
 
     dispatch(
         &mut state,
@@ -835,10 +823,6 @@ fn create_dialog_tab_wraps_within_the_dialog_and_never_touches_shell_focus_r5() 
     // never into any shell target.
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
     assert_eq!(state.overlay_focus, Some(name_field));
-
-    // R7's precondition: the shell's own focus was never touched while the
-    // dialog held it, regardless of how many times Tab moved within it.
-    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
 }
 
 /// RFC-066 D4/R5: Tab sets the outline visible; a mouse press clears it.
@@ -854,51 +838,14 @@ fn focus_visible_is_set_by_tab_and_cleared_by_a_mouse_press() {
     assert!(!state.focus_visible);
 }
 
-/// RFC-066 D4/R5: with the outline hidden, Enter/Space on a non-text-input
-/// target reveals it and presses nothing — the control's own message is
-/// not sent.
-#[test]
-fn activate_focused_with_hidden_ring_reveals_it_without_pressing() {
-    let mut state = make_state();
-    state.dashboard_focus = Some(shell_switcher_target());
-    assert!(!state.focus_visible);
-
-    dispatch(
-        &mut state,
-        Message::Shortcut(ShortcutMessage::ActivateFocused),
-    );
-
-    assert!(state.focus_visible);
-    // Nothing else changed — the switcher did not open.
-    assert!(!state.workspace_mgr.switcher_open);
-}
-
-/// RFC-066 D4: the same reveal-only rule does not apply once the outline
-/// is already visible — `handle_shortcut`'s new gate is
-/// `!focus_visible && !text_input`, so with `focus_visible` already
-/// `true` it falls straight through to the existing, unchanged
-/// `activate_focused` path. Checked via the pure decision it would use
-/// (`focus::activation_message`), the same way
-/// `enter_on_a_row_action_dispatches_the_same_message_a_click_would_r3`
-/// does — `activate_in` wraps a real activation in `Task::done(msg)`,
-/// which `dispatch` (one `update()` call) cannot run through to observe
-/// as a side effect.
-#[test]
-fn activate_focused_with_visible_ring_would_press_the_target() {
-    let mut state = make_state();
-    // RFC-073 D4: the switcher is only a Tab stop with two or more
-    // workspaces.
-    install_workspaces(
-        &mut state,
-        vec![Workspace::new("Main"), Workspace::new("Other")],
-        0,
-    );
-    let order = crate::view::shell::focus_order(&state);
-    assert!(matches!(
-        focus::activation_message(&order, Some(&shell_switcher_target())),
-        Some(Message::Workspace(WorkspaceMessage::SwitcherToggled))
-    ));
-}
+// RFC-066 D4/R5's "reveal the ring instead of pressing" tests for the page
+// (`activate_focused_with_hidden_ring_reveals_it_without_pressing`,
+// `activate_focused_with_visible_ring_would_press_the_target`) are retired
+// with the page's own knotra-focus model (RFC-075 §2): `ActivateFocused`
+// is a flat no-op on the page now, never reaching this logic at all (see
+// `app.rs`'s own comment on that match arm). The rule still holds for a
+// window, which is what `handle_shortcut`'s unit-level coverage for it now
+// exercises.
 
 /// RFC-066 Stage 2 R2: the entry's activation message must never be one
 /// of these change-starting messages. Add a new arm here whenever a new
@@ -2199,35 +2146,13 @@ fn arrow_keys_advance_a_windows_order_like_tab_when_one_is_open() {
     );
 }
 
-/// RFC-066 D5: outside any window, the arrows keep today's card
-/// navigation (RFC-035 R22), unchanged — `j`/`k`'s own existing coverage
-/// (`advance_card_focus_moves_through_row_name_targets_only_and_wraps`)
-/// proves the mechanism; this proves `↓`/`↑` reach the identical result.
-#[test]
-fn arrow_down_matches_j_on_the_dashboard_with_no_window_open() {
-    fn two_project_state(workspace: Workspace) -> AppState {
-        let mut state = make_state();
-        state.workspace = Some(workspace);
-        state
-    }
-    let workspace = Workspace {
-        projects: vec![make_project("alpha"), make_project("beta")],
-        ..Workspace::new("Test")
-    };
-    let mut j_state = two_project_state(workspace.clone());
-    let mut arrow_state = two_project_state(workspace);
-
-    dispatch(
-        &mut j_state,
-        Message::Shortcut(ShortcutMessage::CardFocusNext),
-    );
-    dispatch(
-        &mut arrow_state,
-        Message::Shortcut(ShortcutMessage::ArrowDown),
-    );
-
-    assert_eq!(j_state.dashboard_focus, arrow_state.dashboard_focus);
-}
+// `arrow_down_matches_j_on_the_dashboard_with_no_window_open` (RFC-066 D5)
+// read `state.dashboard_focus` after dispatching, which RFC-075 retires —
+// the page's real focus lives in the live widget tree now, not a value
+// this test file's single-`update()` `dispatch` helper can read
+// synchronously afterward. `knotra_ui::widget::keyboard`'s own tests cover
+// `↓`/`↑`/`j`/`k` landing on the same real id through the harness instead
+// (RFC-075 stage 2 §5's acceptance tests, `keyboard_acceptance.rs`).
 
 /// RFC-066 Stage 2's own explicit test: ↓ from the palette's search field
 /// reaches the first result, and Enter there runs it — the palette's
@@ -2237,9 +2162,7 @@ fn arrow_down_matches_j_on_the_dashboard_with_no_window_open() {
 /// decision function directly (`focus::activation_message`), not a
 /// dispatched `ActivateFocused`: activation wraps the real message in
 /// `Task::done(msg)`, which this test file's one-`update()`-call `dispatch`
-/// helper cannot execute to observe as a state change — the same
-/// limitation `activate_focused_with_visible_ring_would_press_the_target`
-/// above already works around the same way.
+/// helper cannot execute to observe as a state change.
 #[test]
 fn palette_arrow_down_from_the_field_reaches_the_first_result_and_enter_runs_it() {
     let mut state = make_state();
@@ -2268,7 +2191,6 @@ fn palette_arrow_down_from_the_field_reaches_the_first_result_and_enter_runs_it(
 #[test]
 fn create_dialog_escape_closes_and_returns_focus_to_the_opener_r7() {
     let mut state = make_state();
-    state.dashboard_focus = Some(shell_switcher_target());
 
     dispatch(
         &mut state,
@@ -2280,7 +2202,6 @@ fn create_dialog_escape_closes_and_returns_focus_to_the_opener_r7() {
 
     assert!(state.workspace_mgr.create_dialog.is_none());
     assert_eq!(state.overlay_focus, None);
-    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
 }
 
 #[test]
@@ -2292,7 +2213,6 @@ fn create_dialog_scrim_click_closes_and_returns_focus_to_the_opener_r7() {
     // because the two routes are conceptually distinct even though this
     // codebase happens to converge them onto one message today.
     let mut state = make_state();
-    state.dashboard_focus = Some(shell_switcher_target());
 
     dispatch(
         &mut state,
@@ -2303,7 +2223,6 @@ fn create_dialog_scrim_click_closes_and_returns_focus_to_the_opener_r7() {
 
     assert!(state.workspace_mgr.create_dialog.is_none());
     assert_eq!(state.overlay_focus, None);
-    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
 }
 
 #[test]
@@ -2313,7 +2232,6 @@ fn create_dialog_header_close_returns_focus_to_the_opener_r7() {
     // `close_topmost_layer` entirely — a genuinely different code path from
     // the Escape/scrim tests above.
     let mut state = make_state();
-    state.dashboard_focus = Some(shell_switcher_target());
 
     dispatch(
         &mut state,
@@ -2327,7 +2245,6 @@ fn create_dialog_header_close_returns_focus_to_the_opener_r7() {
 
     assert!(state.workspace_mgr.create_dialog.is_none());
     assert_eq!(state.overlay_focus, None);
-    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
 }
 
 #[test]
@@ -2702,13 +2619,11 @@ fn non_cancellable_overlay_does_not_leak_tab_to_the_shell() {
     // Tab must still not reach shell controls hidden beneath it. An empty
     // overlay order makes Tab a safe no-op instead of leaking through.
     let mut state = make_state();
-    state.dashboard_focus = Some(shell_switcher_target());
     state.active_modal = ActiveModal::Tag;
     state.freezer.phase = FreezerPhase::Executing;
 
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
 
-    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
     assert_eq!(state.overlay_focus, None);
 
     // Escape is inert during the non-cancellable phase (existing
@@ -2717,7 +2632,6 @@ fn non_cancellable_overlay_does_not_leak_tab_to_the_shell() {
     // still legitimately open.
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
     assert_eq!(state.active_modal, ActiveModal::Tag);
-    assert_eq!(state.dashboard_focus, Some(shell_switcher_target()));
 }
 
 #[test]
@@ -2770,274 +2684,6 @@ fn install_dashboard_projects(state: &mut AppState) -> (ProjectId, ProjectId, Pr
     state.config.dashboard_all_set_collapsed = false;
 
     (alpha_id, beta_id, gamma_id)
-}
-
-fn name_target_ids(order: &focus::FocusOrder<Message>) -> Vec<String> {
-    order
-        .iter()
-        .map(|(t, _)| format!("{t:?}"))
-        .filter(|debug| debug.ends_with(".name\")"))
-        .collect()
-}
-
-#[test]
-fn dashboard_row_order_matches_ordered_selectable_ids_r2() {
-    let mut state = make_state();
-    let (alpha_id, beta_id, gamma_id) = install_dashboard_projects(&mut state);
-
-    let expected: Vec<String> = state
-        .dashboard_display()
-        .ordered_selectable_ids
-        .iter()
-        .map(|id| {
-            format!(
-                "{:?}",
-                FocusTarget::control_dynamic(format!("dashboard.row.{id}.name"))
-            )
-        })
-        .collect();
-    assert_eq!(
-        expected,
-        vec![
-            format!(
-                "{:?}",
-                FocusTarget::control_dynamic(format!("dashboard.row.{alpha_id}.name"))
-            ),
-            format!(
-                "{:?}",
-                FocusTarget::control_dynamic(format!("dashboard.row.{beta_id}.name"))
-            ),
-            format!(
-                "{:?}",
-                FocusTarget::control_dynamic(format!("dashboard.row.{gamma_id}.name"))
-            ),
-        ],
-        "sanity: NeedsHelp, InProgress, AllSet is the expected tier order"
-    );
-
-    let order = crate::view::dashboard::focus_order(&state);
-    assert_eq!(name_target_ids(&order), expected);
-}
-
-#[test]
-fn dashboard_row_order_matches_ordered_selectable_ids_project_group_grouping_r2() {
-    let mut state = make_state();
-    let (alpha_id, beta_id, gamma_id) = install_dashboard_projects(&mut state);
-    state.config.dashboard_grouping = DashboardGrouping::ProjectGroup;
-
-    let expected: Vec<String> = state
-        .dashboard_display()
-        .ordered_selectable_ids
-        .iter()
-        .map(|id| {
-            format!(
-                "{:?}",
-                FocusTarget::control_dynamic(format!("dashboard.row.{id}.name"))
-            )
-        })
-        .collect();
-    // Sanity: all three still present under a different grouping, in
-    // whatever order `ordered_selectable_ids` itself gives (its own
-    // ordering logic is not this test's concern - only that row targets
-    // follow it exactly).
-    assert_eq!(expected.len(), 3);
-    let _ = (alpha_id, beta_id, gamma_id);
-
-    let order = crate::view::dashboard::focus_order(&state);
-    assert_eq!(name_target_ids(&order), expected);
-}
-
-#[test]
-fn collapsed_section_contributes_no_row_targets_but_keeps_its_header() {
-    let mut state = make_state();
-    let (_, _, gamma_id) = install_dashboard_projects(&mut state);
-    state.config.dashboard_all_set_collapsed = true;
-
-    let order = crate::view::dashboard::focus_order(&state);
-    let debug: Vec<String> = order.iter().map(|(t, _)| format!("{t:?}")).collect();
-
-    assert!(
-        debug.iter().any(|d| d.contains("dashboard.section.AllSet")),
-        "collapsed section's header must remain a Tab stop so it can be reopened"
-    );
-    assert!(
-        !debug.iter().any(|d| d.contains(&gamma_id.to_string())),
-        "a collapsed section's rows must not appear (it renders no rows)"
-    );
-}
-
-#[test]
-fn needs_help_header_is_never_a_collapse_target() {
-    let mut state = make_state();
-    install_dashboard_projects(&mut state);
-
-    let order = crate::view::dashboard::focus_order(&state);
-    assert!(
-        !order
-            .iter()
-            .any(|(t, _)| format!("{t:?}").contains("dashboard.section.NeedsHelp")),
-        "NeedsHelp has no chevron and must not be a focus target"
-    );
-}
-
-#[test]
-fn tab_reaches_section_header_checkbox_and_row_action() {
-    let mut state = make_state();
-    let (alpha_id, _, _) = install_dashboard_projects(&mut state);
-    state.selection_mode = true;
-
-    let order = crate::view::dashboard::focus_order(&state);
-    let debug: Vec<String> = order.iter().map(|(t, _)| format!("{t:?}")).collect();
-
-    assert!(debug.iter().any(|d| d.contains("dashboard.section.")));
-    assert!(
-        debug
-            .iter()
-            .any(|d| d.contains(&format!("dashboard.row.{alpha_id}.checkbox")))
-    );
-    assert!(
-        debug
-            .iter()
-            .any(|d| d.contains(&format!("dashboard.row.{alpha_id}.action")))
-    );
-}
-
-#[test]
-fn enter_on_a_row_action_dispatches_the_same_message_a_click_would_r3() {
-    // `activate_focused` returns a `Task::done(msg)` for a non-text-input
-    // activation, which this integration harness (like every other Stage
-    // 1-3 Task-producing test) cannot run through to a second `update()`
-    // call - `dispatch` only executes one `update()`, and `Task` is not
-    // otherwise inspectable. So this asserts the pure decision
-    // (`focus::activation_message`) yields exactly the `Message` the
-    // pointer-click path (`view_project_row`'s non-conflict action button)
-    // would dispatch, which is the same guarantee Stage 3's
-    // `seven_site_fix_...` test relies on for the same reason.
-    let mut state = make_state();
-    let (alpha_id, _, _) = install_dashboard_projects(&mut state);
-
-    let mut order = crate::view::shell::focus_order(&state);
-    order.extend(crate::view::dashboard::focus_order(&state));
-
-    // Alpha's cause is MissingPath, not Conflict, so its action button opens
-    // the detail panel (see `view_project_row`'s non-conflict branch).
-    let target = FocusTarget::control_dynamic(format!("dashboard.row.{alpha_id}.action"));
-    match focus::activation_message(&order, Some(&target)) {
-        Some(Message::DetailPanel(DetailPanelMessage::Opened(id))) => {
-            assert_eq!(id, alpha_id);
-        }
-        other => panic!("expected DetailPanel::Opened({alpha_id}), got {other:?}"),
-    }
-}
-
-#[test]
-fn tab_from_a_stale_row_target_lands_on_the_second_entry_r9() {
-    // Deliberate choice (RFC-036 Stage 4 R9 decision): `resolve()`'s
-    // fallback treats the first live target in the *current combined order*
-    // as the effective "current" position even when the stored target has
-    // vanished, so `advance`'s `Next` moves *past* it to the second entry -
-    // the same uniform rule Stage 1 already uses for a freshly-opened,
-    // never-focused context, not a special case invented for rows.
-    //
-    // Because Tab traverses one flat shell-then-rows order, "the second
-    // entry" here is the shell's second target (`shell.nav.dashboard`), not
-    // a second row - falling all the way back to the shell is the honest
-    // consequence of there being one order, not two, and is recorded here
-    // rather than glossed over. Rationale: one fallback rule for "no
-    // defined current position" everywhere is simpler than adding a
-    // row-scoped variant that only kicks in once rows can disappear out
-    // from under focus.
-    let mut state = make_state();
-    let (_, beta_id, _) = install_dashboard_projects(&mut state);
-
-    state.dashboard_focus = Some(FocusTarget::control_dynamic(format!(
-        "dashboard.row.{beta_id}.name"
-    )));
-
-    // Beta is removed outright - its target vanishes from the
-    // next-computed order (a stronger stand-in for "filtered/refreshed
-    // away" than a text filter, and avoids a filter substring accidentally
-    // also matching Beta's own name).
-    state
-        .workspace
-        .as_mut()
-        .expect("workspace installed")
-        .projects
-        .retain(|p| p.id != beta_id);
-
-    let expected_order = {
-        let mut order = crate::view::shell::focus_order(&state);
-        order.extend(crate::view::dashboard::focus_order(&state));
-        order
-    };
-    let expected_second = expected_order
-        .get(1)
-        .map(|(t, _)| t.clone())
-        .expect("at least two targets remain");
-
-    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
-
-    assert_eq!(state.dashboard_focus, Some(expected_second));
-}
-
-#[test]
-fn ctrl_slash_now_actually_focuses_search_not_only_the_screen() {
-    // Regression test required by `.git-exclude/reviewed/079-rfc-036-stage-4-review.md`
-    // review focus 3: `Ctrl+/`'s handler previously only switched screens
-    // and never called `focus_input` at all - the pre-existing gap fixed
-    // as part of Stage 4's `focus_search()` sharing. Without this test, a
-    // future change reintroducing that gap would ship silently, exactly as
-    // it did the first time.
-    let mut state = make_state();
-    state.screen = Screen::Settings;
-    assert_eq!(state.dashboard_focus, None);
-
-    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusSearch));
-
-    assert_eq!(state.screen, Screen::Dashboard);
-    assert_eq!(
-        state.dashboard_focus,
-        Some(FocusTarget::text_input(
-            knotra_ui::widget::focus_id::SEARCH.clone()
-        ))
-    );
-}
-
-#[test]
-fn bare_slash_focuses_search_with_no_text_input_focused_r4() {
-    let mut state = make_state();
-    assert_eq!(state.dashboard_focus, None);
-
-    dispatch(
-        &mut state,
-        Message::Shortcut(ShortcutMessage::FocusSearchBare),
-    );
-
-    assert_eq!(state.screen, Screen::Dashboard);
-    assert_eq!(
-        state.dashboard_focus,
-        Some(FocusTarget::text_input(
-            knotra_ui::widget::focus_id::SEARCH.clone()
-        ))
-    );
-}
-
-#[test]
-fn bare_slash_types_a_literal_character_when_a_text_input_already_holds_focus_r4() {
-    let mut state = make_state();
-    let already_focused =
-        FocusTarget::text_input(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone());
-    state.dashboard_focus = Some(already_focused.clone());
-
-    dispatch(
-        &mut state,
-        Message::Shortcut(ShortcutMessage::FocusSearchBare),
-    );
-
-    // Gated: knotra-focus must not have been redirected to search, so the
-    // literal `/` iced delivers separately reaches the field that was
-    // actually focused, not a jump to search.
-    assert_eq!(state.dashboard_focus, Some(already_focused));
 }
 
 #[test]
@@ -4368,11 +4014,9 @@ fn shortcut_focus_search_does_nothing_while_a_window_is_open() {
         Message::Shortcut(ShortcutMessage::FocusSearchBare),
     );
     assert_eq!(state.screen, Screen::History);
-    assert_eq!(state.dashboard_focus, None);
 
     dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusSearch));
     assert_eq!(state.screen, Screen::History);
-    assert_eq!(state.dashboard_focus, None);
 }
 
 #[test]

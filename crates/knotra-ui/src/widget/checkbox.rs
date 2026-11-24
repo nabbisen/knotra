@@ -99,6 +99,28 @@ pub fn checkbox_control<'a, Message: Clone + 'a>(
         .into()
 }
 
+/// [`checkbox_control`] without `.label(...)` at all — RFC-075 stage 2 §3
+/// (Review 298 F4): a dashboard row's checkbox draws no label of its own
+/// (the project name beside it already says which row it is; a drawn
+/// label here would repeat it). The caller supplies today's tooltip text
+/// the same way the old [`checkbox`] did (a hover-only accessible label),
+/// by wrapping this element itself — `snora::design::checkbox` has no
+/// separate "accessible label, not drawn" parameter of its own, only
+/// `.label(...)`, which this skips entirely rather than calling with an
+/// empty string.
+#[must_use]
+pub fn checkbox_control_unlabeled<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    is_checked: bool,
+    on_toggle: impl Fn(bool) -> Message + 'a,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    snora::design::checkbox(tokens, is_checked, super::layout::APP_DIRECTION)
+        .on_toggle(on_toggle)
+        .id(id)
+        .into()
+}
+
 /// `surface`/`accent` background, `border` at rest, `text_primary` icon
 /// colour when unchecked and `accent_text` when checked (the same
 /// on-accent pairing `chip::filter`'s selected state and `select`'s

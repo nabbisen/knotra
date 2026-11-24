@@ -7,14 +7,21 @@
 //! `snora::AppLayout::header`; the switcher's dropdown renders into
 //! `AppLayout::header_menu`, a separate engine layer positioned below this
 //! bar (see `switcher_menu` below).
+//!
+//! **RFC-075 stage 2 §3:** every control in the bar itself (the switcher's
+//! own trigger, Dashboard/History, Check now, the command palette, and
+//! Settings) is now a `snora::design::control` — a real Tab stop with its
+//! own ring, Enter/Space, and `.id(...)` (`view::ids::shell`). **The
+//! switcher's dropdown stays knotra's own model until stage 3** (the
+//! handoff's own carve-out): [`switcher_menu_layer_focus`] and
+//! [`switcher_menu`] are unchanged below.
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, column, container, row, text},
+    widget::{Space, column, container, row, text, tooltip},
 };
 use knotra_ui::widget::{
     self, BUTTON_HEIGHT, Tokens, centered_button_label, centered_button_row, icon,
-    icon_button_maybe,
 };
 
 use crate::{
@@ -23,18 +30,14 @@ use crate::{
         AppState, Screen,
         focus::{FocusOrder, FocusTarget, LayerFocus},
     },
+    view::ids,
 };
 
-/// Stable keys for the shell's `FocusTarget`s (RFC-036), shared between
-/// [`focus_order`] (Tab/Shift-Tab + activation) and `view` (which control
-/// currently draws the ring). Kept as one list so the two cannot drift.
+/// Stable keys for the switcher **menu's** `FocusTarget`s (RFC-036) — the
+/// one part of this module still on knotra's own model this stage (see the
+/// module doc). The bar's own controls now take their ids from
+/// `view::ids::shell` instead.
 mod focus_target {
-    pub const WORKSPACE_SWITCHER: &str = "shell.workspace_switcher";
-    pub const NAV_DASHBOARD: &str = "shell.nav.dashboard";
-    pub const NAV_HISTORY: &str = "shell.nav.history";
-    pub const REFRESH: &str = "shell.refresh";
-    pub const PALETTE: &str = "shell.palette";
-    pub const SETTINGS: &str = "shell.settings";
     pub const ADD_WORKSPACE: &str = "shell.switcher.add_workspace";
     pub const RENAME: &str = "shell.switcher.rename";
     pub const DELETE: &str = "shell.switcher.delete";
@@ -91,52 +94,6 @@ pub fn switcher_menu_layer_focus(state: &AppState) -> LayerFocus<Message> {
     }
 }
 
-/// The shell's Tab/Shift-Tab focus order (RFC-036 R1/R2), each target paired
-/// with the `Message` a pointer click on it would dispatch right now —
-/// `None` where a click currently does nothing (e.g. the already-active nav
-/// destination), so keyboard activation cannot diverge from pointer
-/// activation (R3).
-pub fn focus_order(state: &AppState) -> FocusOrder<Message> {
-    let dashboard_active = matches!(state.screen, Screen::Dashboard);
-    let history_active = matches!(state.screen, Screen::History);
-
-    // RFC-073 D4: with one workspace the switcher renders as plain text,
-    // not a button — so it is not a Tab stop either (the same "a target
-    // must correspond to an actually-rendered control" rule D1 applies to
-    // the dashboard toolbar).
-    let mut order: FocusOrder<Message> = Vec::new();
-    if state.all_workspaces.len() > 1 {
-        order.push((
-            FocusTarget::control(focus_target::WORKSPACE_SWITCHER),
-            Some(Message::Workspace(WorkspaceMessage::SwitcherToggled)),
-        ));
-    }
-    order.extend(vec![
-        (
-            FocusTarget::control(focus_target::NAV_DASHBOARD),
-            (!dashboard_active).then_some(Message::Navigate(Screen::Dashboard)),
-        ),
-        (
-            FocusTarget::control(focus_target::NAV_HISTORY),
-            (!history_active).then_some(Message::Navigate(Screen::History)),
-        ),
-        (
-            FocusTarget::control(focus_target::REFRESH),
-            (!state.is_refreshing)
-                .then_some(Message::Workspace(WorkspaceMessage::RefreshRequested)),
-        ),
-        (
-            FocusTarget::control(focus_target::PALETTE),
-            Some(Message::Palette(crate::message::PaletteMessage::Opened)),
-        ),
-        (
-            FocusTarget::control(focus_target::SETTINGS),
-            Some(Message::Navigate(Screen::Settings)),
-        ),
-    ]);
-    order
-}
-
 /// Height of the persistent shell bar (RFC-033 D7: 48-52px). Also used to
 /// position the switcher dropdown (`header_menu`) directly beneath it, since
 /// `AppLayout` renders `header_menu` as its own full-window stack layer with
@@ -157,32 +114,27 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     // RFC-073 D4: with one workspace, its name is plain text, not a menu;
     // the switcher (switch/create/rename/delete) appears only with two or
-    // more. The unlabelled attention count that used to follow the name
-    // is gone — the "Needs help" chip already says it.
+    // more.
     let workspace_header: Element<'_, Message> = if state.all_workspaces.len() > 1 {
+        let t = tokens.clone();
         // RFC-073 D8: `BUTTON_HEIGHT` — a header control.
-        button(centered_button_row(
-            row![
-                text(workspace_name.to_owned())
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens)),
-                widget::icon::icon_element(&icon::chevron_down()),
-            ]
-            .spacing(6),
-        ))
+        snora::design::control(
+            tokens,
+            centered_button_row(
+                row![
+                    text(workspace_name.to_owned())
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
+                    widget::icon::icon_element(&icon::chevron_down()),
+                ]
+                .spacing(6),
+            ),
+        )
         .height(Length::Fixed(BUTTON_HEIGHT))
-        .padding([0, 12])
+        .id(ids::shell::workspace_switcher())
+        .padding([0.0, 12.0])
         .on_press(Message::Workspace(WorkspaceMessage::SwitcherToggled))
-        .style({
-            let t = tokens.clone();
-            let focused = crate::app::ring(
-                state,
-                &FocusTarget::control(focus_target::WORKSPACE_SWITCHER),
-            );
-            move |_theme, status| {
-                widget::style::with_focus_ring(&t, focused, widget::style::ghost(&t, status))
-            }
-        })
+        .style(move |_theme, status| widget::style::ghost(&t, status))
         .into()
     } else {
         text(workspace_name.to_owned())
@@ -194,22 +146,30 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let dashboard_active = matches!(state.screen, Screen::Dashboard);
     let history_active = matches!(state.screen, Screen::History);
 
-    let nav_button = |label: &str, active: bool, target: Screen, tokens: &Tokens, focused: bool| {
+    // RFC-012 R12: the current destination is the *most* salient item —
+    // `secondary` (Active) when it is, `ghost` otherwise. `Control`'s own
+    // ring draws the keyboard-focus indicator now; nothing here keys off
+    // it directly any more (RFC-075 D1).
+    let nav_control = |label: &str, active: bool, target: Screen, id: iced::widget::Id| {
         let t = tokens.clone();
-        // RFC-073 D8: `BUTTON_HEIGHT` — a header control.
-        button(centered_button_label(
-            text(label.to_owned())
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-        ))
+        snora::design::control(
+            tokens,
+            centered_button_row(row![
+                text(label.to_owned())
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
+            ]),
+        )
         .height(Length::Fixed(BUTTON_HEIGHT))
-        .padding([0, 12])
+        .id(id)
+        .padding([0.0, 12.0])
         .on_press_maybe((!active).then_some(Message::Navigate(target)))
         .style(move |_theme, status| {
-            // R12: the current destination must be the *most* salient
-            // item, not the least — see `current_or`'s own doc comment
-            // for why a fixed status is fed in (RFC-033 D4; review 066).
-            widget::current_or(active, &t, status, focused)
+            if active {
+                widget::style::secondary(&t, iced::widget::button::Status::Active)
+            } else {
+                widget::style::ghost(&t, status)
+            }
         })
     };
 
@@ -227,76 +187,74 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // keeps the icon-only control with today's tooltip, unchanged.
     let compact = matches!(state.width_mode, crate::view::dashboard::WidthMode::Compact);
     let refresh_button = if compact {
-        icon_button_maybe(
+        icon_control_with_tooltip(
             tokens,
             &icon::refresh(),
             state.t("plain.check_now"),
             (!state.is_refreshing)
                 .then_some(Message::Workspace(WorkspaceMessage::RefreshRequested)),
-            crate::app::ring(state, &FocusTarget::control(focus_target::REFRESH)),
+            ids::shell::refresh(),
         )
     } else {
-        widget::header_control(
+        header_icon_control(
             tokens,
             &icon::refresh(),
             state.t("plain.check_now"),
             (!state.is_refreshing)
                 .then_some(Message::Workspace(WorkspaceMessage::RefreshRequested)),
-            crate::app::ring(state, &FocusTarget::control(focus_target::REFRESH)),
+            ids::shell::refresh(),
         )
     };
 
     let palette_button = if compact {
-        icon_button_maybe(
+        icon_control_with_tooltip(
             tokens,
             &icon::command_palette(),
             state.t("palette.title"),
             Some(Message::Palette(crate::message::PaletteMessage::Opened)),
-            crate::app::ring(state, &FocusTarget::control(focus_target::PALETTE)),
+            ids::shell::palette(),
         )
     } else {
-        widget::header_control(
+        header_icon_control(
             tokens,
             &icon::command_palette(),
             state.t("palette.title"),
             Some(Message::Palette(crate::message::PaletteMessage::Opened)),
-            crate::app::ring(state, &FocusTarget::control(focus_target::PALETTE)),
+            ids::shell::palette(),
         )
     };
 
     let settings_button = if compact {
-        icon_button_maybe(
+        icon_control_with_tooltip(
             tokens,
             &icon::settings(),
             state.t("nav.settings"),
             Some(Message::Navigate(Screen::Settings)),
-            crate::app::ring(state, &FocusTarget::control(focus_target::SETTINGS)),
+            ids::shell::settings(),
         )
     } else {
-        widget::header_control(
+        header_icon_control(
             tokens,
             &icon::settings(),
             state.t("nav.settings"),
             Some(Message::Navigate(Screen::Settings)),
-            crate::app::ring(state, &FocusTarget::control(focus_target::SETTINGS)),
+            ids::shell::settings(),
         )
     };
 
     let bar = row![
         workspace_header,
-        nav_button(
+        nav_control(
             state.t("nav.dashboard"),
             dashboard_active,
             Screen::Dashboard,
-            tokens,
-            crate::app::ring(state, &FocusTarget::control(focus_target::NAV_DASHBOARD))
+            ids::shell::nav_dashboard(),
         ),
-        nav_button(
+        nav_control(
             state.t("nav.history"),
             history_active,
             Screen::History,
-            tokens,
-            crate::app::ring(state, &FocusTarget::control(focus_target::NAV_HISTORY))
+            ids::shell::nav_history(),
         ),
         Space::new().width(Length::Fill),
         status_text,
@@ -314,10 +272,84 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .into()
 }
 
+/// The compact band's icon-only header control, with today's tooltip —
+/// [`knotra_ui::widget::icon_button_maybe`]'s own twin on `snora::design::
+/// control`.
+fn icon_control_with_tooltip<'a>(
+    tokens: &Tokens,
+    icon: &snora::Icon,
+    accessible_label: impl Into<String>,
+    on_press: Option<Message>,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    let t = tokens.clone();
+    let btn = snora::design::control(
+        tokens,
+        centered_button_row(row![widget::icon::icon_element(icon)]),
+    )
+    .height(Length::Fixed(BUTTON_HEIGHT))
+    .width(Length::Fixed(BUTTON_HEIGHT))
+    .id(id)
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| widget::style::ghost(&t, status));
+
+    tooltip(
+        btn,
+        widget::overlay::raised_card(
+            tokens,
+            // RFC-071 Amendment A3 D14: a tooltip is a transient hint, not
+            // primary content read to act — `body_small`, today's size
+            // (`knotra_ui::widget::icon_button_maybe`'s own treatment,
+            // this control's own retired twin).
+            text(accessible_label.into())
+                .size(snora::design::style::text::body_small_size(tokens))
+                .line_height(snora::design::style::text::body_small_line_height(tokens)),
+        ),
+        tooltip::Position::Bottom,
+    )
+    .into()
+}
+
+/// The standard/wide bands' icon-and-label header control —
+/// [`knotra_ui::widget::header_control`]'s own twin on `snora::design::
+/// control`.
+fn header_icon_control<'a>(
+    tokens: &Tokens,
+    icon: &snora::Icon,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    let t = tokens.clone();
+    snora::design::control(
+        tokens,
+        centered_button_row(
+            row![
+                widget::icon::icon_element_sized(icon, 16.0),
+                text(label.into())
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+            ]
+            .spacing(6),
+        ),
+    )
+    .height(Length::Fixed(BUTTON_HEIGHT))
+    .id(id)
+    .padding([0.0, 12.0])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| widget::style::ghost(&t, status))
+    .into()
+}
+
 /// The switcher's dropdown content, rendered through `AppLayout::header_menu`
 /// when open. `None` when closed — callers must not set the layout slot at
 /// all in that case (an empty `Some` would still opt into the click-outside
 /// backdrop per `AppLayout` semantics).
+///
+/// **Unchanged by RFC-075 stage 2** (the handoff's own carve-out: "the
+/// switcher's menu stays knotra's until stage 3") — still a plain `button`,
+/// still drawing its own ring from `crate::app::ring`/knotra's `FocusTarget`
+/// model.
 pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
     if !state.workspace_mgr.switcher_open {
         return None;
@@ -339,7 +371,7 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
         );
         // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a menu row.
         items = items.push(
-            button(centered_button_label(
+            iced::widget::button(centered_button_label(
                 text(ws.name.clone())
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
@@ -360,7 +392,7 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
     let menu_action = |label: &str, msg: Message, tokens: &Tokens, is_focused: bool| {
         let t = tokens.clone();
         // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a menu row.
-        button(centered_button_label(
+        iced::widget::button(centered_button_label(
             text(label.to_owned())
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens)),
@@ -421,7 +453,7 @@ fn danger_menu_action<'a>(
 ) -> Element<'a, Message> {
     let t = tokens.clone();
     // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a menu row.
-    button(centered_button_label(
+    iced::widget::button(centered_button_label(
         text(label)
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),

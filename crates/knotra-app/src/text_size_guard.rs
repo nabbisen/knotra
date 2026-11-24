@@ -381,10 +381,19 @@ mod tests {
     ///   inside metadata.
     const EXPECTED_BODY_SMALL_SITES: &[(&str, usize)] = &[
         ("view/add_project_modal.rs", 1),
-        ("view/dashboard/row.rs", 1),
+        // RFC-075 stage 2 §3: the row checkbox's accessible-label tooltip
+        // (Review 298 F4: the checkbox itself draws no label any more, so
+        // the old `checkbox` primitive's own tooltip text moved here,
+        // beside the pre-existing VCS-kind sub-line).
+        ("view/dashboard/row.rs", 2),
         ("view/detail_panel.rs", 2),
         ("view/history.rs", 2),
         ("view/overlays/context_switch.rs", 2),
+        // RFC-075 stage 2 §3: the compact band's icon-only header
+        // controls' own tooltip, hand-rolled here now that the switcher's
+        // bar is on `snora::design::control` rather than
+        // `knotra_ui::widget::icon_button_maybe`.
+        ("view/shell.rs", 1),
         ("widget/buttons.rs", 1),
         ("widget/checkbox.rs", 1),
         ("widget/field.rs", 1),
