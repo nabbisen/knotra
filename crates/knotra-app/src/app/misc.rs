@@ -330,8 +330,22 @@ pub(super) fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> T
     let ordered: Vec<knotra_vcs::ProjectId> = state.visible_project_ids();
 
     match msg {
-        SelectionMessage::ModeEntered => state.selection_mode = true,
-        SelectionMessage::ModeExited => state.clear_selection_mode(),
+        // RFC-075 stage 2 §5 finding (the same one `ArrangeToggled` has
+        // its own fix for): entering selection mode gives every row a new
+        // checkbox and reveals the selection bar — the tree this control
+        // itself sits in changes shape, and the rebuilt tree's real focus
+        // comes back `None` (or, confirmed directly, wraps to the page's
+        // first control on the very next Tab) rather than staying on
+        // "Select". Re-asserted explicitly, in the same `Task`, the same
+        // shape every other focus-moving path in this app already uses.
+        SelectionMessage::ModeEntered => {
+            state.selection_mode = true;
+            return iced::widget::operation::focus(crate::view::ids::toolbar::select_mode());
+        }
+        SelectionMessage::ModeExited => {
+            state.clear_selection_mode();
+            return iced::widget::operation::focus(crate::view::ids::toolbar::select_mode());
+        }
         SelectionMessage::Toggled(id) => {
             let active_ids: std::collections::HashSet<_> = ordered.iter().cloned().collect();
             if !active_ids.contains(&id) {
@@ -346,7 +360,10 @@ pub(super) fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> T
             state.selection.clear();
             state.selection.select_all(&ids);
         }
-        SelectionMessage::Clear => state.clear_selection_mode(),
+        SelectionMessage::Clear => {
+            state.clear_selection_mode();
+            return iced::widget::operation::focus(crate::view::ids::toolbar::select_mode());
+        }
     }
     Task::none()
 }

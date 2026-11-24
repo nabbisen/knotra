@@ -438,7 +438,7 @@ mod tests {
 #[cfg(test)]
 mod findings {
     use crate::config::AppConfig;
-    use crate::message::{DashboardMessage, Message, ShortcutMessage};
+    use crate::message::{DashboardMessage, Message, SelectionMessage, ShortcutMessage};
     use crate::state::AppState;
     use crate::view::{app_view, ids};
     use iced_test::core::Size;
@@ -539,6 +539,53 @@ mod findings {
             Some(ids::toolbar::arrange()),
             "Arrange must still be focused once its own panel is revealed, not lost to the \
              tree gaining a new sibling"
+        );
+    }
+
+    /// The same finding, the same fix, for "Select" (RFC-075 stage 2 §5):
+    /// entering selection mode gives every row a new checkbox and reveals
+    /// the selection bar — the identical "this control's own tree gained
+    /// new siblings" shape `opening_the_arrange_panel_keeps_focus_on_
+    /// arrange` found and fixed for Arrange, confirmed separately here
+    /// rather than assumed to be covered by the same fix.
+    #[test]
+    fn entering_selection_mode_keeps_focus_on_select() {
+        let mut state = AppState::new(AppConfig::default());
+        let project = Project::new("Alpha", "/tmp");
+        state.workspace = Some(Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        });
+        state.load_phase = crate::state::LoadPhase::Ready;
+
+        let mut h = Harness::new(
+            app_view(extend(&state)),
+            Size::new(1100.0, 900.0),
+            Some(knotra_ui::widget::icon::FONT_BYTES),
+        );
+        // Shell (4) + chips (5) + Arrange + search = 11 presses; the 12th
+        // reaches Select.
+        for _ in 0..12 {
+            h = drive(h, &mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+        }
+        assert_eq!(h.focused_id(), Some(ids::toolbar::select_mode()));
+
+        h.enter();
+        assert!(matches!(
+            h.messages(),
+            [Message::Selection(SelectionMessage::ModeEntered)]
+        ));
+        h = drive(
+            h,
+            &mut state,
+            Message::Selection(SelectionMessage::ModeEntered),
+        );
+        assert!(state.selection_mode, "selection mode must now be on");
+        assert_eq!(
+            h.focused_id(),
+            Some(ids::toolbar::select_mode()),
+            "Select must still be focused once the selection bar and every row's \
+             checkbox appear, not lost to the tree gaining new siblings"
         );
     }
 }
