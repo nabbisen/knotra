@@ -312,9 +312,17 @@ mod tests {
                     None,
                     Id::new("chip"),
                 );
-                let mut h_old = Harness::new(old, size, None);
+                // The status badge draws a Lucide glyph on the "lucide"
+                // font family (`icon.rs`) — without loading it, that name
+                // resolves to whatever fallback the system/renderer picks,
+                // which is not guaranteed stable across platforms or even
+                // runs (confirmed: this comparison first failed on CI's
+                // Windows runner, then CI's own Ubuntu runner, neither
+                // reproducing locally, until this load was added).
+                let icon_font = Some(crate::widget::icon::FONT_BYTES);
+                let mut h_old = Harness::new(old, size, icon_font);
                 let (old_rgba, ow, oh) = h_old.screenshot(&theme.base);
-                let mut h_new = Harness::new(new, size, None);
+                let mut h_new = Harness::new(new, size, icon_font);
                 let (new_rgba, nw, nh) = h_new.screenshot(&theme.base);
                 if let Err(diff) = pixel_diff(&old_rgba, (ow, oh), &new_rgba, (nw, nh)) {
                     panic!("{preset} selected={selected}: not identical at rest: {diff}");
