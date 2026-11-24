@@ -385,10 +385,12 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
             state.config.dashboard_grouping = grouping;
             persist_config(state);
             state.reconcile_selection_with_display();
+            Task::none()
         }
         DashboardMessage::SortChanged(sort) => {
             state.config.dashboard_sort = sort;
             persist_config(state);
+            Task::none()
         }
         DashboardMessage::TierToggled(tier) => {
             if state.config.dashboard_grouping == DashboardGrouping::Attention {
@@ -406,6 +408,7 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
                 persist_config(state);
                 state.reconcile_selection_with_display();
             }
+            Task::none()
         }
         DashboardMessage::ArrangeToggled => {
             state.dashboard_arrange_open = !state.dashboard_arrange_open;
@@ -415,12 +418,24 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
             if !state.dashboard_arrange_open {
                 state.arrange_select_open = None;
             }
+            // RFC-075 stage 2 §5 finding: revealing (or removing) the
+            // panel inserts (or removes) a sibling in the toolbar's own
+            // `column![row![...], arrange_panel]` — the tree shape this
+            // control itself sits in changes, and the rebuilt tree's real
+            // focus comes back `None`, not still on "Arrange" (confirmed
+            // directly, `keyboard_acceptance.rs`'s own
+            // `opening_the_arrange_panel_loses_real_focus`). Re-asserting
+            // focus on this same control explicitly, in the same `Task`,
+            // is the same fix shape every other focus-moving path in this
+            // app already uses (`operation::focus(id)`) — not a workaround
+            // specific to this one control.
+            iced::widget::operation::focus(crate::view::ids::toolbar::arrange())
         }
         DashboardMessage::ArrangeSelectOpenChanged(which, opened) => {
             state.arrange_select_open = opened.then_some(which);
+            Task::none()
         }
     }
-    Task::none()
 }
 
 /// RFC-071 Amendment A7: the one function every setting-changing path in

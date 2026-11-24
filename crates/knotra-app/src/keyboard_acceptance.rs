@@ -434,3 +434,111 @@ mod tests {
         assert_eq!(h.focused_id(), Some(ids::empty::clear_filters()));
     }
 }
+
+#[cfg(test)]
+mod findings {
+    use crate::config::AppConfig;
+    use crate::message::{DashboardMessage, Message, ShortcutMessage};
+    use crate::state::AppState;
+    use crate::view::{app_view, ids};
+    use iced_test::core::Size;
+    use knotra_ui::test_support::Harness;
+    use knotra_vcs::{Project, Workspace};
+
+    fn extend(state: &AppState) -> &'static AppState {
+        unsafe { std::mem::transmute::<&AppState, &'static AppState>(state) }
+    }
+
+    fn drive(h: Harness<Message>, state: &mut AppState, msg: Message) -> Harness<Message> {
+        use iced::futures::StreamExt;
+        let task = crate::app::update(state, msg);
+        let mut h = h.rebuilt(app_view(extend(state)));
+        let Some(mut stream) = iced_test::runtime::task::into_stream(task) else {
+            return h;
+        };
+        loop {
+            match iced::futures::executor::block_on(stream.next()) {
+                Some(iced_test::runtime::Action::Widget(op)) => h.run_operation(op),
+                Some(_) => continue,
+                None => break,
+            }
+        }
+        h
+    }
+
+    /// **Found while capturing this stage's GUI evidence (C1), and
+    /// fixed**: opening the Arrange panel from the keyboard used to lose
+    /// real focus entirely, rather than leaving it on "Arrange" — the
+    /// very next Tab wrapped all the way back to the page's first control
+    /// instead of continuing into Group/Sort, defeating the behaviour
+    /// RFC-075 exists to provide.
+    ///
+    /// Root cause, read directly rather than guessed: pressing Enter on
+    /// "Arrange" (`snora::design::control`'s own built-in press, through
+    /// the ordinary event path) published `DashboardMessage::
+    /// ArrangeToggled` without moving focus itself — nothing there
+    /// differs from any other control. What changes is that the
+    /// toolbar's own `column![row![...], arrange_panel]` gains a **new
+    /// child** once `state.dashboard_arrange_open` flips, and the
+    /// rebuilt widget tree (`Harness::rebuilt`, the same cache-preserving
+    /// rebuild the real runtime does, via `UserInterface::build` and
+    /// `into_cache()`) reported **nothing** focused immediately
+    /// afterward — confirmed directly: `Arrange` was real-focused before
+    /// the toggle, and `focused_id()` came back `None` right after the
+    /// rebuild that revealed the panel, with no Tab pressed in between.
+    ///
+    /// **Fix**: `handle_dashboard`'s own `ArrangeToggled` arm now returns
+    /// `operation::focus(ids::toolbar::arrange())` in the same `Task` —
+    /// re-asserting focus explicitly, the same shape every other
+    /// focus-moving path in this app already uses, rather than relying
+    /// on the rebuild to preserve it on its own.
+    #[test]
+    fn opening_the_arrange_panel_keeps_focus_on_arrange() {
+        let mut state = AppState::new(AppConfig::default());
+        let project = Project::new("Alpha", "/tmp");
+        state.workspace = Some(Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        });
+        state.load_phase = crate::state::LoadPhase::Ready;
+
+        let mut h = Harness::new(
+            app_view(extend(&state)),
+            Size::new(1100.0, 900.0),
+            Some(knotra_ui::widget::icon::FONT_BYTES),
+        );
+        // Shell (4) + chips (5) + Arrange = 10 presses (Standard/Wide
+        // order: chips, Arrange, search, Select — see `toolbar.rs`'s
+        // `view_standard_toolbar`).
+        for _ in 0..10 {
+            h = drive(h, &mut state, Message::Shortcut(ShortcutMessage::FocusNext));
+        }
+        assert_eq!(
+            h.focused_id(),
+            Some(ids::toolbar::arrange()),
+            "sanity: Arrange must be real-focused before this finding's own check means anything"
+        );
+
+        h.enter();
+        assert!(
+            matches!(
+                h.messages(),
+                [Message::Dashboard(DashboardMessage::ArrangeToggled)]
+            ),
+            "Enter on Arrange must still press it once, same as any other control"
+        );
+        h = drive(
+            h,
+            &mut state,
+            Message::Dashboard(DashboardMessage::ArrangeToggled),
+        );
+        assert!(state.dashboard_arrange_open, "the panel must now be open");
+
+        assert_eq!(
+            h.focused_id(),
+            Some(ids::toolbar::arrange()),
+            "Arrange must still be focused once its own panel is revealed, not lost to the \
+             tree gaining a new sibling"
+        );
+    }
+}
