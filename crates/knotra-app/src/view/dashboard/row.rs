@@ -3,9 +3,11 @@
 
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Element, Length};
+#[cfg(test)]
+use knotra_ui::widget::centered_button_label;
 use knotra_ui::widget::{
-    Tokens, body_badge_diameter, checkbox_control_unlabeled, ghost_control, name_link,
-    secondary_control_maybe, status_badge,
+    Tokens, body_badge_diameter, centered_button_row, checkbox_control_unlabeled, name_link,
+    status_badge,
 };
 use knotra_vcs::model::project::Project;
 
@@ -191,12 +193,13 @@ fn row_action<'a>(
         // per action. The control still disables correctly (`on_press_maybe`
         // stays gated on `!is_busy()`); it just stops re-explaining why,
         // the same way row.rs's other actions never explained "busy" either.
-        secondary_control_maybe(
+        row_action_control(
             tokens,
             state.t("dashboard.resolve"),
             (!state.operation_interlock.is_busy()).then_some(Message::ConflictOps(
                 ConflictOpsMessage::OpenRequested(Some(project.id.clone())),
             )),
+            knotra_ui::widget::style::secondary,
             id,
         )
     } else {
@@ -204,13 +207,51 @@ fn row_action<'a>(
         // name does — a link-weight affordance to the same destination,
         // not a distinct mutating action, so `ghost` matches the name's
         // own treatment rather than `secondary`.
-        ghost_control(
+        row_action_control(
             tokens,
             state.t("plain.show_details"),
-            Message::DetailPanel(DetailPanelMessage::Opened(project.id.clone())),
+            Some(Message::DetailPanel(DetailPanelMessage::Opened(
+                project.id.clone(),
+            ))),
+            knotra_ui::widget::style::ghost,
             id,
         )
     }
+}
+
+/// Amendment A1 §3 (Review 299 F3): `knotra_ui::widget::secondary_control_
+/// maybe`/`ghost_control` both build on `buttons.rs`'s shared
+/// `make_control`, whose `[0, 18]` padding is right for a *standalone*
+/// button but is not what [`ACTION_TRACK_WIDTH`] was measured against —
+/// the pre-stage-2 `row_action_button` used `[0, 12]`, and the 160px track
+/// was sized around *that* box, not an 18px one. The extra 6px of padding
+/// on each side was enough to visibly shift the label right and push the
+/// box's own right edge onto the track's border (seen directly in C2, at
+/// x 636-796 — the track's own right edge is x 796). Rebuilt here, on the
+/// same `snora::design::control` the generic vocabulary itself uses, with
+/// the one byte-for-byte difference that actually matters: the padding.
+fn row_action_control<'a, M: Clone + 'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    on_press: Option<M>,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+    id: iced::widget::Id,
+) -> iced::Element<'a, M> {
+    let t = tokens.clone();
+    snora::design::control(
+        tokens,
+        centered_button_row(iced::widget::row![
+            text(label)
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
+        ]),
+    )
+    .height(Length::Fixed(knotra_ui::widget::BUTTON_HEIGHT))
+    .id(id)
+    .padding([0.0, 12.0])
+    .on_press_maybe(on_press)
+    .style(move |_theme, status| style_fn(&t, status))
+    .into()
 }
 
 /// RFC-071 D3: the badge for a row's own status line — picks the one
@@ -428,5 +469,110 @@ fn progress_label(state: &AppState, kind: ProgressKind) -> &'static str {
         ProgressKind::Untracked => state.t("dashboard.progress.untracked"),
         ProgressKind::Ahead => state.t("dashboard.progress.ahead"),
         ProgressKind::Behind => state.t("dashboard.progress.behind"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use knotra_ui::test_support::{Harness, pixel_diff};
+    use knotra_ui::theme::KnotraTheme;
+
+    #[derive(Debug, Clone, PartialEq)]
+    enum Msg {
+        Pressed,
+    }
+
+    /// The exact pre-stage-2 construction (`row_action_button`, deleted by
+    /// RFC-075 §3), reproduced here **only** for this one comparison, the
+    /// same discipline `knotra-ui`'s own `name_link` test uses: never
+    /// called by any live view, just a frozen record of what the look at
+    /// rest *was*.
+    fn old_row_action_button<'a>(
+        tokens: &Tokens,
+        label: &'a str,
+        style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+        on_press: Option<Msg>,
+    ) -> iced::Element<'a, Msg> {
+        let t = tokens.clone();
+        iced::widget::button(centered_button_label(
+            text(label)
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens)),
+        ))
+        .height(Length::Fixed(knotra_ui::widget::BUTTON_HEIGHT))
+        .padding([0, 12])
+        .on_press_maybe(on_press)
+        .style(move |_theme, status| style_fn(&t, status))
+        .into()
+    }
+
+    /// Amendment A1 §3: the row action's look at rest, restored — compared
+    /// byte-for-byte against the frozen pre-stage-2 construction, for both
+    /// labels (`style::secondary`'s "Choose resolution"/「解決方法を選ぶ」,
+    /// `style::ghost`'s "Show details"/「詳細を表示」) in English and
+    /// Japanese, in all four themes.
+    ///
+    /// **Not also rendered in both layouts**: `row_action` itself builds
+    /// this one `Element` exactly once per row (`view_project_row`, above)
+    /// and hands the *same* value to whichever of `view_standard_row`/
+    /// `view_compact_row` draws it — there is only one construction to
+    /// compare, not two; the layouts differ in where they place it, never
+    /// in what it is.
+    #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
+                  only on the Linux CI runner (Task 108 A1 §4, `label_overflow_guard.rs`'s own \
+                  precedent); the pixels this compares would be some other font's on \
+                  macOS/Windows"
+    )]
+    fn row_action_draws_identically_to_the_old_button_at_rest_in_every_theme_and_locale() {
+        let size = iced_test::core::Size {
+            width: 200.0,
+            height: 60.0,
+        };
+        let icon_font = Some(knotra_ui::widget::icon::FONT_BYTES);
+
+        type StyleFn = fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style;
+        let labels: [(&str, &str, StyleFn); 4] = [
+            (
+                "Choose resolution",
+                "en",
+                knotra_ui::widget::style::secondary,
+            ),
+            ("解決方法を選ぶ", "ja", knotra_ui::widget::style::secondary),
+            ("Show details", "en", knotra_ui::widget::style::ghost),
+            ("詳細を表示", "ja", knotra_ui::widget::style::ghost),
+        ];
+
+        for (name, theme) in [
+            ("light", KnotraTheme::light()),
+            ("dark", KnotraTheme::dark()),
+            ("high_contrast_light", KnotraTheme::high_contrast_light()),
+            ("high_contrast_dark", KnotraTheme::high_contrast_dark()),
+        ] {
+            let t = &theme.tokens;
+            for (label, locale, style_fn) in labels {
+                let old: iced::Element<'static, Msg> =
+                    old_row_action_button(t, label, style_fn, Some(Msg::Pressed));
+                let new: iced::Element<'static, Msg> = row_action_control(
+                    t,
+                    label,
+                    Some(Msg::Pressed),
+                    style_fn,
+                    iced::widget::Id::new("action"),
+                );
+
+                let mut h_old = Harness::new(old, size, icon_font);
+                let (old_rgba, ow, oh) = h_old.screenshot(&theme.base);
+                let mut h_new = Harness::new(new, size, icon_font);
+                let (new_rgba, nw, nh) = h_new.screenshot(&theme.base);
+
+                if let Err(diff) = pixel_diff(&old_rgba, (ow, oh), &new_rgba, (nw, nh)) {
+                    panic!("{name}/{locale}/\"{label}\": not identical at rest: {diff}");
+                }
+            }
+        }
     }
 }

@@ -19,12 +19,30 @@
 //! (no height) inserted into `buttons.rs`, reported by name and line, then
 //! removed.
 //!
-//! Scans only `crates/knotra-ui/src/widget/` — the helpers themselves, not
-//! every ad-hoc `button(`/`control(` call site in
-//! `crates/knotra-app/src/view/` (Amendment A2's `button_style_guard.rs`
-//! already enumerates those by hand per D8's own "bring each to the rule
-//! or report why not"; this guard is the narrower "per helper" guarantee
-//! D8 separately asks for).
+//! **Amendment A1 §4 (Review 299 F4): also scans `crates/knotra-app/src/
+//! view/`, for `control(` only** — the ad-hoc `control(...)` call sites
+//! RFC-075 stage 2 put directly in view code (`shell.rs`'s `nav_control`,
+//! `toolbar.rs`'s `arrange_button`, `section.rs`'s tier toggle, and
+//! others: the primitive this stage's own page actually builds on). The
+//! dev team found this gap themselves — by removing `nav_control`'s own
+//! height and watching every existing gate stay green — and reported it
+//! rather than silently leaving it; this closes it with the same
+//! `check_source` this file already has.
+//!
+//! **Not `button(` in `view/`**: every pre-existing `button(...)` found
+//! there belongs to a window dialog still on knotra's own pre-RFC-075
+//! focus model (`overlays/`, `command_palette.rs`, `add_project_modal.rs`,
+//! and the rest — stage 5's own territory, out of scope here), built by a
+//! different, already-reviewed design `button_style_guard.rs` already
+//! covers for choosing *a* style; D8's own height floor was never asked
+//! of them, and this amendment does not retroactively ask it now. The
+//! test's own doc comment says more.
+//!
+//! Previously: only `crates/knotra-ui/src/widget/` — the helpers
+//! themselves, not every ad-hoc call site in `crates/knotra-app/src/view/`
+//! (Amendment A2's `button_style_guard.rs` already enumerates those by
+//! hand per D8's own "bring each to the rule or report why not"); this
+//! guard was the narrower "per helper" guarantee D8 separately asks for.
 //!
 //! **Text-scanning, not a real parser**, the same tradeoff every guard in
 //! this project accepts.
@@ -51,12 +69,6 @@ mod tests {
             }
         }
         files
-    }
-
-    /// Only `crates/knotra-ui/src/widget/` — the helpers, not every
-    /// ad-hoc call site in `crates/knotra-app/src/view/`.
-    fn scan_dir() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../knotra-ui/src/widget")
     }
 
     /// This file's own doc comment names the exact patterns it scans for
@@ -95,6 +107,17 @@ mod tests {
     /// `is_button_callee` to cover `control(...)` too (RFC-075 handoff
     /// stage 1 §2), rather than a second, near-identical function.
     fn is_callee(callee: &str, name: &str) -> bool {
+        // `FocusTarget::control(...)` (`view/focus.rs` — knotra's own,
+        // pre-RFC-075 model the windows still use, stage 5's own
+        // territory) is a path-qualified call ending in "control" too,
+        // the same shape `snora::design::control(...)` has — found only
+        // once `view/` itself was scanned (Amendment A1 §4), since
+        // `FocusTarget` has no reason to appear under `knotra-ui/src/
+        // widget/`. Excluded by name: it builds an enum variant, never a
+        // pressable widget, so a missing height here would mean nothing.
+        if callee.ends_with("FocusTarget::control") {
+            return false;
+        }
         let Some(rest) = callee.strip_suffix(name) else {
             return false;
         };
@@ -200,24 +223,44 @@ mod tests {
     }
 
     /// Every `button(...)`/`control(...)` built in
-    /// `crates/knotra-ui/src/widget/` names an explicit minimum height —
-    /// the expected set is empty by design, the same shape every other
-    /// guard in this project uses for a regression that should never
-    /// reappear.
+    /// `crates/knotra-ui/src/widget/`, and every `control(...)` built
+    /// directly in `crates/knotra-app/src/view/`, names an explicit
+    /// minimum height — the expected set is empty by design, the same
+    /// shape every other guard in this project uses for a regression that
+    /// should never reappear.
+    ///
+    /// **`view/` is scanned for `control(` only, not `button(`**: a
+    /// window dialog still on knotra's own pre-RFC-075 focus model
+    /// (`overlays/`, `command_palette.rs`, `add_project_modal.rs`, and
+    /// the rest — stage 5's own territory) builds plain `iced::widget::
+    /// button(...)` throughout, with no height named, by a *different,
+    /// already-reviewed* design this amendment does not revisit; a real
+    /// `rg -F 'button(' crates/knotra-app/src/view/ -l` run shows
+    /// `view/dashboard/row.rs`'s own test-only frozen fixture is the one
+    /// `button(` this stage's *own* files use, and it already carries
+    /// `BUTTON_HEIGHT`. RFC-075 stage 2's own real gap — `shell.rs`'s
+    /// `nav_control`, confirmed missing one, found by temporarily
+    /// removing it and watching every then-existing gate stay green — was
+    /// a `control(...)` call, the primitive this stage's own page
+    /// actually builds on; checking for that callee alone is what A1 §4
+    /// itself asks for.
     #[test]
     fn every_widget_helper_button_or_control_names_a_minimum_height() {
-        let dir = scan_dir();
-        let files = rust_files_under(&dir);
-        assert!(
-            files.len() > 5,
-            "found only {} .rs files under crates/knotra-ui/src/widget/ -- \
-             path resolution is broken (expected 5+), not that nothing \
-             needed checking",
-            files.len()
-        );
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let widget_dir = manifest.join("../knotra-ui/src/widget");
+        let view_dir = manifest.join("src/view");
 
         let mut actual: Vec<String> = Vec::new();
-        for file in files.iter().filter(|f| is_scan_target(f)) {
+
+        let widget_files = rust_files_under(&widget_dir);
+        assert!(
+            widget_files.len() > 5,
+            "found only {} .rs files under {} -- path resolution is broken \
+             (expected 5+), not that nothing needed checking",
+            widget_files.len(),
+            widget_dir.display()
+        );
+        for file in widget_files.iter().filter(|f| is_scan_target(f)) {
             let Ok(source) = std::fs::read_to_string(file) else {
                 continue;
             };
@@ -225,17 +268,33 @@ mod tests {
             let mut violations = Vec::new();
             check_source(file, &clean, "button", &mut violations);
             check_source(file, &clean, "control", &mut violations);
-            for v in violations {
-                actual.push(v.location);
-            }
+            actual.extend(violations.into_iter().map(|v| v.location));
+        }
+
+        let view_files = rust_files_under(&view_dir);
+        assert!(
+            view_files.len() > 5,
+            "found only {} .rs files under {} -- path resolution is broken \
+             (expected 5+), not that nothing needed checking",
+            view_files.len(),
+            view_dir.display()
+        );
+        for file in view_files.iter().filter(|f| is_scan_target(f)) {
+            let Ok(source) = std::fs::read_to_string(file) else {
+                continue;
+            };
+            let clean = blank_comment_lines(&source);
+            let mut violations = Vec::new();
+            check_source(file, &clean, "control", &mut violations);
+            actual.extend(violations.into_iter().map(|v| v.location));
         }
 
         assert!(
             actual.is_empty(),
-            "button(...)/control(...) site(s) found in a knotra-ui widget helper with no \
-             BUTTON_HEIGHT/SMALL_BUTTON_HEIGHT anywhere in their own builder \
-             chain -- RFC-073 D8 requires every widget a knotra-ui helper \
-             builds to be at least SMALL_BUTTON_HEIGHT tall: {actual:?}"
+            "button(...)/control(...) site(s) found with no BUTTON_HEIGHT/SMALL_BUTTON_HEIGHT \
+             anywhere in their own builder chain -- RFC-073 D8 requires every widget built in \
+             crates/knotra-ui/src/widget/ (button or control) or crates/knotra-app/src/view/ \
+             (control only) to be at least SMALL_BUTTON_HEIGHT tall: {actual:?}"
         );
     }
 }
