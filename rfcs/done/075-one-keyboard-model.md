@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | Implemented (main: 6373d73, 1144026, 279c0ee, c913ffa, 8ed8815, fb0282f, e534683, c97883b, 43c6646, 3d73e79, e5c1ce2), with Amendment A1 and handoff amendments across stages 2-4 |
 | Priority | High - Settings and History cannot be used from the keyboard at all, and a select cannot be opened from it anywhere |
 | Effort | Large - every control knotra draws, every window's focus, five stages |
 | Target | 0.35.0 (after 0.34.0, which ships snora 0.65 through Task 112) |
