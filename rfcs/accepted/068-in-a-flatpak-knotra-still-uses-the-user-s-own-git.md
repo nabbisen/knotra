@@ -219,3 +219,14 @@ owner's manifest).
   `main`, and a comment says so.
 - **gix and `--filesystem=host`.** Some host paths stay hidden even with `host` (`/usr`,
   `/etc`). A project kept there would not open in the Flatpak; that is accepted.
+
+## Amendment A2 (2026-11-25): a sample manifest, by the owner's decision
+
+The owner asked the architect tier for a sample manifest, which the owner completes by hand.
+Flathub's rule on AI-assisted manifests was stated to the owner, and the owner confirmed.
+
+- **D7 and R10 are amended:**
+  - the sample lives in `.git-exclude/owner/flatpak/`, outside the published repository;
+  - the tracked repository still holds no manifest until the owner places their own.
+- The sample takes its permissions from D3. It adds `--share=ipc`, usual beside
+  `fallback-x11`, as a choice marked for the owner.
