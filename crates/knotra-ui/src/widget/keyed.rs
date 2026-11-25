@@ -87,6 +87,31 @@
 //! (the same channel `snora_interaction::sequence::sequential_focus`
 //! itself uses for its own "last clicked" mark), so a caller one level up
 //! never needs its own private copy of what this widget already knows.
+//!
+//! **Stage 4 Amendment A1 (Review 305 F1): `follow`'s own unconditional
+//! trust was the bug, not merely History's and Settings' own lists.**
+//! "Something is really, currently focused — trust it completely" was
+//! right for the reader's own Tab, arrow, `focus(id)` task, or click, and
+//! wrong for a rebuild's own tree diffing handing a sibling's old,
+//! really-focused state to a *different* control that slid into its
+//! tree slot — the mechanism Review 299 F1 and Review 305 F1 both found,
+//! on the dashboard's own plain `Column`, by a tier move and by an
+//! insertion respectively; keying History's and Settings' own lists
+//! (`knotra_ui::widget::list_keyed`, `iced::widget::keyed::Column`)
+//! closed it for those two lists specifically, but the dashboard's
+//! own rows, and any other plain-`Column` list, were never fixed, only
+//! unproven — until Review 305's own probe proved them affected too.
+//! [`focus_belongs_to_reader`] tells the two apart without needing a
+//! keyed column anywhere: `explained` (`FollowsId::operate`'s own
+//! before/after survey — a real focus-moving `operate()` call reached
+//! `content`) catches Tab/arrows/`focus(id)`; [`was_handed_across`]
+//! (really-focused now sitting exactly where `remembered` used to,
+//! by position) catches a click, since a reader's click lands on
+//! whatever it actually clicked, not on some other control's old slot.
+//! Neither check is gated on whether the tracked id set changed shape —
+//! a plain reorder can hand a slot's state across exactly as well as an
+//! insertion or removal (see [`was_handed_across`]'s own doc comment for
+//! why an earlier version of this file assumed otherwise).
 
 use std::any::Any;
 
@@ -205,6 +230,15 @@ struct State {
     /// The id this widget currently considers focus belongs to — real or
     /// reserved-but-disabled.
     focused: Option<Id>,
+    /// Stage 4 Amendment A1 (Review 305 F1): set by [`FollowsId::operate`] whenever
+    /// an `operate()` call that reaches `content` is seen to have actually
+    /// changed which target is really focused — Tab/Shift+Tab's own
+    /// `sequential_focus`, an arrow's `focus_among`, or a `focus(id)` task,
+    /// all of which move real focus this way, never by a rebuild. Read and
+    /// cleared by [`FollowsId::follow`] on the very next `RedrawRequested`:
+    /// while it is set, a real focus change is the reader's own, not a
+    /// tree slot handed across during a rebuild in between.
+    explained: bool,
 }
 
 struct FollowsId<'a, Message> {
@@ -343,6 +377,82 @@ fn belongs_on(old: &[Id], now: &[Id], focused: &Id) -> Option<Id> {
         .cloned()
 }
 
+/// Stage 4 Amendment A1 (Review 305 F1): whether `now_focused` sits at exactly
+/// the tree position `remembered` used to occupy — the signature of a
+/// handed-across slot, not a reader's own choice. iced's own positional
+/// diffing reuses a child's internal state (`is_focused` included) by
+/// its place in the tree, not by identity, so when a rebuild silently
+/// moves real focus onto a *different* control, that control is always
+/// the one that slid into the remembered control's own old slot. A
+/// reader's click, by contrast, lands on whatever control the reader
+/// actually clicked — unrelated to any other control's old position,
+/// which is also §1's own named test for telling a click into a text
+/// field apart from a handed-across slot (no separate "is this a text
+/// field" check needed: the position test alone already answers it).
+fn was_handed_across(old: &[Id], now: &[Id], remembered: &Id, now_focused: &Id) -> bool {
+    let Some(old_pos) = old.iter().position(|id| id == remembered) else {
+        return false;
+    };
+    let Some(now_pos) = now.iter().position(|id| id == now_focused) else {
+        return false;
+    };
+    old_pos == now_pos
+}
+
+/// Stage 4 Amendment A1 (Review 305 F1): whether `really_focused` — not the same
+/// id as `remembered` — is the reader's own doing, trusted completely,
+/// or a tree slot's state handed across during a rebuild, which
+/// [`belongs_on`] must instead resolve. Two ways the reader explains it,
+/// either sufficient:
+///
+/// - `explained` — an `operate()` call that reached `content` was seen to
+///   actually move real focus since the last reconciliation: Tab/Shift+
+///   Tab, an arrow, or a `focus(id)` task (`FollowsId::operate`'s own
+///   before/after check, the only thing that ever sets it).
+/// - `really_focused` is not sitting where `remembered` used to be
+///   ([`was_handed_across`]) — a reader's click, text field or not,
+///   almost never lands exactly on a different control's own old slot.
+///
+/// **Not gated on whether the tracked id set changed shape.** A plain
+/// reorder (same members, only reordered) was once assumed safe without
+/// this check — `a_same_count_reorder_by_sort_still_follows_the_id`'s own
+/// original version appeared to confirm it — but Review 305 F2 found
+/// that test's own setup never actually reordered anything (`Recommended`
+/// and `NameAscending` agreed already for two otherwise-identical
+/// projects), so it never exercised this path at all. Once rewritten to
+/// force a genuine reorder, the same leak Review 299 F1/Review 305 F1
+/// found for an insertion reproduced for a same-count swap too — iced's
+/// own positional diffing does not care whether the id set's size
+/// changed, only whether a slot's own tree position was reused by a
+/// *different* id, which a plain reorder can do exactly as well as an
+/// insertion or removal.
+fn focus_belongs_to_reader(
+    old_ids: &[Id],
+    new_ids: &[Id],
+    remembered: &Id,
+    really_focused: &Id,
+    explained: bool,
+) -> bool {
+    explained || !was_handed_across(old_ids, new_ids, remembered, really_focused)
+}
+
+/// A plain [`Survey`], run and reduced to only what [`FollowsId::operate`]
+/// needs from it — whichever target (if any) `content` reports as really
+/// focused right now. Never mutates anything: `Survey::focusable` only
+/// ever reads `state.is_focused()`.
+fn really_focused<Message>(
+    content: &mut Element<'_, Message>,
+    tree: &mut Tree,
+    layout: layout::Layout<'_>,
+    renderer: &iced::Renderer,
+) -> Option<Id> {
+    let mut survey = Survey::default();
+    content
+        .as_widget_mut()
+        .operate(tree, layout, renderer, &mut survey);
+    survey.focused
+}
+
 impl<Message> FollowsId<'_, Message> {
     fn follow(&mut self, tree: &mut Tree, layout: layout::Layout<'_>, renderer: &iced::Renderer) {
         let mut survey = Survey::default();
@@ -380,16 +490,33 @@ impl<Message> FollowsId<'_, Message> {
             state.focused.as_ref(),
         );
 
-        let want = if let Some(now) = &survey.focused {
-            // Something is really, currently focused — trust it
-            // completely: the reader's own move (Tab, an arrow), another
-            // fix's own `operation::focus` to a sibling, or simply
-            // nothing having changed. Never second-guessed.
-            Some(now.clone())
-        } else if let Some(remembered) = &state.focused {
-            belongs_on(&state.ids, &new_ids, remembered)
-        } else {
-            None
+        // Stage 4 Amendment A1 (Review 305 F1): something really, currently
+        // focused is the reader's own only when `focus_belongs_to_reader`
+        // says so — the reader's own move (Tab, an arrow, a `focus(id)`
+        // task: `explained`), a click (the set of ids has not changed
+        // shape, or this control is not sitting where `remembered` used
+        // to be), or `remembered` is the same id already. Otherwise a
+        // rebuild handed a tree slot's own state across to a *different*
+        // control, and focus belongs back on `remembered` (or its
+        // neighbour, `belongs_on`), the same resolution as "nothing is
+        // really focused at all" below.
+        let want = match (&survey.focused, &state.focused) {
+            (Some(now), Some(remembered)) if now == remembered => Some(now.clone()),
+            (Some(now), Some(remembered))
+                if focus_belongs_to_reader(
+                    &state.ids,
+                    &new_ids,
+                    remembered,
+                    now,
+                    state.explained,
+                ) =>
+            {
+                Some(now.clone())
+            }
+            (Some(_), Some(remembered)) => belongs_on(&state.ids, &new_ids, remembered),
+            (Some(now), None) => Some(now.clone()),
+            (None, Some(remembered)) => belongs_on(&state.ids, &new_ids, remembered),
+            (None, None) => None,
         };
 
         if want != survey.focused {
@@ -413,6 +540,7 @@ impl<Message> FollowsId<'_, Message> {
         let state = tree.state.downcast_mut::<State>();
         state.ids = new_ids;
         state.focused = want;
+        state.explained = false;
     }
 }
 
@@ -459,9 +587,68 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for FollowsId<'_, Message> 
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
+        // Stage 4 Amendment A1 (Review 305 F1): correct a leak already on
+        // the raw tree **before** `operation` sees it — not by running
+        // `follow`'s own full reconciliation unconditionally (tried
+        // directly, and found to break `snora::keyboard::traverse`'s own
+        // wrap protocol: `traverse_wrapping`'s own "did Tab leave nothing
+        // focused" check, `keyboard.rs`, is itself a query `operate()`
+        // call indistinguishable from any other at this level — running
+        // `follow` there would silently refocus the remembered control
+        // `traverse` had correctly, deliberately left unfocused, its own
+        // "leaves the group for one press" documented behaviour and the
+        // very signal a second traversal needs to detect a wrap is
+        // due — breaking every wrap test in this crate). Instead, only
+        // when a survey right now already shows *something* really
+        // focused, and it is not the remembered id: that combination
+        // never means "nothing is focused yet, deliberately" (survey
+        // reports `Some`, not `None`), so it is always either the leak
+        // this amendment exists to catch, or already the reader's own
+        // (in which case `focus_belongs_to_reader` below simply confirms
+        // it and `follow` changes nothing). This is what lets a Tab/
+        // arrow/`focus(id)` task's own traversal — which moves relative
+        // to whatever the tree already reports, not this widget's own
+        // memory — start from the reader's own remembered control rather
+        // than a slot a rebuild handed across, immediately after that
+        // rebuild and before `update`'s own next `RedrawRequested` would
+        // otherwise have reconciled it (seen failing first: row 7, "Tab
+        // in the same step as an insertion", and row 1, the probe itself,
+        // both of which drive straight into a Task-based traversal right
+        // after mutating state with no redraw in between — the same gap
+        // a real `Task`'s own `operate()` steps are not immune to either,
+        // since they are not guaranteed to run only after a
+        // `RedrawRequested` has already reconciled a fresh rebuild).
+        if let Some(now) =
+            really_focused(&mut self.content, &mut tree.children[0], layout, renderer)
+            && tree.state.downcast_ref::<State>().focused.as_ref() != Some(&now)
+        {
+            self.follow(tree, layout, renderer);
+        }
+
+        // Bracket the forwarded `operation` with a before/after survey of
+        // `content`'s own real focus — not to interpret `operation`
+        // itself (its own type is erased by the time it reaches here),
+        // but because only a genuine focus-moving operation
+        // (`sequential_focus` for Tab/Shift+Tab, `focus_among`'s arrows,
+        // or a bare `focus(id)` task) ever actually changes which target
+        // reports `is_focused()`; a query that only reads state
+        // (`tab_anchor`'s own `AnchorQuery`, which implements `custom()`
+        // alone, never `focusable()`) cannot, and neither does the
+        // reconciliation above (by the time it runs, `survey.focused`
+        // already equals `state.focused` whenever it changed anything,
+        // so there is nothing left to detect as a change here). A change
+        // seen here is always the reader's own — `follow`'s own next
+        // reconciliation needs nothing more than that one bit, consumed
+        // and cleared there.
+        let before = really_focused(&mut self.content, &mut tree.children[0], layout, renderer);
         self.content
             .as_widget_mut()
             .operate(&mut tree.children[0], layout, renderer, operation);
+        let after = really_focused(&mut self.content, &mut tree.children[0], layout, renderer);
+        if before != after {
+            tree.state.downcast_mut::<State>().explained = true;
+        }
+
         // Offers `tab_anchor`'s own query a look at this widget's current
         // `State` (tagged with its own `scope`, so the query can tell
         // which wrapper this answer came from — Amendment A2 F3) through

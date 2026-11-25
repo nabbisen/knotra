@@ -1660,10 +1660,28 @@ mod focus_follows_its_id {
     /// tracked ids does not change at all — the old, hand-maintained-key
     /// design (A1) would have had no reason to "stand aside" here either,
     /// so this guards the *new* id-based mechanism specifically, not the
-    /// count mismatch A1's own tests already covered. Passes on `c913ffa`
-    /// too (the hand-made list was already right for this one case) —
-    /// its own job is to keep that true now that nothing is hand-made at
-    /// all.
+    /// count mismatch A1's own tests already covered.
+    ///
+    /// **Rewritten, Amendment A1 (Review 305 F2):** the original version
+    /// of this test switched to `NameAscending` and trusted that this
+    /// *must* reorder two unclassified projects — but `Recommended`'s own
+    /// tiebreak for same-tier projects already falls back to the same
+    /// identity compare `NameAscending` uses directly (`state/
+    /// dashboard.rs::sort_entries`), so for two projects with nothing
+    /// else to distinguish them, the switch was a no-op: both sorts
+    /// already agreed, confirmed directly by a probe in a scratch
+    /// worktree (removed afterward). The review's own point: a test that
+    /// does not know whether its own setup changed anything proves
+    /// nothing either way. This version uses two projects whose
+    /// `Recommended` order is forced *apart* from `NameAscending`'s own
+    /// (`Recommended` ranks a `NeedsHelp` project by its own cause first,
+    /// name second — `cause_rank`/`sort_entries`) — Zed with a real
+    /// conflict (`cause_rank` 0) outranks Alpha's own unclassified
+    /// `StatusUnknown` (`cause_rank` 5) under `Recommended`, regardless
+    /// of name, but loses to it under `NameAscending`'s pure identity
+    /// compare — and asserts the order genuinely flipped before asserting
+    /// focus stayed, so a future setup that stops reordering fails loudly
+    /// here rather than passing for the wrong reason.
     #[test]
     fn a_same_count_reorder_by_sort_still_follows_the_id() {
         let mut state = AppState::new(AppConfig::default());
@@ -1671,10 +1689,34 @@ mod focus_follows_its_id {
         let alpha = Project::new("Alpha", "/tmp");
         let (zed_id, alpha_id) = (zed.id.clone(), alpha.id.clone());
         state.workspace = Some(Workspace {
-            projects: vec![zed, alpha],
+            projects: vec![zed.clone(), alpha],
             ..Workspace::new("Main")
         });
         state.load_phase = crate::state::LoadPhase::Ready;
+        // Zed: a real conflict — `Recommended`'s own `cause_rank` 0, so it
+        // ranks first regardless of name. Alpha has no status entry at
+        // all, so it classifies `NeedsHelp`/`StatusUnknown` (`cause_rank`
+        // 5) via the same fallback `two_needs_help_projects` relies on.
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![ProjectStatus {
+                project_id: zed_id.clone(),
+                identity: RepositoryIdentity {
+                    path: "/tmp".into(),
+                    vcs_kind: VcsKind::Git,
+                },
+                context: None,
+                remote: Default::default(),
+                working_tree: WorkingTreeStatus::default(),
+                conflict: knotra_vcs::model::status::ConflictStatus {
+                    has_conflict: true,
+                    conflict_count: None,
+                    detection_unavailable: false,
+                },
+                refreshed_at: jiff::Timestamp::now(),
+                read_error: None,
+            }],
+            last_refresh: None,
+        });
         let mut rig = Rig::new(SIZE);
 
         drive(
@@ -1682,17 +1724,62 @@ mod focus_follows_its_id {
             &mut state,
             Message::Shortcut(ShortcutMessage::ArrowDown),
         );
-        let first_focused = focused_id(&mut rig, &state);
-        assert!(
-            first_focused == Some(ids::row::name(&zed_id))
-                || first_focused == Some(ids::row::name(&alpha_id)),
-            "sanity: ↓ must focus one of the two project names"
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::name(&zed_id)),
+            "sanity: under Recommended, Zed's own conflict ranks it before Alpha's \
+             unclassified StatusUnknown, so ↓ must focus Zed first"
         );
 
-        // Whichever order "Recommended" happens to use for two equally
-        // unclassified projects, name-ascending reorders them (Alpha
-        // before Zed) — the point is the same-count reorder itself, not
-        // which project was first.
+        // The order genuinely changes — checked directly against
+        // `build_dashboard_display`'s own `ordered_selectable_ids`, not
+        // through focus navigation (which would test the very mechanism
+        // this is trying to independently verify). `Recommended`: Zed
+        // (conflict) before Alpha (unclassified). `NameAscending`: Alpha
+        // before Zed, by name alone.
+        let projects = &state.workspace.as_ref().unwrap().projects;
+        let recommended = crate::state::dashboard::build_dashboard_display(
+            projects,
+            state.workspace_status.as_ref(),
+            &state.missing_projects,
+            &state.filter,
+            crate::state::dashboard::DashboardDisplayOptions {
+                grouping: crate::config::DashboardGrouping::Attention,
+                sort: crate::config::DashboardSort::Recommended,
+                in_progress_collapsed: false,
+                all_set_collapsed: false,
+            },
+        );
+        assert_eq!(
+            recommended.ordered_selectable_ids,
+            vec![zed_id.clone(), alpha_id.clone()],
+            "sanity: Recommended must rank Zed's own conflict before Alpha's \
+             unclassified StatusUnknown"
+        );
+        let name_ascending = crate::state::dashboard::build_dashboard_display(
+            projects,
+            state.workspace_status.as_ref(),
+            &state.missing_projects,
+            &state.filter,
+            crate::state::dashboard::DashboardDisplayOptions {
+                grouping: crate::config::DashboardGrouping::Attention,
+                sort: crate::config::DashboardSort::NameAscending,
+                in_progress_collapsed: false,
+                all_set_collapsed: false,
+            },
+        );
+        assert_eq!(
+            name_ascending.ordered_selectable_ids,
+            vec![alpha_id.clone(), zed_id.clone()],
+            "the order must have genuinely changed under NameAscending: Alpha's own \
+             name sorts before Zed's — proving this reorder is real, not a same-order \
+             no-op (the original version of this test never checked this)"
+        );
+
+        // Now drive the real sort change and confirm focus follows: with
+        // the order confirmed reversed above, Zed's own id staying
+        // focused here can only be the id-based mechanism at work, never
+        // a same-position coincidence.
         drive(
             &mut rig,
             &mut state,
@@ -1702,9 +1789,9 @@ mod focus_follows_its_id {
         );
         assert_eq!(
             focused_id(&mut rig, &state),
-            first_focused,
-            "the same project's own name must still be focused after a same-count reorder — \
-             the id, not the position"
+            Some(ids::row::name(&zed_id)),
+            "the same project's own name must still be focused after a genuine, \
+             confirmed reorder — the id, not the position"
         );
     }
 
@@ -5369,6 +5456,458 @@ mod stage4_history {
             Some(ids::history::toggle(&id_a)),
             "focus must stay on its own entry, by OperationId — not on whatever is now at \
              the position it used to occupy"
+        );
+    }
+}
+
+/// RFC-075 stage 4 Amendment A1 §2 — Review 305's own probe, and every
+/// other row in the amendment's own test table, each driven through the
+/// real key/message path, on the dashboard's own plain `Column` (never
+/// keyed) — `focus_belongs_to_reader` (`knotra_ui::widget::keyed.rs`) is
+/// what every one of these actually exercises.
+#[cfg(test)]
+mod stage4_amendment_a1 {
+    use super::{Rig, SIZE, drive, focused_id};
+    use crate::config::AppConfig;
+    use crate::message::{BackgroundMessage, Message, ShortcutMessage};
+    use crate::state::AppState;
+    use crate::view::ids;
+    use iced::advanced::widget::operation;
+    use iced::advanced::widget::{Id, Operation};
+    use iced::{Rectangle, mouse};
+    use knotra_vcs::model::status::{
+        ConflictStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus,
+    };
+    use knotra_vcs::{Project, ProjectId, ProjectStatus, Workspace, WorkspaceStatus};
+
+    fn two_needs_help_projects(a: &str, b: &str) -> (AppState, ProjectId, ProjectId) {
+        let mut state = AppState::new(AppConfig::default());
+        let pa = Project::new(a, "/tmp");
+        let pb = Project::new(b, "/tmp");
+        let (a_id, b_id) = (pa.id.clone(), pb.id.clone());
+        state.workspace = Some(Workspace {
+            projects: vec![pa, pb],
+            ..Workspace::new("Main")
+        });
+        state.load_phase = crate::state::LoadPhase::Ready;
+        state.config.dashboard_sort = crate::config::DashboardSort::NameAscending;
+        (state, a_id, b_id)
+    }
+
+    fn needs_help_status(id: ProjectId, has_conflict: bool) -> ProjectStatus {
+        ProjectStatus {
+            project_id: id,
+            identity: RepositoryIdentity {
+                path: "/tmp".into(),
+                vcs_kind: VcsKind::Git,
+            },
+            context: None,
+            remote: Default::default(),
+            working_tree: WorkingTreeStatus::default(),
+            conflict: ConflictStatus {
+                has_conflict,
+                conflict_count: None,
+                detection_unavailable: false,
+            },
+            refreshed_at: jiff::Timestamp::now(),
+            read_error: None,
+        }
+    }
+
+    fn in_progress_status(id: ProjectId) -> ProjectStatus {
+        ProjectStatus {
+            project_id: id,
+            identity: RepositoryIdentity {
+                path: "/tmp".into(),
+                vcs_kind: VcsKind::Git,
+            },
+            context: None,
+            remote: Default::default(),
+            working_tree: WorkingTreeStatus {
+                uncommitted_count: 1,
+                ..WorkingTreeStatus::default()
+            },
+            conflict: Default::default(),
+            refreshed_at: jiff::Timestamp::now(),
+            read_error: None,
+        }
+    }
+
+    /// Row 1 — Review 305's own probe, reproduced directly: Beta and
+    /// Gamma, both `NeedsHelp`/`StatusUnknown`, `NameAscending` so Beta
+    /// sorts before Gamma; ↓ twice reaches Gamma. Alpha is then added —
+    /// sorting first — the insertion itself, matching the review's own
+    /// repro exactly (not the "Alpha added and sorted first" sentence
+    /// paraphrased, the actual case).
+    ///
+    /// **Seen failing first**, before the fix: real focus landed on
+    /// Alpha's own name (the control that slid into Gamma's old,
+    /// position-0-of-2 tree slot once it became position-1-of-3) —
+    /// confirmed directly by temporarily reverting `focus_belongs_to_
+    /// reader` to its pre-amendment shape (`Some(now.clone())`
+    /// unconditionally) and re-running this test, then restoring.
+    #[test]
+    fn review_305_probe_alpha_added_and_sorted_first_focus_stays_on_gamma() {
+        let (mut state, _beta_id, gamma_id) = two_needs_help_projects("Beta", "Gamma");
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::ArrowDown),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::ArrowDown),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::name(&gamma_id)),
+            "sanity: two ↓ presses under NameAscending must reach Gamma (Beta, then Gamma)"
+        );
+
+        state
+            .workspace
+            .as_mut()
+            .unwrap()
+            .projects
+            .insert(0, Project::new("Alpha", "/tmp"));
+        // A no-op message, just to drive one more rebuild/redraw through
+        // `Rig`, the same convention every other reorder/removal test in
+        // this file uses.
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusPrevious),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::name(&gamma_id)),
+            "focus must stay on Gamma's own name — not on whatever project now sits where \
+             Gamma's row used to be"
+        );
+    }
+
+    /// Row 2 — a refresh moves a *different* project into a section
+    /// above the focused one: Alpha starts `InProgress` (focused), Beta
+    /// starts `AllSet` (below, collapsed away); a real `BackgroundMessage`
+    /// then gives Beta a conflict, moving it to `NeedsHelp` — above
+    /// Alpha's own section. Alpha's own row slides down to make room.
+    #[test]
+    fn a_project_inserted_above_the_focused_row_by_a_refresh_leaves_focus_on_its_own_project() {
+        let (mut state, alpha_id, beta_id) = two_needs_help_projects("Alpha", "Beta");
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![
+                in_progress_status(alpha_id.clone()),
+                needs_help_status(beta_id.clone(), false), // StatusUnknown is NeedsHelp
+            ],
+            last_refresh: None,
+        });
+        // Beta: no conflict yet, but `in_progress_status` for Alpha alone
+        // leaves Beta with a real, non-conflicted status entry, so it
+        // classifies cleanly as `AllSet` instead — matching `AllSet`'s own
+        // "clean, no counts" rule (`focus_follows_its_id::in_progress_
+        // status`'s own doc comment), not `StatusUnknown`.
+        state.workspace_status.as_mut().unwrap().projects[1] = ProjectStatus {
+            project_id: beta_id.clone(),
+            identity: RepositoryIdentity {
+                path: "/tmp".into(),
+                vcs_kind: VcsKind::Git,
+            },
+            context: None,
+            remote: Default::default(),
+            working_tree: WorkingTreeStatus::default(),
+            conflict: Default::default(),
+            refreshed_at: jiff::Timestamp::now(),
+            read_error: None,
+        };
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::ArrowDown),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::name(&alpha_id)),
+            "sanity: with Beta clean (AllSet) and Alpha InProgress, ↓ must focus Alpha, \
+             the only NeedsHelp/InProgress row above AllSet's own collapsed section"
+        );
+
+        // The refresh lands: Beta now has a real conflict, moving it to
+        // NeedsHelp — a section above Alpha's own InProgress.
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
+                WorkspaceStatus {
+                    projects: vec![
+                        in_progress_status(alpha_id.clone()),
+                        needs_help_status(beta_id.clone(), true),
+                    ],
+                    last_refresh: None,
+                },
+            )),
+        );
+
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::name(&alpha_id)),
+            "focus must stay on Alpha's own name, now with Beta's row inserted into a \
+             section above it — not on whatever control now sits where Alpha's own row \
+             used to be"
+        );
+    }
+
+    /// Row 3 — the project above the focused one removed outright: Beta
+    /// (`NeedsHelp`, above) and Alpha (`InProgress`, focused, below).
+    /// Removing Beta's own project entirely must leave focus on Alpha.
+    #[test]
+    fn the_project_above_the_focused_one_removed_leaves_focus_on_its_own_project() {
+        let (mut state, alpha_id, beta_id) = two_needs_help_projects("Alpha", "Beta");
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![
+                in_progress_status(alpha_id.clone()),
+                needs_help_status(beta_id.clone(), true),
+            ],
+            last_refresh: None,
+        });
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::ArrowDown),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::name(&beta_id)),
+            "sanity: Beta's own conflict puts it in NeedsHelp, the first section — ↓ must \
+             focus Beta first"
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::ArrowDown),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::name(&alpha_id)),
+            "sanity: a second ↓ must reach Alpha, the only row in InProgress, the next \
+             section after NeedsHelp"
+        );
+
+        state
+            .workspace
+            .as_mut()
+            .unwrap()
+            .projects
+            .retain(|p| p.id != beta_id);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusPrevious),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::name(&alpha_id)),
+            "focus must stay on Alpha's own name once Beta — the project that was above \
+             it — is gone outright"
+        );
+    }
+
+    /// Row 5 — typing in the search box, so the rows change with every
+    /// key: focus never leaves the field.
+    #[test]
+    fn typing_in_the_search_box_never_leaves_the_field() {
+        let (mut state, _a_id, _b_id) = two_needs_help_projects("Alpha", "Banana");
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusSearchBare),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(knotra_ui::widget::focus_id::SEARCH.clone()),
+            "sanity: the bare search shortcut must focus the search field"
+        );
+
+        for ch in "Al".chars() {
+            state.filter.search_text.push(ch);
+            let typed_so_far = state.filter.search_text.clone();
+            drive(
+                &mut rig,
+                &mut state,
+                Message::Filter(crate::message::FilterMessage::SearchChanged(
+                    typed_so_far.clone(),
+                )),
+            );
+            assert_eq!(
+                focused_id(&mut rig, &state),
+                Some(knotra_ui::widget::focus_id::SEARCH.clone()),
+                "focus must still be in the search field after narrowing the rows to {:?}",
+                typed_so_far
+            );
+        }
+    }
+
+    struct FindBounds {
+        target: Id,
+        bounds: Option<Rectangle>,
+    }
+
+    impl Operation for FindBounds {
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
+            operate(self);
+        }
+        fn focusable(
+            &mut self,
+            id: Option<&Id>,
+            bounds: Rectangle,
+            _state: &mut dyn operation::Focusable,
+        ) {
+            if id == Some(&self.target) {
+                self.bounds = Some(bounds);
+            }
+        }
+    }
+
+    /// A real mouse click, by id — unlike every other interaction in this
+    /// file, which drives a `Message` or a key, this delivers raw
+    /// `Event::Mouse` presses directly through `UserInterface::update`,
+    /// **never through `operate()`** — the one way to reach a text
+    /// field's own click-to-focus path (`Widget::update`'s own mouse
+    /// handling) without also setting `FollowsId`'s own `explained` flag,
+    /// which only a real `operate()`-driven focus change ever sets
+    /// (`keyed.rs::FollowsId::operate`'s own before/after survey). Row 6
+    /// needs exactly this: a click that focuses a field *without* an
+    /// operation explaining it, so only `was_handed_across`'s own
+    /// position check — not `explained` — can be what keeps it focused.
+    fn click_id(rig: &mut Rig, state: &mut AppState, target: &Id) {
+        let mut ui = super::rebuild(rig, state);
+        let mut find = FindBounds {
+            target: target.clone(),
+            bounds: None,
+        };
+        ui.operate(&rig.renderer, &mut find);
+        let bounds = find
+            .bounds
+            .unwrap_or_else(|| panic!("{target:?} must be in the tree to click it"));
+        rig.cursor = mouse::Cursor::Available(bounds.center());
+        let events = [
+            iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+            iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+        ];
+        let _ = ui.update(
+            &events,
+            rig.cursor,
+            &mut rig.renderer,
+            &mut super::clipboard::Null,
+            &mut rig.messages,
+        );
+        super::redraw(rig, &mut ui);
+        rig.cache = ui.into_cache();
+    }
+
+    /// Row 6 — a click into the search field (focus without an
+    /// operation), then a refresh changes the rows: focus stays in the
+    /// field.
+    #[test]
+    fn a_click_into_the_search_field_then_a_refresh_leaves_focus_in_the_field() {
+        let (mut state, alpha_id, beta_id) = two_needs_help_projects("Alpha", "Beta");
+        let mut rig = Rig::new(SIZE);
+
+        click_id(&mut rig, &mut state, &knotra_ui::widget::focus_id::SEARCH);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(knotra_ui::widget::focus_id::SEARCH.clone()),
+            "sanity: the click must land real focus on the search field, with no \
+             `operate()`-driven operation involved at all"
+        );
+
+        // A refresh that reorders both projects — Beta gains a conflict
+        // (NeedsHelp, now above Alpha's own continuing StatusUnknown
+        // NeedsHelp row, by cause rank) — changing the rows under the
+        // still-focused search field.
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
+                WorkspaceStatus {
+                    projects: vec![needs_help_status(beta_id.clone(), true)],
+                    last_refresh: None,
+                },
+            )),
+        );
+        let _ = alpha_id;
+
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(knotra_ui::widget::focus_id::SEARCH.clone()),
+            "focus must stay in the search field once the refresh changes the rows \
+             beneath it"
+        );
+    }
+
+    /// Row 7 — Tab in the same step an insertion also happens: focus is
+    /// wherever Tab put it, not pulled back by the insertion's own
+    /// reconciliation in the same redraw.
+    #[test]
+    fn tab_in_the_same_step_as_an_insertion_lands_where_tab_put_it() {
+        let (mut state, alpha_id, _beta_id) = two_needs_help_projects("Alpha", "Beta");
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::ArrowDown),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::name(&alpha_id)),
+            "sanity: ↓ must focus Alpha's own name first"
+        );
+
+        // Both take effect in the one redraw this single `drive` step
+        // settles: the insertion first (mutated directly on `state`, no
+        // message of its own), then Tab, matching `focus_follows_its_id::
+        // a_tab_in_the_exact_same_step_a_reorder_happens_is_not_undone_
+        // either`'s own established pattern for a reorder.
+        state
+            .workspace
+            .as_mut()
+            .unwrap()
+            .projects
+            .insert(0, Project::new("Aaa", "/tmp"));
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::action(&alpha_id)),
+            "Tab's own move, in the very same step a new project was also inserted \
+             above it, must stand — Tab's own real target (Alpha's action, the next \
+             tracked id after Alpha's name), not pulled back to Alpha's name by the \
+             insertion's own reconciliation"
         );
     }
 }
