@@ -30,6 +30,7 @@ use knotra_ui::widget::{
 use crate::{
     message::{DetailPanelMessage, Message, ProjectMessage, WorkspaceMessage},
     state::{AppState, dashboard::badge_for_operation_outcome, detail_panel::RecentCommitsPhase},
+    view::time,
 };
 
 /// RFC-071 Amendment A2 commit 2: the label sits on its own line, the value
@@ -223,7 +224,8 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                     text(format!(
                         "{} — {}",
                         super::operation_kind_label(state, &log.result.kind),
-                        log.result.started_at.strftime("%m/%d %H:%M")
+                        // Task 120 §1: local, short date, no "UTC" label.
+                        time::format(log.result.started_at, time::local_zone(), "%m/%d %H:%M")
                     ))
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
@@ -313,10 +315,11 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
                         // author and date are metadata beside the commit,
                         // the same role as a project's VCS kind beside its
                         // name.
+                        // Task 120 §1: local, no "UTC" label.
                         let detail = text(format!(
                             "{} — {}",
                             entry.author,
-                            entry.date.strftime("%Y-%m-%d %H:%M")
+                            time::format(entry.date, time::local_zone(), "%Y-%m-%d %H:%M")
                         ))
                         .size(snora::design::style::text::body_small_size(tokens))
                         .line_height(snora::design::style::text::body_small_line_height(tokens));
@@ -419,25 +422,33 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
 
 #[cfg(test)]
 mod tests {
-    /// Task 113: this file's own two inline directive strings — a recent
-    /// operation's `started_at` and a recent commit's `entry.date` — read
-    /// here exactly as the real call sites spell them (`%m/%d %H:%M` and
-    /// `%Y-%m-%d %H:%M`), the same precedent `persistence.rs`'s own
-    /// `write_corrupt_file` test helper already sets for a literal this
-    /// file has no standalone function to call directly. Fixed instant:
-    /// 1_709_528_767 = 2024-03-04T05:06:07Z.
+    use crate::view::time;
+
+    /// Task 113, re-pointed by Task 120 §1: this file's own two inline
+    /// directive strings — a recent operation's `started_at` and a recent
+    /// commit's `entry.date` — read here exactly as the real call sites
+    /// spell them (`%m/%d %H:%M` and `%Y-%m-%d %H:%M`), now through
+    /// `time::format` itself (not a bare `strftime`, which the real call
+    /// sites no longer use) with a fixed zone, Asia/Tokyo, so this stays
+    /// deterministic regardless of whichever zone runs the test. Fixed
+    /// instant: 1_709_528_767 = 2024-03-04T05:06:07Z — 2024-03-04 14:06 in
+    /// Tokyo (UTC+9, no DST), the same conversion `view/time.rs`'s own
+    /// tests already prove generally; this only pins which pattern each
+    /// real call site passes.
     #[test]
     fn recent_operation_timestamp_format_is_stable() {
         let ts = jiff::Timestamp::from_second(1_709_528_767).unwrap();
-        assert_eq!(ts.strftime("%m/%d %H:%M").to_string(), "03/04 05:06");
+        let tz = jiff::tz::TimeZone::get("Asia/Tokyo").expect("Asia/Tokyo must be in the tzdb");
+        assert_eq!(time::format(ts, Some(&tz), "%m/%d %H:%M"), "03/04 14:06");
     }
 
     #[test]
     fn recent_commit_date_format_is_stable() {
         let ts = jiff::Timestamp::from_second(1_709_528_767).unwrap();
+        let tz = jiff::tz::TimeZone::get("Asia/Tokyo").expect("Asia/Tokyo must be in the tzdb");
         assert_eq!(
-            ts.strftime("%Y-%m-%d %H:%M").to_string(),
-            "2024-03-04 05:06"
+            time::format(ts, Some(&tz), "%Y-%m-%d %H:%M"),
+            "2024-03-04 14:06"
         );
     }
 }

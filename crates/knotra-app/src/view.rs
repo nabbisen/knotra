@@ -29,6 +29,7 @@ pub mod dashboard;
 pub mod history;
 pub mod ids;
 pub mod settings;
+pub mod time;
 
 use crate::{message::Message, state::AppState};
 use iced::Element;

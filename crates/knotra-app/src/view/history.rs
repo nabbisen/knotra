@@ -30,7 +30,7 @@ use knotra_vcs::model::operation::{
 use crate::{
     message::{HistoryMessage, Message},
     state::{AppState, dashboard::badge_for_operation_outcome},
-    view::{dashboard::WidthMode, ids},
+    view::{dashboard::WidthMode, ids, time},
 };
 
 /// Matches `view/settings.rs`'s own bounded-form width (`FORM_MAX_WIDTH`) —
@@ -223,10 +223,10 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
     let expanded = state.history_expanded.contains(&result.operation_id);
 
     let status = summarise_status(result);
-    let timestamp = result
-        .started_at
-        .strftime("%Y-%m-%d %H:%M:%S UTC")
-        .to_string();
+    // Task 120 §1: local, no seconds, no "UTC" label — unlike `export_text`'s
+    // own copied-log timestamp below, which stays UTC and labelled on
+    // purpose (it is meant to leave the application).
+    let timestamp = time::format(result.started_at, time::local_zone(), "%Y-%m-%d %H:%M");
     let project_count = result.per_project.len();
 
     // RFC-050 D3: the shared disclosure vocabulary (`plain.show_details`/
@@ -645,10 +645,11 @@ fn copied_log_names(state: &AppState, result: &OperationResult) -> Vec<String> {
 /// hands the plain strings in.
 fn export_text(result: &OperationResult, names: &[String]) -> String {
     let kind = result.kind.to_string();
-    let ts = result
-        .started_at
-        .strftime("%Y-%m-%d %H:%M:%S UTC")
-        .to_string();
+    // Task 120 §1: still UTC, still labelled, on purpose (the copied log
+    // leaves the application) — routed through the one shared helper
+    // anyway (`None` zone), rather than calling `.strftime` directly, so
+    // `time_format_guard.rs`'s own scan needs no exception for this site.
+    let ts = time::format(result.started_at, None, "%Y-%m-%d %H:%M:%S");
     let status = summarise_status(result);
     let status_text = format!("{} {}", status.glyph, status.label_en);
     let mut text_parts = vec![format!("# {} — {} — {}", kind, ts, status_text)];
@@ -780,10 +781,14 @@ mod tests {
     use super::*;
 
     /// Task 113: the chrono -> jiff move must not change what a user reads
-    /// or exports. `view_log_entry` (this file, inline) and `export_text`
-    /// (below, directly callable) share the exact same directive string —
-    /// one call through the real `export_text` pins both. Fixed instant:
-    /// 1_709_528_767 = 2024-03-04T05:06:07Z (`date -u -d @1709528767`).
+    /// or exports. **Task 120 §1 split the two apart on purpose**:
+    /// `view_log_entry` (this file, inline) now shows the reader's own
+    /// local zone, no seconds, no "UTC" label (`view/time.rs`'s own
+    /// `format`); `export_text` (below, directly callable, pinned here)
+    /// stays UTC, labelled, with seconds — the copied log is meant to
+    /// leave the application, often read by someone in a different zone.
+    /// Fixed instant: 1_709_528_767 = 2024-03-04T05:06:07Z
+    /// (`date -u -d @1709528767`).
     #[test]
     fn export_text_timestamp_format_is_stable() {
         let mut result = sample_result(Vec::new(), false, None);
@@ -794,6 +799,19 @@ mod tests {
             text.contains("2024-03-04 05:06:07 UTC"),
             "expected the fixed instant formatted as \"2024-03-04 05:06:07 UTC\"; got: {text}"
         );
+    }
+
+    /// Task 120 §1: `view_log_entry`'s own on-screen directive string,
+    /// pinned directly — local zone (Asia/Tokyo here, so this test is
+    /// deterministic regardless of the machine running it), no seconds, no
+    /// "UTC" label. The same fixed instant as the test above, confirming
+    /// the two really have diverged: 05:06:07 UTC reads as "2024-03-04
+    /// 14:06" here, not "2024-03-04 05:06:07 UTC".
+    #[test]
+    fn view_log_entry_timestamp_is_local_with_no_seconds_or_label() {
+        let tz = jiff::tz::TimeZone::get("Asia/Tokyo").expect("Asia/Tokyo must be in the tzdb");
+        let formatted = crate::view::time::format(fixed_instant(), Some(&tz), "%Y-%m-%d %H:%M");
+        assert_eq!(formatted, "2024-03-04 14:06");
     }
 
     /// RFC-073 handoff Amendment A3 §3: a two-line stderr — every line

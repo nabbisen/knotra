@@ -22,6 +22,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The highlight around the control you are on is easier to see.
 - When the list of projects changes, the highlight stays on the project you were on.
 
+### Changed — Times are shown in your own time zone
+
+History and the details panel now show times in your computer's own time zone, without "UTC".
+A copied log and generated release notes still use UTC, marked as such, because they are often
+shared with people in other time zones.
+
 ### Fixed — Get latest safely's notes are easier to read
 
 A note about a project, such as why it only checks for updates, now has its own line under the

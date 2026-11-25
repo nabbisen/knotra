@@ -37,7 +37,7 @@ fn to_iced(color: snora::design::Color) -> iced::Color {
 /// `Disabled` now keeps full opacity throughout: `value` moves to
 /// `text_muted` (full alpha) rather than a faded `text_primary`, and the
 /// border and background are untouched, same as `Active`.
-pub fn text_input_style(
+fn text_input_style(
     tokens: &Tokens,
     status: iced::widget::text_input::Status,
 ) -> iced::widget::text_input::Style {
@@ -116,32 +116,9 @@ pub fn styled_text_input<'a, Message: Clone + 'a>(
         })
 }
 
-/// A labelled text input with persistent label above and optional inline error.
-///
-/// The label always stays visible (not a placeholder that disappears on
-/// focus). An error message, when present, appears beneath the field in a
-/// small, clearly distinct style.
-pub fn guided_field<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    placeholder: &'a str,
-    value: &'a str,
-    on_change: impl Fn(String) -> Message + 'a,
-    error: Option<&'a str>,
-) -> iced::Element<'a, Message> {
-    guided_field_with_id(
-        tokens,
-        label,
-        placeholder,
-        value,
-        on_change,
-        error,
-        FieldFocus::default(),
-    )
-}
-
-/// Same as [`guided_field`] but assigns a [`iced::widget::Id`] to the input for
-/// programmatic focus (e.g. auto-focus when a dialog opens).
+/// A labelled text input with persistent label above and optional inline
+/// error, and a [`iced::widget::Id`] for programmatic focus (e.g.
+/// auto-focus when a dialog opens).
 pub fn guided_field_focused<'a, Message: Clone + 'a>(
     tokens: &Tokens,
     label: &'a str,

@@ -34,10 +34,9 @@ pub use buttons::{
 pub use checkbox::{checkbox_control, checkbox_control_unlabeled};
 pub use escape_first::escape_first;
 pub use field::{
-    FieldAnnotations, guided_field, guided_field_entry, guided_field_focused, styled_text_input,
-    text_input_style, validated_field,
+    FieldAnnotations, guided_field_entry, guided_field_focused, styled_text_input, validated_field,
 };
-pub use focus::{clear_input_focus, focus_input};
+pub use focus::focus_input;
 pub use keyed::{Scope, focus_by_id_page, focus_by_id_window, tab_anchor};
 pub use layout::{
     APP_DIRECTION, Alignment, BUTTON_HEIGHT, Color, Column, Element, Length, Padding, Row,

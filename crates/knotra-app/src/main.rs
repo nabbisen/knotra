@@ -37,6 +37,8 @@ mod text_outside_catalog_guard;
 mod text_size_guard;
 #[cfg(test)]
 mod text_weight_guard;
+#[cfg(test)]
+mod time_format_guard;
 mod view;
 
 #[cfg(test)]
