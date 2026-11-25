@@ -594,15 +594,6 @@ pub struct AppState {
     // window's own controls are real snora focus targets now, with no
     // knotra-focus value left anywhere to track (`app/focus_ops.rs`).
     // ------------------------------------------------------------------
-    /// RFC-066 D4: `true` from Tab/Shift-Tab/an arrow key/`j`/`k`; `false`
-    /// from a mouse button press — the browser's `:focus-visible`
-    /// behaviour. Set and cleared in `app.rs`'s `handle_shortcut`; nothing
-    /// reads it any more since every control draws its own ring from real
-    /// focus (RFC-075), but it is kept rather than torn out mid-stage —
-    /// not named in the handoff's own retirement list, and removing it
-    /// would also mean deciding what to do with the test that exercises
-    /// it (`tests.rs::focus_visible_is_set_by_tab_and_cleared_by_a_mouse_press`).
-    pub focus_visible: bool,
     /// RFC-075 stage 3 Amendment A1 §2: whether the window on top right now
     /// (`layer::top_layer`) was reached "from the keyboard" or by a click —
     /// `None` while no window is open. Lives beside `top_layer`'s own
@@ -685,7 +676,6 @@ impl AppState {
             settings_advanced_open: false,
             settings_select_open: None,
             recent_removal: None,
-            focus_visible: false,
             window_focus_mode: None,
             width_mode: WidthMode::from_width(INITIAL_WINDOW_SIZE.width),
             window_width: INITIAL_WINDOW_SIZE.width,

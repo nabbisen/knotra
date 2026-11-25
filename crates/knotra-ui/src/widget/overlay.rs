@@ -147,11 +147,11 @@ pub fn surface<'a, Message: Clone + 'a>(
 
     if let Some(close_msg) = on_close {
         let t = tokens.clone();
-        // RFC-073 D8: `BUTTON_HEIGHT`, matching `icon_button_maybe`'s own
-        // icon-only sizing — every dialog's close control routes through
-        // here, so fixing it once fixes every dialog. RFC-075 stage 3: a
-        // real `snora::design::control`, with its own id — every window's
-        // own "Close" is the same control, drawn here once.
+        // RFC-073 D8: `BUTTON_HEIGHT`, the standard icon-only control
+        // sizing — every dialog's close control routes through here, so
+        // fixing it once fixes every dialog. RFC-075 stage 3: a real
+        // `snora::design::control`, with its own id — every window's own
+        // "Close" is the same control, drawn here once.
         header = header.push(
             snora::design::control(
                 tokens,

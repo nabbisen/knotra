@@ -72,6 +72,11 @@ pub mod toolbar {
     pub fn arrange_sort() -> Id {
         Id::new("dashboard.toolbar.arrange.sort")
     }
+    /// RFC-075 stage 5 §1: moved from `knotra_ui::widget::focus_id::SEARCH`
+    /// — every text-field id now lives here, with every other control's.
+    pub fn search() -> Id {
+        Id::new("dashboard-search")
+    }
 }
 
 pub mod section {
@@ -235,6 +240,17 @@ pub mod freezer {
     pub fn done_close() -> Id {
         Id::new("freezer.done_close")
     }
+    /// RFC-075 stage 5 §1: moved from `knotra_ui::widget::focus_id::
+    /// RELEASE_NAME`.
+    pub fn release_name() -> Id {
+        Id::new("release-name")
+    }
+    /// RFC-075 stage 5 §1: moved from `knotra_ui::widget::focus_id::
+    /// RELEASE_NOTE` — RFC-066 Stage 2's own optional note field, the
+    /// first thing to need a stable id at all.
+    pub fn release_note() -> Id {
+        Id::new("release-note")
+    }
 }
 
 pub mod context_switch {
@@ -255,6 +271,11 @@ pub mod context_switch {
     pub fn done_close() -> Id {
         Id::new("context_switch.done_close")
     }
+    /// RFC-075 stage 5 §1: moved from `knotra_ui::widget::focus_id::
+    /// SWITCH_TARGET`.
+    pub fn target() -> Id {
+        Id::new("switch-target")
+    }
 }
 
 pub mod changelog {
@@ -274,6 +295,11 @@ pub mod changelog {
     }
     pub fn done_close() -> Id {
         Id::new("changelog.done_close")
+    }
+    /// RFC-075 stage 5 §1: moved from `knotra_ui::widget::focus_id::
+    /// CHANGELOG_SINCE` — RFC-066 Stage 2's own "Since" field.
+    pub fn since() -> Id {
+        Id::new("changelog-since")
     }
 }
 
@@ -315,6 +341,11 @@ pub mod palette {
     pub fn close() -> Id {
         Id::new("palette.close")
     }
+    /// RFC-075 stage 5 §1: moved from `knotra_ui::widget::focus_id::
+    /// PALETTE_QUERY`.
+    pub fn query() -> Id {
+        Id::new("palette-query")
+    }
 }
 
 pub mod add_project {
@@ -338,6 +369,16 @@ pub mod add_project {
     pub fn back() -> Id {
         Id::new("add_project.back")
     }
+    /// RFC-075 stage 5 §1: moved from `knotra_ui::widget::focus_id::
+    /// ADD_PROJECT_PATH`.
+    pub fn path() -> Id {
+        Id::new("add-project-path")
+    }
+    /// RFC-075 stage 5 §1: moved from `knotra_ui::widget::focus_id::
+    /// ADD_PROJECT_NAME`.
+    pub fn name() -> Id {
+        Id::new("add-project-name")
+    }
 }
 
 /// Create and Rename share one dialog shape; Delete is its own.
@@ -358,6 +399,11 @@ pub mod workspace_manager {
     }
     pub fn delete_cancel() -> Id {
         Id::new("workspace_manager.delete_cancel")
+    }
+    /// RFC-075 stage 5 §1: moved from `knotra_ui::widget::focus_id::
+    /// WORKSPACE_NAME`.
+    pub fn name() -> Id {
+        Id::new("workspace-name")
     }
 }
 

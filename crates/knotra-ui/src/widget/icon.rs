@@ -7,7 +7,8 @@
 //!
 //! Accessible labels are **not** attached here — this crate has no i18n
 //! catalog knowledge. Callers supply a localized label from `state.t(...)`
-//! alongside these icons, typically via [`super::button::icon_button_maybe`].
+//! alongside these icons, typically as a hover tooltip beside an icon-only
+//! control (`view/shell.rs::icon_control_with_tooltip`, for one).
 
 pub use snora::widget::icon::{icon_element, icon_element_sized};
 

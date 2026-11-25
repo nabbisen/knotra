@@ -15,7 +15,6 @@
 
 use snora::design::Tokens;
 
-use super::icon::{icon_element, icon_element_sized};
 use super::layout::{BUTTON_HEIGHT, Element, Length};
 
 /// Centres a button's label text vertically, filling the button's fixed
@@ -70,63 +69,9 @@ pub fn centered_button_row<'a, Message: 'a>(
 /// A token-aware, focus-ring-capable button that shows a plain-text reason
 /// beneath it when disabled — the composition the deleted `guided_button`
 /// used to provide, built on the semantic style vocabulary instead of the
-/// default theme (RFC-037 D7).
-///
-/// `style_fn` selects the semantic variant; pass one of `style::primary`,
-/// `style::secondary`, `style::ghost`, `style::danger`. `is_focused` draws
-/// the RFC-036 focus ring, same as [`style::with_focus_ring`].
-///
-/// # Arguments
-/// * `tokens`      — Design tokens.
-/// * `label`       — Button text.
-/// * `on_press`    — Message to emit, or `None` to disable.
-/// * `reason`      — Optional explanation shown only when disabled.
-/// * `is_focused`  — Draws a focus ring when `true`.
-/// * `style_fn`    — The semantic style variant to apply.
-#[must_use]
-pub fn reasoned<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Option<Message>,
-    reason: Option<&'a str>,
-    is_focused: bool,
-    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
-) -> Element<'a, Message> {
-    use iced::widget::{button, column, text};
-
-    let t = tokens.clone();
-    let show_reason = reason_row_needed(on_press.is_none(), reason.is_some());
-
-    let btn: Element<'a, Message> = button(centered_button_label(
-        text(label.into())
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 18])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
-    .into();
-
-    match reason {
-        // RFC-071 Amendment A3 D14: a reason is read to understand why a
-        // control can't be used right now — `body`, not incidental
-        // metadata.
-        Some(r) if show_reason => column![
-            btn,
-            text(r)
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens))
-        ]
-        .spacing(6)
-        .into(),
-        _ => btn,
-    }
-}
-
-/// [`reasoned`], on `snora::design::control` rather than `iced::widget::button`
-/// (RFC-075 stage 3) — a real focus target, drawing its own ring from real
-/// focus, with no `is_focused` parameter to supply.
+/// default theme (RFC-037 D7). On `snora::design::control` (RFC-075 stage
+/// 3) — a real focus target, drawing its own ring from real focus, with no
+/// `is_focused` parameter to supply.
 #[must_use]
 pub fn reasoned_control_maybe<'a, Message: Clone + 'a>(
     tokens: &Tokens,
@@ -169,119 +114,11 @@ fn reason_row_needed(on_press_is_none: bool, reason_is_some: bool) -> bool {
 // Semantic control vocabulary (RFC-034 R6/R7).
 // ---------------------------------------------------------------------------
 
-/// Shared construction for [`primary`]/[`secondary`]/[`ghost`]/[`danger`]
-/// and their `_maybe` variants (RFC-073 Amendment A2/D8) — built locally
-/// rather than delegated to `snora::design::button::*`, which renders
-/// ~27px tall (its own `label`-role text plus iced's 5px default padding),
-/// under D8's 36px floor, with no seam to raise it from outside (the same
-/// "no seam to compose onto a pass-through" `chip.rs`'s own doc comment
-/// already names for this crate). `BUTTON_HEIGHT` (44) and `body`-role
-/// text match [`reasoned`] — the vocabulary these four variants complete.
-fn make_button<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Option<Message>,
-    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
-) -> Element<'a, Message> {
-    use iced::widget::{button, text};
-
-    let t = tokens.clone();
-    button(centered_button_label(
-        text(label.into())
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 18])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| style_fn(&t, status))
-    .into()
-}
-
-/// Filled accent button — the single strongest action on a surface.
-#[must_use]
-pub fn primary<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Message,
-) -> Element<'a, Message> {
-    make_button(tokens, label, Some(on_press), style::primary)
-}
-
-/// Filled accent button with an optional press handler (disabled when `None`).
-#[must_use]
-pub fn primary_maybe<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Option<Message>,
-) -> Element<'a, Message> {
-    make_button(tokens, label, on_press, style::primary)
-}
-
-/// Outlined accent button — a secondary action alongside a [`primary`].
-#[must_use]
-pub fn secondary<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Message,
-) -> Element<'a, Message> {
-    make_button(tokens, label, Some(on_press), style::secondary)
-}
-
-/// Outlined accent button with an optional press handler.
-#[must_use]
-pub fn secondary_maybe<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Option<Message>,
-) -> Element<'a, Message> {
-    make_button(tokens, label, on_press, style::secondary)
-}
-
-/// Ghost button — no fill or border at rest; ordinary/tertiary action.
-#[must_use]
-pub fn ghost<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Message,
-) -> Element<'a, Message> {
-    make_button(tokens, label, Some(on_press), style::ghost)
-}
-
-/// Ghost button with an optional press handler.
-#[must_use]
-pub fn ghost_maybe<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Option<Message>,
-) -> Element<'a, Message> {
-    make_button(tokens, label, on_press, style::ghost)
-}
-
-/// Danger / destructive button — irreversible actions only (delete, revoke).
-#[must_use]
-pub fn danger<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Message,
-) -> Element<'a, Message> {
-    make_button(tokens, label, Some(on_press), style::danger)
-}
-
-/// Danger button with an optional press handler.
-#[must_use]
-pub fn danger_maybe<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    on_press: Option<Message>,
-) -> Element<'a, Message> {
-    make_button(tokens, label, on_press, style::danger)
-}
-
-/// `iced` style functions for the semantic button variants, for callers that
-/// build their own `button(...)` rather than using the `Element` constructors
-/// above — e.g. because the content is not a plain label, or because a fixed
-/// [`iced::widget::button::Status`] is needed (see [`current_or`]).
+/// `iced` style functions for the semantic control variants, for callers
+/// that build their own `control(...)`/`button(...)` rather than using the
+/// `Element` constructors below — e.g. because the content is not a plain
+/// label, or because a fixed [`iced::widget::button::Status`] is needed
+/// (see [`current_or_control`]).
 pub mod style {
     use iced::widget::button::{Status, Style};
     use iced::{Border, Color};
@@ -423,31 +260,20 @@ pub mod style {
 /// `Status::Disabled` (RFC-033 D4; RFC-034 R12).
 ///
 /// `on_press`-suppression and visual state are independent concerns for a
-/// "you are here" indicator, but iced conflates them by default — a button
+/// "you are here" indicator, but iced conflates them by default — a control
 /// with no `on_press` reports `Status::Disabled`, which every style function
 /// fades. This feeds the *active* branch a fixed `Status::Active` so it
 /// always renders at full strength regardless of interactivity, while the
 /// *inactive* branch keeps the real `status` so hover/press feedback still
-/// works on it.
+/// works on it. On `snora::design::control`, which draws its own ring from
+/// real focus — no `is_focused` parameter to supply, unlike `with_focus_
+/// ring`'s own callers.
 ///
 /// ```rust,ignore
-/// button(text(label))
+/// control(tokens, text(label))
 ///     .on_press_maybe((!active).then_some(message))
-///     .style(move |_theme, status| current_or(active, &tokens, status, is_focused))
+///     .style(move |_theme, status| current_or_control(active, &tokens, status))
 /// ```
-pub fn current_or(
-    active: bool,
-    tokens: &snora::design::Tokens,
-    status: iced::widget::button::Status,
-    is_focused: bool,
-) -> iced::widget::button::Style {
-    let base = current_or_control(active, tokens, status);
-    style::with_focus_ring(tokens, is_focused, base)
-}
-
-/// Same as [`current_or`], without the ring — for a `snora::design::control`
-/// (RFC-075 stage 3), which draws its own ring from real focus and must not
-/// receive a second one layered on top by the style closure.
 pub fn current_or_control(
     active: bool,
     tokens: &snora::design::Tokens,
@@ -461,38 +287,22 @@ pub fn current_or_control(
 }
 
 // ---------------------------------------------------------------------------
-// RFC-075 D1/Stage 1: the same four variants, on `snora::design::control`
-// rather than `iced::widget::button`, so each is a real focus target —
-// `control`'s own ring, Enter/Space press, and "a disabled control is no
-// Tab stop" (D4 b), none of which a bare `button` has. Named with a
-// `_control` suffix, never the bare `primary`/`secondary`/`ghost`/`danger`
-// names above, so the two families cannot be confused for each other at a
-// call site by a stray import — not even a rename, since both are kept
-// side by side until stage 5 retires the `button`-based ones.
-//
-// **Not yet called by any view** (this stage's own rule) — proven instead
-// by this module's own tests, through `knotra_ui::test_support::Harness`,
-// and by the pixel comparison in `label_overflow`-shaped form under
-// `crates/knotra-app`'s `primitive_pixel_parity.rs` (RFC-075 handoff stage
-// 1 §3).
-//
-// **The look at rest is unchanged**: the same `style::{primary,secondary,
-// ghost,danger}` functions above (already covered by
-// `theme.rs::every_labelled_control_meets_its_presets_own_text_floor`,
-// Task 112's contrast suite, since `Control::style` takes the identical
-// `Fn(&Theme, button::Status) -> button::Style` closure `button::style` did
-// — no new colour-deriving code exists for these four, so that suite
-// already covers them, not by extension but by construction) — only the
-// ring, built in by `control` itself, differs: **snora's own ring, drawn
-// from `Tokens::focus`**, not `style::with_focus_ring`'s border override.
-// `Control`'s own ring is reported separately in the handoff report (§3),
-// not reasserted here as a difference the pixel comparison should treat as
-// a defect.
+// RFC-034 R6/R7: the semantic control vocabulary, on `snora::design::
+// control` — each is a real focus target, with `control`'s own ring,
+// Enter/Space press, and "a disabled control is no Tab stop" (RFC-075 D4
+// b). RFC-075 stage 5 retired the earlier `iced::widget::button`-based
+// family these once sat beside (`primary`/`secondary`/`ghost`/`danger`
+// and their own `_maybe` forms, `make_button`) — these are now the only
+// semantic button vocabulary this crate has, so the `_control` suffix no
+// longer tells two families apart; it is kept anyway (RFC-075 handoff
+// stage 5 §4), since renaming every call site back would touch hundreds
+// of them for no reader's benefit, and the names stay unambiguous either
+// way.
 // ---------------------------------------------------------------------------
 
-/// Shared construction for the `_control` variants — `make_button`'s own
-/// twin, on `snora::design::control`. `id` is required, not optional
-/// (RFC-075 D3: "every new primitive takes an id, for stage 3's entries").
+/// Shared construction for the `_control` variants, on `snora::design::
+/// control`. `id` is required, not optional (RFC-075 D3: "every new
+/// primitive takes an id, for stage 3's entries").
 fn make_control<'a, Message: Clone + 'a>(
     tokens: &Tokens,
     label: impl Into<String>,
@@ -606,85 +416,6 @@ pub fn danger_control_maybe<'a, Message: Clone + 'a>(
     make_control(tokens, label, on_press, style::danger, id)
 }
 
-/// Icon-only button for familiar global commands (refresh, settings, close,
-/// overflow). Always carries an `accessible_label`, shown as a hover tooltip,
-/// so the control's purpose is never conveyed by the icon glyph alone.
-///
-/// There is no non-`_maybe` form: an icon-only control with no way to
-/// indicate why it is inert would give the user no explanation at all, so
-/// callers always thread their disabled state through `on_press`.
-///
-/// `is_focused` draws the RFC-036 focus ring when true — see
-/// [`style::with_focus_ring`].
-#[must_use]
-pub fn icon_button_maybe<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    icon: &snora::Icon,
-    accessible_label: impl Into<String>,
-    on_press: Option<Message>,
-    is_focused: bool,
-) -> Element<'a, Message> {
-    use iced::widget::{button, row, text, tooltip};
-
-    let t = tokens.clone();
-    let btn = button(centered_button_row(row![icon_element(icon)]))
-        .height(Length::Fixed(BUTTON_HEIGHT))
-        .width(Length::Fixed(BUTTON_HEIGHT))
-        .on_press_maybe(on_press)
-        .style(move |_theme, status| {
-            style::with_focus_ring(&t, is_focused, style::ghost(&t, status))
-        });
-
-    tooltip(
-        btn,
-        super::overlay::raised_card(
-            tokens,
-            text(accessible_label.into())
-                .size(snora::design::style::text::body_small_size(tokens))
-                .line_height(snora::design::style::text::body_small_line_height(tokens)),
-        ),
-        tooltip::Position::Bottom,
-    )
-    .into()
-}
-
-/// RFC-071 D10: a header control that shows its own name beside its icon
-/// — Refresh, the command palette and Settings, in the standard and wide
-/// bands — rather than relying on [`icon_button_maybe`]'s tooltip alone.
-/// The icon is at least 16px and the control `BUTTON_HEIGHT` high
-/// (RFC-073 D8: grown from `SMALL_BUTTON_HEIGHT` — the 52px shell bar has
-/// room, and it now matches `icon_button_maybe`'s own compact-band height
-/// exactly). The compact band keeps `icon_button_maybe`'s icon-only-plus-
-/// tooltip form unchanged (D10's own "today's tooltip"); callers choose
-/// between the two per `state.width_mode`, this function does not.
-#[must_use]
-pub fn header_control<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    icon: &snora::Icon,
-    label: impl Into<String>,
-    on_press: Option<Message>,
-    is_focused: bool,
-) -> Element<'a, Message> {
-    use iced::widget::{button, row, text};
-
-    let t = tokens.clone();
-
-    button(centered_button_row(
-        row![
-            icon_element_sized(icon, 16.0),
-            text(label.into())
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-        ]
-        .spacing(6),
-    ))
-    .height(Length::Fixed(BUTTON_HEIGHT))
-    .padding([0, 12])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style::ghost(&t, status)))
-    .into()
-}
-
 #[cfg(test)]
 mod tests {
     use super::reason_row_needed;
@@ -752,184 +483,7 @@ mod tests {
         );
     }
 
-    /// RFC-075 D1's own anticipated difference ("the focus ring may
-    /// differ... report the difference"), confirmed by rendering: with
-    /// `primary_control` actually Tab-focused (`Harness::tab`, not a
-    /// boolean flag) against `reasoned`'s own `is_focused: true`, at the
-    /// same size and theme, both button shapes are identical (this
-    /// module's own `each_control_variant_draws_identically_...` proves
-    /// that at rest, and the focused difference is confined to the ring
-    /// alone — nothing else moves when only `is_focused` changes, per
-    /// `with_focus_ring`'s/`Control`'s own contract). The ring itself
-    /// looks different in two ways, read from the rendered crop:
-    ///
-    /// - **offset**: `with_focus_ring` draws the ring flush with the
-    ///   button's own border (`border.width = tokens.focus.ring_width`,
-    ///   replacing it in place — RFC-036's own design). `Control`'s ring
-    ///   is drawn *outside* the control, separated by `Tokens::focus::
-    ///   ring_offset` (confirmed: `snora_design::FocusTokens`'s own field,
-    ///   already re-exported by this crate) — a visible gap between the
-    ///   button's edge and the ring that `with_focus_ring` never had.
-    /// - **corner follow-through**: the gap itself has rounded corners,
-    ///   following the button's own radius outward, where
-    ///   `with_focus_ring`'s flush ring only ever redrew the existing
-    ///   border in place.
-    ///
-    /// Not treated as a defect to fix — D1 names exactly this as expected
-    /// and asks for a report, not equality, and `Control`'s own
-    /// documentation (`snora-0.65.0/src/control.rs`, read directly) states
-    /// the ring is "at least 3:1 against the page and every neutral
-    /// surface snora's tokens define", the same guarantee RFC-036 Stage 6
-    /// built `with_focus_ring` to provide by hand. No pixel assertion here
-    /// (a ring's own exact offset/radius is snora's to draw, not this
-    /// crate's to pin) — this is the report the RFC asked for, not a gate.
-    #[test]
-    #[cfg_attr(
-        not(target_os = "linux"),
-        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
-                  only on the Linux CI runner (Task 108 A1 §4, `crates/knotra-app/src/\
-                  label_overflow_guard.rs`'s own precedent); what this measures would be \
-                  some other font's on macOS/Windows"
-    )]
-    fn primary_control_focused_differs_from_reasoned_only_in_the_ring_not_the_button() {
-        use crate::test_support::Harness;
-        use crate::theme::KnotraTheme;
-        use iced::widget::Id;
-
-        #[derive(Debug, Clone)]
-        enum Msg {
-            Go,
-        }
-
-        let theme = KnotraTheme::light();
-        let t = &theme.tokens;
-        let old: iced::Element<'static, Msg> =
-            super::reasoned(t, "Save", Some(Msg::Go), None, false, super::style::primary);
-        let new: iced::Element<'static, Msg> =
-            super::primary_control(t, "Save", Msg::Go, Id::new("btn"));
-        let size = iced_test::core::Size {
-            width: 200.0,
-            height: 80.0,
-        };
-
-        // Unfocused: identical (already the other test's own claim, but
-        // asserted again here so a reader of *this* test does not have to
-        // take that on faith to trust its own "only the ring differs").
-        let mut h_old_unfocused = Harness::new(old, size, None);
-        let (old_u, ow, oh) = h_old_unfocused.screenshot(&theme.base);
-        let mut h_new_unfocused = Harness::new(
-            super::primary_control(t, "Save", Msg::Go, Id::new("btn")),
-            size,
-            None,
-        );
-        let (new_u, nw, nh) = h_new_unfocused.screenshot(&theme.base);
-        crate::test_support::pixel_diff(&old_u, (ow, oh), &new_u, (nw, nh))
-            .expect("unfocused must still be identical — this test's own premise");
-
-        // Focused: both render, neither panics, and they are NOT expected
-        // to be identical — the ring is the known, reported difference.
-        let old_focused: iced::Element<'static, Msg> =
-            super::reasoned(t, "Save", Some(Msg::Go), None, true, super::style::primary);
-        let mut h_old = Harness::new(old_focused, size, None);
-        let (old_rgba, ow, oh) = h_old.screenshot(&theme.base);
-
-        let mut h_new = Harness::new(new, size, None);
-        h_new.tab(false);
-        assert_eq!(h_new.focused_id(), Some(Id::new("btn")));
-        let (new_rgba, nw, nh) = h_new.screenshot(&theme.base);
-
-        assert!(
-            crate::test_support::pixel_diff(&old_rgba, (ow, oh), &new_rgba, (nw, nh)).is_err(),
-            "expected the focused ring to differ (this module's own doc comment says how) — \
-             if this now passes, Control's ring drawing changed to match with_focus_ring's \
-             exactly, and the doc comment above should be updated to say so"
-        );
-    }
-
-    #[test]
-    #[cfg_attr(
-        not(target_os = "linux"),
-        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
-                  only on the Linux CI runner (Task 108 A1 §4, `crates/knotra-app/src/\
-                  label_overflow_guard.rs`'s own precedent); what this measures would be \
-                  some other font's on macOS/Windows"
-    )]
-    fn each_control_variant_draws_identically_to_its_old_twin_at_rest_in_every_theme() {
-        use crate::test_support::{Harness, pixel_diff};
-        use crate::theme::KnotraTheme;
-        use iced::widget::Id;
-
-        #[derive(Debug, Clone)]
-        enum Msg {
-            Go,
-        }
-
-        let size = iced_test::core::Size {
-            width: 200.0,
-            height: 80.0,
-        };
-
-        fn check(
-            preset: &str,
-            name: &str,
-            size: iced_test::core::Size,
-            base: &iced::Theme,
-            old: iced::Element<'static, Msg>,
-            new: iced::Element<'static, Msg>,
-        ) {
-            let mut h_old = Harness::new(old, size, None);
-            let (old_rgba, ow, oh) = h_old.screenshot(base);
-            let mut h_new = Harness::new(new, size, None);
-            let (new_rgba, nw, nh) = h_new.screenshot(base);
-            if let Err(diff) = pixel_diff(&old_rgba, (ow, oh), &new_rgba, (nw, nh)) {
-                panic!("{preset} {name}: not identical at rest: {diff}");
-            }
-        }
-
-        for (preset, theme) in [
-            ("light", KnotraTheme::light()),
-            ("dark", KnotraTheme::dark()),
-            ("high_contrast_light", KnotraTheme::high_contrast_light()),
-            ("high_contrast_dark", KnotraTheme::high_contrast_dark()),
-        ] {
-            let t = &theme.tokens;
-            let base = &theme.base;
-            check(
-                preset,
-                "primary",
-                size,
-                base,
-                super::primary(t, "Save", Msg::Go),
-                super::primary_control(t, "Save", Msg::Go, Id::new("btn")),
-            );
-            check(
-                preset,
-                "secondary",
-                size,
-                base,
-                super::secondary(t, "Save", Msg::Go),
-                super::secondary_control(t, "Save", Msg::Go, Id::new("btn")),
-            );
-            check(
-                preset,
-                "ghost",
-                size,
-                base,
-                super::ghost(t, "Save", Msg::Go),
-                super::ghost_control(t, "Save", Msg::Go, Id::new("btn")),
-            );
-            check(
-                preset,
-                "danger",
-                size,
-                base,
-                super::danger(t, "Save", Msg::Go),
-                super::danger_control(t, "Save", Msg::Go, Id::new("btn")),
-            );
-        }
-    }
-
-    /// `reasoned`'s reason text renders in exactly the same case
+    /// `reasoned_control_maybe`'s reason text renders in exactly the same case
     /// `guided_button` used: no press handler, and a reason was supplied.
     /// Either condition failing hides it.
     #[test]

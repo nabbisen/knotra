@@ -277,7 +277,7 @@ mod tests {
             ids::toolbar::filter_ahead(),
             ids::toolbar::filter_all_set(),
             ids::toolbar::arrange(),
-            knotra_ui::widget::focus_id::SEARCH.clone(),
+            ids::toolbar::search(),
             ids::toolbar::select_mode(),
             ids::row::name(&alpha_id),
             ids::row::action(&alpha_id),
@@ -433,10 +433,7 @@ mod tests {
             Message::Shortcut(ShortcutMessage::FocusSearchBare),
         );
         assert_eq!(state.screen, Screen::Dashboard);
-        assert_eq!(
-            focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::SEARCH.clone())
-        );
+        assert_eq!(focused_id(&mut rig, &state), Some(ids::toolbar::search()));
     }
 
     /// RFC-075 D6: ↓ ↑ j k move among project-name ids, wrapping; off-card
@@ -860,7 +857,7 @@ mod stage3_entry_ids {
         let state = base_state();
         assert_eq!(
             crate::view::overlays::freezer_entry_id(&state),
-            Some(knotra_ui::widget::focus_id::RELEASE_NAME.clone())
+            Some(ids::freezer::release_name())
         );
     }
 
@@ -910,7 +907,7 @@ mod stage3_entry_ids {
         };
         assert_eq!(
             crate::view::overlays::context_switch_entry_id(&state),
-            Some(knotra_ui::widget::focus_id::SWITCH_TARGET.clone())
+            Some(ids::context_switch::target())
         );
     }
 
@@ -963,7 +960,7 @@ mod stage3_entry_ids {
         let state = base_state();
         assert_eq!(
             crate::view::overlays::changelog_entry_id(&state),
-            Some(knotra_ui::widget::focus_id::CHANGELOG_SINCE.clone())
+            Some(ids::changelog::since())
         );
     }
 
@@ -1069,7 +1066,7 @@ mod stage3_entry_ids {
             });
         assert_eq!(
             crate::view::workspace_manager::entry_id(&state),
-            Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone())
+            Some(ids::workspace_manager::name())
         );
     }
 
@@ -1108,7 +1105,7 @@ mod stage3_entry_ids {
         state.palette.open = true;
         assert_eq!(
             crate::view::command_palette::entry_id(&state),
-            Some(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
+            Some(ids::palette::query())
         );
     }
 
@@ -2415,10 +2412,7 @@ mod stage3_tab_and_confinement {
         tab(&mut rig, &mut state);
         assert_eq!(focused_id(&mut rig, &state), Some(ids::palette::close()));
         tab(&mut rig, &mut state);
-        assert_eq!(
-            focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
-        );
+        assert_eq!(focused_id(&mut rig, &state), Some(ids::palette::query()));
         tab(&mut rig, &mut state);
         assert_eq!(
             focused_id(&mut rig, &state),
@@ -2447,7 +2441,7 @@ mod stage3_tab_and_confinement {
             &mut state,
             &[
                 ids::add_project::close(),
-                knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
+                ids::add_project::path(),
                 ids::add_project::browse(),
                 ids::add_project::cancel(),
             ],
@@ -2482,7 +2476,7 @@ mod stage3_tab_and_confinement {
             &mut state,
             &[
                 ids::add_project::close(),
-                knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
+                ids::add_project::name(),
                 ids::add_project::back(),
             ],
         );
@@ -2536,7 +2530,7 @@ mod stage3_tab_and_confinement {
             &mut state,
             &[
                 ids::workspace_manager::close(),
-                knotra_ui::widget::focus_id::WORKSPACE_NAME.clone(),
+                ids::workspace_manager::name(),
                 ids::workspace_manager::cancel(),
             ],
         );
@@ -2555,7 +2549,7 @@ mod stage3_tab_and_confinement {
             &mut state,
             &[
                 ids::workspace_manager::close(),
-                knotra_ui::widget::focus_id::WORKSPACE_NAME.clone(),
+                ids::workspace_manager::name(),
                 ids::workspace_manager::confirm(),
                 ids::workspace_manager::cancel(),
             ],
@@ -2606,6 +2600,7 @@ mod stage3_highlight_cursors {
     use crate::config::AppConfig;
     use crate::message::{Message, PaletteMessage};
     use crate::state::{AppState, PaletteEntry, PaletteEntryKind};
+    use crate::view::ids;
     use iced::keyboard::key::Named;
     use knotra_vcs::model::status::ContextCandidate;
     use knotra_vcs::model::status::ContextTarget;
@@ -2771,15 +2766,13 @@ mod stage3_highlight_cursors {
                 &mut state,
                 Message::Shortcut(crate::message::ShortcutMessage::FocusNext),
             );
-            if focused_id(&mut rig, &state)
-                == Some(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
-            {
+            if focused_id(&mut rig, &state) == Some(ids::palette::query()) {
                 break;
             }
         }
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::PALETTE_QUERY.clone()),
+            Some(ids::palette::query()),
             "sanity: Tab must be able to reach the palette's own query field"
         );
 
@@ -2845,15 +2838,13 @@ mod stage3_highlight_cursors {
                 &mut state,
                 Message::Shortcut(crate::message::ShortcutMessage::FocusNext),
             );
-            if focused_id(&mut rig, &state)
-                == Some(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
-            {
+            if focused_id(&mut rig, &state) == Some(ids::palette::query()) {
                 break;
             }
         }
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::PALETTE_QUERY.clone()),
+            Some(ids::palette::query()),
             "sanity: Tab must be able to reach the palette's own query field"
         );
         state.palette.results = vec![
@@ -3077,6 +3068,7 @@ mod stage3_entry_by_shortcut {
     use crate::config::AppConfig;
     use crate::message::{Message, ShortcutMessage};
     use crate::state::AppState;
+    use crate::view::ids;
 
     #[test]
     fn ctrl_t_opens_freezer_and_focuses_the_name_field_synchronously() {
@@ -3094,7 +3086,7 @@ mod stage3_entry_by_shortcut {
         );
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::RELEASE_NAME.clone())
+            Some(ids::freezer::release_name())
         );
     }
 }
@@ -3209,7 +3201,7 @@ mod stage3_amendment_a1_return_on_close {
         );
         assert_eq!(
             focused_id(rig, state),
-            Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone()),
+            Some(ids::workspace_manager::name()),
             "WorkspaceCreate must inherit the menu's own Keyboard mode and focus its own entry"
         );
     }
@@ -3864,7 +3856,7 @@ mod stage3_amendment_a1_mouse_mode_and_phases {
         );
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::RELEASE_NAME.clone()),
+            Some(ids::freezer::release_name()),
             "sanity: Ctrl+T must focus Idle's own entry synchronously"
         );
 
@@ -3919,10 +3911,7 @@ mod stage3_amendment_a1_mouse_mode_and_phases {
             Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
         );
 
-        assert_eq!(
-            focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
-        );
+        assert_eq!(focused_id(&mut rig, &state), Some(ids::palette::query()));
     }
 
     /// §4 row 5, second window: Add project, from the empty-workspace
@@ -3952,10 +3941,7 @@ mod stage3_amendment_a1_mouse_mode_and_phases {
             Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
         );
 
-        assert_eq!(
-            focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone())
-        );
+        assert_eq!(focused_id(&mut rig, &state), Some(ids::add_project::path()));
     }
 
     /// §4 row 5, third window: Rename workspace — a different `Layer`
@@ -4006,7 +3992,7 @@ mod stage3_amendment_a1_mouse_mode_and_phases {
         );
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone())
+            Some(ids::workspace_manager::name())
         );
     }
 }
@@ -5054,7 +5040,7 @@ mod stage4_settings_tab_and_selects {
         open_rename_dialog_for(&mut rig, &mut state, &rename_b);
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone()),
+            Some(ids::workspace_manager::name()),
             "opening Rename via a real key must focus its own entry, the name field"
         );
 
@@ -5744,7 +5730,7 @@ mod stage4_amendment_a1 {
         );
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::SEARCH.clone()),
+            Some(ids::toolbar::search()),
             "sanity: the bare search shortcut must focus the search field"
         );
 
@@ -5760,7 +5746,7 @@ mod stage4_amendment_a1 {
             );
             assert_eq!(
                 focused_id(&mut rig, &state),
-                Some(knotra_ui::widget::focus_id::SEARCH.clone()),
+                Some(ids::toolbar::search()),
                 "focus must still be in the search field after narrowing the rows to {:?}",
                 typed_so_far
             );
@@ -5833,10 +5819,10 @@ mod stage4_amendment_a1 {
         let (mut state, alpha_id, beta_id) = two_needs_help_projects("Alpha", "Beta");
         let mut rig = Rig::new(SIZE);
 
-        click_id(&mut rig, &mut state, &knotra_ui::widget::focus_id::SEARCH);
+        click_id(&mut rig, &mut state, &ids::toolbar::search());
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::SEARCH.clone()),
+            Some(ids::toolbar::search()),
             "sanity: the click must land real focus on the search field, with no \
              `operate()`-driven operation involved at all"
         );
@@ -5859,7 +5845,7 @@ mod stage4_amendment_a1 {
 
         assert_eq!(
             focused_id(&mut rig, &state),
-            Some(knotra_ui::widget::focus_id::SEARCH.clone()),
+            Some(ids::toolbar::search()),
             "focus must stay in the search field once the refresh changes the rows \
              beneath it"
         );

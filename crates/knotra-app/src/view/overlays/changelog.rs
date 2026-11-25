@@ -65,9 +65,7 @@ pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
     use crate::state::changelog::ChangelogPhase;
 
     Some(match &state.changelog.phase {
-        ChangelogPhase::Idle | ChangelogPhase::Collecting => {
-            knotra_ui::widget::focus_id::CHANGELOG_SINCE.clone()
-        }
+        ChangelogPhase::Idle | ChangelogPhase::Collecting => crate::view::ids::changelog::since(),
         ChangelogPhase::Ready(_) => crate::view::ids::changelog::copy(),
     })
 }
@@ -86,7 +84,7 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
         &cl.since_ref,
         |s| Message::Changelog(ChangelogMessage::SinceRefChanged(s)),
         None,
-        knotra_ui::widget::focus_id::CHANGELOG_SINCE.clone(),
+        crate::view::ids::changelog::since(),
     );
 
     let project_picker = changelog_project_picker(tokens, state, is_collecting);

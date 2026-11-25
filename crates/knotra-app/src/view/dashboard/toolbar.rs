@@ -134,7 +134,7 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
         state.t("dashboard.search_placeholder"),
         &state.filter.search_text,
     )
-    .id(knotra_ui::widget::focus_id::SEARCH.clone())
+    .id(ids::toolbar::search())
     .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
     .width(Length::Fixed(220.0));
 
@@ -321,7 +321,7 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
         state.t("dashboard.search_placeholder"),
         &state.filter.search_text,
     )
-    .id(knotra_ui::widget::focus_id::SEARCH.clone())
+    .id(ids::toolbar::search())
     .on_input(|value| Message::Filter(FilterMessage::SearchChanged(value)))
     .width(Length::Fixed(220.0));
 

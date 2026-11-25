@@ -119,23 +119,7 @@ pub fn subscription(state: &AppState) -> Subscription<Message> {
     // `width_mode.rs`'s module doc for why).
     let resize_sub = iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size));
 
-    // RFC-066 D4: clears the focus outline on a mouse button press, from
-    // *anywhere* — `event::listen_with`, not `event::listen()`: verified by
-    // reading `iced_futures-0.14.0/src/event.rs` directly, `listen()`
-    // hardcodes a filter to `Status::Ignored` only (an event no widget
-    // consumed), while `listen_with`'s callback receives every
-    // `Interaction` event's real `Status` — `Captured` or `Ignored` — and
-    // decides for itself. This callback ignores `status` entirely, so a
-    // press a button widget captures still clears the outline, which a
-    // plain `listen()` could not have delivered at all.
-    let mouse_sub = iced::event::listen_with(|event, _status, _window| match event {
-        iced::Event::Mouse(iced::mouse::Event::ButtonPressed(_)) => {
-            Some(Message::Shortcut(ShortcutMessage::MousePressed))
-        }
-        _ => None,
-    });
-
-    Subscription::batch([tick_sub, keyboard_sub, fs_sub, resize_sub, mouse_sub])
+    Subscription::batch([tick_sub, keyboard_sub, fs_sub, resize_sub])
 }
 
 /// The `Event`-level half of the keyboard subscription's mapping: only a
@@ -381,25 +365,6 @@ fn window_or_page_scope(state: &AppState) -> knotra_ui::widget::keyed::Scope {
 }
 
 fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> {
-    // RFC-066 D4: these are the keys that mean "the keyboard is in use" —
-    // set unconditionally, before anything below decides whether the key
-    // does something right now. A mouse press is the only thing that turns
-    // it back off, handled next.
-    if matches!(
-        msg,
-        ShortcutMessage::FocusNext
-            | ShortcutMessage::FocusPrevious
-            | ShortcutMessage::ArrowDown
-            | ShortcutMessage::ArrowUp
-            | ShortcutMessage::CardFocusNext
-            | ShortcutMessage::CardFocusPrevious
-    ) {
-        state.focus_visible = true;
-    }
-    if matches!(msg, ShortcutMessage::MousePressed) {
-        state.focus_visible = false;
-        return Task::none();
-    }
     // RFC-075 stage 3 Amendment A1 §2, widened by Amendment A2 §2 (Review
     // 303 F2): a window opened by a click starts in `Mouse` mode (nothing
     // focused, no ring); the reader's first Tab, Shift+Tab, ↓ or ↑ *inside
@@ -558,7 +523,6 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             Some(_) => Task::none(),
             None => focus_ops::advance_card_focus(state, false),
         },
-        ShortcutMessage::MousePressed => unreachable!("handled above"),
         // RFC-071 D11: computed here, then dispatched through the same
         // `SettingsMessage::ZoomChanged` the Settings select itself sends —
         // one saving path for both, not two copies of "clamp and persist".
@@ -749,16 +713,12 @@ mod tests {
     /// (e.g. "Tab / Shift+Tab") is exercised at every key it lists, not
     /// just one — the point of "an example per row" is that the sheet
     /// cannot lie, and a sheet that shows a key this test never checks
-    /// could still lie about it. `shortcut_for` never produces
-    /// `ShortcutMessage::MousePressed` (the mouse subscription constructs
-    /// it directly, not through a keyboard row), so it is one variant this
-    /// test does not require a row for. RFC-075 §2/§3: row 1 ("Enter /
-    /// Space") is the other exception now — true, but no longer reached
-    /// through `shortcut_for` at all: every real `snora::design::Control`
-    /// presses itself on Enter/Space while it holds focus, before the
-    /// keyboard subscription could ever produce a message for this
-    /// function to map (`ShortcutMessage::ActivateFocused` retired with
-    /// it, handoff §5).
+    /// could still lie about it. RFC-075 §2/§3: row 1 ("Enter / Space") is
+    /// an exception — true, but no longer reached through `shortcut_for`
+    /// at all: every real `snora::design::Control` presses itself on
+    /// Enter/Space while it holds focus, before the keyboard subscription
+    /// could ever produce a message for this function to map
+    /// (`ShortcutMessage::ActivateFocused` retired with it, handoff §5).
     #[test]
     fn every_sheet_row_maps_through_shortcut_for_and_every_shortcut_message_has_a_row() {
         use keyboard::key::Named;
@@ -905,8 +865,7 @@ mod tests {
         for message in &all_producible {
             assert!(
                 covered.contains(message),
-                "{message:?} is producible by shortcut_for but has no row \
-                 (MousePressed is the one exception — see this test's doc comment)"
+                "{message:?} is producible by shortcut_for but has no row"
             );
         }
     }

@@ -40,10 +40,7 @@ const RESULT_BUTTON_PADDING: iced::Padding = iced::Padding {
 /// RFC-075 stage 3 §3: the palette's own entry — the search field, always
 /// (§4's table has one row for this window, no phase-dependent entries).
 pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
-    state
-        .palette
-        .open
-        .then(|| knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
+    state.palette.open.then(crate::view::ids::palette::query)
 }
 
 /// Render the palette overlay (call only when `state.palette.open`).
@@ -69,7 +66,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         state.t("palette.search_placeholder"),
         &state.palette.query,
     )
-    .id(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
+    .id(crate::view::ids::palette::query())
     .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
     .on_submit_maybe(highlighted_on_submit);
 

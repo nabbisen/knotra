@@ -12,9 +12,7 @@
 //! drift from it. `app.rs`'s own test module asserts each row's example
 //! key press maps through `shortcut_for` to the row's message, and that
 //! every `ShortcutMessage` `shortcut_for` can produce is exercised by some
-//! row (the one exception, `MousePressed`, is never produced by
-//! `shortcut_for` — it comes from the separate mouse subscription, not a
-//! keyboard row).
+//! row.
 //!
 //! RFC-049: `Binding`'s `where`/`action` fields are catalog keys, resolved
 //! at render time — the same `label_key` shape `StatusSummary` and

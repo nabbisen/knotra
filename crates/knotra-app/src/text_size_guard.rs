@@ -373,9 +373,6 @@ mod tests {
     ///   in this same file were moved to `body` during classification —
     ///   see the Stage 3 review request's table — because they named the
     ///   message's own content, not a detail beside another name.)
-    /// - `widget/buttons.rs`, 1 — `icon_button_maybe`'s tooltip.
-    /// - `widget/checkbox.rs`, 1 — the checkbox tooltip (consistency with
-    ///   `buttons.rs`'s tooltip, D10's "today's tooltip" ruling).
     /// - `widget/field.rs`, 1 — `validated_field`'s unit suffix ("seconds"
     ///   beside a value), the same kind of terse qualifier as a count
     ///   inside metadata.
@@ -394,8 +391,6 @@ mod tests {
         // bar is on `snora::design::control` rather than
         // `knotra_ui::widget::icon_button_maybe`.
         ("view/shell.rs", 1),
-        ("widget/buttons.rs", 1),
-        ("widget/checkbox.rs", 1),
         ("widget/field.rs", 1),
     ];
 

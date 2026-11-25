@@ -32,77 +32,23 @@ fn to_iced(color: snora::design::Color) -> Color {
     snora::design::style::color::to_iced_color(color)
 }
 
-/// A toggle chip for filtering or categorizing. Solid `accent` background +
-/// `accent_text` foreground when `selected`; neutral `surface`/`border`/
-/// `text_secondary` at rest — the same appearance as
-/// `snora::design::chip::filter`, plus a focus ring `snora`'s own pass-through
-/// could not carry.
+/// A toggle chip for filtering or categorizing, on `snora::design::control`
+/// (RFC-075 stage 3). Solid `accent` background + `accent_text` foreground
+/// when `selected`; neutral `surface`/`border`/`text_secondary` at rest —
+/// the same appearance as `snora::design::chip::filter`, plus a focus ring
+/// `snora`'s own pass-through could not carry (094 Finding 1 — see the
+/// module doc).
 ///
-/// RFC-071 D5: every chip now shows its status's badge (the same
-/// `status_badge` a dashboard row's own status line uses, never a second
-/// vocabulary for the same meaning — D3) and its count. A chip at `count ==
-/// 0` is never hidden — the row of chips must not jump as projects change
-/// state — but is drawn in `text_secondary` regardless of `selected`, so an
-/// empty filter reads as present-but-inactive rather than as a live,
-/// equally-weighted choice.
-#[must_use]
-pub fn filter<'a, Message: Clone + 'a>(
-    tokens: &Tokens,
-    label: impl Into<String>,
-    badge: (Tone, &snora::Icon),
-    count: usize,
-    selected: bool,
-    is_focused: bool,
-    on_toggle: impl Into<Option<Message>>,
-) -> Element<'a, Message> {
-    let (tone, glyph) = badge;
-    let t = tokens.clone();
-    // RFC-071 Amendment A3 D14: a chip's label is read to act (it is a
-    // filter you press), so it is `body`, not the `label` role — the
-    // badge's own diameter follows it, same as every other status badge.
-    let label_size = snora::design::style::text::body_size(tokens);
-    let label_line_height = snora::design::style::text::body_line_height(tokens);
-    let diameter = tokens.typography.body.size * tokens.typography.body.line_height;
-
-    // RFC-073 D8: at least `SMALL_BUTTON_HEIGHT`, here `BUTTON_HEIGHT` —
-    // the chip row shares visual rhythm with the toolbar controls row
-    // beneath it (`Arrange`/Search/`Select`, all `BUTTON_HEIGHT`), and
-    // compact mode's own `⋯` overflow trigger beside the visible chips is
-    // already that height. `centered_button_row` keeps the badge/label/
-    // count centred now that the fixed height no longer comes from
-    // padding around tightly-sized content.
-    button(centered_button_row(
-        row![
-            status_badge(tokens, tone, glyph, diameter),
-            // RFC-071 Amendment A6 §1: a chip's label must never wrap onto
-            // a second line inside the chip — when the chip row itself
-            // does not fit, the row wraps as a whole (see the toolbar's
-            // own `.wrap()`), not the label inside one chip.
-            text(label.into())
-                .size(label_size)
-                .line_height(label_line_height)
-                .wrapping(iced::advanced::text::Wrapping::None),
-            Space::new().width(Length::Fixed(tokens.spacing.xs)),
-            text(count.to_string())
-                .size(label_size)
-                .line_height(label_line_height),
-        ]
-        .spacing(tokens.spacing.xs),
-    ))
-    .height(Length::Fixed(BUTTON_HEIGHT))
-    .on_press_maybe(on_toggle.into())
-    .padding([0.0, tokens.spacing.sm])
-    .style(move |_theme, status| style(&t, selected, count, status, is_focused))
-    .into()
-}
-
-/// RFC-075 D1/Stage 1: [`filter`]'s own twin on `snora::design::control` —
-/// see `buttons.rs`'s own `_control` section doc for why a `_control`
-/// suffix, not a second name sharing `filter`'s own. Reuses [`style`]
-/// unchanged (same reasoning as the button family: `Control::style` takes
-/// the identical closure shape `button::style` did, so Task 112's contrast
-/// suite already covers this chip's colours too, by construction — see
-/// that test's own extended doc comment).
+/// RFC-071 D5: every chip shows its status's badge (the same `status_badge`
+/// a dashboard row's own status line uses, never a second vocabulary for
+/// the same meaning — D3) and its count. A chip at `count == 0` is never
+/// hidden — the row of chips must not jump as projects change state — but
+/// is drawn in `text_secondary` regardless of `selected`, so an empty
+/// filter reads as present-but-inactive rather than as a live,
+/// equally-weighted choice. Reuses [`style`] unchanged: `Control::style`
+/// takes the identical closure shape `button::style` did, so Task 112's
+/// contrast suite already covers this chip's colours too, by construction
+/// — see that test's own extended doc comment.
 #[must_use]
 pub fn filter_control<'a, Message: Clone + 'a>(
     tokens: &Tokens,
@@ -257,78 +203,6 @@ mod tests {
             Some(Id::new("next")),
             "a disabled chip must not be a Tab stop"
         );
-    }
-
-    /// RFC-075 handoff stage 1 §3, row 2: `filter_control` draws
-    /// identically, at rest, to `filter` — same badge, label, count,
-    /// colours — in all four themes. Same shape as `buttons.rs`'s own test
-    /// of the same name.
-    #[test]
-    #[cfg_attr(
-        not(target_os = "linux"),
-        ignore = "renders and reads back pixels — the pinned face (Noto Sans) is installed \
-                  only on the Linux CI runner (Task 108 A1 §4, `crates/knotra-app/src/\
-                  label_overflow_guard.rs`'s own precedent); what this measures would be \
-                  some other font's on macOS/Windows — confirmed directly: this test failed \
-                  on CI's Windows runner before this gate was added, with no real diff in \
-                  the chip itself"
-    )]
-    fn filter_control_draws_identically_to_filter_at_rest_in_every_theme() {
-        use crate::test_support::{Harness, pixel_diff};
-        use crate::theme::KnotraTheme;
-        use iced::widget::Id;
-
-        type Msg = ();
-
-        let size = iced_test::core::Size {
-            width: 220.0,
-            height: 60.0,
-        };
-
-        for (preset, theme) in [
-            ("light", KnotraTheme::light()),
-            ("dark", KnotraTheme::dark()),
-            ("high_contrast_light", KnotraTheme::high_contrast_light()),
-            ("high_contrast_dark", KnotraTheme::high_contrast_dark()),
-        ] {
-            let t = &theme.tokens;
-            let icon: snora::Icon = snora::lucide::Check.into();
-            for selected in [false, true] {
-                let old: iced::Element<'static, Msg> = filter(
-                    t,
-                    "All set",
-                    (Tone::Success, &icon),
-                    3,
-                    selected,
-                    false,
-                    None,
-                );
-                let new: iced::Element<'static, Msg> = filter_control(
-                    t,
-                    "All set",
-                    (Tone::Success, &icon),
-                    3,
-                    selected,
-                    None,
-                    Id::new("chip"),
-                );
-                // The status badge draws a Lucide glyph on the "lucide"
-                // font family (`icon.rs`) — without loading it, that name
-                // resolves to whatever fallback the system/renderer picks,
-                // which is not guaranteed stable across platforms or even
-                // runs (confirmed: this comparison first failed on CI's
-                // Windows runner, then CI's own Ubuntu runner, neither
-                // reproducing locally, until this load was added).
-                let icon_font = Some(crate::widget::icon::FONT_BYTES);
-                let mut h_old = Harness::new(old, size, icon_font);
-                let (old_rgba, ow, oh) = h_old.screenshot(&theme.base);
-                let mut h_new = Harness::new(new, size, icon_font);
-                let (new_rgba, nw, nh) = h_new.screenshot(&theme.base);
-                if let Err(diff) = pixel_diff(&old_rgba, (ow, oh), &new_rgba, (nw, nh)) {
-                    panic!("{preset} selected={selected}: not identical at rest: {diff}");
-                }
-            }
-        }
     }
 
     /// Same shape as `select`'s and `checkbox`'s: focused and unfocused

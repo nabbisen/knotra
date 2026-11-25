@@ -779,19 +779,6 @@ fn load_workspaces_blocked_by_a_plain_file_reports_an_error() {
 // snora controls now (stage 3 §2), with no declared order left to walk.
 // Stage 5 replaces this coverage.
 
-/// RFC-066 D4/R5: Tab sets the outline visible; a mouse press clears it.
-#[test]
-fn focus_visible_is_set_by_tab_and_cleared_by_a_mouse_press() {
-    let mut state = make_state();
-    assert!(!state.focus_visible, "hidden by default");
-
-    dispatch(&mut state, Message::Shortcut(ShortcutMessage::FocusNext));
-    assert!(state.focus_visible);
-
-    dispatch(&mut state, Message::Shortcut(ShortcutMessage::MousePressed));
-    assert!(!state.focus_visible);
-}
-
 // RFC-066 D4/R5's "reveal the ring instead of pressing" tests for the page
 // (`activate_focused_with_hidden_ring_reveals_it_without_pressing`,
 // `activate_focused_with_visible_ring_would_press_the_target`) are retired

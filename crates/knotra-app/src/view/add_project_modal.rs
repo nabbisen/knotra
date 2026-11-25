@@ -28,8 +28,8 @@ use crate::{
 pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
     let dialog = state.add_project_dialog.as_ref()?;
     Some(match dialog.step {
-        AddProjectStep::ChooseFolder => knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
-        AddProjectStep::NameProject => knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
+        AddProjectStep::ChooseFolder => crate::view::ids::add_project::path(),
+        AddProjectStep::NameProject => crate::view::ids::add_project::name(),
     })
 }
 
@@ -70,7 +70,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 &dialog.path,
                 |s| Message::Workspace(WorkspaceMessage::AddProjectPathChanged(s)),
                 dialog.error.as_deref(),
-                knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
+                crate::view::ids::add_project::path(),
             );
 
             let browse_btn = ghost_control(
@@ -148,7 +148,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 &dialog.name,
                 |s| Message::Workspace(WorkspaceMessage::AddProjectNameChanged(s)),
                 dialog.error.as_deref(),
-                knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
+                crate::view::ids::add_project::name(),
             );
 
             let add_reason: Option<&str> = if dialog.name.trim().is_empty() {

@@ -479,122 +479,6 @@ mod tests {
         }
     }
 
-    /// Each new control's focus ring against its own background — the
-    /// check `083` Finding 2 established, since a ring that fails this is
-    /// invisible (RFC-035 Handoff 019 §7.4). `chip::filter`'s signature
-    /// carries no `is_focused` (see `chip.rs`'s module doc), so only
-    /// `select` and `checkbox` apply.
-    ///
-    /// **Widened per `098`.** The original version paired each ring with a
-    /// flat palette role (`theme.surface()`, `theme.accent()`) asserted
-    /// once, which is exactly the shape `087` Finding 1 found wrong in
-    /// RFC-040 — the assertion measures a pairing that may never render,
-    /// because it never asked the real style function what it actually
-    /// produces at each status. This version drives the real
-    /// `select::field_style` / `select::menu_style` / `checkbox::style`
-    /// functions directly and reads the background back out of the
-    /// `Style` each returns, across every real `Status` variant those
-    /// functions accept, rather than reconstructing it. Nothing here
-    /// currently fails: `select`'s field/menu backgrounds do not vary by
-    /// status (only the border does), and `checkbox`'s does not vary
-    /// between `Active`/`Hovered` (only `Disabled`, excluded here since
-    /// the ring is deliberately not drawn there — see `checkbox.rs`'s own
-    /// `disabled_style_is_unaffected_by_is_focused`) — so the measured
-    /// ratios are unchanged from Handoff 019/020, but are now proven by
-    /// reading the real output rather than assumed from the palette.
-    #[test]
-    fn new_control_focus_rings_meet_wcag_aa_against_their_own_backgrounds_in_both_themes() {
-        use crate::widget::{checkbox, select};
-        use iced::widget::{checkbox::Status as CheckboxStatus, pick_list::Status as FieldStatus};
-
-        fn background_of(background: iced::Background) -> Color {
-            match background {
-                iced::Background::Color(c) => c,
-                other => panic!("expected a solid Background::Color, got {other:?}"),
-            }
-        }
-
-        for (theme_name, theme) in [
-            ("light", KnotraTheme::light()),
-            ("dark", KnotraTheme::dark()),
-        ] {
-            let tokens = &theme.tokens;
-
-            let field_statuses: [(&str, FieldStatus); 4] = [
-                ("Active", FieldStatus::Active),
-                ("Hovered", FieldStatus::Hovered),
-                (
-                    "Opened(unhovered)",
-                    FieldStatus::Opened { is_hovered: false },
-                ),
-                ("Opened(hovered)", FieldStatus::Opened { is_hovered: true }),
-            ];
-            for (status_name, status) in field_statuses {
-                let unfocused = select::field_style(tokens, status, false);
-                let focused = select::field_style(tokens, status, true);
-                let background = background_of(unfocused.background);
-                let ratio = snora::design::contrast::contrast_ratio(
-                    from_iced(focused.border.color),
-                    from_iced(background),
-                );
-                assert!(
-                    ratio >= AA_NORMAL,
-                    "{theme_name} select field ({status_name}) focus ring: {ratio:.2}:1 \
-                     is below the required {AA_NORMAL}:1"
-                );
-            }
-
-            // The open menu has no per-status styling at all (`menu_style`
-            // takes no `Status`), so there is nothing to loop — one call
-            // is already "the real function", not a reconstruction.
-            let menu_unfocused = select::menu_style(tokens, false);
-            let menu_focused = select::menu_style(tokens, true);
-            let menu_background = background_of(menu_unfocused.background);
-            let menu_ratio = snora::design::contrast::contrast_ratio(
-                from_iced(menu_focused.border.color),
-                from_iced(menu_background),
-            );
-            assert!(
-                menu_ratio >= AA_NORMAL,
-                "{theme_name} select open menu focus ring: {menu_ratio:.2}:1 \
-                 is below the required {AA_NORMAL}:1"
-            );
-
-            let checkbox_statuses: [(&str, CheckboxStatus); 4] = [
-                (
-                    "Active, unchecked",
-                    CheckboxStatus::Active { is_checked: false },
-                ),
-                (
-                    "Active, checked",
-                    CheckboxStatus::Active { is_checked: true },
-                ),
-                (
-                    "Hovered, unchecked",
-                    CheckboxStatus::Hovered { is_checked: false },
-                ),
-                (
-                    "Hovered, checked",
-                    CheckboxStatus::Hovered { is_checked: true },
-                ),
-            ];
-            for (status_name, status) in checkbox_statuses {
-                let unfocused = checkbox::style(tokens, status, false);
-                let focused = checkbox::style(tokens, status, true);
-                let background = background_of(unfocused.background);
-                let ratio = snora::design::contrast::contrast_ratio(
-                    from_iced(focused.border.color),
-                    from_iced(background),
-                );
-                assert!(
-                    ratio >= AA_NORMAL,
-                    "{theme_name} checkbox ({status_name}) focus ring: {ratio:.2}:1 \
-                     is below the required {AA_NORMAL}:1"
-                );
-            }
-        }
-    }
-
     /// The chip's focus ring against both its backgrounds — selected
     /// (`accent`) and unselected (`surface`) — in both themes, using the
     /// real `chip::style` output (which applies `with_focus_ring`
@@ -1093,10 +977,8 @@ mod tests {
     /// silently relying on it.
     #[test]
     fn every_labelled_control_meets_its_presets_own_text_floor() {
-        use crate::widget::{checkbox, chip, select};
+        use crate::widget::chip;
         use iced::widget::button::Status as ButtonStatus;
-        use iced::widget::checkbox::Status as CheckboxStatus;
-        use iced::widget::pick_list::Status as FieldStatus;
 
         /// The colour text actually renders against, for a control whose
         /// own fill may be partly or fully translucent (`ghost`'s rest
@@ -1122,13 +1004,6 @@ mod tests {
                 from_iced(fallback),
             ))
         }
-        fn bg(bg: iced::Background) -> Color {
-            match bg {
-                iced::Background::Color(c) => c,
-                other => panic!("expected a solid Background::Color, got {other:?}"),
-            }
-        }
-
         fn row(
             rows: &mut Vec<String>,
             failures: &mut Vec<String>,
@@ -1252,134 +1127,7 @@ mod tests {
                 }
             }
 
-            // -- Select: the closed field -------------------------------
-            for (state, status) in [
-                ("rest", FieldStatus::Active),
-                ("hovered", FieldStatus::Hovered),
-                ("pressed(open)", FieldStatus::Opened { is_hovered: true }),
-            ] {
-                let s = select::field_style(tokens, status, false);
-                let ratio = snora::design::contrast::contrast_ratio(
-                    from_iced(s.text_color),
-                    from_iced(bg(s.background)),
-                );
-                row(
-                    &mut rows,
-                    &mut failures,
-                    preset,
-                    "select:field",
-                    state,
-                    ratio,
-                    floor,
-                );
-
-                let focused = select::field_style(tokens, status, true);
-                let focused_ratio = snora::design::contrast::contrast_ratio(
-                    from_iced(focused.text_color),
-                    from_iced(bg(focused.background)),
-                );
-                row(
-                    &mut rows,
-                    &mut failures,
-                    preset,
-                    "select:field",
-                    "focused",
-                    focused_ratio,
-                    floor,
-                );
-                assert_eq!(
-                    ratio, focused_ratio,
-                    "{preset} select:field {state}: focus moved the label's own ratio"
-                );
-            }
-
-            // -- Select: the open menu's selected row ---------------------
-            // `menu_style` takes no `Status` at all — one real call already
-            // is "the real function", nothing to loop over for rest/hovered/
-            // pressed (the same reasoning
-            // `new_control_focus_rings_meet_wcag_aa_...` above already
-            // states for this exact function).
-            let menu = select::menu_style(tokens, false);
-            let menu_ratio = snora::design::contrast::contrast_ratio(
-                from_iced(menu.selected_text_color),
-                from_iced(bg(menu.selected_background)),
-            );
-            row(
-                &mut rows,
-                &mut failures,
-                preset,
-                "select:menu-selected-row",
-                "rest/hovered/pressed",
-                menu_ratio,
-                floor,
-            );
-            let menu_focused = select::menu_style(tokens, true);
-            let menu_focused_ratio = snora::design::contrast::contrast_ratio(
-                from_iced(menu_focused.selected_text_color),
-                from_iced(bg(menu_focused.selected_background)),
-            );
-            row(
-                &mut rows,
-                &mut failures,
-                preset,
-                "select:menu-selected-row",
-                "focused",
-                menu_focused_ratio,
-                floor,
-            );
-            assert_eq!(
-                menu_ratio, menu_focused_ratio,
-                "{preset} select menu selected row: focus moved the label's own ratio"
-            );
-
-            // -- Checkbox ---------------------------------------------------
-            for is_checked in [false, true] {
-                let name = if is_checked {
-                    "checkbox:checked"
-                } else {
-                    "checkbox:unchecked"
-                };
-                for (state, status) in [
-                    ("rest", CheckboxStatus::Active { is_checked }),
-                    ("hovered", CheckboxStatus::Hovered { is_checked }),
-                ] {
-                    let s = checkbox::style(tokens, status, false);
-                    let ratio = snora::design::contrast::contrast_ratio(
-                        from_iced(s.icon_color),
-                        from_iced(bg(s.background)),
-                    );
-                    row(&mut rows, &mut failures, preset, name, state, ratio, floor);
-
-                    let focused = checkbox::style(tokens, status, true);
-                    let focused_ratio = snora::design::contrast::contrast_ratio(
-                        from_iced(focused.icon_color),
-                        from_iced(bg(focused.background)),
-                    );
-                    row(
-                        &mut rows,
-                        &mut failures,
-                        preset,
-                        name,
-                        "focused",
-                        focused_ratio,
-                        floor,
-                    );
-                    assert_eq!(
-                        ratio, focused_ratio,
-                        "{preset} {name} {state}: focus moved the label's own ratio"
-                    );
-                }
-                // iced's own `checkbox::Status` has no `Pressed` variant at
-                // all (`Active`/`Hovered`/`Disabled` only, confirmed against
-                // iced_widget 0.14.2's own enum) — recorded as "n/a", not a
-                // fabricated number.
-                rows.push(format!(
-                    "{preset:20} {name:28} {state:14} n/a — iced's checkbox::Status has no Pressed",
-                    state = "pressed"
-                ));
-            }
-
-            // -- RFC-075 handoff stage 1: select_control / checkbox_control -
+            // -- RFC-075 stage 5: select_control / checkbox_control ---------
             //
             // Neither drives its own colours through a `pub(crate)` style
             // function this file can call — `snora::design::select`/

@@ -41,9 +41,7 @@ pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
     }
     match &state.context_ops.phase {
         ContextPhase::Idle | ContextPhase::LoadingList(_) | ContextPhase::Switching { .. } => None,
-        ContextPhase::BrowsingList { .. } => {
-            Some(knotra_ui::widget::focus_id::SWITCH_TARGET.clone())
-        }
+        ContextPhase::BrowsingList { .. } => Some(crate::view::ids::context_switch::target()),
         ContextPhase::ConfirmSwitch { .. } => Some(crate::view::ids::context_switch::cancel()),
         ContextPhase::Done(_) => Some(crate::view::ids::context_switch::done_close()),
     }
@@ -115,7 +113,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
                 state.t("plain.switch.search_hint"),
                 search,
                 |s| Message::Context(ContextMessage::SearchChanged(s)),
-                knotra_ui::widget::focus_id::SWITCH_TARGET.clone(),
+                crate::view::ids::context_switch::target(),
                 highlighted_on_submit,
             );
 

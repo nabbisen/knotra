@@ -25,7 +25,7 @@ use crate::{
         sync::SyncPhase,
     },
     view::{
-        add_project_modal, command_palette, dashboard,
+        add_project_modal, command_palette, dashboard, ids,
         overlays::{
             changelog_entry_id, conflict_close_message, conflict_entry_id, context_switch_entry_id,
             freezer_entry_id, smart_pull_entry_id,
@@ -284,7 +284,7 @@ pub(super) fn advance_card_focus(state: &AppState, forward: bool) -> Task<Messag
     if ids.is_empty() {
         return Task::none();
     }
-    let search_id = knotra_ui::widget::focus_id::SEARCH.clone();
+    let search_id = crate::view::ids::toolbar::search();
 
     knotra_ui::widget::keyboard::focused_id().then(move |current| {
         if current.as_ref() == Some(&search_id) {
@@ -331,7 +331,7 @@ pub(super) fn switcher_menu_focus_moved(state: &AppState, forward: bool) -> Task
 /// else on the page holds a value that could disagree with it.
 pub(super) fn focus_search(state: &mut AppState) -> Task<Message> {
     state.screen = Screen::Dashboard;
-    knotra_ui::widget::focus_input(&knotra_ui::widget::focus_id::SEARCH)
+    knotra_ui::widget::focus_input(&ids::toolbar::search())
 }
 
 /// RFC-066 D1/R1: one exhaustive match over [`layer::top_layer`], sending

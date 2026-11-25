@@ -1,23 +1,10 @@
-//! Focus IDs and keyboard focus tasks (Phase 6 — accessibility).
-
-/// Stable widget IDs for text inputs that must be programmatically focusable.
-pub mod focus_id {
-    use iced::widget::Id;
-    use std::sync::LazyLock;
-
-    pub static SEARCH: LazyLock<Id> = LazyLock::new(|| Id::new("dashboard-search"));
-    pub static PALETTE_QUERY: LazyLock<Id> = LazyLock::new(|| Id::new("palette-query"));
-    pub static ADD_PROJECT_PATH: LazyLock<Id> = LazyLock::new(|| Id::new("add-project-path"));
-    pub static ADD_PROJECT_NAME: LazyLock<Id> = LazyLock::new(|| Id::new("add-project-name"));
-    pub static WORKSPACE_NAME: LazyLock<Id> = LazyLock::new(|| Id::new("workspace-name"));
-    pub static RELEASE_NAME: LazyLock<Id> = LazyLock::new(|| Id::new("release-name"));
-    pub static SWITCH_TARGET: LazyLock<Id> = LazyLock::new(|| Id::new("switch-target"));
-    /// RFC-066 Stage 2: the freezer's optional note field had no stable
-    /// `Id` before this — nothing could programmatically focus it.
-    pub static RELEASE_NOTE: LazyLock<Id> = LazyLock::new(|| Id::new("release-note"));
-    /// RFC-066 Stage 2: the changelog's "Since" field, same reason.
-    pub static CHANGELOG_SINCE: LazyLock<Id> = LazyLock::new(|| Id::new("changelog-since"));
-}
+//! Keyboard focus tasks (Phase 6 — accessibility).
+//!
+//! RFC-075 stage 5 §1: this file's own `focus_id` module (every text-field
+//! id outside the main model) moved into `crate::view::ids` at `knotra-app`
+//! — the one place every other control's own id already lived. Nothing here
+//! builds an `Id` any more; `focus_input`/`clear_input_focus` only move or
+//! clear focus by whatever `Id` their own caller already has.
 
 /// Produce a `Task` that moves keyboard focus to the text input with the given ID.
 pub fn focus_input<Message: 'static>(id: &iced::widget::Id) -> iced::Task<Message> {

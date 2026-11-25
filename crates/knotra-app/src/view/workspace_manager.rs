@@ -38,7 +38,7 @@ pub(crate) fn confirm_shows_reason(has_on_press: bool, reason: Option<&str>) -> 
 /// action).
 pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
     if state.workspace_mgr.create_dialog.is_some() || state.workspace_mgr.rename_dialog.is_some() {
-        return Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone());
+        return Some(crate::view::ids::workspace_manager::name());
     }
     if state.workspace_mgr.confirm_delete.is_some() {
         return Some(crate::view::ids::workspace_manager::delete_cancel());
@@ -96,7 +96,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
             value,
             |s| Message::Workspace(WorkspaceMessage::CreateWorkspaceNameChanged(s)),
             error,
-            knotra_ui::widget::focus_id::WORKSPACE_NAME.clone(),
+            crate::view::ids::workspace_manager::name(),
         ),
         NameDialog::Rename(_) => guided_field_focused(
             &state.theme.tokens,
@@ -105,7 +105,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
             value,
             |s| Message::Workspace(WorkspaceMessage::RenameWorkspaceNameChanged(s)),
             error,
-            knotra_ui::widget::focus_id::WORKSPACE_NAME.clone(),
+            crate::view::ids::workspace_manager::name(),
         ),
     };
 

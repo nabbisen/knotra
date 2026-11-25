@@ -424,9 +424,6 @@ pub enum ShortcutMessage {
     ArrowDown,
     /// RFC-066 D5: `↑`. See [`ShortcutMessage::ArrowDown`].
     ArrowUp,
-    /// RFC-066 D4: a mouse button pressed anywhere — clears the focus
-    /// outline (`AppState::focus_visible`). Never moves focus itself.
-    MousePressed,
     /// RFC-071 D11: `Ctrl+Plus`/`Ctrl+=`. Does nothing while a window is
     /// open (RFC-066's rule, same gate as `OpenContextOps`/`OpenFreezer`).
     ZoomIn,

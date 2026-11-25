@@ -252,9 +252,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .into()
 }
 
-/// The compact band's icon-only header control, with today's tooltip —
-/// [`knotra_ui::widget::icon_button_maybe`]'s own twin on `snora::design::
-/// control`.
+/// The compact band's icon-only header control, with today's tooltip, on
+/// `snora::design::control`.
 fn icon_control_with_tooltip<'a>(
     tokens: &Tokens,
     icon: &snora::Icon,
@@ -278,9 +277,7 @@ fn icon_control_with_tooltip<'a>(
         widget::overlay::raised_card(
             tokens,
             // RFC-071 Amendment A3 D14: a tooltip is a transient hint, not
-            // primary content read to act — `body_small`, today's size
-            // (`knotra_ui::widget::icon_button_maybe`'s own treatment,
-            // this control's own retired twin).
+            // primary content read to act — `body_small`, today's size.
             text(accessible_label.into())
                 .size(snora::design::style::text::body_small_size(tokens))
                 .line_height(snora::design::style::text::body_small_line_height(tokens)),
@@ -290,9 +287,8 @@ fn icon_control_with_tooltip<'a>(
     .into()
 }
 
-/// The standard/wide bands' icon-and-label header control —
-/// [`knotra_ui::widget::header_control`]'s own twin on `snora::design::
-/// control`.
+/// The standard/wide bands' icon-and-label header control, on
+/// `snora::design::control`.
 fn header_icon_control<'a>(
     tokens: &Tokens,
     icon: &snora::Icon,

@@ -26,19 +26,18 @@ pub mod select;
 pub mod status;
 
 pub use buttons::{
-    centered_button_label, centered_button_row, current_or, current_or_control, danger,
-    danger_control, danger_control_maybe, danger_maybe, ghost, ghost_control, ghost_control_maybe,
-    ghost_maybe, header_control, icon_button_maybe, primary, primary_control,
-    primary_control_maybe, primary_maybe, reasoned, reasoned_control_maybe, secondary,
-    secondary_control, secondary_control_maybe, secondary_maybe, style,
+    centered_button_label, centered_button_row, current_or_control, danger_control,
+    danger_control_maybe, ghost_control, ghost_control_maybe, primary_control,
+    primary_control_maybe, reasoned_control_maybe, secondary_control, secondary_control_maybe,
+    style,
 };
-pub use checkbox::{checkbox, checkbox_control, checkbox_control_unlabeled};
+pub use checkbox::{checkbox_control, checkbox_control_unlabeled};
 pub use escape_first::escape_first;
 pub use field::{
     FieldAnnotations, guided_field, guided_field_entry, guided_field_focused, styled_text_input,
     text_input_style, validated_field,
 };
-pub use focus::{clear_input_focus, focus_id, focus_input};
+pub use focus::{clear_input_focus, focus_input};
 pub use keyed::{Scope, focus_by_id_page, focus_by_id_window, tab_anchor};
 pub use layout::{
     APP_DIRECTION, Alignment, BUTTON_HEIGHT, Color, Column, Element, Length, Padding, Row,

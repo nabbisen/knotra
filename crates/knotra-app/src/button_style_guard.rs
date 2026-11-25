@@ -7,8 +7,8 @@
 //! directory roots, applied to a different question.
 //!
 //! A call to a knotra helper that builds its own `button(...)` internally
-//! (`select_mode_button(...)`, `icon_button_maybe(...)`,
-//! `centered_button_label(...)`, …) is not itself a bare `button(` call —
+//! (`select_mode_button(...)`, `centered_button_label(...)`, …) is not
+//! itself a bare `button(` call —
 //! `is_button_callee` only matches the literal identifier `button`, never
 //! a longer name ending in it — so every such call site is silently out
 //! of this guard's scope, exactly as intended: the helper's own
@@ -90,10 +90,9 @@ mod tests {
     /// paren) is a call to bare `button` — `button(` or
     /// `iced::widget::button(`, the only two spellings this codebase
     /// uses — not a longer identifier merely ending in "button"
-    /// (`select_mode_button(`, `icon_button_maybe(`, …), which must stay
-    /// out of this guard's scope: those are the helpers whose own
-    /// definitions are scanned instead. Copied from
-    /// `button_label_guard.rs::is_button_callee`.
+    /// (`select_mode_button(`, …), which must stay out of this guard's
+    /// scope: those are the helpers whose own definitions are scanned
+    /// instead. Copied from `button_label_guard.rs::is_button_callee`.
     fn is_button_callee(callee: &str) -> bool {
         let Some(rest) = callee.strip_suffix("button") else {
             return false;

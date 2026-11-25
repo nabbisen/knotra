@@ -44,7 +44,7 @@ pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
     let freezer = &state.freezer;
     match &freezer.phase {
         FreezerPhase::Idle | FreezerPhase::Validating { .. } => {
-            Some(knotra_ui::widget::focus_id::RELEASE_NAME.clone())
+            Some(crate::view::ids::freezer::release_name())
         }
         FreezerPhase::ValidationReady(validation) => {
             let has_unreadable = validation.entries.iter().any(|entry| {
@@ -99,7 +99,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 &freezer.freeze_name,
                 |s| Message::Freezer(FreezerMessage::NameChanged(s)),
                 name_error,
-                knotra_ui::widget::focus_id::RELEASE_NAME.clone(),
+                crate::view::ids::freezer::release_name(),
             );
 
             let msg_field = guided_field_focused(
@@ -109,7 +109,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
                 &freezer.tag_message,
                 |s| Message::Freezer(FreezerMessage::TagMessageChanged(s)),
                 None,
-                knotra_ui::widget::focus_id::RELEASE_NOTE.clone(),
+                crate::view::ids::freezer::release_note(),
             );
 
             let validate_or_spinner: Element<'_, Message> =
