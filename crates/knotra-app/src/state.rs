@@ -584,6 +584,12 @@ pub struct AppState {
     /// would also mean deciding what to do with the test that exercises
     /// it (`tests.rs::focus_visible_is_set_by_tab_and_cleared_by_a_mouse_press`).
     pub focus_visible: bool,
+    /// RFC-075 stage 3 Amendment A1 §2: whether the window on top right now
+    /// (`layer::top_layer`) was reached "from the keyboard" or by a click —
+    /// `None` while no window is open. Lives beside `top_layer`'s own
+    /// concerns (`state/layer.rs`); `app/focus_ops.rs::settle_layer_focus`
+    /// is its only reader and its only writer.
+    pub window_focus_mode: Option<layer::WindowFocusMode>,
     // ------------------------------------------------------------------
     // RFC-035 R8 responsive mode
     // ------------------------------------------------------------------
@@ -660,6 +666,7 @@ impl AppState {
             settings_advanced_open: false,
             recent_removal: None,
             focus_visible: false,
+            window_focus_mode: None,
             width_mode: WidthMode::from_width(INITIAL_WINDOW_SIZE.width),
             window_width: INITIAL_WINDOW_SIZE.width,
             paths,

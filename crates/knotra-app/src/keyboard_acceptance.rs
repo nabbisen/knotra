@@ -3011,3 +3011,926 @@ mod stage3_entry_by_shortcut {
         );
     }
 }
+
+/// RFC-075 stage 3 Amendment A1 §3 ("Return on close, tested") — every row
+/// of the handoff's own table, each opened and closed by driving the exact
+/// `Message` a real key press on a real control would publish (never by
+/// poking `AppState` fields to fake a layer open), and "opened by a click"
+/// reproduced the way the handoff itself prescribes: `drive()` directly,
+/// with nothing given real focus first (RFC-121: a click presses without
+/// focusing), so `tab_anchor`'s own real-focus check correctly reports
+/// none.
+///
+/// **`drive()`'s own documented limit, worked around here every time it
+/// matters:** `drive()` only ever applies a `Task`'s `Action::Widget`
+/// operations, never its `Action::Output` messages (its own doc comment —
+/// `stage3_highlight_cursors::enter_runs_the_highlighted_palette_entry`
+/// already needs the identical one-more-`drive()`-call workaround for
+/// `EntryClicked`'s own chained `DetailPanelMessage::Opened` output).
+/// `settle_layer_focus`'s own `(None, Some(layer))` branch, when
+/// `is_shortcut` is false, resolves `window_focus_mode` the same way — via
+/// `tab_anchor().then(...)`, whose closure emits
+/// `Message::WindowFocusModeResolved` as a `Task::done` **output**,
+/// batched alongside (not instead of) a focus operation. Every test below
+/// that opens a window through a real, non-shortcut key press (or a click)
+/// drives that exact follow-up message itself, immediately after — never
+/// assumes it happened for free.
+#[cfg(test)]
+mod stage3_amendment_a1_return_on_close {
+    use super::{Rig, SIZE, drive, focused_id, key};
+    use crate::config::AppConfig;
+    use crate::message::{
+        DetailPanelMessage, Message, PaletteMessage, ShortcutMessage, SyncMessage, WorkspaceMessage,
+    };
+    use crate::state::AppState;
+    use crate::state::layer::{Layer, WindowFocusMode};
+    use crate::view::ids;
+    use iced::keyboard::key::Named;
+    use knotra_vcs::model::status::{RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus};
+    use knotra_vcs::{Project, ProjectId, ProjectStatus, Workspace, WorkspaceStatus};
+
+    fn tab_to(rig: &mut Rig, state: &mut AppState, target: &iced::widget::Id) -> bool {
+        for _ in 0..40 {
+            drive(rig, state, Message::Shortcut(ShortcutMessage::FocusNext));
+            if focused_id(rig, state) == Some(target.clone()) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The most recently published message — every step below drives a
+    /// real key press immediately before reading this, so there is
+    /// exactly one new entry to read (`rig.messages()` itself never
+    /// clears across calls in this harness, unlike the live app).
+    fn last_message(rig: &Rig) -> Message {
+        rig.messages()
+            .last()
+            .cloned()
+            .expect("the key press must have published a message")
+    }
+
+    fn two_workspaces() -> AppState {
+        let mut state = AppState::new(AppConfig::default());
+        state.all_workspaces = vec![Workspace::new("Main"), Workspace::new("Second")];
+        state.active_workspace_idx = 0;
+        state.workspace = state.all_workspaces.first().cloned();
+        state
+    }
+
+    /// Opens the workspace switcher by Enter, then "Add workspace" by
+    /// Enter inside it — the real key path for both, start to finish. The
+    /// menu's own real prior focus (the switcher button) resolves Keyboard
+    /// mode (Amendment A1 §2); `WorkspaceCreate` then replaces the menu
+    /// outright (`CreateWorkspaceDialogOpened`'s own handler clears
+    /// `switcher_open`, per `state/layer.rs`'s own doc comment), inheriting
+    /// that mode unchanged, so its own entry is focused with no second
+    /// resolution step needed.
+    fn open_create_workspace_dialog(rig: &mut Rig, state: &mut AppState) {
+        assert!(
+            tab_to(rig, state, &ids::shell::workspace_switcher()),
+            "sanity: Tab must reach the switcher"
+        );
+        key(rig, state, Named::Enter);
+        let opened = last_message(rig);
+        assert!(matches!(
+            opened,
+            Message::Workspace(WorkspaceMessage::SwitcherToggled)
+        ));
+        drive(rig, state, opened);
+        drive(
+            rig,
+            state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(state),
+            Some(Layer::WorkspaceMenu)
+        );
+
+        assert!(tab_to(rig, state, &ids::switcher::add_workspace()));
+        key(rig, state, Named::Enter);
+        let add = last_message(rig);
+        assert!(matches!(
+            add,
+            Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened)
+        ));
+        drive(rig, state, add);
+        assert_eq!(
+            crate::state::layer::top_layer(state),
+            Some(Layer::WorkspaceCreate)
+        );
+        assert_eq!(
+            focused_id(rig, state),
+            Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone()),
+            "WorkspaceCreate must inherit the menu's own Keyboard mode and focus its own entry"
+        );
+    }
+
+    /// §3 row 1: closed three real ways — Escape, the dialog's own Close
+    /// id, its own Cancel id. `workspace_manager.rs` confirms Close and
+    /// Cancel both publish the textually identical `CreateWorkspaceCancelled`
+    /// message, so one test exercising all three real closing controls (each
+    /// against a freshly reopened chain) stands in for three, per the
+    /// handoff's own note. Every time, focus must return to the switcher —
+    /// the control that opened the very first window of the chain, frozen
+    /// in the page's own `FollowsId` memory the whole time (never the
+    /// menu's own entry, never `WorkspaceCreate`'s).
+    #[test]
+    fn add_workspace_closed_three_ways_returns_focus_to_the_switcher() {
+        // Escape.
+        let mut state = two_workspaces();
+        let mut rig = Rig::new(SIZE);
+        open_create_workspace_dialog(&mut rig, &mut state);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::Close),
+        );
+        assert_eq!(crate::state::layer::top_layer(&state), None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::workspace_switcher()),
+            "Escape must return focus to the switcher"
+        );
+
+        // The dialog's own Close id.
+        let mut state = two_workspaces();
+        let mut rig = Rig::new(SIZE);
+        open_create_workspace_dialog(&mut rig, &mut state);
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::workspace_manager::close()
+        ));
+        key(&mut rig, &state, Named::Enter);
+        let closed = last_message(&rig);
+        assert!(matches!(
+            closed,
+            Message::Workspace(WorkspaceMessage::CreateWorkspaceCancelled)
+        ));
+        drive(&mut rig, &mut state, closed);
+        assert_eq!(crate::state::layer::top_layer(&state), None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::workspace_switcher()),
+            "the dialog's own Close must return focus to the switcher"
+        );
+
+        // The dialog's own Cancel id.
+        let mut state = two_workspaces();
+        let mut rig = Rig::new(SIZE);
+        open_create_workspace_dialog(&mut rig, &mut state);
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::workspace_manager::cancel()
+        ));
+        key(&mut rig, &state, Named::Enter);
+        let cancelled = last_message(&rig);
+        assert!(matches!(
+            cancelled,
+            Message::Workspace(WorkspaceMessage::CreateWorkspaceCancelled)
+        ));
+        drive(&mut rig, &mut state, cancelled);
+        assert_eq!(crate::state::layer::top_layer(&state), None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::workspace_switcher()),
+            "the dialog's own Cancel must return focus to the switcher"
+        );
+    }
+
+    fn two_needs_help_projects() -> (AppState, ProjectId, ProjectId) {
+        let mut state = AppState::new(AppConfig::default());
+        let alpha = Project::new("Alpha", "/tmp");
+        let beta = Project::new("Beta", "/tmp");
+        let (alpha_id, beta_id) = (alpha.id.clone(), beta.id.clone());
+        state.workspace = Some(Workspace {
+            projects: vec![alpha, beta],
+            ..Workspace::new("Main")
+        });
+        state.load_phase = crate::state::LoadPhase::Ready;
+        (state, alpha_id, beta_id)
+    }
+
+    /// Opens Beta's detail panel, then its own Remove, by two real Enter
+    /// presses — `DetailPanelMessage::Opened` and `WorkspaceMessage::
+    /// RemoveProjectRequested`, exactly as a keyboard-only reader would
+    /// produce them. Asserts the confirm dialog's own entry, Keep, is
+    /// focused on open (row 2's own first half).
+    fn open_remove_confirm_for_beta(rig: &mut Rig, state: &mut AppState, beta_id: &ProjectId) {
+        assert!(tab_to(rig, state, &ids::row::name(beta_id)));
+        key(rig, state, Named::Enter);
+        let opened = last_message(rig);
+        match &opened {
+            Message::DetailPanel(DetailPanelMessage::Opened(id)) => assert_eq!(id, beta_id),
+            other => panic!("expected DetailPanel(Opened(Beta)), got {other:?}"),
+        }
+        drive(rig, state, opened);
+        drive(
+            rig,
+            state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+
+        assert!(tab_to(rig, state, &ids::detail_panel::remove()));
+        key(rig, state, Named::Enter);
+        let requested = last_message(rig);
+        match &requested {
+            Message::Workspace(WorkspaceMessage::RemoveProjectRequested(id)) => {
+                assert_eq!(id, beta_id)
+            }
+            other => panic!("expected RemoveProjectRequested(Beta), got {other:?}"),
+        }
+        drive(rig, state, requested);
+        assert_eq!(
+            crate::state::layer::top_layer(state),
+            Some(Layer::RemoveProject)
+        );
+        assert_eq!(
+            focused_id(rig, state),
+            Some(ids::remove_project::keep()),
+            "opening the confirm dialog via a real key must focus its own entry, Keep"
+        );
+    }
+
+    /// §3 row 2: closed by "Keep" returns focus to the panel's own
+    /// Remove — the control that opened the confirm dialog.
+    #[test]
+    fn remove_project_keep_returns_focus_to_the_panels_remove() {
+        let (mut state, _alpha_id, beta_id) = two_needs_help_projects();
+        let mut rig = Rig::new(SIZE);
+        open_remove_confirm_for_beta(&mut rig, &mut state, &beta_id);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::remove_project::keep()));
+        key(&mut rig, &state, Named::Enter);
+        let kept = last_message(&rig);
+        assert!(matches!(
+            kept,
+            Message::Workspace(WorkspaceMessage::RemoveProjectCancelled)
+        ));
+        drive(&mut rig, &mut state, kept);
+
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            None,
+            "sanity: Keep must close the confirm dialog"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::detail_panel::remove()),
+            "closing by Keep must return focus to the panel's own Remove"
+        );
+    }
+
+    /// §3 row 3: confirmed instead — Beta's own row, and the whole detail
+    /// panel (its `view()` bails once the project it names is gone), both
+    /// vanish from the page's own tracked order in one step.
+    ///
+    /// **Characterization test for a found production bug — not a test of
+    /// correct behavior**, matching `stage3_focus_follows_id_in_windows`'s
+    /// own precedent for one found while writing *this* amendment's own
+    /// tests. A1's own rule says the fallback lands on "its neighbour, the
+    /// next survivor in the old order" (Alpha's own row action, confirmed
+    /// directly by temporarily dropping `ids::detail_panel::fetch()` from
+    /// `view.rs`'s own page-wide `reserved` list, which makes this
+    /// assertion pass with `Some(ids::row::action(&alpha_id))` instead).
+    /// With that reserved id in place (today's real `view.rs`), it does
+    /// not: `detail_panel::fetch()` was last tracked one step before
+    /// Beta's own `remove()` (`detail_panel.rs`'s own `actions` column:
+    /// `refresh`, `fetch`, `remove`), so `knotra_ui::widget::keyed::
+    /// merge_reserved` reinstates it into the tracked order at that same
+    /// relative position *even though the whole panel — its own
+    /// container, not just this one control — is gone outright*, which is
+    /// not what `reserved` is for (its own doc comment: a control that
+    /// "disables itself when pressed", still in place, not a container
+    /// that closed). `belongs_on`'s own backward search then finds this
+    /// reinstated-but-nonexistent id as the first "survivor" and stops
+    /// there, never reaching Alpha's own row — and `FollowsId::follow`'s
+    /// own `FocusById` cannot focus a control that it is not lying about:
+    /// nothing in the real tree answers to `detail_panel.fetch` any more,
+    /// so nothing is focused at all. Found while writing this test, not
+    /// fixed here (out of this task's scope, and a correct fix needs
+    /// `merge_reserved`/`belongs_on` to tell "my own container is gone"
+    /// apart from "I disabled myself but I'm still here", which neither
+    /// the `reserved` list nor the current `State` by itself can tell).
+    #[test]
+    fn remove_project_confirmed_lands_on_nothing_a_found_bug_not_the_neighbour() {
+        let (mut state, _alpha_id, beta_id) = two_needs_help_projects();
+        let mut rig = Rig::new(SIZE);
+        open_remove_confirm_for_beta(&mut rig, &mut state, &beta_id);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::remove_project::remove()));
+        key(&mut rig, &state, Named::Enter);
+        let confirmed = last_message(&rig);
+        match &confirmed {
+            Message::Workspace(WorkspaceMessage::RemoveProjectConfirmed(id)) => {
+                assert_eq!(id, &beta_id)
+            }
+            other => panic!("expected RemoveProjectConfirmed(Beta), got {other:?}"),
+        }
+        drive(&mut rig, &mut state, confirmed);
+
+        assert!(
+            state
+                .workspace
+                .as_ref()
+                .unwrap()
+                .projects
+                .iter()
+                .all(|p| p.id != beta_id),
+            "sanity: Beta must really be gone"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            None,
+            "known bug, pinned by this test: A1's own rule says this should land on Alpha's own \
+             row (its neighbour), but `detail_panel::fetch()`'s own reinstatement into the \
+             tracked order (view.rs's `reserved` list) stops the fallback search one step too \
+             early, on an id nothing in the real tree answers to any more — see this test's own \
+             doc comment"
+        );
+    }
+
+    fn one_clean_project_selected() -> (AppState, ProjectId) {
+        let mut state = AppState::new(AppConfig::default());
+        let project = Project::new("Alpha", "/tmp");
+        let id = project.id.clone();
+        state.workspace = Some(Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        });
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![ProjectStatus {
+                project_id: id.clone(),
+                identity: RepositoryIdentity {
+                    path: "/tmp".into(),
+                    vcs_kind: VcsKind::Git,
+                },
+                context: None,
+                remote: RemoteStatus {
+                    upstream: Some("origin/main".to_owned()),
+                    ..RemoteStatus::default()
+                },
+                working_tree: WorkingTreeStatus::default(),
+                conflict: Default::default(),
+                refreshed_at: jiff::Timestamp::now(),
+                read_error: None,
+            }],
+            last_refresh: None,
+        });
+        state.selection_mode = true;
+        state.selection.select_all(std::slice::from_ref(&id));
+        state.load_phase = crate::state::LoadPhase::Ready;
+        // The one project is clean, so its section is `AllSet` —
+        // collapsed by default (`AppConfig::default`), which excludes it
+        // from `visible_project_ids`/`selection_summary` entirely (its
+        // *section* being collapsed, not the project itself, per
+        // `dashboard.rs::build_dashboard_display`'s own `ordered_
+        // selectable_ids` filter). Expanded here so "Get latest safely"
+        // is a real, enabled Tab stop/palette result, same as a reader
+        // who has looked at that section would see.
+        state.config.dashboard_all_set_collapsed = false;
+        (state, id)
+    }
+
+    /// §3 row 4: the palette, opened by Enter, dispatching "Get latest
+    /// safely" (`action.pull_selected`, real results from `palette::
+    /// update_results`, not a hand-built fixture) — the window the
+    /// command opens replaces the palette outright (the "(Some(_),
+    /// Some(layer))" branch, inheriting the palette's own Keyboard mode).
+    /// Cancel then closes the whole chain in one step; focus must return
+    /// to the page control that opened the palette, not to anything about
+    /// the palette or Get latest safely themselves.
+    #[test]
+    fn palette_opens_get_latest_safely_cancel_returns_to_the_palette_opener() {
+        let (mut state, _id) = one_clean_project_selected();
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::shell::palette()));
+        key(&mut rig, &state, Named::Enter);
+        let opened = last_message(&rig);
+        assert!(matches!(opened, Message::Palette(PaletteMessage::Opened)));
+        drive(&mut rig, &mut state, opened);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+        assert_eq!(crate::state::layer::top_layer(&state), Some(Layer::Palette));
+
+        crate::state::palette::update_results(&mut state);
+        let idx = state
+            .palette
+            .results
+            .iter()
+            .position(|e| e.payload == "action.pull_selected")
+            .expect("sanity: \"Get latest safely\" must be a real palette result here");
+        assert!(
+            state.palette.results[idx].disabled_reason_key.is_none(),
+            "sanity: \"Get latest safely\" must be enabled here"
+        );
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Palette(PaletteMessage::EntryClicked(idx)),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::BulkPullRequested),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::GetLatest)
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::smart_pull::cancel()),
+            "sanity: opening Get latest safely through the palette, in Keyboard mode, must \
+             focus its own entry"
+        );
+
+        drive(&mut rig, &mut state, Message::Sync(SyncMessage::Cancelled));
+        assert_eq!(crate::state::layer::top_layer(&state), None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::palette()),
+            "closing the whole chain must return focus to the control that opened the palette"
+        );
+    }
+
+    /// §3 row 5: any window opened by a click (nothing given real focus
+    /// first, RFC-121), then closed, leaves nothing focused — never a
+    /// ring that was never earned.
+    #[test]
+    fn window_opened_by_a_click_then_closed_leaves_nothing_focused() {
+        let (mut state, _id) = one_clean_project_selected();
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::BulkPullRequested),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Mouse),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::GetLatest)
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            None,
+            "sanity: a click-opened window must start with nothing focused"
+        );
+
+        drive(&mut rig, &mut state, Message::Sync(SyncMessage::Cancelled));
+        assert_eq!(crate::state::layer::top_layer(&state), None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            None,
+            "closing a window that was never in Keyboard mode must leave nothing focused"
+        );
+    }
+}
+
+/// RFC-075 stage 3 Amendment A1 §4 ("Mouse mode and phases, tested") —
+/// every row of the handoff's own table, by the same real-key-path
+/// discipline `stage3_amendment_a1_return_on_close`'s own doc comment
+/// explains (including its identical need to drive `Message::
+/// WindowFocusModeResolved` by hand after any non-shortcut open, since
+/// `drive()` never applies a `Task`'s own `Action::Output` messages).
+#[cfg(test)]
+mod stage3_amendment_a1_mouse_mode_and_phases {
+    use super::{Rig, SIZE, drive, focused_id, key};
+    use crate::config::AppConfig;
+    use crate::message::{
+        BackgroundMessage, Message, PaletteMessage, ShortcutMessage, SyncMessage, WorkspaceMessage,
+    };
+    use crate::state::freezer::FreezerPhase;
+    use crate::state::layer::{Layer, WindowFocusMode};
+    use crate::state::{AppState, OperationOwner};
+    use crate::view::ids;
+    use iced::keyboard::key::Named;
+    use knotra_vcs::model::operation::{FreezeValidation, FreezeValidationEntry};
+    use knotra_vcs::model::status::{RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus};
+    use knotra_vcs::{Project, ProjectId, ProjectStatus, Workspace, WorkspaceStatus};
+
+    fn tab_to(rig: &mut Rig, state: &mut AppState, target: &iced::widget::Id) -> bool {
+        for _ in 0..40 {
+            drive(rig, state, Message::Shortcut(ShortcutMessage::FocusNext));
+            if focused_id(rig, state) == Some(target.clone()) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn last_message(rig: &Rig) -> Message {
+        rig.messages()
+            .last()
+            .cloned()
+            .expect("the key press must have published a message")
+    }
+
+    fn one_clean_project_selected() -> (AppState, ProjectId) {
+        let mut state = AppState::new(AppConfig::default());
+        let project = Project::new("Alpha", "/tmp");
+        let id = project.id.clone();
+        state.workspace = Some(Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        });
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![ProjectStatus {
+                project_id: id.clone(),
+                identity: RepositoryIdentity {
+                    path: "/tmp".into(),
+                    vcs_kind: VcsKind::Git,
+                },
+                context: None,
+                remote: RemoteStatus {
+                    upstream: Some("origin/main".to_owned()),
+                    ..RemoteStatus::default()
+                },
+                working_tree: WorkingTreeStatus::default(),
+                conflict: Default::default(),
+                refreshed_at: jiff::Timestamp::now(),
+                read_error: None,
+            }],
+            last_refresh: None,
+        });
+        state.selection_mode = true;
+        state.selection.select_all(std::slice::from_ref(&id));
+        state.load_phase = crate::state::LoadPhase::Ready;
+        // The one project is clean, so its section is `AllSet` —
+        // collapsed by default (`AppConfig::default`), which excludes it
+        // from `visible_project_ids`/`selection_summary` entirely (its
+        // *section* being collapsed, not the project itself, per
+        // `dashboard.rs::build_dashboard_display`'s own `ordered_
+        // selectable_ids` filter). Expanded here so "Get latest safely"
+        // is a real, enabled Tab stop/palette result, same as a reader
+        // who has looked at that section would see.
+        state.config.dashboard_all_set_collapsed = false;
+        (state, id)
+    }
+
+    /// §4 rows 1-2. No dirty projects, so `AwaitingConfirm`'s own entry
+    /// (Cancel) is a real, reachable Tab stop — unlike a dirty project's
+    /// own already-selected disposition toggle (see
+    /// `stage3_focus_follows_id_in_windows::entry_is_the_already_
+    /// selected_and_so_unreachable_disposition_toggle`'s own finding).
+    ///
+    /// **This is the F2 regression test**: row 1's own final assertion
+    /// (nothing focused after Planning → the plan, in Mouse mode) is
+    /// exactly Review 302 F2's own bug — a click-opened window's later
+    /// phase change wrongly getting a ring.
+    #[test]
+    fn get_latest_safely_by_click_then_tab_then_a_later_phase_change() {
+        let (mut state, id) = one_clean_project_selected();
+        let mut rig = Rig::new(SIZE);
+
+        // Opened by a click: nothing tabbed to first (RFC-121).
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::BulkPullRequested),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Mouse),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::GetLatest)
+        );
+
+        // Row 1: Planning → the plan, in Mouse mode — nothing focused, no ring.
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            None,
+            "a phase change in Mouse mode must never focus anything (Review 302 F2)"
+        );
+
+        // Row 2, first half: the reader's first Tab inside the window
+        // flips Mouse → Keyboard (`app.rs::handle_shortcut`) and moves
+        // real focus to the window's own first control — the header's
+        // Close (`overlay::surface`'s own header is pushed before the
+        // body/footer, so it is always first).
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::smart_pull::close()),
+            "Tab, now in Keyboard mode, must reach the window's own first control"
+        );
+
+        // Row 2, second half: a later phase change, now in Keyboard mode,
+        // must focus the new phase's own entry. `AwaitingConfirm` →
+        // `RetryPreparationFailed`, driven through the real message
+        // `smart_pull_retry_status_ready`'s own stale-request guard
+        // answers with (a mismatched `lease_id` against the `retry_
+        // preparation` set up by hand below — `PullRunning`'s own real
+        // completion path would do just as well, but *always* chains a
+        // real workspace-status refresh, `Task::perform`ing a real VCS
+        // subprocess this harness cannot run; this path returns `Task::
+        // none()`, so it is driven exactly as the real app would produce
+        // it, start to finish, with nothing bypassed).
+        //
+        // First, Tab on to the plan's own Cancel — unlike Close (part of
+        // every phase's own header, `overlay::surface`'s own unconditional
+        // layer), `AwaitingConfirm`'s own footer Cancel has no id at all in
+        // `RetryPreparationFailed`'s own, differently-shaped footer, so
+        // real focus is genuinely lost by the transition below, not merely
+        // left on a control that happens to survive it — the actual case
+        // `settle_layer_focus`'s own "nothing really focused" check exists
+        // for.
+        assert!(tab_to(&mut rig, &mut state, &ids::smart_pull::cancel()));
+
+        let workspace_id = state.workspace.as_ref().unwrap().id.clone();
+        let lease_id = crate::state::OperationLeaseId(777);
+        let request_id = crate::state::sync::RetryPreparationId(1);
+        state.sync.retry_preparation = Some(crate::state::sync::SmartPullRetryPreparation {
+            id: request_id,
+            workspace_id: workspace_id.clone(),
+            source_operation_id: knotra_vcs::OperationId::new(),
+            lease_id,
+            eligible_ids: vec![id],
+            exclusions: Vec::new(),
+        });
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
+                // `request_id`/`workspace_id`/`lease_id` all match the
+                // `retry_preparation` set up above — past the handler's own
+                // first, stale-request guard — but the phase itself is
+                // `AwaitingConfirm`, not the `RetryPreparing` this
+                // completion is only ever real for, so its own *second*
+                // guard (now reached) is what actually lands on
+                // `RetryPreparationFailed`.
+                request_id,
+                workspace_id,
+                lease_id,
+                statuses: Vec::new(),
+            }),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::GetLatest),
+            "sanity: the window must still be open"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::smart_pull::retry_failed_close()),
+            "a later phase change, in Keyboard mode, must focus the new phase's own entry"
+        );
+    }
+
+    /// §4 row 3: opened by Enter on the selection bar's own "Get latest
+    /// safely" — real prior focus, so Amendment A1 resolves Keyboard
+    /// mode, and the plan's own entry (Cancel, no dirty projects) is
+    /// focused the moment Planning becomes the plan.
+    #[test]
+    fn get_latest_safely_by_enter_focuses_the_plans_entry() {
+        let (mut state, _id) = one_clean_project_selected();
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::selection_bar::pull()));
+        key(&mut rig, &state, Named::Enter);
+        let opened = last_message(&rig);
+        assert!(matches!(
+            opened,
+            Message::Sync(SyncMessage::BulkPullRequested)
+        ));
+        drive(&mut rig, &mut state, opened);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::GetLatest)
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::smart_pull::cancel()),
+            "Planning → the plan, in Keyboard mode, must focus the plan's own entry"
+        );
+    }
+
+    /// §4 row 4: Save release point by Ctrl+T — a real shortcut, so
+    /// Keyboard mode is set synchronously (no `Task::then` involved at
+    /// all, confirmed already by `stage3_entry_by_shortcut::ctrl_t_opens_
+    /// freezer_and_focuses_the_name_field_synchronously`) — then Check
+    /// readiness → ready. `ValidateRequested`'s own real path
+    /// (`VcsAdapter::validate_freeze`) spawns real Tokio tasks this
+    /// harness has no reactor for, so the validation's own completion
+    /// message is driven directly instead — the same bypass `stage3_
+    /// entry_ids::freezer_entry_validation_ready_never_save` already
+    /// established for this exact phase, with a real lease acquired
+    /// first so the real handler (`freeze_validation_done`) accepts it
+    /// rather than discarding it as stale.
+    #[test]
+    fn save_release_point_by_ctrl_t_then_ready_focuses_the_ready_entry() {
+        let mut state = AppState::new(AppConfig::default());
+        state.workspace = Some(Workspace {
+            projects: vec![Project::new("Alpha", "/tmp")],
+            ..Workspace::new("Main")
+        });
+        let mut rig = Rig::new(SIZE);
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::OpenFreezer),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::SaveReleasePoint)
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(knotra_ui::widget::focus_id::RELEASE_NAME.clone()),
+            "sanity: Ctrl+T must focus Idle's own entry synchronously"
+        );
+
+        let lease_id = state
+            .operation_interlock
+            .try_acquire(OperationOwner::FreezeValidation)
+            .expect("sanity: the interlock must be free to acquire");
+        state.freezer.phase = FreezerPhase::Validating { lease_id };
+        let validation = FreezeValidation {
+            freeze_name: "v1".to_owned(),
+            entries: vec![FreezeValidationEntry {
+                project_id: ProjectId::new(),
+                project_name: "Alpha".to_owned(),
+                notes: Vec::new(),
+                blockers: Vec::new(),
+            }],
+        };
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Background(BackgroundMessage::FreezeValidationDone {
+                lease_id,
+                validation,
+            }),
+        );
+
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::freezer::cancel()),
+            "Check readiness → ready, in Keyboard mode, must focus the ready phase's own entry"
+        );
+    }
+
+    /// §4 row 5 (first of three new windows beyond what
+    /// `stage3_amendment_a1_return_on_close` already covers — Review 302
+    /// F3's own complaint about `entry_id` called directly rather than
+    /// proven through a real key): the command palette, opened by Enter
+    /// on its own shell button.
+    #[test]
+    fn palette_opened_by_enter_focuses_its_own_query_field() {
+        let mut state = AppState::new(AppConfig::default());
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::shell::palette()));
+        key(&mut rig, &state, Named::Enter);
+        let opened = last_message(&rig);
+        assert!(matches!(opened, Message::Palette(PaletteMessage::Opened)));
+        drive(&mut rig, &mut state, opened);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
+        );
+    }
+
+    /// §4 row 5, second window: Add project, from the empty-workspace
+    /// screen's own first-class button.
+    #[test]
+    fn add_project_opened_by_enter_focuses_the_path_field() {
+        let mut state = AppState::new(AppConfig::default());
+        state.workspace = Some(Workspace::new("Main"));
+        state.load_phase = crate::state::LoadPhase::Ready;
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::empty::add_first_project()
+        ));
+        key(&mut rig, &state, Named::Enter);
+        let opened = last_message(&rig);
+        assert!(matches!(
+            opened,
+            Message::Workspace(WorkspaceMessage::AddProjectDialogOpened)
+        ));
+        drive(&mut rig, &mut state, opened);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone())
+        );
+    }
+
+    /// §4 row 5, third window: Rename workspace — a different `Layer`
+    /// from `stage3_amendment_a1_return_on_close`'s own `WorkspaceCreate`,
+    /// reached the same "replaces the menu, inherits its mode" way.
+    #[test]
+    fn rename_workspace_opened_from_the_keyboard_menu_focuses_the_name_field() {
+        let mut state = AppState::new(AppConfig::default());
+        state.all_workspaces = vec![Workspace::new("Main"), Workspace::new("Second")];
+        state.active_workspace_idx = 0;
+        state.workspace = state.all_workspaces.first().cloned();
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::shell::workspace_switcher()
+        ));
+        key(&mut rig, &state, Named::Enter);
+        let toggled = last_message(&rig);
+        assert!(matches!(
+            toggled,
+            Message::Workspace(WorkspaceMessage::SwitcherToggled)
+        ));
+        drive(&mut rig, &mut state, toggled);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::WorkspaceMenu)
+        );
+
+        assert!(tab_to(&mut rig, &mut state, &ids::switcher::rename()));
+        key(&mut rig, &state, Named::Enter);
+        let renamed = last_message(&rig);
+        assert!(matches!(
+            renamed,
+            Message::Workspace(WorkspaceMessage::RenameWorkspaceDialogOpened)
+        ));
+        drive(&mut rig, &mut state, renamed);
+
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::WorkspaceRename)
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone())
+        );
+    }
+}

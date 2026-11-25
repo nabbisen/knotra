@@ -9,10 +9,6 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.35.0] — 2026-11-25
-
-**The keyboard reaches everything on the dashboard and in every window.**
-
 ### Changed — The keyboard reaches everything on the dashboard and in every window
 
 - Tab now reaches every control on the dashboard and in every window, including the Group and

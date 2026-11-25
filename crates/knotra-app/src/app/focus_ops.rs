@@ -21,7 +21,7 @@ use crate::{
     state::{
         AppState, Screen,
         freezer::FreezerPhase,
-        layer::{self, Layer},
+        layer::{self, Layer, WindowFocusMode},
         sync::SyncPhase,
     },
     view::{
@@ -66,56 +66,70 @@ fn focus_entry(state: &AppState, layer: &Layer) -> Task<Message> {
     }
 }
 
-/// RFC-075 stage 3 §3: one step, run after every `update()` call with the
-/// layer that was on top *before* the message was handled, and whether
-/// that message itself was a keyboard shortcut (`Message::Shortcut`,
-/// produced only from a real `keyboard::Event` — never from a mouse
-/// click).
+/// RFC-075 stage 3 §3, revised by Amendment A1 §2: one step, run after every
+/// `update()` call with the layer that was on top *before* the message was
+/// handled, and whether that message itself was a keyboard shortcut
+/// (`Message::Shortcut`, produced only from a real `keyboard::Event` — never
+/// from a mouse click). Also the sole reader *and* writer of
+/// `state.window_focus_mode` (`Keyboard`/`Mouse`, `None` while no window is
+/// open) — no window-opening site anywhere else sets focus or this mode.
 ///
 /// - **A different layer is on top** (`before != current`):
-///   - **no layer now** (the window closed): nothing to do here. With
-///     `snora::Inert`, the page's own `FollowsId` wrap already freezes its
-///     memory of what was focused the moment the survey it reads goes
-///     empty (the window taking focus is what empties it) and resumes
-///     tracking the instant the survey is non-empty again — so "return to
-///     the control that opened it, or its neighbour" happens with no
-///     explicit code here (see `knotra_ui::widget::keyed::FollowsId::
-///     follow`'s own doc). `Inert`'s own native opener-focus restore
-///     cannot do this job itself: it parks whatever the page's content
-///     holds at the next redraw, but by then this step has already moved
-///     focus onto the window's own entry, so the page's own content holds
-///     nothing for `Inert` to park — the return must come from the page's
-///     own memory, not the engine's.
+///   - **no layer now** (the window closed): `window_focus_mode` resets to
+///     `None`. With `snora::Inert`, the page's own `FollowsId` wrap already
+///     freezes its memory of what was focused the moment the survey it
+///     reads goes empty (the window taking focus is what empties it) and
+///     resumes tracking the instant the survey is non-empty again — so
+///     "return to the control that opened it, or its neighbour" happens
+///     with no explicit code here (see `knotra_ui::widget::keyed::
+///     FollowsId::follow`'s own doc). `Inert`'s own native opener-focus
+///     restore cannot do this job itself: it parks whatever the page's
+///     content holds at the next redraw, but by then this step has already
+///     moved focus onto the window's own entry, so the page's own content
+///     holds nothing for `Inert` to park — the return must come from the
+///     page's own memory, not the engine's. In `Mouse` mode nothing was
+///     ever focused inside the window, so there is nothing for `FollowsId`
+///     to have frozen either — closing it simply leaves focus wherever it
+///     already was.
 ///   - **a window is now on top, replacing a different one** (both
 ///     `before` and `current` are `Some`, e.g. a palette command opening a
-///     different window outright): the old window's own `FollowsId` state
-///     is destroyed, not frozen, when a different window's content
-///     replaces it in the same `AppLayout::dialog` slot — there is nothing
-///     to inherit from it, so this always focuses the new layer's entry,
-///     unconditionally. This is "from another window that holds it" (§3's
-///     own bullet).
-///   - **a window just opened from nothing** (`before` is `None`): opened
-///     from the keyboard — by a shortcut (`is_shortcut`), or while a page
-///     control held real focus (asked of `knotra_ui::widget::keyed::
-///     tab_anchor`, which reflects the page's own last-known focus even
-///     while frozen) — focuses the entry; opened by a click, nothing is
-///     focused (RFC-121: a click presses without focusing, so there is
-///     nothing for `tab_anchor` to report and no shortcut to have fired).
-/// - **The same layer is on top, still open:** compares `before_entry`
-///   (the layer's own entry *before* the message, snapshotted by
-///   `app::update` while `state` still held it) against this layer's
-///   entry *now*. A real phase transition changes this for every window
-///   in this file (each one's own `entry_id` is phase-keyed) — a plain
-///   edit inside an unchanged phase (typing in a field, toggling a
-///   disposition `reserved` already kept focus on) never does. Only on a
-///   genuine change does this step check whether anything is really
-///   focused right now and, if not, move focus to the new entry — never
-///   unconditionally, so a window opened by a click with nothing focused
-///   is never silently re-focused by some *later*, unrelated message
-///   (a background tick, say) finding the same "nothing focused" state
-///   and mistaking it for a phase change.
+///     different window outright): **inherits the old window's mode,
+///     unchanged** (Amendment A1 §2) — `window_focus_mode` is left exactly
+///     as it was, and the new layer's entry is focused only if that
+///     inherited mode is `Keyboard`. Before this amendment this always
+///     focused the entry regardless of how the first window in the chain
+///     was reached (Review 302 F2).
+///   - **a window just opened from nothing** (`before` is `None`): a
+///     shortcut (`is_shortcut`) always means `Keyboard` mode, focused
+///     synchronously. Otherwise the mode depends on whether a page control
+///     held real focus the moment it opened — asked of `knotra_ui::
+///     widget::keyed::tab_anchor` (which reflects the page's own
+///     last-known focus even while frozen), resolved only *after* this
+///     function returns, so the mode itself cannot be written here
+///     synchronously; the `Task::then` closure instead emits
+///     `Message::WindowFocusModeResolved`, which `update_inner` applies
+///     next time through, alongside focusing the entry when the anchor
+///     reports real prior focus. A click leaves nothing focused (RFC-121:
+///     a click presses without focusing), so the anchor reports none, the
+///     window resolves to `Mouse` mode, and nothing is focused.
+/// - **The same layer is on top, still open:** nothing happens at all
+///   unless `window_focus_mode` is `Keyboard` — Amendment A1 §2's "phase
+///   change focuses the new entry only in keyboard mode; in mouse mode
+///   nothing is focused, and no ring appears" (Review 302 F2). In
+///   `Keyboard` mode, compares `before_entry` (the layer's own entry
+///   *before* the message, snapshotted by `app::update` while `state`
+///   still held it) against this layer's entry *now*. A real phase
+///   transition changes this for every window in this file (each one's
+///   own `entry_id` is phase-keyed) — a plain edit inside an unchanged
+///   phase (typing in a field, toggling a disposition `reserved` already
+///   kept focus on) never does. Only on a genuine change does this step
+///   check whether anything is really focused right now and, if not, move
+///   focus to the new entry — never unconditionally, so a window with
+///   nothing focused is never silently re-focused by some *later*,
+///   unrelated message (a background tick, say) finding the same "nothing
+///   focused" state and mistaking it for a phase change.
 pub(super) fn settle_layer_focus(
-    state: &AppState,
+    state: &mut AppState,
     before: Option<Layer>,
     before_entry: Option<iced::widget::Id>,
     is_shortcut: bool,
@@ -124,10 +138,20 @@ pub(super) fn settle_layer_focus(
 
     if current != before {
         return match (&before, &current) {
-            (_, None) => Task::none(),
-            (Some(_), Some(layer)) => focus_entry(state, layer),
+            (_, None) => {
+                state.window_focus_mode = None;
+                Task::none()
+            }
+            (Some(_), Some(layer)) => {
+                if state.window_focus_mode == Some(WindowFocusMode::Keyboard) {
+                    focus_entry(state, layer)
+                } else {
+                    Task::none()
+                }
+            }
             (None, Some(layer)) => {
                 if is_shortcut {
+                    state.window_focus_mode = Some(WindowFocusMode::Keyboard);
                     return focus_entry(state, layer);
                 }
                 // Computed now, while `state` is still in hand — the
@@ -137,12 +161,16 @@ pub(super) fn settle_layer_focus(
                 let entry = entry_id(state, layer);
                 knotra_ui::widget::keyed::tab_anchor().then(move |anchor| {
                     if anchor.is_some_and(|a| a.focused.is_some()) {
-                        match &entry {
+                        let focus = match &entry {
                             Some(id) => operation::focus(id.clone()),
                             None => Task::none(),
-                        }
+                        };
+                        Task::batch([
+                            Task::done(Message::WindowFocusModeResolved(WindowFocusMode::Keyboard)),
+                            focus,
+                        ])
                     } else {
-                        Task::none()
+                        Task::done(Message::WindowFocusModeResolved(WindowFocusMode::Mouse))
                     }
                 })
             }
@@ -152,6 +180,9 @@ pub(super) fn settle_layer_focus(
     let Some(layer) = current else {
         return Task::none();
     };
+    if state.window_focus_mode != Some(WindowFocusMode::Keyboard) {
+        return Task::none();
+    }
     let entry_now = entry_id(state, &layer);
     if entry_now == before_entry {
         return Task::none();

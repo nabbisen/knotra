@@ -116,7 +116,31 @@ impl Operation<Option<Anchor>> for AnchorQuery {
 
     fn custom(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Any) {
         if let Some(anchor) = state.downcast_ref::<Anchor>() {
-            self.found = Some(anchor.clone());
+            // More than one `focus_by_id` wrapper can be live in the tree at
+            // once (the page's own, plus whichever window just opened this
+            // same frame — every window wraps itself too). A window's own
+            // wrapper starts with `State::default()` (`ids` empty) until its
+            // first `RedrawRequested` ever reaches it, which cannot have
+            // happened yet when this query runs as part of resolving the
+            // very message that opened it. Unconditionally overwriting
+            // `found` on every visit (this function's original body) let
+            // that brand-new, meaningless empty answer clobber the page's
+            // own real one the moment any window opened — which, read back
+            // through `settle_layer_focus`'s own "(None, Some(layer))"
+            // branch, made every window opened by a real key press (not a
+            // bare shortcut) resolve to Mouse mode unconditionally,
+            // regardless of whether the reader's own control genuinely held
+            // focus. A wrapper's `ids` is empty only in that one
+            // never-yet-surveyed case — every real window always tracks at
+            // least its own close button — so preferring the last wrapper
+            // with a genuinely non-empty `ids` keeps this query answering
+            // for the one the reader was actually just using, in both
+            // directions: the page's own frozen memory when a window has
+            // just opened over it, and a window's own (by then populated)
+            // memory once Tab has been pressed inside it at least once.
+            if !anchor.ids.is_empty() || self.found.is_none() {
+                self.found = Some(anchor.clone());
+            }
         }
     }
 

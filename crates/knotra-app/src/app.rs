@@ -327,6 +327,10 @@ fn update_inner(state: &mut AppState, message: Message) -> Task<Message> {
             state.window_width = size.width;
             Task::none()
         }
+        Message::WindowFocusModeResolved(mode) => {
+            state.window_focus_mode = Some(mode);
+            Task::none()
+        }
     }
 }
 
@@ -371,6 +375,24 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
     if matches!(msg, ShortcutMessage::MousePressed) {
         state.focus_visible = false;
         return Task::none();
+    }
+    // RFC-075 stage 3 Amendment A1 §2: a window opened by a click starts in
+    // `Mouse` mode (nothing focused, no ring); the reader's first Tab,
+    // Shift+Tab, ↓ or ↑ *inside it* switches it to `Keyboard` mode for the
+    // rest of its life, so the next phase change focuses its entry. Gated on
+    // a window actually being open — these same four keys do something
+    // else entirely on the bare dashboard (card navigation), which has no
+    // window-focus mode to flip.
+    if matches!(
+        msg,
+        ShortcutMessage::FocusNext
+            | ShortcutMessage::FocusPrevious
+            | ShortcutMessage::ArrowDown
+            | ShortcutMessage::ArrowUp
+    ) && crate::state::layer::top_layer(state).is_some()
+        && state.window_focus_mode == Some(crate::state::layer::WindowFocusMode::Mouse)
+    {
+        state.window_focus_mode = Some(crate::state::layer::WindowFocusMode::Keyboard);
     }
 
     // Task 095 commit 1: while any window is open, these shortcuts act on

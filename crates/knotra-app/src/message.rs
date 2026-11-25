@@ -45,6 +45,14 @@ pub enum Message {
     /// `state.width_mode` — iced's own documented subscription shape
     /// (`iced-0.14.0/src/lib.rs:358`), not a knotra-invented mechanism.
     WindowResized(iced::Size),
+    /// RFC-075 stage 3 Amendment A1 §2: a just-opened window's keyboard/
+    /// mouse mode, resolved asynchronously (`knotra_ui::widget::keyed::
+    /// tab_anchor`'s own result) by `app/focus_ops.rs::settle_layer_focus`
+    /// — `update()` can only mutate `state.window_focus_mode` on a message
+    /// it dispatches, never from inside the `Task::then` closure that reads
+    /// the anchor, so this round-trips the answer back in. Never produced
+    /// anywhere else.
+    WindowFocusModeResolved(crate::state::layer::WindowFocusMode),
 }
 
 // --- Workspace ---

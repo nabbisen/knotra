@@ -28,6 +28,21 @@ pub enum Layer {
     Resolve(knotra_vcs::ProjectId),
 }
 
+/// RFC-075 stage 3 Amendment A1 §2: whether the window currently on top
+/// (`AppState.window_focus_mode`, kept beside [`top_layer`]'s own concerns)
+/// counts as reached "from the keyboard" — a shortcut opened it, a page
+/// control held real focus when it opened, or it replaces a window that was
+/// already in `Keyboard` mode (inherited, never recomputed) — or by a click,
+/// which leaves nothing focused (RFC-121). `Mouse` switches to `Keyboard` the
+/// moment the reader first presses Tab, Shift+Tab, ↓ or ↑ inside it, and the
+/// window stays in whichever mode it ends up in until it closes.
+/// `settle_layer_focus` is the only reader; `None` means no window is open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowFocusMode {
+    Keyboard,
+    Mouse,
+}
+
 /// The window drawn on top right now, or `None` if none is open — derived
 /// from `view.rs`'s own composition order, outermost first:
 ///
