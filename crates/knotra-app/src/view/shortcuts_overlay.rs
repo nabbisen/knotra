@@ -197,7 +197,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // was.
     let body = column![col_header, list(tokens, rows)].spacing(8);
 
-    knotra_ui::widget::focus_by_id(
+    knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             OverlayWidth::Large.resolve(state.window_width),

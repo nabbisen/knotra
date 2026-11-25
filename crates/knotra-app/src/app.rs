@@ -327,8 +327,16 @@ fn update_inner(state: &mut AppState, message: Message) -> Task<Message> {
             state.window_width = size.width;
             Task::none()
         }
+        // RFC-075 stage 3 Amendment A2 §2 (Review 303 F2): a late `Mouse`
+        // answer must never override a `Keyboard` mode the reader's own
+        // Tab/arrow already set in the gap before this resolved — once
+        // `Keyboard`, a window stays `Keyboard` for the rest of its life
+        // (its own documented rule), so this never writes over it, whether
+        // the late answer agrees or not.
         Message::WindowFocusModeResolved(mode) => {
-            state.window_focus_mode = Some(mode);
+            if state.window_focus_mode != Some(crate::state::layer::WindowFocusMode::Keyboard) {
+                state.window_focus_mode = Some(mode);
+            }
             Task::none()
         }
     }
@@ -356,6 +364,17 @@ fn handle_tick(state: &mut AppState) -> Task<Message> {
 // Shortcut
 // ---------------------------------------------------------------------------
 
+/// Amendment A2 F3: which `focus_by_id` scope Tab's own `traverse_wrapping`
+/// should ask — the open window's, or the page's, by the one thing
+/// `knotra-ui` itself cannot know: whether a window is open right now.
+fn window_or_page_scope(state: &AppState) -> knotra_ui::widget::keyed::Scope {
+    if crate::state::layer::top_layer(state).is_some() {
+        knotra_ui::widget::keyed::Scope::Window
+    } else {
+        knotra_ui::widget::keyed::Scope::Page
+    }
+}
+
 fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> {
     // RFC-066 D4: these are the keys that mean "the keyboard is in use" —
     // set unconditionally, before anything below decides whether the key
@@ -376,13 +395,23 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
         state.focus_visible = false;
         return Task::none();
     }
-    // RFC-075 stage 3 Amendment A1 §2: a window opened by a click starts in
-    // `Mouse` mode (nothing focused, no ring); the reader's first Tab,
-    // Shift+Tab, ↓ or ↑ *inside it* switches it to `Keyboard` mode for the
-    // rest of its life, so the next phase change focuses its entry. Gated on
-    // a window actually being open — these same four keys do something
-    // else entirely on the bare dashboard (card navigation), which has no
-    // window-focus mode to flip.
+    // RFC-075 stage 3 Amendment A1 §2, widened by Amendment A2 §2 (Review
+    // 303 F2): a window opened by a click starts in `Mouse` mode (nothing
+    // focused, no ring); the reader's first Tab, Shift+Tab, ↓ or ↑ *inside
+    // it* switches it to `Keyboard` mode for the rest of its life, so the
+    // next phase change focuses its entry. Gated on a window actually being
+    // open — these same four keys do something else entirely on the bare
+    // dashboard (card navigation), which has no window-focus mode to flip.
+    //
+    // **Also fires from `None`, not only `Mouse`:** a window opened by a
+    // real key press (not a bare shortcut) resolves its mode asynchronously
+    // (`settle_layer_focus`'s own `tab_anchor` round trip) — in the gap
+    // before that answer arrives, `window_focus_mode` reads `None`. A Tab
+    // pressed in that gap must still count as "the keyboard is in use", or
+    // a `Mouse` answer that only happens to land after it would stick
+    // (`Message::WindowFocusModeResolved`'s own "never overrides `Keyboard`"
+    // rule only protects an *already-settled* `Keyboard`, not this
+    // in-between `None`).
     if matches!(
         msg,
         ShortcutMessage::FocusNext
@@ -390,7 +419,7 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
             | ShortcutMessage::ArrowDown
             | ShortcutMessage::ArrowUp
     ) && crate::state::layer::top_layer(state).is_some()
-        && state.window_focus_mode == Some(crate::state::layer::WindowFocusMode::Mouse)
+        && state.window_focus_mode != Some(crate::state::layer::WindowFocusMode::Keyboard)
     {
         state.window_focus_mode = Some(crate::state::layer::WindowFocusMode::Keyboard);
     }
@@ -465,14 +494,23 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
         // confines the real traversal to whichever window is open (the
         // page beneath it reports no focus target at all), so there is no
         // separate window-order fallback left to branch to.
+        //
+        // **Amendment A2 F3**: `traverse_wrapping`'s own fallback (nothing
+        // really focused) asks a `focus_by_id` wrapper's remembered focus —
+        // this is the one place that knows, synchronously, which scope is
+        // live right now (`top_layer`), so it is the one place that names
+        // it, rather than `knotra-ui` guessing between whichever wrapper
+        // happens to answer.
         ShortcutMessage::FocusNext => knotra_ui::widget::keyboard::traverse_wrapping(
             keyboard::Key::Named(keyboard::key::Named::Tab),
             keyboard::Modifiers::empty(),
+            window_or_page_scope(state),
         )
         .unwrap_or_else(Task::none),
         ShortcutMessage::FocusPrevious => knotra_ui::widget::keyboard::traverse_wrapping(
             keyboard::Key::Named(keyboard::key::Named::Tab),
             keyboard::Modifiers::SHIFT,
+            window_or_page_scope(state),
         )
         .unwrap_or_else(Task::none),
         // RFC-035 R22/RFC-066 D5: `advance_card_focus` itself now carries

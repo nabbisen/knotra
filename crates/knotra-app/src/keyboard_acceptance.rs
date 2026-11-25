@@ -642,7 +642,7 @@ mod findings {
     ///
     /// **The explicit fix (`1144026`) is gone** (Amendment A2 §2): this
     /// test is unchanged, and passes with no explicit `operation::focus`
-    /// behind it at all — `knotra_ui::widget::focus_by_id`'s own one,
+    /// behind it at all — `knotra_ui::widget::focus_by_id_page`'s own one,
     /// whole-page wrap keeps real focus on "Arrange" (it is still really
     /// focused, nothing moved it away) through the same rebuild that
     /// reveals the panel, the same way it keeps any other control focused
@@ -1419,7 +1419,7 @@ mod focus_follows_its_id {
 
     /// Amendment A2 §3, rows 1-3, with "Check now" disabled by its own
     /// Enter press. `ids::shell::refresh()` is one of `view.rs`'s own
-    /// `reserved` ids (`knotra_ui::widget::focus_by_id`'s own parameter):
+    /// `reserved` ids (`knotra_ui::widget::focus_by_id_page`'s own parameter):
     /// gone from a real survey the moment it disables, but never treated
     /// as removed outright. Named here rather than "the shell's own
     /// shape never changes" alone, since Amendment A1's own version of
@@ -3284,40 +3284,31 @@ mod stage3_amendment_a1_return_on_close {
         );
     }
 
-    /// §3 row 3: confirmed instead — Beta's own row, and the whole detail
-    /// panel (its `view()` bails once the project it names is gone), both
-    /// vanish from the page's own tracked order in one step.
+    /// §3 row 3 (Amendment A2 §1, Review 303 F1): confirmed instead —
+    /// Beta's own row, and the whole detail panel (its `view()` bails once
+    /// the project it names is gone), both vanish from the page's own
+    /// tracked order in one step. A1's own rule says the fallback lands on
+    /// "its neighbour, the next survivor in the old order" — Alpha's own
+    /// row action.
     ///
-    /// **Characterization test for a found production bug — not a test of
-    /// correct behavior**, matching `stage3_focus_follows_id_in_windows`'s
-    /// own precedent for one found while writing *this* amendment's own
-    /// tests. A1's own rule says the fallback lands on "its neighbour, the
-    /// next survivor in the old order" (Alpha's own row action, confirmed
-    /// directly by temporarily dropping `ids::detail_panel::fetch()` from
-    /// `view.rs`'s own page-wide `reserved` list, which makes this
-    /// assertion pass with `Some(ids::row::action(&alpha_id))` instead).
-    /// With that reserved id in place (today's real `view.rs`), it does
-    /// not: `detail_panel::fetch()` was last tracked one step before
-    /// Beta's own `remove()` (`detail_panel.rs`'s own `actions` column:
-    /// `refresh`, `fetch`, `remove`), so `knotra_ui::widget::keyed::
-    /// merge_reserved` reinstates it into the tracked order at that same
-    /// relative position *even though the whole panel — its own
-    /// container, not just this one control — is gone outright*, which is
-    /// not what `reserved` is for (its own doc comment: a control that
-    /// "disables itself when pressed", still in place, not a container
-    /// that closed). `belongs_on`'s own backward search then finds this
-    /// reinstated-but-nonexistent id as the first "survivor" and stops
-    /// there, never reaching Alpha's own row — and `FollowsId::follow`'s
-    /// own `FocusById` cannot focus a control that it is not lying about:
-    /// nothing in the real tree answers to `detail_panel.fetch` any more,
-    /// so nothing is focused at all. Found while writing this test, not
-    /// fixed here (out of this task's scope, and a correct fix needs
-    /// `merge_reserved`/`belongs_on` to tell "my own container is gone"
-    /// apart from "I disabled myself but I'm still here", which neither
-    /// the `reserved` list nor the current `State` by itself can tell).
+    /// **Replaces `remove_project_confirmed_lands_on_nothing_a_found_bug_
+    /// not_the_neighbour`** (a characterization test pinning a bug this
+    /// amendment fixes — a test must never assert a known defect as
+    /// correct). The bug: `detail_panel::fetch()` sat in `view.rs`'s
+    /// page-wide `reserved` list *unconditionally*, so `knotra_ui::widget::
+    /// keyed::merge_reserved` reinstated it into the tracked order even
+    /// with the whole panel gone — an id nothing in the real tree answers
+    /// to, which `belongs_on`'s own backward search then found and stopped
+    /// on, one step before reaching Alpha's own row. Fixed two ways,
+    /// together: `view.rs` now names `detail_panel::fetch()` in `reserved`
+    /// only while the panel is actually open (so it is never reinstated at
+    /// all once the panel is gone), and `merge_reserved` itself now
+    /// reinstates only the *remembered focused* id, never any other
+    /// `reserved` id on its behalf, so an irrelevant reserved id can never
+    /// stand in as someone else's false "still there" neighbour.
     #[test]
-    fn remove_project_confirmed_lands_on_nothing_a_found_bug_not_the_neighbour() {
-        let (mut state, _alpha_id, beta_id) = two_needs_help_projects();
+    fn remove_project_confirmed_lands_on_alphas_row_its_neighbour() {
+        let (mut state, alpha_id, beta_id) = two_needs_help_projects();
         let mut rig = Rig::new(SIZE);
         open_remove_confirm_for_beta(&mut rig, &mut state, &beta_id);
 
@@ -3344,12 +3335,10 @@ mod stage3_amendment_a1_return_on_close {
         );
         assert_eq!(
             focused_id(&mut rig, &state),
-            None,
-            "known bug, pinned by this test: A1's own rule says this should land on Alpha's own \
-             row (its neighbour), but `detail_panel::fetch()`'s own reinstatement into the \
-             tracked order (view.rs's `reserved` list) stops the fallback search one step too \
-             early, on an id nothing in the real tree answers to any more — see this test's own \
-             doc comment"
+            Some(ids::row::action(&alpha_id)),
+            "A1's own rule: focus falls to the neighbour, Alpha's own row — never to nothing, \
+             and never to a reinstated id (detail_panel::fetch()) nothing in the real tree \
+             answers to"
         );
     }
 
@@ -3931,6 +3920,454 @@ mod stage3_amendment_a1_mouse_mode_and_phases {
         assert_eq!(
             focused_id(&mut rig, &state),
             Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone())
+        );
+    }
+}
+
+/// RFC-075 stage 3 Amendment A2 §4, rows 2-4 — row 1 is `stage3_amendment_
+/// a1_return_on_close::remove_project_confirmed_lands_on_alphas_row_its_
+/// neighbour` (that test itself *is* the amendment's own row 1, A2 §1's
+/// rewrite of the test it replaces). Same real-key-path discipline as
+/// every module above: a message mutates `state` only through `drive()`
+/// (`crate::app::update`) or a real `key()` press; `focused_id()` only
+/// ever reads the live tree `belongs_on`/`merge_reserved`/`entry_id`
+/// themselves are never called directly to assert a result.
+#[cfg(test)]
+mod stage3_amendment_a2_tests {
+    use super::{Rig, SIZE, drive, focused_id, key};
+    use crate::config::AppConfig;
+    use crate::message::{
+        BackgroundMessage, Message, SelectionMessage, ShortcutMessage, SyncMessage,
+        WorkspaceMessage,
+    };
+    use crate::state::layer::{Layer, WindowFocusMode};
+    use crate::state::{AppState, OperationOwner};
+    use crate::view::ids;
+    use iced::keyboard::key::Named;
+    use knotra_vcs::model::status::{RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus};
+    use knotra_vcs::{Project, ProjectId, ProjectStatus, Workspace, WorkspaceStatus};
+
+    fn tab_to(rig: &mut Rig, state: &mut AppState, target: &iced::widget::Id) -> bool {
+        for _ in 0..40 {
+            drive(rig, state, Message::Shortcut(ShortcutMessage::FocusNext));
+            if focused_id(rig, state) == Some(target.clone()) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn last_message(rig: &Rig) -> Message {
+        rig.messages()
+            .last()
+            .cloned()
+            .expect("the key press must have published a message")
+    }
+
+    /// One project, selected, with a real upstream — "Get latest safely"
+    /// is enabled and a real Tab stop; "Check for updates" starts enabled
+    /// too (not missing, so `fetchable_ids` is non-empty), until the test
+    /// itself marks it busy.
+    fn one_project_selected_with_upstream() -> (AppState, ProjectId) {
+        let mut state = AppState::new(AppConfig::default());
+        let project = Project::new("Alpha", "/tmp");
+        let id = project.id.clone();
+        state.workspace = Some(Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        });
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![ProjectStatus {
+                project_id: id.clone(),
+                identity: RepositoryIdentity {
+                    path: "/tmp".into(),
+                    vcs_kind: VcsKind::Git,
+                },
+                context: None,
+                remote: RemoteStatus {
+                    upstream: Some("origin/main".to_owned()),
+                    ..RemoteStatus::default()
+                },
+                working_tree: WorkingTreeStatus::default(),
+                conflict: Default::default(),
+                refreshed_at: jiff::Timestamp::now(),
+                read_error: None,
+            }],
+            last_refresh: None,
+        });
+        state.selection_mode = true;
+        state.selection.select_all(std::slice::from_ref(&id));
+        state.load_phase = crate::state::LoadPhase::Ready;
+        state.config.dashboard_all_set_collapsed = false;
+        (state, id)
+    }
+
+    /// §4 row 2 (Amendment A2 §1, Review 303 F1): "Get latest safely" is
+    /// the control the page really, currently remembers as focused —
+    /// `ids::selection_bar::pull()` is never itself in `view.rs`'s own
+    /// `reserved` list, so nothing about this id's own disappearance
+    /// depends on the fix directly. The fix is proven by what sits right
+    /// next to it in the page's own tracked order instead: "Check for
+    /// updates" (`ids::selection_bar::fetch()`), which *is* reserved for
+    /// as long as the selection bar is drawn (`view.rs`: `if sel_bar_open
+    /// { reserved.push(ids::selection_bar::fetch()) }`), and which goes
+    /// disabled in the very same redraw "Get latest safely" does (both
+    /// gated on the one shared `operation_interlock.is_busy()` read).
+    /// Before this amendment, `merge_reserved` reinstated *every* id
+    /// `reserved` named, unconditionally — including "Check for updates",
+    /// even though the id genuinely lost here is "Get latest safely" —
+    /// manufacturing a "still there" id nothing in the real tree answers
+    /// to, for `belongs_on`'s own backward search to stop on one step too
+    /// early (exactly `remove_project_confirmed_lands_on_nothing_a_found_
+    /// bug_not_the_neighbour`'s own shape, A2 §1's row 1 test replaces).
+    /// After it: only the id focus actually belongs to is ever
+    /// reinstated, so a *different* reserved-but-disabled sibling is
+    /// never mistaken for the one that is genuinely missing.
+    ///
+    /// "Check for updates running" is set up directly on `state`
+    /// (`operation_interlock.try_acquire`), not by driving the real
+    /// `SyncMessage::BulkFetchRequested` — that handler's own `Task::run`
+    /// spawns a real `VcsAdapter::fetch` subprocess this harness has no
+    /// reactor for (the same bypass this file's other modules already use
+    /// for `FreezeValidationDone`/`SmartPullRetryStatusReady`). The lease
+    /// alone is enough: `selection_bar::view`'s own `busy` read is the
+    /// only thing gating both buttons, and every `focused_id`/`drive`
+    /// call below rebuilds the real view against whatever `state` holds,
+    /// through the real tree, regardless of how `state` reached that
+    /// shape.
+    #[test]
+    fn check_for_updates_reserved_and_disabled_never_steals_get_latest_safelys_neighbour() {
+        let (mut state, _id) = one_project_selected_with_upstream();
+        let mut rig = Rig::new(SIZE);
+
+        // "Get latest safely" is real, enabled, and becomes the page's
+        // own remembered focus, by a real Tab press.
+        assert!(tab_to(&mut rig, &mut state, &ids::selection_bar::pull()));
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::selection_bar::pull())
+        );
+
+        // "Check for updates running": the interlock goes busy, which
+        // `selection_bar::view` reads to disable *both* buttons in this
+        // same redraw — "Check for updates" is still named in `reserved`
+        // (the bar is still drawn), "Get latest safely" never was.
+        let lease_id = state
+            .operation_interlock
+            .try_acquire(OperationOwner::BulkFetch)
+            .expect("sanity: the interlock must be free to acquire");
+        assert!(state.operation_interlock.is_busy());
+
+        // Whatever the page's own neighbour search lands on here, it must
+        // never be "Check for updates" own ghost — the one id A2 §1
+        // forbids `merge_reserved` from ever reinstating on "Get latest
+        // safely"'s behalf.
+        assert_ne!(
+            focused_id(&mut rig, &state),
+            Some(ids::selection_bar::fetch()),
+            "a disabled, merely-reserved Check for updates must never be mistaken for the \
+             id focus actually belongs to"
+        );
+
+        // Now the whole selection bar goes — "Check for updates" and
+        // "Get latest safely" both vanish from the tree together, by a
+        // path that never once pressed "Get latest safely" itself
+        // (`SelectionMessage::Clear`, real-world equivalent: a background
+        // refresh dropping the last selected project, or any other
+        // caller of `clear_selection_mode`).
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Selection(SelectionMessage::Clear),
+        );
+        assert!(
+            !state.selection_mode,
+            "sanity: Clear must leave selection mode, taking the whole bar with it"
+        );
+        assert!(
+            state.operation_interlock.release_if_matches(lease_id),
+            "sanity: the lease acquired above must still be the active one"
+        );
+
+        let after = focused_id(&mut rig, &state);
+        assert!(
+            after.is_some(),
+            "a control the tree reports must be focused — never nowhere — once the bar \
+             that held both the remembered focus and its disabled, reserved sibling is \
+             gone entirely"
+        );
+        assert_ne!(
+            after,
+            Some(ids::selection_bar::fetch()),
+            "never a reinstated id nothing in the real tree answers to, even once the bar \
+             itself is gone"
+        );
+    }
+
+    /// One project, clean, selected — "Get latest safely" opens with
+    /// nothing tabbed to first (RFC-121), the shape every row below
+    /// needs: no dirty projects, so `AwaitingConfirm`'s own entry
+    /// (Cancel) is a real, reachable Tab stop (same fixture and the same
+    /// reasoning as `stage3_amendment_a1_mouse_mode_and_phases::one_
+    /// clean_project_selected`, redefined here rather than shared across
+    /// `mod` boundaries, matching this file's own convention).
+    fn one_clean_project_selected() -> (AppState, ProjectId) {
+        let mut state = AppState::new(AppConfig::default());
+        let project = Project::new("Alpha", "/tmp");
+        let id = project.id.clone();
+        state.workspace = Some(Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        });
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![ProjectStatus {
+                project_id: id.clone(),
+                identity: RepositoryIdentity {
+                    path: "/tmp".into(),
+                    vcs_kind: VcsKind::Git,
+                },
+                context: None,
+                remote: RemoteStatus {
+                    upstream: Some("origin/main".to_owned()),
+                    ..RemoteStatus::default()
+                },
+                working_tree: WorkingTreeStatus::default(),
+                conflict: Default::default(),
+                refreshed_at: jiff::Timestamp::now(),
+                read_error: None,
+            }],
+            last_refresh: None,
+        });
+        state.selection_mode = true;
+        state.selection.select_all(std::slice::from_ref(&id));
+        state.load_phase = crate::state::LoadPhase::Ready;
+        state.config.dashboard_all_set_collapsed = false;
+        (state, id)
+    }
+
+    /// §4 row 3 (Amendment A2 §2, Review 303 F2): the real race the fix
+    /// closes. "Get latest safely" opened by a click starts with
+    /// `window_focus_mode` genuinely `None` — unresolved — until its own
+    /// `tab_anchor` round trip answers, asynchronously, with
+    /// `Message::WindowFocusModeResolved` (`focus_ops::settle_layer_
+    /// focus`'s own `(None, Some(layer))` arm). `drive()` never applies a
+    /// `Task`'s own `Action::Output` (confirmed by this file's own
+    /// `stage3_amendment_a1_mouse_mode_and_phases` module doc comment), so
+    /// driving just the click-open message genuinely leaves that
+    /// resolution outstanding here — the same gap a real build has for
+    /// however long the round trip takes.
+    ///
+    /// Tab, pressed in exactly that gap, must still set `Keyboard` itself
+    /// (`handle_shortcut`'s own flip, widened by this amendment to fire
+    /// from `None` too, not only `Mouse`) — proven here by driving
+    /// `Message::Shortcut(FocusNext)` next, with no `WindowFocusModeResolved`
+    /// driven in between. The late answer, driven by hand afterward
+    /// (simulating the real round trip actually landing only *after* the
+    /// Tab that beat it), must never undo it (`update_inner`'s own "a late
+    /// answer never overrides `Keyboard`" guard). Finally, the next phase
+    /// change — now genuinely in `Keyboard` mode, not merely flagged as
+    /// such with no real effect — focuses its own new entry, the same
+    /// mechanism and the same `AwaitingConfirm` → `RetryPreparationFailed`
+    /// transition `stage3_amendment_a1_mouse_mode_and_phases::get_latest_
+    /// safely_by_click_then_tab_then_a_later_phase_change`'s own second
+    /// half already established (its own doc comment explains the bypass
+    /// below: a mismatched `lease_id` against a hand-built `retry_
+    /// preparation` is what a real `smart_pull_retry_status_ready` would
+    /// itself answer with, with nothing bypassed).
+    ///
+    /// **Seen failing first**: reverting just the two named spots
+    /// (`handle_shortcut`'s own flip condition, `WindowFocusModeResolved`'s
+    /// own handler in `update_inner`) and re-running this exact test is
+    /// this amendment's own §5 report requirement.
+    #[test]
+    fn tab_before_the_late_answer_sets_keyboard_and_the_late_answer_never_undoes_it() {
+        let (mut state, id) = one_clean_project_selected();
+        let mut rig = Rig::new(SIZE);
+
+        // Opened by a click: nothing tabbed to first (RFC-121).
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::BulkPullRequested),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::GetLatest)
+        );
+        assert_eq!(
+            state.window_focus_mode, None,
+            "sanity: the mode's own async round trip has not answered yet"
+        );
+
+        // Tab, in that exact gap.
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::FocusNext),
+        );
+        assert_eq!(
+            state.window_focus_mode,
+            Some(WindowFocusMode::Keyboard),
+            "Tab, pressed before the mode resolves, must set Keyboard itself (Review 303 F2)"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::smart_pull::close()),
+            "and really move focus to the window's own first control, by Scope::Window"
+        );
+
+        // The late answer, arriving only now.
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Mouse),
+        );
+        assert_eq!(
+            state.window_focus_mode,
+            Some(WindowFocusMode::Keyboard),
+            "a late Mouse answer must never override the Keyboard Tab already set \
+             (Review 303 F2)"
+        );
+
+        // Planning's own entry (none) differs from AwaitingConfirm's
+        // (Cancel) — moves the phase along, as the real chain would.
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+        assert!(tab_to(&mut rig, &mut state, &ids::smart_pull::cancel()));
+
+        let workspace_id = state.workspace.as_ref().unwrap().id.clone();
+        let lease_id = crate::state::OperationLeaseId(778);
+        let request_id = crate::state::sync::RetryPreparationId(1);
+        state.sync.retry_preparation = Some(crate::state::sync::SmartPullRetryPreparation {
+            id: request_id,
+            workspace_id: workspace_id.clone(),
+            source_operation_id: knotra_vcs::OperationId::new(),
+            lease_id,
+            eligible_ids: vec![id],
+            exclusions: Vec::new(),
+        });
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
+                request_id,
+                workspace_id,
+                lease_id,
+                statuses: Vec::new(),
+            }),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::GetLatest),
+            "sanity: the window must still be open"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::smart_pull::retry_failed_close()),
+            "the next phase change, genuinely in Keyboard mode despite the race above, must \
+             focus the new phase's own entry"
+        );
+    }
+
+    /// §4 row 4 (Amendment A2 §3, Review 303 F3): each `tab_anchor`/Tab
+    /// query is answered by the wrapper its own caller names
+    /// (`app.rs::window_or_page_scope`), never by "whichever wrapper
+    /// happens to answer" (the retired heuristic). The workspace
+    /// switcher's own menu is chosen deliberately: a `header_menu` slot,
+    /// not `AppLayout::dialog` like every other window this file already
+    /// covers, but still wrapped in its own `focus_by_id_window`
+    /// (`shell.rs::switcher_menu`) per this amendment's §3.
+    ///
+    /// Page scope answers first, with no window open at all (`Scope::
+    /// Page`, `top_layer` `None`). Once the menu opens, `Scope::Window`
+    /// answers every Tab query inside it — proven both by what IS
+    /// reachable (every one of the menu's own real entries, confirmed in
+    /// no particular order since `tab_to` only asserts reachability) and
+    /// by what is NOT: the page's own control that opened the menu,
+    /// `ids::shell::workspace_switcher()`, must never reappear in this
+    /// traversal while the menu is open — `snora::Inert` hides the page's
+    /// own content for exactly this long, so a query wrongly answered by
+    /// the page's own frozen wrapper would find it anyway. Closing the
+    /// menu returns focus to that exact control, proof the page's own
+    /// memory was never touched by the window's own Tab traversal above
+    /// it.
+    #[test]
+    fn window_scope_answers_tab_inside_it_page_scope_never_does() {
+        let mut state = AppState::new(AppConfig::default());
+        state.all_workspaces = vec![Workspace::new("Main"), Workspace::new("Second")];
+        state.active_workspace_idx = 0;
+        state.workspace = state.all_workspaces.first().cloned();
+        let mut rig = Rig::new(SIZE);
+
+        // Page scope, no window open: a real page control is reachable.
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::shell::workspace_switcher()
+        ));
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::workspace_switcher())
+        );
+
+        // Opens the menu by a real Enter press — real prior focus (the
+        // switcher button itself) resolves Keyboard mode.
+        key(&mut rig, &state, Named::Enter);
+        let opened = last_message(&rig);
+        assert!(matches!(
+            opened,
+            Message::Workspace(WorkspaceMessage::SwitcherToggled)
+        ));
+        drive(&mut rig, &mut state, opened);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::WorkspaceMenu)
+        );
+
+        // The page's own control is not reachable while the menu is open
+        // — `Scope::Window` answers this traversal now, never `Scope::Page`.
+        assert!(
+            !tab_to(&mut rig, &mut state, &ids::shell::workspace_switcher()),
+            "the page's own switcher button must never reappear in the window's own Tab \
+             traversal while the menu is open"
+        );
+
+        // Every one of the menu's own real entries is reachable.
+        let second_id = state.all_workspaces[1].id.clone();
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::switcher::row(&second_id)
+        ));
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::switcher::add_workspace()
+        ));
+        assert!(tab_to(&mut rig, &mut state, &ids::switcher::rename()));
+        assert!(tab_to(&mut rig, &mut state, &ids::switcher::delete()));
+
+        // Closing the menu returns focus to the page's own control that
+        // opened it — the page scope's own memory, untouched by any of
+        // the window's own Tab traversal above.
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::Close),
+        );
+        assert_eq!(crate::state::layer::top_layer(&state), None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::shell::workspace_switcher()),
+            "closing the window must return focus to the page's own control that opened it"
         );
     }
 }

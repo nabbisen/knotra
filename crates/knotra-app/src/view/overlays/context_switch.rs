@@ -386,7 +386,7 @@ pub fn switch_modal(state: &AppState) -> Element<'_, Message> {
     let close_msg = (!matches!(ctx.phase, ContextPhase::Switching { .. }))
         .then_some(Message::Context(ContextMessage::BulkModalClosed));
 
-    knotra_ui::widget::focus_by_id(
+    knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             OverlayWidth::Large.resolve(state.window_width),

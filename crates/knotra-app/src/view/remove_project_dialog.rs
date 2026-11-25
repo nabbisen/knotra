@@ -71,7 +71,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
     ]
     .align_y(Alignment::Center);
 
-    Some(knotra_ui::widget::focus_by_id(
+    Some(knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             OverlayWidth::Small.resolve(state.window_width),

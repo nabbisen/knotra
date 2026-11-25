@@ -502,7 +502,7 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
         _ => Vec::new(),
     };
 
-    knotra_ui::widget::focus_by_id(
+    knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             OverlayWidth::Large.resolve(state.window_width),

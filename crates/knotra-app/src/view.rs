@@ -102,6 +102,7 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     };
 
     let sel_bar = selection_bar::view(state, mode);
+    let sel_bar_open = sel_bar.is_some();
     let activity = activity_strip::view(state);
 
     let mut main_col = column![screen_content].height(Length::Fill);
@@ -164,20 +165,27 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // `HEADER_REGION`/`BODY_REGION` (`.header(...)`'s own ids for snora's
     // F6 zone cycling) — knotra does not bind F6 to anything today.
     let page = column![shell::view(state), body];
-    // RFC-075 stage 3 §1: `ids::detail_panel::fetch()` ("Check for
-    // updates") joins the page's own `reserved` list — its own press
-    // acquires the same `operation_interlock` its `on_press_maybe` gate
-    // reads (`app/misc.rs`'s `ProjectMessage::FetchRequested`), the same
-    // self-disabling shape as `shell::refresh()`/`selection_bar::fetch()`
-    // (Amendment A2 §3).
-    let page: Element<'_, Message> = knotra_ui::widget::focus_by_id(
-        page,
-        &[
-            ids::shell::refresh(),
-            ids::selection_bar::fetch(),
-            ids::detail_panel::fetch(),
-        ],
-    );
+    // RFC-075 stage 3 §1, Amendment A2 §1: `reserved` names only controls
+    // the view draws *right now* — `ids::shell::refresh()` always (Check
+    // now has no container to disappear with), `ids::selection_bar::
+    // fetch()` only while the selection bar is drawn (`sel_bar.is_some()`,
+    // the exact same condition `main_col`'s own push above reads),
+    // `ids::detail_panel::fetch()` only while the panel is open (the same
+    // `state.detail_panel.open_project_id.is_some()` `body`'s own branch
+    // above reads). A reserved id whose own container has closed must
+    // never be a candidate for `merge_reserved` to reinstate on anyone's
+    // behalf but its own, former occupant's — Review 303 F1: naming it
+    // here unconditionally let it be reinstated as a false "still there"
+    // neighbour for whichever *other* control's focus the container's own
+    // disappearance actually orphaned.
+    let mut reserved = vec![ids::shell::refresh()];
+    if sel_bar_open {
+        reserved.push(ids::selection_bar::fetch());
+    }
+    if state.detail_panel.open_project_id.is_some() {
+        reserved.push(ids::detail_panel::fetch());
+    }
+    let page: Element<'_, Message> = knotra_ui::widget::focus_by_id_page(page, &reserved);
 
     // -----------------------------------------------------------------------
     // snora AppLayout: skeleton + standard modal overlays (RFC-0013).

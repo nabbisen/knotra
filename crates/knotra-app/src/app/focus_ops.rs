@@ -159,20 +159,24 @@ pub(super) fn settle_layer_focus(
                 // whatever `tab_anchor` reports, with no `AppState` of
                 // its own to ask again.
                 let entry = entry_id(state, layer);
-                knotra_ui::widget::keyed::tab_anchor().then(move |anchor| {
-                    if anchor.is_some_and(|a| a.focused.is_some()) {
-                        let focus = match &entry {
-                            Some(id) => operation::focus(id.clone()),
-                            None => Task::none(),
-                        };
-                        Task::batch([
-                            Task::done(Message::WindowFocusModeResolved(WindowFocusMode::Keyboard)),
-                            focus,
-                        ])
-                    } else {
-                        Task::done(Message::WindowFocusModeResolved(WindowFocusMode::Mouse))
-                    }
-                })
+                knotra_ui::widget::keyed::tab_anchor(knotra_ui::widget::keyed::Scope::Page).then(
+                    move |anchor| {
+                        if anchor.is_some_and(|a| a.focused.is_some()) {
+                            let focus = match &entry {
+                                Some(id) => operation::focus(id.clone()),
+                                None => Task::none(),
+                            };
+                            Task::batch([
+                                Task::done(Message::WindowFocusModeResolved(
+                                    WindowFocusMode::Keyboard,
+                                )),
+                                focus,
+                            ])
+                        } else {
+                            Task::done(Message::WindowFocusModeResolved(WindowFocusMode::Mouse))
+                        }
+                    },
+                )
             }
         };
     }
@@ -233,7 +237,10 @@ pub(super) fn settle_detail_panel_focus(
         return Task::none();
     }
     match (before, current) {
-        (None, Some(_)) => knotra_ui::widget::keyed::tab_anchor().then(|anchor| {
+        (None, Some(_)) => knotra_ui::widget::keyed::tab_anchor(
+            knotra_ui::widget::keyed::Scope::Page,
+        )
+        .then(|anchor| {
             if anchor.is_some_and(|a| a.focused.is_some()) {
                 operation::focus(crate::view::ids::detail_panel::close())
             } else {

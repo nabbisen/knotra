@@ -385,7 +385,7 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
 
     let surface = widget::overlay::raised_card(tokens, content);
 
-    Some(knotra_ui::widget::focus_by_id(
+    Some(knotra_ui::widget::focus_by_id_window(
         container(surface).padding(iced::Padding {
             top: SHELL_HEIGHT + 4.0,
             left: 8.0,

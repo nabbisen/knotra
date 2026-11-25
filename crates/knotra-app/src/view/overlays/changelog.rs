@@ -181,7 +181,7 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
     // branch, not a page-level footer) — so rather than relocate them into
     // `surface()`'s footer slot, an empty `Space` is passed here and Copy/
     // Close stay exactly where they were, preserving the original layout.
-    knotra_ui::widget::focus_by_id(
+    knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             OverlayWidth::Large.resolve(state.window_width),

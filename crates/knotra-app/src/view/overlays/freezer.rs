@@ -499,7 +499,7 @@ pub fn tag_modal(state: &AppState) -> Element<'_, Message> {
         Some(Message::Freezer(FreezerMessage::BulkModalClosed))
     };
 
-    knotra_ui::widget::focus_by_id(
+    knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             OverlayWidth::Large.resolve(state.window_width),

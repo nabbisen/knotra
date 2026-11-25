@@ -148,7 +148,7 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
     let footer =
         row![confirm, Space::new().width(Length::Fill), cancel_btn].align_y(Alignment::Center);
 
-    knotra_ui::widget::focus_by_id(
+    knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             OverlayWidth::Standard.resolve(state.window_width),
@@ -232,7 +232,7 @@ fn delete_dialog<'a>(
     ]
     .spacing(8);
 
-    knotra_ui::widget::focus_by_id(
+    knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             OverlayWidth::Standard.resolve(state.window_width),

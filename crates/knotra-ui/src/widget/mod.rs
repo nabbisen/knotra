@@ -39,7 +39,7 @@ pub use field::{
     validated_field,
 };
 pub use focus::{clear_input_focus, focus_id, focus_input};
-pub use keyed::focus_by_id;
+pub use keyed::{Scope, focus_by_id_page, focus_by_id_window, tab_anchor};
 pub use layout::{
     APP_DIRECTION, Alignment, BUTTON_HEIGHT, Color, Column, Element, Length, Padding, Row,
     SMALL_BUTTON_HEIGHT, STRONG_FONT, WIDE_CONTENT_WIDTH, button, column, container, row,

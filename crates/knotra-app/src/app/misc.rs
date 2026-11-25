@@ -333,7 +333,7 @@ pub(super) fn handle_selection(state: &mut AppState, msg: SelectionMessage) -> T
         // RFC-075 stage 2 Amendment A2 §2: entering/leaving selection
         // mode changes the whole page body's own shape (every row gains
         // or loses a checkbox, the selection bar appears or goes) —
-        // `knotra_ui::widget::focus_by_id` (`view.rs`'s own wrap of the
+        // `knotra_ui::widget::focus_by_id_page` (`view.rs`'s own wrap of the
         // page body) now keeps "Select" focused across that change on
         // its own; no explicit `operation::focus` is needed here any
         // more (stage 2's own fix, removed — its tests still pass
@@ -433,7 +433,7 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
             // RFC-075 stage 2 Amendment A2 §2: revealing/removing the
             // panel inserts/removes a sibling in the toolbar's own
             // `column![row![...], arrange_panel]`, the same shape of
-            // change `knotra_ui::widget::focus_by_id` (`view.rs`'s own
+            // change `knotra_ui::widget::focus_by_id_page` (`view.rs`'s own
             // wrap of the page body) now keeps "Arrange" focused across
             // on its own; the explicit `operation::focus` stage 2 shipped
             // for this is removed (its own test still passes against the

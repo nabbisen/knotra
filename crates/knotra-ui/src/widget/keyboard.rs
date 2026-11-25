@@ -63,25 +63,28 @@ pub fn focused_id() -> Task<Option<Id>> {
 /// and fall through on `None`, the same contract `traverse` itself offers).
 ///
 /// Runs `traverse` once; if that leaves nothing focused (the group's own
-/// last-press behaviour), checks whether `knotra_ui::widget::keyed`'s own
-/// page-wide wrapper still remembers a control focus belongs to even
+/// last-press behaviour), checks whether `scope`'s own `focus_by_id`
+/// wrapper (Amendment A2 F3: the page's wrap, or the open window's —
+/// `scope` names which, since the caller is the one that knows whether a
+/// window is open) still remembers a control focus belongs to even
 /// though it cannot report real focus right now — a control that
 /// disables itself when pressed (Amendment A2 §3: "Check now" mid-
 /// refresh, the selection bar's "Check for updates" mid-fetch): with
 /// nothing really focused, `snora::keyboard::traverse` itself cannot tell
 /// this apart from "nothing has ever been focused", and would restart
-/// from the very first control in the whole page — the "no ring, then
+/// from the very first control in the whole group — the "no ring, then
 /// Tab jumps to the top" Amendment A1 exists to rule out. Only when there
-/// is no such remembered control (or no page-wide wrapper at all) does
-/// this run `traverse` a **second** time in the same `Task` — which, with
-/// nothing focused and no click-remembered starting point (`traverse`'s
-/// own doc: a click's mark is cleared on every traversal, focused or
-/// not), lands on the first target going forward or the last going
-/// backward. That is the wrap.
+/// is no such remembered control (or no wrapper of that scope at all)
+/// does this run `traverse` a **second** time in the same `Task` — which,
+/// with nothing focused and no click-remembered starting point
+/// (`traverse`'s own doc: a click's mark is cleared on every traversal,
+/// focused or not), lands on the first target going forward or the last
+/// going backward. That is the wrap.
 #[must_use]
 pub fn traverse_wrapping<Message: Send + 'static>(
     key: Key,
     modifiers: Modifiers,
+    scope: super::keyed::Scope,
 ) -> Option<Task<Message>> {
     // Confirms the key is claimed (plain Tab/Shift+Tab) without running
     // anything yet — `traverse` is a pure function of its own arguments,
@@ -121,14 +124,14 @@ pub fn traverse_wrapping<Message: Send + 'static>(
             // correctly landing somewhere (both report "something is
             // focused afterward"), so this must be checked *first*, not
             // inferred from the real traversal's own result. Amendment
-            // A2 §3: a page-wide `focus_by_id` wrapper may still
-            // remember a control focus belongs to even though that
-            // control cannot report real focus right now (it disabled
-            // itself on its own press) — ask it before falling back to
+            // A2 §3/F3: a `focus_by_id` wrapper may still remember a
+            // control focus belongs to even though that control cannot
+            // report real focus right now (it disabled itself on its own
+            // press) — ask `scope`'s own wrapper before falling back to
             // `traverse`'s own natural "start from the first/last"
             // behaviour, which is right only when nothing has ever been
             // focused at all.
-            super::keyed::tab_anchor().then(move |anchor| {
+            super::keyed::tab_anchor(scope).then(move |anchor| {
                 let reinstated = anchor.and_then(|a| {
                     let remembered = a.focused?;
                     neighbour(&a.ids, &remembered, forward)
@@ -237,8 +240,12 @@ mod tests {
         } else {
             Modifiers::empty()
         };
-        let task = traverse_wrapping::<Msg>(Key::Named(iced::keyboard::key::Named::Tab), modifiers)
-            .expect("Tab is claimed");
+        let task = traverse_wrapping::<Msg>(
+            Key::Named(iced::keyboard::key::Named::Tab),
+            modifiers,
+            super::super::keyed::Scope::Page,
+        )
+        .expect("Tab is claimed");
         let mut stream = iced_test::runtime::task::into_stream(task).expect("a task with work");
         loop {
             match iced::futures::executor::block_on(stream.next()) {

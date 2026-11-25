@@ -105,7 +105,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         );
     }
 
-    knotra_ui::widget::focus_by_id(
+    knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             OverlayWidth::Standard.resolve(state.window_width),

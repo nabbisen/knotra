@@ -176,7 +176,7 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
         .align_y(Alignment::Center)
         .spacing(8);
 
-        return knotra_ui::widget::focus_by_id(
+        return knotra_ui::widget::focus_by_id_window(
             surface(
                 tokens,
                 OverlayWidth::Large.resolve(state.window_width),
@@ -538,7 +538,7 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     // done" removes its own row's file once fixed, which is a structural
     // removal `belongs_on`'s own neighbour rule already covers correctly,
     // not a disable — so nothing here is `reserved`.
-    knotra_ui::widget::focus_by_id(
+    knotra_ui::widget::focus_by_id_window(
         surface(
             tokens,
             // RFC-051 D4: was Small — 400px, chosen when each file row held

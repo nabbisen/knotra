@@ -96,16 +96,33 @@ use iced::advanced::widget::{self, Id, Operation, Tree, tree};
 use iced::advanced::{Clipboard, Shell, Widget, layout, mouse, overlay, renderer};
 use iced::{Element, Event, Length, Rectangle, Size, Theme, Vector, window};
 
+/// Amendment A2 F3 (Review 303): which `focus_by_id` wrapper an [`Anchor`]
+/// came from, or [`tab_anchor`] asks for — the page's own page-wide wrap
+/// (`view.rs`), or whichever window/menu is open right now (every
+/// `overlays::*`/`workspace_manager`/`command_palette`/etc. view wraps
+/// itself too). More than one wrapper can be live in the tree at once (the
+/// page's own, frozen under `snora::Inert`, plus whichever window just
+/// opened this same frame), so a query must name the one it means rather
+/// than guess from whichever answer happens to look most plausible — this
+/// replaces an earlier "the last wrapper with a non-empty answer wins"
+/// heuristic, which depended on iced's own, unstated tree-visit order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scope {
+    Page,
+    Window,
+}
+
 /// What [`tab_anchor`] answers: every id this wrapper currently tracks, in
 /// order, and which one (if any) it considers focus to belong to — real
 /// or reserved-but-disabled.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Anchor {
     pub ids: Vec<Id>,
     pub focused: Option<Id>,
 }
 
 struct AnchorQuery {
+    wanted: Scope,
     found: Option<Anchor>,
 }
 
@@ -115,32 +132,10 @@ impl Operation<Option<Anchor>> for AnchorQuery {
     }
 
     fn custom(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Any) {
-        if let Some(anchor) = state.downcast_ref::<Anchor>() {
-            // More than one `focus_by_id` wrapper can be live in the tree at
-            // once (the page's own, plus whichever window just opened this
-            // same frame — every window wraps itself too). A window's own
-            // wrapper starts with `State::default()` (`ids` empty) until its
-            // first `RedrawRequested` ever reaches it, which cannot have
-            // happened yet when this query runs as part of resolving the
-            // very message that opened it. Unconditionally overwriting
-            // `found` on every visit (this function's original body) let
-            // that brand-new, meaningless empty answer clobber the page's
-            // own real one the moment any window opened — which, read back
-            // through `settle_layer_focus`'s own "(None, Some(layer))"
-            // branch, made every window opened by a real key press (not a
-            // bare shortcut) resolve to Mouse mode unconditionally,
-            // regardless of whether the reader's own control genuinely held
-            // focus. A wrapper's `ids` is empty only in that one
-            // never-yet-surveyed case — every real window always tracks at
-            // least its own close button — so preferring the last wrapper
-            // with a genuinely non-empty `ids` keeps this query answering
-            // for the one the reader was actually just using, in both
-            // directions: the page's own frozen memory when a window has
-            // just opened over it, and a window's own (by then populated)
-            // memory once Tab has been pressed inside it at least once.
-            if !anchor.ids.is_empty() || self.found.is_none() {
-                self.found = Some(anchor.clone());
-            }
+        if let Some((scope, anchor)) = state.downcast_ref::<(Scope, Anchor)>()
+            && *scope == self.wanted
+        {
+            self.found = Some(anchor.clone());
         }
     }
 
@@ -149,29 +144,56 @@ impl Operation<Option<Anchor>> for AnchorQuery {
     }
 }
 
-/// The nearest `focus_by_id` wrapper's own tracked ids and the id it
-/// considers focus to belong to, or `None` if this page has no such
-/// wrapper at all — always resolves (never `Outcome::None`, which
+/// `scope`'s own `focus_by_id` wrapper's tracked ids and the id it
+/// considers focus to belong to, or `None` if no wrapper of that scope is
+/// in the tree right now — always resolves (never `Outcome::None`, which
 /// `task::widget`'s channel can never turn into a delivered value), the
-/// same reason `knotra_ui::widget::keyboard::focused_id` does.
-pub fn tab_anchor() -> Task<Option<Anchor>> {
-    widget::operate(AnchorQuery { found: None })
+/// same reason `knotra_ui::widget::keyboard::focused_id` does. A window
+/// opening asks [`Scope::Page`] (what the page itself remembers, from
+/// before the window took it over); Tab inside an open window asks
+/// [`Scope::Window`] (that window's own memory, never the page's, which
+/// `snora::Inert` has frozen for the window's whole lifetime).
+pub fn tab_anchor(scope: Scope) -> Task<Option<Anchor>> {
+    widget::operate(AnchorQuery {
+        wanted: scope,
+        found: None,
+    })
 }
 
 /// Wraps `content` so real keyboard focus follows the control it is on by
 /// its own [`Id`], across a rebuild that reorders, adds, or removes the
 /// focus targets inside it — see the module doc for the mechanism, where
 /// it wraps, and what `reserved` is for. Pass `&[]` when nothing in
-/// `content` disables itself on its own press.
-pub fn focus_by_id<'a, Message: 'a>(
+/// `content` disables itself on its own press. Use [`focus_by_id_page`] for
+/// the page's own one wrap, [`focus_by_id_window`] for every window's own.
+fn focus_by_id<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     reserved: &[Id],
+    scope: Scope,
 ) -> Element<'a, Message> {
     FollowsId {
         content: content.into(),
         reserved: reserved.to_vec(),
+        scope,
     }
     .into()
+}
+
+/// The page's own one `focus_by_id` wrap (`view.rs`) — [`Scope::Page`].
+pub fn focus_by_id_page<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+    reserved: &[Id],
+) -> Element<'a, Message> {
+    focus_by_id(content, reserved, Scope::Page)
+}
+
+/// Every window's own `focus_by_id` wrap (each `overlays::*`/
+/// `workspace_manager`/`command_palette`/etc. view) — [`Scope::Window`].
+pub fn focus_by_id_window<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+    reserved: &[Id],
+) -> Element<'a, Message> {
+    focus_by_id(content, reserved, Scope::Window)
 }
 
 #[derive(Default)]
@@ -188,6 +210,7 @@ struct State {
 struct FollowsId<'a, Message> {
     content: Element<'a, Message>,
     reserved: Vec<Id>,
+    scope: Scope,
 }
 
 /// Every focus target's own id, in order, and which one (if any) is
@@ -250,28 +273,54 @@ impl Operation for UnfocusAll {
     }
 }
 
-/// Reinstates each `reserved` id that `survey_ids` is currently missing
-/// back into the tracked order, at the position its own surviving
-/// neighbours (from `old_ids`, the order as of the *previous* redraw)
-/// suggest — so a merely-disabled control is not mistaken for one that
-/// has genuinely gone. An id `reserved` names that has never once been
-/// seen (not in `old_ids` either — nothing to place it relative to) is
-/// left out; it was never really there to begin with.
-fn merge_reserved(old_ids: &[Id], survey_ids: &[Id], reserved: &[Id]) -> Vec<Id> {
+/// Reinstates **only `remembered_focused`** — never any other id
+/// `reserved` names — back into the tracked order when `survey_ids` is
+/// currently missing it, at the position its own surviving neighbours
+/// (from `old_ids`, the order as of the *previous* redraw) suggest — so a
+/// merely-disabled control that was itself genuinely focused is not
+/// mistaken for one that has gone outright. Left alone (no reinstatement
+/// at all) unless `remembered_focused` is both named in `reserved` and
+/// was seen before (`old_ids`) — nothing to place it relative to
+/// otherwise, and it was never really there to begin with.
+///
+/// **Amendment A2 F1 (Review 303):** before this, every id `reserved`
+/// named was reinstated unconditionally, whether or not it was the one
+/// `remembered_focused` pointed at. When a whole container vanished
+/// outright (a project's detail panel, say, once its project is removed)
+/// and `reserved` still named one of *that* container's own controls
+/// (`detail_panel::fetch()`), that control was reinstated anyway —
+/// manufacturing a "still there" id nothing in the real tree answers to,
+/// which [`belongs_on`]'s own neighbour search could then land some
+/// *other*, genuinely orphaned control's focus on, where `FollowsId::
+/// follow`'s own `FocusById` attempt would silently find nothing to
+/// focus. Reinstating only the id focus actually belongs to — never a
+/// stand-in for anyone else's — closes that: a reinstated id is now
+/// always either genuinely "still itself" (the disabled-but-present
+/// case this exists for) or absent from `merged` entirely, so
+/// [`belongs_on`]'s neighbour search, which only ever runs once its own
+/// "still itself" check has already failed, never sees a manufactured
+/// id it could mistake for a real survivor.
+fn merge_reserved(
+    old_ids: &[Id],
+    survey_ids: &[Id],
+    reserved: &[Id],
+    remembered_focused: Option<&Id>,
+) -> Vec<Id> {
     let mut merged = survey_ids.to_vec();
-    for id in reserved {
-        if merged.contains(id) {
-            continue;
-        }
-        let Some(old_pos) = old_ids.iter().position(|old| old == id) else {
-            continue;
-        };
-        let insert_at = old_ids[..old_pos]
-            .iter()
-            .filter(|old| merged.contains(old))
-            .count();
-        merged.insert(insert_at.min(merged.len()), id.clone());
+    let Some(focused) = remembered_focused else {
+        return merged;
+    };
+    if merged.contains(focused) || !reserved.contains(focused) {
+        return merged;
     }
+    let Some(old_pos) = old_ids.iter().position(|old| old == focused) else {
+        return merged;
+    };
+    let insert_at = old_ids[..old_pos]
+        .iter()
+        .filter(|old| merged.contains(old))
+        .count();
+    merged.insert(insert_at.min(merged.len()), focused.clone());
     merged
 }
 
@@ -324,7 +373,12 @@ impl<Message> FollowsId<'_, Message> {
         }
 
         let state = tree.state.downcast_ref::<State>();
-        let new_ids = merge_reserved(&state.ids, &survey.ids, &self.reserved);
+        let new_ids = merge_reserved(
+            &state.ids,
+            &survey.ids,
+            &self.reserved,
+            state.focused.as_ref(),
+        );
 
         let want = if let Some(now) = &survey.focused {
             // Something is really, currently focused — trust it
@@ -409,16 +463,21 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for FollowsId<'_, Message> 
             .as_widget_mut()
             .operate(&mut tree.children[0], layout, renderer, operation);
         // Offers `tab_anchor`'s own query a look at this widget's current
-        // `State` through `Operation::custom`'s `&mut dyn Any` channel —
-        // a no-op for every operation that does not ask for it (its own
-        // default body), the same shape `sequential_focus`'s own "last
-        // clicked" mark already uses this channel for.
+        // `State` (tagged with its own `scope`, so the query can tell
+        // which wrapper this answer came from — Amendment A2 F3) through
+        // `Operation::custom`'s `&mut dyn Any` channel — a no-op for
+        // every operation that does not ask for it (its own default
+        // body), the same shape `sequential_focus`'s own "last clicked"
+        // mark already uses this channel for.
         let state = tree.state.downcast_ref::<State>();
-        let mut anchor = Anchor {
-            ids: state.ids.clone(),
-            focused: state.focused.clone(),
-        };
-        operation.custom(None, layout.bounds(), &mut anchor);
+        let mut tagged = (
+            self.scope,
+            Anchor {
+                ids: state.ids.clone(),
+                focused: state.focused.clone(),
+            },
+        );
+        operation.custom(None, layout.bounds(), &mut tagged);
     }
 
     fn update(
@@ -568,16 +627,17 @@ mod tests {
     }
 
     #[test]
-    fn a_reserved_id_missing_from_the_survey_is_reinstated_at_its_old_place() {
+    fn a_reserved_id_missing_from_the_survey_is_reinstated_at_its_old_place_when_it_is_the_remembered_focus()
+     {
         let old = ids(&["history", "refresh", "palette", "settings"]);
         let survey = ids(&["history", "palette", "settings"]); // "refresh" disabled
-        let merged = merge_reserved(&old, &survey, &ids(&["refresh"]));
+        let merged = merge_reserved(&old, &survey, &ids(&["refresh"]), Some(&id("refresh")));
         assert_eq!(merged, ids(&["history", "refresh", "palette", "settings"]));
     }
 
     #[test]
     fn a_reserved_id_never_seen_before_is_left_out() {
-        let merged = merge_reserved(&[], &ids(&["a"]), &ids(&["refresh"]));
+        let merged = merge_reserved(&[], &ids(&["a"]), &ids(&["refresh"]), Some(&id("refresh")));
         assert_eq!(merged, ids(&["a"]));
     }
 
@@ -588,10 +648,42 @@ mod tests {
             &old,
             &ids(&["history", "palette", "settings"]),
             &ids(&["refresh"]),
+            Some(&id("refresh")),
         );
         assert_eq!(
             belongs_on(&old, &merged, &id("refresh")),
             Some(id("refresh"))
+        );
+    }
+
+    /// Amendment A2 F1 (Review 303): the fix itself. "refresh" is
+    /// `reserved` and missing from the survey (its whole container is
+    /// gone, not merely disabled), but `remembered_focused` names a
+    /// *different* id ("palette") whose own loss is what this merge is
+    /// actually being asked about. Before the fix, every `reserved` id
+    /// was reinstated regardless of whose focus was being resolved —
+    /// "refresh" would have reappeared here too, and a neighbour search
+    /// for "palette" could have landed on it, an id nothing in the real
+    /// tree answers to. After the fix, an irrelevant reserved id is never
+    /// reinstated at all: `merged` holds only what the survey itself
+    /// reports, so `belongs_on`'s own neighbour search for "palette" sees
+    /// only real survivors.
+    #[test]
+    fn a_reserved_id_that_is_not_the_remembered_focus_is_never_reinstated() {
+        let old = ids(&["history", "refresh", "palette", "settings"]);
+        let survey = ids(&["history", "settings"]); // "refresh" disabled, "palette" gone outright
+        let merged = merge_reserved(&old, &survey, &ids(&["refresh"]), Some(&id("palette")));
+        assert_eq!(
+            merged,
+            ids(&["history", "settings"]),
+            "\"refresh\" must not be reinstated on \"palette\"'s behalf"
+        );
+        assert_eq!(
+            belongs_on(&old, &merged, &id("palette")),
+            Some(id("settings")),
+            "the neighbour search must land on a real survivor (\"settings\", the next one \
+             after \"palette\" in the old order), never on the reinstated-for-someone-else \
+             \"refresh\""
         );
     }
 
@@ -609,7 +701,7 @@ mod tests {
         use iced_test::core::Size;
         use snora::design::Tokens;
 
-        use super::focus_by_id;
+        use super::focus_by_id_page as focus_by_id;
 
         #[derive(Debug, Clone, PartialEq)]
         enum Msg {
