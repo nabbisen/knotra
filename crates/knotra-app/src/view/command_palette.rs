@@ -22,15 +22,8 @@ use knotra_ui::widget::{
 
 use crate::{
     message::{Message, PaletteMessage},
-    state::{
-        AppState, PaletteEntryKind,
-        focus::{FocusTarget, LayerFocus},
-    },
+    state::{AppState, PaletteEntryKind},
 };
-
-mod focus_target {
-    pub const CLOSE: &str = "palette.close";
-}
 
 /// A result button's own padding, set explicitly rather than left to iced's
 /// default — the value is unchanged (`iced_widget::button`'s own
@@ -44,28 +37,13 @@ const RESULT_BUTTON_PADDING: iced::Padding = iced::Padding {
     left: 10.0,
 };
 
-/// RFC-066 D2: order and entry for the command palette. Entry is always the
-/// search field (RFC D2's table has one row for this window, no
-/// phase-dependent entries, unlike the other overlays).
-pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
-    let close_target = FocusTarget::control(focus_target::CLOSE);
-    let search_target = FocusTarget::text_input(knotra_ui::widget::focus_id::PALETTE_QUERY.clone());
-    let mut order = vec![
-        (close_target, Some(Message::Palette(PaletteMessage::Closed))),
-        (search_target.clone(), None),
-    ];
-    for (i, entry) in state.palette.results.iter().enumerate() {
-        let target = FocusTarget::control_dynamic(format!("palette.result.{i}"));
-        let msg = entry
-            .disabled_reason_key
-            .is_none()
-            .then_some(Message::Palette(PaletteMessage::EntryClicked(i)));
-        order.push((target, msg));
-    }
-    LayerFocus {
-        order,
-        entry: Some(search_target),
-    }
+/// RFC-075 stage 3 §3: the palette's own entry — the search field, always
+/// (§4's table has one row for this window, no phase-dependent entries).
+pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
+    state
+        .palette
+        .open
+        .then(|| knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
 }
 
 /// Render the palette overlay (call only when `state.palette.open`).
@@ -82,88 +60,25 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     // RFC-073 handoff Amendment A3 §2: `BUTTON_HEIGHT` through the shared
     // builder.
+    let highlighted_on_submit = state
+        .palette
+        .highlighted
+        .map(|i| Message::Palette(PaletteMessage::EntryClicked(i)));
     let input = styled_text_input(
         tokens,
         state.t("palette.search_placeholder"),
         &state.palette.query,
     )
     .id(knotra_ui::widget::focus_id::PALETTE_QUERY.clone())
-    .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)));
+    .on_input(|s| Message::Palette(PaletteMessage::QueryChanged(s)))
+    .on_submit_maybe(highlighted_on_submit);
 
     let results: Vec<Element<'_, Message>> = state
         .palette
         .results
         .iter()
         .enumerate()
-        .map(|(i, entry)| {
-            let prefix = match entry.kind {
-                PaletteEntryKind::Action => "⚡ ",
-                PaletteEntryKind::Project => "⎇  ",
-                PaletteEntryKind::Workspace => "⊞  ",
-            };
-            let label = format!("{}{}", prefix, entry.label);
-            let t = tokens.clone();
-            let is_focused = crate::app::ring(
-                state,
-                &FocusTarget::control_dynamic(format!("palette.result.{i}")),
-            );
-            // RFC-071 Amendment A3 D14: a command's own label — `body`.
-            // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — `RESULT_BUTTON_PADDING`'s
-            // `left`/`right` still govern the reason indent below; its
-            // `top`/`bottom` no longer decide the row's height.
-            let btn = button(centered_button_label(
-                text(label)
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens)),
-            ))
-            .height(SMALL_BUTTON_HEIGHT)
-            .on_press_maybe(
-                entry
-                    .disabled_reason_key
-                    .is_none()
-                    .then_some(Message::Palette(PaletteMessage::EntryClicked(i))),
-            )
-            .width(Length::Fill)
-            .padding(RESULT_BUTTON_PADDING)
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, is_focused, style::ghost(&t, status))
-            });
-            let mut row = column![btn].spacing(2);
-            if let Some(reason_key) = entry.disabled_reason_key {
-                // Task 100 §2 / Review 241 §3: `text_secondary` (a token,
-                // never a literal — the theme's own WCAG AA contrast test
-                // already covers it) replaces the main text colour, so the
-                // reason no longer reads as an item of its own at the
-                // window's edge. Indented by `RESULT_BUTTON_PADDING.left`,
-                // the same named value the button above it is now set to
-                // explicitly — not a second copy of the number — so the
-                // reason starts where the command's own kind symbol starts,
-                // inside the button's padding. It does not reach the
-                // label's own start past the kind prefix ("⊞  " and the
-                // like): that offset is baked into one `text()` run with the
-                // label, and the three prefixes are neither the same glyph
-                // nor the same length, so the extra distance cannot be
-                // derived without measuring rendered text width — stopping
-                // here rather than choosing a number for it (Review 241 §3
-                // accepts the symbol's own start as the target, not the
-                // label's).
-                // RFC-071 Amendment A3 D14: a reason — `body`. The indent
-                // math above is unaffected (it is derived from the button's
-                // own padding, not the text's size).
-                row = row.push(
-                    iced::widget::container(
-                        text(state.t(reason_key))
-                            .size(snora::design::style::text::body_size(tokens))
-                            .line_height(snora::design::style::text::body_line_height(tokens))
-                            .color(snora::design::style::color::to_iced_color(
-                                tokens.palette.text_secondary,
-                            )),
-                    )
-                    .padding(iced::padding::left(RESULT_BUTTON_PADDING.left)),
-                );
-            }
-            row.into()
-        })
+        .map(|(i, entry)| result_item(state, tokens, i, entry))
         .collect();
 
     // RFC-071 Amendment A3 D14: a notice and a "no matches" message — both
@@ -190,13 +105,94 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         );
     }
 
-    surface(
-        tokens,
-        OverlayWidth::Standard.resolve(state.window_width),
-        state.t("palette.title"),
-        Some(Message::Palette(PaletteMessage::Closed)),
-        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
-        body,
-        Space::new(),
+    knotra_ui::widget::focus_by_id(
+        surface(
+            tokens,
+            OverlayWidth::Standard.resolve(state.window_width),
+            state.t("palette.title"),
+            Some(Message::Palette(PaletteMessage::Closed)),
+            crate::view::ids::palette::close(),
+            body,
+            Space::new(),
+        ),
+        &[],
     )
+}
+
+/// RFC-075 stage 3 §4: one result row. Not a snora control and not a Tab
+/// stop — the arrows move [`AppState::palette`]'s own `highlighted` cursor
+/// instead, drawn with snora's focus-ring tokens
+/// ([`knotra_ui::widget::style::with_focus_ring`]) so it looks like focus
+/// without being one. `SMALL_BUTTON_HEIGHT` is the same height guard every
+/// other small control carries.
+fn result_item<'a>(
+    state: &'a AppState,
+    tokens: &snora::design::Tokens,
+    index: usize,
+    entry: &'a crate::state::PaletteEntry,
+) -> Element<'a, Message> {
+    let prefix = match entry.kind {
+        PaletteEntryKind::Action => "⚡ ",
+        PaletteEntryKind::Project => "⎇  ",
+        PaletteEntryKind::Workspace => "⊞  ",
+    };
+    let label = format!("{}{}", prefix, entry.label);
+    let t = tokens.clone();
+    let is_highlighted = state.palette.highlighted == Some(index);
+    // RFC-071 Amendment A3 D14: a command's own label — `body`.
+    // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — `RESULT_BUTTON_PADDING`'s
+    // `left`/`right` still govern the reason indent below; its
+    // `top`/`bottom` no longer decide the row's height.
+    let btn = button(centered_button_label(
+        text(label)
+            .size(snora::design::style::text::body_size(tokens))
+            .line_height(snora::design::style::text::body_line_height(tokens)),
+    ))
+    .height(SMALL_BUTTON_HEIGHT)
+    .on_press_maybe(
+        entry
+            .disabled_reason_key
+            .is_none()
+            .then_some(Message::Palette(PaletteMessage::EntryClicked(index))),
+    )
+    .width(Length::Fill)
+    .padding(RESULT_BUTTON_PADDING)
+    .style(move |_theme, status| {
+        style::with_focus_ring(&t, is_highlighted, style::ghost(&t, status))
+    });
+    let mut row = column![btn].spacing(2);
+    if let Some(reason_key) = entry.disabled_reason_key {
+        // Task 100 §2 / Review 241 §3: `text_secondary` (a token,
+        // never a literal — the theme's own WCAG AA contrast test
+        // already covers it) replaces the main text colour, so the
+        // reason no longer reads as an item of its own at the
+        // window's edge. Indented by `RESULT_BUTTON_PADDING.left`,
+        // the same named value the button above it is now set to
+        // explicitly — not a second copy of the number — so the
+        // reason starts where the command's own kind symbol starts,
+        // inside the button's padding. It does not reach the
+        // label's own start past the kind prefix ("⊞  " and the
+        // like): that offset is baked into one `text()` run with the
+        // label, and the three prefixes are neither the same glyph
+        // nor the same length, so the extra distance cannot be
+        // derived without measuring rendered text width — stopping
+        // here rather than choosing a number for it (Review 241 §3
+        // accepts the symbol's own start as the target, not the
+        // label's).
+        // RFC-071 Amendment A3 D14: a reason — `body`. The indent
+        // math above is unaffected (it is derived from the button's
+        // own padding, not the text's size).
+        row = row.push(
+            iced::widget::container(
+                text(state.t(reason_key))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens))
+                    .color(snora::design::style::color::to_iced_color(
+                        tokens.palette.text_secondary,
+                    )),
+            )
+            .padding(iced::padding::left(RESULT_BUTTON_PADDING.left)),
+        );
+    }
+    row.into()
 }

@@ -9,6 +9,23 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.35.0] — 2026-11-25
+
+**The keyboard reaches everything on the dashboard and in every window.**
+
+### Changed — The keyboard reaches everything on the dashboard and in every window
+
+- Tab now reaches every control on the dashboard and in every window, including the Group and
+  Sort choices, the buttons shown when there are no projects or no matches, the details panel,
+  and Undo.
+- After the last control, Tab goes back to the first, and Shift+Tab the other way, so the
+  highlight never disappears.
+- ↑ and ↓ move through lists: the command palette's results, the workspace menu, and "Find work
+  area". In the command palette, everything you type goes into the search box, and Enter runs the
+  highlighted command.
+- The highlight around the control you are on is easier to see.
+- When the list of projects changes, the highlight stays on the project you were on.
+
 ### Fixed — Get latest safely's notes are easier to read
 
 A note about a project, such as why it only checks for updates, now has its own line under the

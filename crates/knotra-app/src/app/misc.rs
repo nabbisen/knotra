@@ -369,6 +369,7 @@ pub(super) fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<
         PaletteMessage::QueryChanged(q) => {
             state.palette.query = q;
             state.palette.notice_key = None;
+            state.palette.highlighted = None;
             crate::state::palette::update_results(state);
         }
         PaletteMessage::EntryClicked(i) => match crate::state::palette::dispatch_entry(state, i) {
@@ -383,6 +384,9 @@ pub(super) fn handle_palette(state: &mut AppState, msg: PaletteMessage) -> Task<
                 state.palette.notice_key = Some("palette.disabled.unavailable");
             }
         },
+        PaletteMessage::HighlightMoved(forward) => {
+            crate::state::palette::move_highlight(state, forward);
+        }
     }
     Task::none()
 }

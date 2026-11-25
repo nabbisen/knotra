@@ -5,11 +5,11 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, container, row, text},
+    widget::{Space, container, row, text},
 };
 
 use knotra_ui::widget::{
-    SMALL_BUTTON_HEIGHT, body_badge_diameter, centered_button_label, status_badge, style,
+    body_badge_diameter, ghost_control, secondary_control, secondary_control_maybe, status_badge,
 };
 
 use crate::{
@@ -31,42 +31,20 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     .size(snora::design::style::text::body_size(tokens))
                     .line_height(snora::design::style::text::body_line_height(tokens)),
                 Space::new().width(Length::Fill),
-                // Task 100 §3: styled like every other knotra button —
-                // `style::secondary`/`style::ghost` plus `with_focus_ring`,
-                // the same shape `freezer.rs::styled_button` uses. Neither
-                // button is a focus target (the snackbar sits outside the
-                // `Layer`/`layer_focus` system entirely), so `is_focused` is
-                // hardcoded `false` rather than left out — the same choice
-                // `freezer.rs`'s own `styled_button` doc comment makes for
-                // this stage.
-                button(centered_button_label(
-                    text(state.t("plain.undo.undo"))
-                        .size(snora::design::style::text::body_size(tokens))
-                        .line_height(snora::design::style::text::body_line_height(tokens))
-                ))
-                .height(SMALL_BUTTON_HEIGHT)
-                .padding([0, 12])
-                .on_press(Message::Workspace(WorkspaceMessage::UndoRemoval))
-                .style({
-                    let t = tokens.clone();
-                    move |_theme, status| {
-                        style::with_focus_ring(&t, false, style::secondary(&t, status))
-                    }
-                }),
-                button(centered_button_label(
-                    text(state.t("plain.undo.dismiss"))
-                        .size(snora::design::style::text::body_size(tokens))
-                        .line_height(snora::design::style::text::body_line_height(tokens))
-                ))
-                .height(SMALL_BUTTON_HEIGHT)
-                .padding([0, 12])
-                .on_press(Message::Workspace(WorkspaceMessage::DismissUndoSnackbar))
-                .style({
-                    let t = tokens.clone();
-                    move |_theme, status| {
-                        style::with_focus_ring(&t, false, style::ghost(&t, status))
-                    }
-                }),
+                // RFC-075 stage 3 §1: real snora controls now, each its
+                // own Tab stop, inside the page's own wrap.
+                secondary_control(
+                    tokens,
+                    state.t("plain.undo.undo"),
+                    Message::Workspace(WorkspaceMessage::UndoRemoval),
+                    crate::view::ids::activity_strip::undo(),
+                ),
+                ghost_control(
+                    tokens,
+                    state.t("plain.undo.dismiss"),
+                    Message::Workspace(WorkspaceMessage::DismissUndoSnackbar),
+                    crate::view::ids::activity_strip::dismiss(),
+                ),
             ]
             .spacing(8)
             .align_y(Alignment::Center)
@@ -172,25 +150,16 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                             source_operation_id: source_operation_id.clone(),
                         }),
                     );
-                    content = content.push({
-                        // RFC-073 Amendment A2/D8: styled and sized like
-                        // this strip's own Undo/Dismiss above — `secondary`,
-                        // `SMALL_BUTTON_HEIGHT`, unwired (`is_focused:
-                        // false`), the strip sits outside the
-                        // `Layer`/`layer_focus` system entirely.
-                        let t = tokens.clone();
-                        button(centered_button_label(
-                            text(label)
-                                .size(snora::design::style::text::body_size(tokens))
-                                .line_height(snora::design::style::text::body_line_height(tokens)),
-                        ))
-                        .height(SMALL_BUTTON_HEIGHT)
-                        .padding([0, 12])
-                        .on_press_maybe(retry)
-                        .style(move |_theme, status| {
-                            style::with_focus_ring(&t, false, style::secondary(&t, status))
-                        })
-                    });
+                    // RFC-075 stage 3 §1: a real snora control now — not
+                    // named in the handoff's own Undo/Dismiss/Details
+                    // table (see `ids::activity_strip::retry`'s own doc
+                    // comment).
+                    content = content.push(secondary_control_maybe(
+                        tokens,
+                        label,
+                        retry,
+                        crate::view::ids::activity_strip::retry(),
+                    ));
                     if state.operation_interlock.is_busy() {
                         content = content.push(
                             text(state.t("plain.activity.busy"))
@@ -214,24 +183,14 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             // Not a focus target today (no focus-order wiring exists for
             // the activity strip), so `false` is passed explicitly.
             // RFC-073 D8: `SMALL_BUTTON_HEIGHT`, matching the retry button.
-            content = content.push(
-                button(centered_button_label(
-                    text(state.t("plain.activity.details"))
-                        .size(snora::design::style::text::body_size(tokens))
-                        .line_height(snora::design::style::text::body_line_height(tokens)),
-                ))
-                .height(SMALL_BUTTON_HEIGHT)
-                .padding([0, 12])
-                .on_press(Message::Activity(ActivityMessage::DetailsRequested {
+            content = content.push(secondary_control(
+                tokens,
+                state.t("plain.activity.details"),
+                Message::Activity(ActivityMessage::DetailsRequested {
                     operation_id: log.result.operation_id.clone(),
-                }))
-                .style({
-                    let t = tokens.clone();
-                    move |_theme, status| {
-                        style::with_focus_ring(&t, false, style::secondary(&t, status))
-                    }
                 }),
-            );
+                crate::view::ids::activity_strip::details(),
+            ));
             Some(
                 container(content.padding([4, 12]))
                     .width(Length::Fill)

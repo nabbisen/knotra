@@ -44,26 +44,13 @@ use knotra_ui::widget::{
 
 use crate::{
     message::{KeyboardMessage, Message},
-    state::{
-        AppState,
-        focus::{FocusTarget, LayerFocus},
-    },
+    state::AppState,
 };
 
-mod focus_target {
-    pub const CLOSE: &str = "shortcuts.close";
-}
-
-/// RFC-066 D2: order and entry for the shortcuts sheet — just "Close".
-pub fn layer_focus() -> LayerFocus<Message> {
-    let close_target = FocusTarget::control(focus_target::CLOSE);
-    LayerFocus {
-        order: vec![(
-            close_target.clone(),
-            Some(Message::KeyEvent(KeyboardMessage::CheatSheetToggled)),
-        )],
-        entry: Some(close_target),
-    }
+/// RFC-075 stage 3 §3: the sheet's own entry — "Close", its one and only
+/// control.
+pub fn entry_id() -> iced::widget::Id {
+    crate::view::ids::shortcuts::close()
 }
 
 pub(crate) struct Binding {
@@ -90,10 +77,14 @@ pub(crate) const BINDINGS: &[Binding] = &[
         where_key: "shortcut.where_everywhere",
         action_key: "shortcut.action_close_or_clear",
     },
+    // RFC-075 stage 3 §6: owner-approved text (Review 301 §4) — ↓/↑ no
+    // longer move real focus between a window's own controls (every
+    // control is a real Tab stop now); they move a list's own highlight
+    // or selection instead.
     Binding {
         keys: "↑ / ↓",
-        where_key: "shortcut.where_window",
-        action_key: "shortcut.action_focus_move",
+        where_key: "shortcut.where_list",
+        action_key: "shortcut.action_move_in_list",
     },
     Binding {
         keys: "↑ / ↓ / j / k",
@@ -206,14 +197,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // was.
     let body = column![col_header, list(tokens, rows)].spacing(8);
 
-    surface(
-        tokens,
-        OverlayWidth::Large.resolve(state.window_width),
-        state.t("shortcut.overlay_title"),
-        Some(Message::KeyEvent(KeyboardMessage::CheatSheetToggled)),
-        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
-        body,
-        Space::new(),
+    knotra_ui::widget::focus_by_id(
+        surface(
+            tokens,
+            OverlayWidth::Large.resolve(state.window_width),
+            state.t("shortcut.overlay_title"),
+            Some(Message::KeyEvent(KeyboardMessage::CheatSheetToggled)),
+            crate::view::ids::shortcuts::close(),
+            body,
+            Space::new(),
+        ),
+        &[],
     )
 }
 

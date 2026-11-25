@@ -21,12 +21,6 @@ mod workspace;
 #[cfg(test)]
 pub(crate) use conflict_ops::resolve_project_file_path;
 
-// RFC-066 D4: `ring` is how every view module draws the focus outline —
-// `focus_ops` itself stays a private submodule (nothing else in it is
-// meant for `view` to reach), so this one function is re-exported at the
-// `app` boundary instead of widening the whole module's visibility.
-pub(crate) use focus_ops::ring;
-
 use iced::{Element, Subscription, Task, clipboard, keyboard, time};
 use std::time::Duration;
 
@@ -40,7 +34,7 @@ use crate::{
         SettingsMessage, ShortcutMessage, WorkspaceMessage,
     },
     persistence::{load_recent_logs, load_workspaces},
-    state::{AppState, LoadPhase, focus},
+    state::{AppState, LoadPhase},
     view::app_view,
     view::dashboard::WidthMode,
 };
@@ -175,11 +169,14 @@ fn shortcut_for(key: &keyboard::Key, modifiers: keyboard::Modifiers) -> Option<S
             Some(ShortcutMessage::FocusPrevious)
         }
         keyboard::Key::Named(Named::Tab) => Some(ShortcutMessage::FocusNext),
-        // RFC-036 R3/R3a: Enter/Space activate the focused control,
-        // gated in `handle_shortcut` so a focused text input still
-        // receives the keystroke instead of activating a control.
-        keyboard::Key::Named(Named::Enter) => Some(ShortcutMessage::ActivateFocused),
-        keyboard::Key::Named(Named::Space) => Some(ShortcutMessage::ActivateFocused),
+        // RFC-075 §2/§3: Enter/Space are no longer mapped here at all.
+        // Every real control (`snora::design::Control`) presses itself on
+        // Enter/Space while it holds focus, through the ordinary event
+        // path, before `keyboard::listen()` could ever produce a message
+        // for this function to map — this case is reached only when
+        // nothing holds real focus, where there is nothing to press
+        // either. RFC-036 R3/R3a's old `ActivateFocused` retires with it
+        // (handoff §5).
         // RFC-035 R22/RFC-066 D5: arrow-key navigation. Confirmed against
         // `iced_widget::text_input`'s own key handling (0.14.2) that
         // it has no `ArrowUp`/`ArrowDown` branch at all — these are
@@ -225,15 +222,29 @@ fn shortcut_for(key: &keyboard::Key, modifiers: keyboard::Modifiers) -> Option<S
 // ---------------------------------------------------------------------------
 
 pub fn update(state: &mut AppState, message: Message) -> Task<Message> {
-    // RFC-066 D3: one focus step, run after every message. `before` is the
-    // layer on top when this call started; `settle_layer_focus` compares it
-    // against the layer on top once `message` has been fully handled and
-    // moves focus accordingly — the one place entry, re-entry on a phase
-    // change, and return on close happen, replacing the focus calls each
+    // RFC-075 stage 3 §3: one focus step, run after every message.
+    // `before` is the layer on top when this call started; `is_shortcut`
+    // is whether `message` itself came from a real keyboard event (never
+    // from a mouse click — RFC-130's own `ShortcutMessage` is produced
+    // only by `shortcut_for_event`, from `keyboard::Event`), captured here
+    // because `message` is moved into `update_inner` next.
+    // `settle_layer_focus` compares `before` against the layer on top once
+    // `message` has been fully handled and moves focus accordingly — the
+    // one place entry, re-entry on a phase change, and (so far as it can
+    // from here) return on close happen, replacing the focus calls each
     // open/close site used to make individually.
     let before_layer = crate::state::layer::top_layer(state);
+    let before_entry = before_layer
+        .as_ref()
+        .and_then(|layer| focus_ops::entry_id(state, layer));
+    let before_panel = state.detail_panel.open_project_id.clone();
+    let is_shortcut = matches!(message, Message::Shortcut(_));
     let task = update_inner(state, message);
-    Task::batch([task, focus_ops::settle_layer_focus(state, before_layer)])
+    Task::batch([
+        task,
+        focus_ops::settle_layer_focus(state, before_layer, before_entry, is_shortcut),
+        focus_ops::settle_detail_panel_focus(state, before_panel),
+    ])
 }
 
 fn update_inner(state: &mut AppState, message: Message) -> Task<Message> {
@@ -425,74 +436,63 @@ fn handle_shortcut(state: &mut AppState, msg: ShortcutMessage) -> Task<Message> 
         // function. Focus return on close is `update()`'s own
         // `settle_layer_focus` step now, not spliced in here (R7).
         ShortcutMessage::Close => focus_ops::close_topmost_layer(state),
-        // RFC-075 D1/§2: while no window is open, Tab/Shift-Tab go through
-        // `snora::keyboard::traverse`, wrapping (Amendment A1) — knotra's
-        // own declared-order model is a window-only fallback now.
-        ShortcutMessage::FocusNext => {
-            if crate::state::layer::top_layer(state).is_none() {
-                return knotra_ui::widget::keyboard::traverse_wrapping(
-                    keyboard::Key::Named(keyboard::key::Named::Tab),
-                    keyboard::Modifiers::empty(),
-                )
-                .unwrap_or_else(Task::none);
-            }
-            focus_ops::advance_focus(state, focus::Direction::Next)
-        }
-        ShortcutMessage::FocusPrevious => {
-            if crate::state::layer::top_layer(state).is_none() {
-                return knotra_ui::widget::keyboard::traverse_wrapping(
-                    keyboard::Key::Named(keyboard::key::Named::Tab),
-                    keyboard::Modifiers::SHIFT,
-                )
-                .unwrap_or_else(Task::none);
-            }
-            focus_ops::advance_focus(state, focus::Direction::Previous)
-        }
-        // RFC-075 §2: on the page, Enter/Space never reaches here while a
-        // real snora control holds focus — it captures the key itself,
-        // through the ordinary event path, before `keyboard::listen()`
-        // (which only passes keys nothing captured) could produce this
-        // message at all. With nothing focused there is nothing to press
-        // either. RFC-066 D4's "reveal the ring instead of pressing"
-        // behaviour stays, unchanged, for a window (knotra's own model).
-        ShortcutMessage::ActivateFocused => {
-            if crate::state::layer::top_layer(state).is_none() {
-                return Task::none();
-            }
-            if !state.focus_visible && !focus_ops::current_target_is_text_input(state) {
-                state.focus_visible = true;
-                return Task::none();
-            }
-            focus_ops::activate_focused(state)
-        }
-        // RFC-035 R22/RFC-075 D6: `advance_card_focus` itself now carries
+        // RFC-075 D1/§2: Tab/Shift-Tab always go through `snora::keyboard::
+        // traverse`, wrapping (Amendment A1) — regardless of whether a
+        // window is open. Every control everywhere is a real Tab stop now
+        // (stage 2's page, stage 3's windows), and `snora::Inert` already
+        // confines the real traversal to whichever window is open (the
+        // page beneath it reports no focus target at all), so there is no
+        // separate window-order fallback left to branch to.
+        ShortcutMessage::FocusNext => knotra_ui::widget::keyboard::traverse_wrapping(
+            keyboard::Key::Named(keyboard::key::Named::Tab),
+            keyboard::Modifiers::empty(),
+        )
+        .unwrap_or_else(Task::none),
+        ShortcutMessage::FocusPrevious => knotra_ui::widget::keyboard::traverse_wrapping(
+            keyboard::Key::Named(keyboard::key::Named::Tab),
+            keyboard::Modifiers::SHIFT,
+        )
+        .unwrap_or_else(Task::none),
+        // RFC-035 R22/RFC-066 D5: `advance_card_focus` itself now carries
         // every gate this used to check here first (the window-open and
         // text-input-focused cases included) — it has to, since knowing
         // which, if anything, is focused needs the real tree (see its own
         // doc comment), not a value this match could read synchronously.
-        ShortcutMessage::CardFocusNext => {
-            focus_ops::advance_card_focus(state, focus::Direction::Next)
-        }
-        ShortcutMessage::CardFocusPrevious => {
-            focus_ops::advance_card_focus(state, focus::Direction::Previous)
-        }
-        // RFC-066 D5: inside a window, the same as Tab/Shift-Tab — advances
-        // that window's own order. Outside one, today's card navigation
-        // (D6) — `advance_card_focus` no-ops on its own while a window is
-        // open, but that branch is never reached here regardless, since
-        // the one above it already returns first.
-        ShortcutMessage::ArrowDown => {
-            if crate::state::layer::top_layer(state).is_some() {
-                return focus_ops::advance_focus(state, focus::Direction::Next);
+        ShortcutMessage::CardFocusNext => focus_ops::advance_card_focus(state, true),
+        ShortcutMessage::CardFocusPrevious => focus_ops::advance_card_focus(state, false),
+        // RFC-075 stage 3 §4: inside a window, ↓/↑ move a list's own
+        // highlight (the palette, "Find work area") or real focus between
+        // real Tab stops (the workspace menu) — knotra's old window-order
+        // routing (`ShortcutMessage::ArrowDown`/`ArrowUp` → `advance_focus`)
+        // retires with it (handoff §5). Every other window: a no-op, by
+        // simply not matching any arm below. Outside a window: today's
+        // card navigation (D6), unchanged.
+        ShortcutMessage::ArrowDown => match crate::state::layer::top_layer(state) {
+            Some(crate::state::layer::Layer::Palette) => {
+                focus_ops::palette_highlight_moved(state, true)
             }
-            focus_ops::advance_card_focus(state, focus::Direction::Next)
-        }
-        ShortcutMessage::ArrowUp => {
-            if crate::state::layer::top_layer(state).is_some() {
-                return focus_ops::advance_focus(state, focus::Direction::Previous);
+            Some(crate::state::layer::Layer::ChangeWorkArea) => {
+                focus_ops::context_switch_highlight_moved(state, true)
             }
-            focus_ops::advance_card_focus(state, focus::Direction::Previous)
-        }
+            Some(crate::state::layer::Layer::WorkspaceMenu) => {
+                focus_ops::switcher_menu_focus_moved(state, true)
+            }
+            Some(_) => Task::none(),
+            None => focus_ops::advance_card_focus(state, true),
+        },
+        ShortcutMessage::ArrowUp => match crate::state::layer::top_layer(state) {
+            Some(crate::state::layer::Layer::Palette) => {
+                focus_ops::palette_highlight_moved(state, false)
+            }
+            Some(crate::state::layer::Layer::ChangeWorkArea) => {
+                focus_ops::context_switch_highlight_moved(state, false)
+            }
+            Some(crate::state::layer::Layer::WorkspaceMenu) => {
+                focus_ops::switcher_menu_focus_moved(state, false)
+            }
+            Some(_) => Task::none(),
+            None => focus_ops::advance_card_focus(state, false),
+        },
         ShortcutMessage::MousePressed => unreachable!("handled above"),
         // RFC-071 D11: computed here, then dispatched through the same
         // `SettingsMessage::ZoomChanged` the Settings select itself sends —
@@ -686,8 +686,14 @@ mod tests {
     /// cannot lie, and a sheet that shows a key this test never checks
     /// could still lie about it. `shortcut_for` never produces
     /// `ShortcutMessage::MousePressed` (the mouse subscription constructs
-    /// it directly, not through a keyboard row), so it is the one variant
-    /// this test does not require a row for.
+    /// it directly, not through a keyboard row), so it is one variant this
+    /// test does not require a row for. RFC-075 §2/§3: row 1 ("Enter /
+    /// Space") is the other exception now — true, but no longer reached
+    /// through `shortcut_for` at all: every real `snora::design::Control`
+    /// presses itself on Enter/Space while it holds focus, before the
+    /// keyboard subscription could ever produce a message for this
+    /// function to map (`ShortcutMessage::ActivateFocused` retired with
+    /// it, handoff §5).
     #[test]
     fn every_sheet_row_maps_through_shortcut_for_and_every_shortcut_message_has_a_row() {
         use keyboard::key::Named;
@@ -709,18 +715,6 @@ mod tests {
                 keyboard::Key::Named(keyboard::key::Named::Tab),
                 shift,
                 ShortcutMessage::FocusPrevious,
-            ),
-            (
-                1,
-                keyboard::Key::Named(Named::Enter),
-                none,
-                ShortcutMessage::ActivateFocused,
-            ),
-            (
-                1,
-                keyboard::Key::Named(Named::Space),
-                none,
-                ShortcutMessage::ActivateFocused,
             ),
             (
                 2,
@@ -834,7 +828,6 @@ mod tests {
             ShortcutMessage::Close,
             ShortcutMessage::FocusNext,
             ShortcutMessage::FocusPrevious,
-            ShortcutMessage::ActivateFocused,
             ShortcutMessage::FocusSearchBare,
             ShortcutMessage::CardFocusNext,
             ShortcutMessage::CardFocusPrevious,

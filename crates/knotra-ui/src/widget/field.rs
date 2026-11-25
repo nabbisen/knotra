@@ -129,7 +129,15 @@ pub fn guided_field<'a, Message: Clone + 'a>(
     on_change: impl Fn(String) -> Message + 'a,
     error: Option<&'a str>,
 ) -> iced::Element<'a, Message> {
-    guided_field_with_id(tokens, label, placeholder, value, on_change, error, None)
+    guided_field_with_id(
+        tokens,
+        label,
+        placeholder,
+        value,
+        on_change,
+        error,
+        FieldFocus::default(),
+    )
 }
 
 /// Same as [`guided_field`] but assigns a [`iced::widget::Id`] to the input for
@@ -150,8 +158,62 @@ pub fn guided_field_focused<'a, Message: Clone + 'a>(
         value,
         on_change,
         error,
-        Some(id),
+        FieldFocus {
+            id: Some(id),
+            on_submit: None,
+        },
     )
+}
+
+/// Same as [`guided_field_focused`], plus the message Enter sends while the
+/// field holds focus (RFC-075 stage 3 §4): the command palette's and
+/// Change work area's own search fields, whose list is a highlight beside
+/// the field rather than a Tab stop of its own, run their highlighted item
+/// this way. No `error` parameter: no current caller shows one on an entry
+/// field (a search box, not a validated one) — `guided_field_with_id`
+/// still takes it, for `guided_field`/`guided_field_focused`'s own sake.
+pub fn guided_field_entry<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: &'a str,
+    placeholder: &'a str,
+    value: &'a str,
+    on_change: impl Fn(String) -> Message + 'a,
+    id: iced::widget::Id,
+    on_submit: Option<Message>,
+) -> iced::Element<'a, Message> {
+    guided_field_with_id(
+        tokens,
+        label,
+        placeholder,
+        value,
+        on_change,
+        None,
+        FieldFocus {
+            id: Some(id),
+            on_submit,
+        },
+    )
+}
+
+/// The id and Enter-submit message bundled together (RFC-075 stage 3):
+/// keeps `guided_field_with_id` at 7 parameters, clippy's own
+/// `too_many_arguments` threshold, and the suppression map's own count at
+/// its established 7 rather than adding an eighth allow for this.
+///
+/// Not `#[derive(Default)]`: that would bound `Message: Default` too,
+/// which no caller's own message type satisfies or needs to.
+struct FieldFocus<Message> {
+    id: Option<iced::widget::Id>,
+    on_submit: Option<Message>,
+}
+
+impl<Message> Default for FieldFocus<Message> {
+    fn default() -> Self {
+        Self {
+            id: None,
+            on_submit: None,
+        }
+    }
 }
 
 fn guided_field_with_id<'a, Message: Clone + 'a>(
@@ -161,7 +223,7 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
     value: &'a str,
     on_change: impl Fn(String) -> Message + 'a,
     error: Option<&'a str>,
-    id: Option<iced::widget::Id>,
+    focus: FieldFocus<Message>,
 ) -> iced::Element<'a, Message> {
     use iced::widget::{column, text};
 
@@ -169,9 +231,10 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
     // the one shared builder — see `styled_text_input`.
     let mut field = styled_text_input(tokens, placeholder, value)
         .on_input(on_change)
+        .on_submit_maybe(focus.on_submit)
         .width(Length::Fill);
 
-    if let Some(widget_id) = id {
+    if let Some(widget_id) = focus.id {
         field = field.id(widget_id);
     }
 

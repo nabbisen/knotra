@@ -296,6 +296,36 @@ fn disabled_reason(availability: PaletteAvailability) -> Option<&'static str> {
     }
 }
 
+/// RFC-075 stage 3 §4: moves the highlight ↓ (`forward`)/↑, skipping
+/// disabled results, wrapping at the last back to the first; ↑ on (or
+/// before) the first returns to the field, with nothing highlighted.
+pub fn move_highlight(state: &mut AppState, forward: bool) {
+    let enabled: Vec<usize> = state
+        .palette
+        .results
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.disabled_reason_key.is_none())
+        .map(|(i, _)| i)
+        .collect();
+    if enabled.is_empty() {
+        state.palette.highlighted = None;
+        return;
+    }
+    state.palette.highlighted = match (state.palette.highlighted, forward) {
+        (None, true) => Some(enabled[0]),
+        (None, false) => None,
+        (Some(cur), true) => match enabled.iter().position(|&i| i == cur) {
+            Some(p) if p + 1 < enabled.len() => Some(enabled[p + 1]),
+            _ => Some(enabled[0]),
+        },
+        (Some(cur), false) => match enabled.iter().position(|&i| i == cur) {
+            Some(0) | None => None,
+            Some(p) => Some(enabled[p - 1]),
+        },
+    };
+}
+
 fn matches_query(query: &str, label: &str) -> bool {
     query.is_empty() || label.to_lowercase().contains(query)
 }

@@ -46,6 +46,10 @@ pub struct ContextOpsState {
     pub phase: ContextPhase,
     /// Context lists cached per project (invalidated on switch / refresh).
     pub cached_lists: std::collections::HashMap<ProjectId, ContextList>,
+    /// RFC-075 stage 3 §4: which candidate ↓/↑ has highlighted, if any —
+    /// the same second-cursor-beside-real-focus design as
+    /// [`crate::state::PaletteState::highlighted`].
+    pub highlighted: Option<usize>,
 }
 
 impl ContextOpsState {
@@ -60,6 +64,36 @@ impl ContextOpsState {
         } else {
             Vec::new()
         }
+    }
+
+    /// RFC-075 stage 3 §4: moves the highlight ↓ (`forward`)/↑ through
+    /// [`Self::filtered_candidates`], skipping the current target (it has
+    /// no press), wrapping at the last back to the first; ↑ on (or
+    /// before) the first returns to the field, with nothing highlighted.
+    pub fn move_highlight(&mut self, forward: bool) {
+        let enabled: Vec<usize> = self
+            .filtered_candidates()
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| !c.is_current)
+            .map(|(i, _)| i)
+            .collect();
+        if enabled.is_empty() {
+            self.highlighted = None;
+            return;
+        }
+        self.highlighted = match (self.highlighted, forward) {
+            (None, true) => Some(enabled[0]),
+            (None, false) => None,
+            (Some(cur), true) => match enabled.iter().position(|&i| i == cur) {
+                Some(p) if p + 1 < enabled.len() => Some(enabled[p + 1]),
+                _ => Some(enabled[0]),
+            },
+            (Some(cur), false) => match enabled.iter().position(|&i| i == cur) {
+                Some(0) | None => None,
+                Some(p) => Some(enabled[p - 1]),
+            },
+        };
     }
 }
 

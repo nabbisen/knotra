@@ -127,6 +127,8 @@ pub enum ContextMessage {
     SwitchCancelled,
     BulkOpenRequested,
     BulkModalClosed,
+    /// RFC-075 stage 3 §4: ↓ (`true`)/↑ (`false`) moving the highlight.
+    HighlightMoved(bool),
 }
 
 // --- Freezer ---
@@ -382,8 +384,6 @@ pub enum ShortcutMessage {
     FocusNext,
     /// RFC-036 R1: Shift-Tab.
     FocusPrevious,
-    /// RFC-036 R3/R3a: Enter or Space, gated on text-input focus.
-    ActivateFocused,
     /// RFC-036 R4: bare `/`, gated on text-input focus so a literal `/`
     /// typed into a field is never intercepted.
     FocusSearchBare,
@@ -391,8 +391,8 @@ pub enum ShortcutMessage {
     /// [`ShortcutMessage::ArrowDown`]) — card arrow-navigation, coarser
     /// than Tab (moves between dashboard rows only, skipping their
     /// internal controls). Gated on text-input focus in `handle_shortcut`,
-    /// consistent with `FocusSearchBare`/`ActivateFocused` even though
-    /// iced 0.14's `text_input` does not itself consume `j`/`k` — the gate
+    /// consistent with `FocusSearchBare` even though iced 0.14's
+    /// `text_input` does not itself consume `j`/`k` — the gate
     /// is for the user's typing, not to resolve a widget-level key
     /// conflict (Handoff 032 §3/§4). D5: does nothing while a window is
     /// open — already true today, since `advance_card_focus` already
@@ -452,6 +452,8 @@ pub enum PaletteMessage {
     Closed,
     QueryChanged(String),
     EntryClicked(usize),
+    /// RFC-075 stage 3 §4: ↓ (`true`)/↑ (`false`) moving the highlight.
+    HighlightMoved(bool),
 }
 
 // ---------------------------------------------------------------------------

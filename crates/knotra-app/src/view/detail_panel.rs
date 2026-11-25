@@ -19,12 +19,12 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, column, container, row, scrollable, text},
+    widget::{Space, column, container, row, scrollable, text},
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, body_badge_diameter, centered_button_label, centered_button_row, icon,
-    list, record_row, status_badge, strong, style,
+    BUTTON_HEIGHT, Tokens, body_badge_diameter, centered_button_row, danger_control, icon, list,
+    record_row, secondary_control, secondary_control_maybe, status_badge, strong,
 };
 
 use crate::{
@@ -87,22 +87,22 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
         .and_then(|ws| ws.projects.iter().find(|ps| &ps.project_id == id));
 
     // --- Header ---
-    // Review 249 §2: the close control is not the panel's main action — it
-    // takes `overlay::surface`'s own close button whole (the lucide `X`
-    // icon, `ghost` style, plus a focus ring that never lights, since this
-    // panel has no focus-order wiring), not only its colour.
+    // Review 249 §2: the close control takes `overlay::surface`'s own
+    // close button whole (the lucide `X` icon, `ghost` style), not only
+    // its colour. RFC-075 stage 3 §1: a real snora control now, like
+    // `overlay::surface`'s own.
     // RFC-073 D8: `BUTTON_HEIGHT`, matching `overlay::surface`'s own close
     // button, whose shape this takes whole.
-    let close_btn = button(centered_button_row(row![
-        icon::icon_element(&icon::close())
-    ]))
+    let t = tokens.clone();
+    let close_btn = snora::design::control(
+        tokens,
+        centered_button_row(row![icon::icon_element(&icon::close())]),
+    )
     .height(Length::Fixed(BUTTON_HEIGHT))
     .width(Length::Fixed(BUTTON_HEIGHT))
+    .id(crate::view::ids::detail_panel::close())
     .on_press(Message::DetailPanel(DetailPanelMessage::Closed))
-    .style({
-        let t = tokens.clone();
-        move |_theme, status| style::with_focus_ring(&t, false, style::ghost(&t, status))
-    });
+    .style(move |_theme, status| knotra_ui::widget::style::ghost(&t, status));
 
     let header = row![
         text(project.name.clone())
@@ -348,61 +348,34 @@ pub fn view<'a>(state: &'a AppState) -> Option<Element<'a, Message>> {
     .spacing(3);
 
     // --- Actions ---
-    // Review 249 §2: Refresh and Fetch become `secondary` — neither is the
-    // panel's one mutating action. None of the three is a focus target
-    // today (no focus-order wiring here), so `false` is passed explicitly.
+    // Review 249 §2: Refresh and Fetch stay `secondary` — neither is the
+    // panel's one mutating action. RFC-075 stage 3 §1: real snora
+    // controls now, each its own Tab stop.
     // RFC-073 D8: all three `BUTTON_HEIGHT`.
-    let refresh_btn = button(centered_button_label(
-        // RFC-071 Amendment A3 D14: a button label — `body`.
-        text(state.t("detail.refresh"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(Length::Fixed(BUTTON_HEIGHT))
-    .padding([0, 18])
-    .on_press(Message::Project(ProjectMessage::StatusRefreshRequested(
-        id.clone(),
-    )))
-    .style({
-        let t = tokens.clone();
-        move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
-    });
+    let refresh_btn = secondary_control(
+        tokens,
+        state.t("detail.refresh"),
+        Message::Project(ProjectMessage::StatusRefreshRequested(id.clone())),
+        crate::view::ids::detail_panel::refresh(),
+    );
 
-    let fetch_btn = button(centered_button_label(
-        // RFC-071 Amendment A3 D14: a button label — `body`.
-        text(state.t("detail.fetch"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(Length::Fixed(BUTTON_HEIGHT))
-    .padding([0, 18])
-    .on_press_maybe(
+    let fetch_btn = secondary_control_maybe(
+        tokens,
+        state.t("detail.fetch"),
         (!state.operation_interlock.is_busy())
             .then_some(Message::Project(ProjectMessage::FetchRequested(id.clone()))),
-    )
-    .style({
-        let t = tokens.clone();
-        move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
-    });
+        crate::view::ids::detail_panel::fetch(),
+    );
 
-    // Review 249 §2: "Remove from workspace" becomes `danger` — the one
+    // Review 249 §2: "Remove from workspace" stays `danger` — the one
     // mutating action in this area, styled so it looks like what it does.
     // Its confirmation window (RFC-066 D6) is unchanged.
-    let remove_btn = button(centered_button_label(
-        // RFC-071 Amendment A3 D14: a button label — `body`.
-        text(state.t("detail.remove_from_workspace"))
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(Length::Fixed(BUTTON_HEIGHT))
-    .padding([0, 18])
-    .on_press(Message::Workspace(
-        WorkspaceMessage::RemoveProjectRequested(id.clone()),
-    ))
-    .style({
-        let t = tokens.clone();
-        move |_theme, status| style::with_focus_ring(&t, false, style::danger(&t, status))
-    });
+    let remove_btn = danger_control(
+        tokens,
+        state.t("detail.remove_from_workspace"),
+        Message::Workspace(WorkspaceMessage::RemoveProjectRequested(id.clone())),
+        crate::view::ids::detail_panel::remove(),
+    );
 
     let actions = column![
         // RFC-071 Amendment A3 D14: section header — `body`.

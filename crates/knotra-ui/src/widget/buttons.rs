@@ -124,6 +124,39 @@ pub fn reasoned<'a, Message: Clone + 'a>(
     }
 }
 
+/// [`reasoned`], on `snora::design::control` rather than `iced::widget::button`
+/// (RFC-075 stage 3) — a real focus target, drawing its own ring from real
+/// focus, with no `is_focused` parameter to supply.
+#[must_use]
+pub fn reasoned_control_maybe<'a, Message: Clone + 'a>(
+    tokens: &Tokens,
+    label: impl Into<String>,
+    on_press: Option<Message>,
+    reason: Option<&'a str>,
+    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
+    id: iced::widget::Id,
+) -> Element<'a, Message> {
+    use iced::widget::{column, text};
+
+    let show_reason = reason_row_needed(on_press.is_none(), reason.is_some());
+    let btn = make_control(tokens, label, on_press, style_fn, id);
+
+    match reason {
+        // RFC-071 Amendment A3 D14: a reason is read to understand why a
+        // control can't be used right now — `body`, not incidental
+        // metadata.
+        Some(r) if show_reason => column![
+            btn,
+            text(r)
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
+        ]
+        .spacing(6)
+        .into(),
+        _ => btn,
+    }
+}
+
 /// Whether `reasoned` should render its reason text: only when there is no
 /// press handler *and* a reason was supplied — the same rule the deleted
 /// `guided_button` used. Split out as plain booleans so this one piece of
@@ -408,12 +441,23 @@ pub fn current_or(
     status: iced::widget::button::Status,
     is_focused: bool,
 ) -> iced::widget::button::Style {
-    let base = if active {
+    let base = current_or_control(active, tokens, status);
+    style::with_focus_ring(tokens, is_focused, base)
+}
+
+/// Same as [`current_or`], without the ring — for a `snora::design::control`
+/// (RFC-075 stage 3), which draws its own ring from real focus and must not
+/// receive a second one layered on top by the style closure.
+pub fn current_or_control(
+    active: bool,
+    tokens: &snora::design::Tokens,
+    status: iced::widget::button::Status,
+) -> iced::widget::button::Style {
+    if active {
         style::secondary(tokens, iced::widget::button::Status::Active)
     } else {
         style::ghost(tokens, status)
-    };
-    style::with_focus_ring(tokens, is_focused, base)
+    }
 }
 
 // ---------------------------------------------------------------------------

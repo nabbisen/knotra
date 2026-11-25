@@ -46,92 +46,30 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused,
+    Tokens, ghost_control, ghost_control_maybe, guided_field_focused,
     overlay::{OverlayWidth, surface},
-    reasoned, style,
+    reasoned_control_maybe, style,
 };
 
 use crate::{
     message::{ChangelogMessage, Message},
-    state::{
-        AppState,
-        focus::{FocusTarget, LayerFocus},
-    },
+    state::AppState,
 };
 
-mod focus_target {
-    pub const CLOSE: &str = "changelog.close";
-    pub const GENERATE: &str = "changelog.generate";
-    pub const COPY: &str = "changelog.copy";
-    pub const FOOTER_CLOSE: &str = "changelog.footer_close";
-}
-
-/// RFC-066 D2: order and entry for Generate notes. `close_msg` is sent
-/// unconditionally in every phase (R2/§2 in `changelog_modal`'s own
-/// comment — closing during `Collecting` is explicitly allowed), so both
-/// the header close and the footer-less Done phase's "Close" share one
-/// message throughout, unlike `conflict.rs`'s phase-dependent one.
-pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
+/// RFC-075 stage 3 §3: Generate notes' own entry per phase. `Idle`/
+/// `Collecting` both enter on the since-field (D2's general rule — neither
+/// names its own, more specific entry). `Ready`'s result *is* the notes,
+/// so its entry is "Copy to clipboard", not "Close" (D2's named
+/// exception).
+pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
     use crate::state::changelog::ChangelogPhase;
 
-    let cl = &state.changelog;
-    let close_msg = Some(Message::Changelog(ChangelogMessage::ModalClosed));
-    let since_field = FocusTarget::text_input(knotra_ui::widget::focus_id::CHANGELOG_SINCE.clone());
-
-    let mut order = vec![
-        (FocusTarget::control(focus_target::CLOSE), close_msg.clone()),
-        (since_field.clone(), None),
-    ];
-
-    if let Some(workspace) = &state.workspace {
-        for project in &workspace.projects {
-            let included = cl
-                .project_selection
-                .get(&project.id)
-                .copied()
-                .unwrap_or(false);
-            let is_collecting = matches!(cl.phase, ChangelogPhase::Collecting);
-            let msg = (!is_collecting).then_some(Message::Changelog(
-                ChangelogMessage::ProjectToggled(project.id.clone(), !included),
-            ));
-            order.push((
-                FocusTarget::control_dynamic(format!("changelog.project.{}", project.id)),
-                msg,
-            ));
+    Some(match &state.changelog.phase {
+        ChangelogPhase::Idle | ChangelogPhase::Collecting => {
+            knotra_ui::widget::focus_id::CHANGELOG_SINCE.clone()
         }
-    }
-
-    // D2's rule: the first text field is the entry while the user is
-    // choosing. Applies to `Idle` (the table's own row) and `Collecting`
-    // (not in the table — no phase-specific entry is named there, and
-    // nothing about this phase's own field disables it, so the general
-    // rule is what applies).
-    let mut entry = Some(since_field);
-
-    match &cl.phase {
-        ChangelogPhase::Idle => {
-            let reason_blocks = cl.since_ref.trim().is_empty() || cl.selected_ids().is_empty();
-            order.push((
-                FocusTarget::control(focus_target::GENERATE),
-                (!reason_blocks).then_some(Message::Changelog(ChangelogMessage::CollectRequested)),
-            ));
-        }
-        ChangelogPhase::Collecting => {}
-        ChangelogPhase::Ready(_) => {
-            let copy = FocusTarget::control(focus_target::COPY);
-            order.push((
-                copy.clone(),
-                Some(Message::Changelog(ChangelogMessage::CopyRequested)),
-            ));
-            order.push((FocusTarget::control(focus_target::FOOTER_CLOSE), close_msg));
-            // D2's named exception: a result phase's entry is normally
-            // "Close", but this window's result *is* the notes, so "Copy
-            // to clipboard".
-            entry = Some(copy);
-        }
-    }
-
-    LayerFocus { order, entry }
+        ChangelogPhase::Ready(_) => crate::view::ids::changelog::copy(),
+    })
 }
 
 pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
@@ -162,14 +100,14 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
             } else {
                 None
             };
-            reasoned(
+            reasoned_control_maybe(
                 tokens,
                 state.t("plain.changelog.generate"),
                 cl.is_ready_to_collect()
                     .then_some(Message::Changelog(ChangelogMessage::CollectRequested)),
                 reason,
-                crate::app::ring(state, &FocusTarget::control(focus_target::GENERATE)),
                 style::primary,
+                crate::view::ids::changelog::generate(),
             )
         }
 
@@ -207,20 +145,18 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
             column![
                 result_col,
                 row![
-                    styled_button(
+                    knotra_ui::widget::primary_control(
                         tokens,
                         state.t("plain.changelog.copy"),
-                        Some(Message::Changelog(ChangelogMessage::CopyRequested)),
-                        crate::app::ring(state, &FocusTarget::control(focus_target::COPY)),
-                        style::primary,
+                        Message::Changelog(ChangelogMessage::CopyRequested),
+                        crate::view::ids::changelog::copy(),
                     ),
                     Space::new().width(Length::Fill),
-                    styled_button(
+                    ghost_control(
                         tokens,
                         state.t("action.close"),
-                        Some(Message::Changelog(ChangelogMessage::ModalClosed)),
-                        crate::app::ring(state, &FocusTarget::control(focus_target::FOOTER_CLOSE)),
-                        style::ghost,
+                        Message::Changelog(ChangelogMessage::ModalClosed),
+                        crate::view::ids::changelog::done_close(),
                     ),
                 ]
                 .align_y(Alignment::Center)
@@ -245,38 +181,18 @@ pub fn changelog_modal(state: &AppState) -> Element<'_, Message> {
     // branch, not a page-level footer) — so rather than relocate them into
     // `surface()`'s footer slot, an empty `Space` is passed here and Copy/
     // Close stay exactly where they were, preserving the original layout.
-    surface(
-        tokens,
-        OverlayWidth::Large.resolve(state.window_width),
-        state.t("plain.changelog.title"),
-        close_msg,
-        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
-        body,
-        Space::new(),
+    knotra_ui::widget::focus_by_id(
+        surface(
+            tokens,
+            OverlayWidth::Large.resolve(state.window_width),
+            state.t("plain.changelog.title"),
+            close_msg,
+            crate::view::ids::changelog::close(),
+            body,
+            Space::new(),
+        ),
+        &[],
     )
-}
-
-/// A button styled with one of `knotra_ui::widget::style`'s semantic
-/// functions plus a focus ring — the same shape `conflict.rs` (RFC-037
-/// Stage 2) and `workspace_manager.rs` (RFC-034 R9) use.
-fn styled_button<'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    on_press: Option<Message>,
-    is_focused: bool,
-    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
-) -> Element<'a, Message> {
-    let t = tokens.clone();
-    iced::widget::button(centered_button_label(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 18])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
-    .into()
 }
 
 fn changelog_project_picker<'a>(
@@ -319,26 +235,14 @@ fn changelog_project_picker<'a>(
             project.id.clone(),
             !included,
         )));
-        let t = tokens.clone();
-        let focused = crate::app::ring(
-            state,
-            &FocusTarget::control_dynamic(format!("changelog.project.{}", project.id)),
-        );
-        rows = rows.push(
-            // RFC-071 Amendment A3 D14: a project-selection row label —
-            // list content read to decide which projects to include.
-            iced::widget::button(centered_button_label(
-                text(label)
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens)),
-            ))
-            .height(BUTTON_HEIGHT)
-            .padding([0, 12])
-            .on_press_maybe(msg)
-            .style(move |_theme, status| {
-                style::with_focus_ring(&t, focused, style::ghost(&t, status))
-            }),
-        );
+        // RFC-071 Amendment A3 D14: a project-selection row label — list
+        // content read to decide which projects to include.
+        rows = rows.push(ghost_control_maybe(
+            tokens,
+            label,
+            msg,
+            crate::view::ids::changelog::project_toggle(&project.id),
+        ));
     }
 
     rows.into()

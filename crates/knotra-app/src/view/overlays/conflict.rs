@@ -17,39 +17,23 @@ use iced::{
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, NoticeTone, Tokens, Tone, body_badge_diameter, centered_button_label, list,
-    notice,
+    NoticeTone, Tokens, Tone, body_badge_diameter, danger_control, ghost_control, list, notice,
     overlay::{OverlayWidth, surface},
-    reasoned, status_badge, status_symbol, style,
+    reasoned_control_maybe, status_badge, status_symbol, style,
 };
 use knotra_vcs::{ProjectId, VcsKind};
 
 use crate::{
     message::{ConflictOpsMessage, Message},
-    state::{
-        AppState,
-        focus::{FocusTarget, LayerFocus},
-    },
+    state::AppState,
 };
 
-/// Stable keys for this panel's non-per-file `FocusTarget`s (RFC-066 D2).
-/// Per-file controls are keyed dynamically (`resolve.file.{index}.*`) since
-/// their count varies with the conflict.
-mod focus_target {
-    pub const CLOSE: &str = "resolve.close";
-    pub const FOOTER_CLOSE: &str = "resolve.footer_close";
-    pub const DETAILS_TOGGLE: &str = "resolve.details_toggle";
-    pub const STOP_ATTEMPT: &str = "resolve.stop_attempt";
-    pub const CONFIRM_KEEP: &str = "resolve.confirm_keep";
-    pub const CONFIRM_STOP: &str = "resolve.confirm_stop";
-}
-
-/// RFC-066 D2: this panel's focus order and entry, for whichever phase
+/// RFC-075 stage 3 §3: this panel's own entry, for whichever phase
 /// `project_id`'s conflict is in. Mirrors `resolve_panel`'s own phase
 /// structure exactly (`ConfirmStop` first, then `Operating`/`Done`/the
-/// file-list fallback), since the order can only be right if it is built
-/// from the same facts the view itself branches on.
-pub fn layer_focus(state: &AppState, project_id: &ProjectId) -> LayerFocus<Message> {
+/// file-list fallback), since the entry can only be right if it is
+/// computed from the same facts the view itself branches on.
+pub fn entry_id(state: &AppState, project_id: &ProjectId) -> Option<iced::widget::Id> {
     use crate::state::conflict_ops::ConflictPhase;
 
     let ops = &state.conflict_ops;
@@ -57,47 +41,13 @@ pub fn layer_focus(state: &AppState, project_id: &ProjectId) -> LayerFocus<Messa
     if let ConflictPhase::ConfirmStop { project_id: id, .. } = &ops.phase
         && id == project_id
     {
-        let keep = FocusTarget::control(focus_target::CONFIRM_KEEP);
-        return LayerFocus {
-            order: vec![
-                (
-                    FocusTarget::control(focus_target::CLOSE),
-                    Some(Message::ConflictOps(ConflictOpsMessage::StopCancelled)),
-                ),
-                (
-                    keep.clone(),
-                    Some(Message::ConflictOps(ConflictOpsMessage::StopCancelled)),
-                ),
-                (
-                    FocusTarget::control(focus_target::CONFIRM_STOP),
-                    Some(Message::ConflictOps(
-                        ConflictOpsMessage::AbortMergeRequested(project_id.clone()),
-                    )),
-                ),
-            ],
-            entry: Some(keep),
-        };
+        return Some(crate::view::ids::resolve::keep_fixing());
     }
 
-    let close_msg = close_message(state, project_id).map(Message::ConflictOps);
-    let close_target = FocusTarget::control(focus_target::CLOSE);
-    let footer_close_target = FocusTarget::control(focus_target::FOOTER_CLOSE);
-
     match &ops.phase {
-        ConflictPhase::Operating { project_id: id, .. } if id == project_id => LayerFocus {
-            order: Vec::new(),
-            entry: None,
-        },
+        ConflictPhase::Operating { project_id: id, .. } if id == project_id => None,
         ConflictPhase::Done { project_id: id, .. } if id == project_id => {
-            let details_target = FocusTarget::control(focus_target::DETAILS_TOGGLE);
-            LayerFocus {
-                order: vec![
-                    (close_target, close_msg.clone()),
-                    (details_target, Some(Message::ToggleOpDetails)),
-                    (footer_close_target.clone(), close_msg),
-                ],
-                entry: Some(footer_close_target),
-            }
+            Some(crate::view::ids::resolve::done_close())
         }
         _ => {
             let detail = match &ops.phase {
@@ -113,60 +63,29 @@ pub fn layer_focus(state: &AppState, project_id: &ProjectId) -> LayerFocus<Messa
             let abort_supported =
                 vcs_kind == Some(VcsKind::Git) && project_has_git_merge_state(state, project_id);
 
-            let mut order = vec![(close_target, close_msg.clone())];
-            let mut first_file_target = None;
-
-            if let Some(detail) = detail {
-                for (i, f) in detail.conflicted_files.iter().enumerate() {
-                    let editor_target =
-                        FocusTarget::control_dynamic(format!("resolve.file.{i}.open_editor"));
-                    let editor_msg = editor_configured.then_some(Message::ConflictOps(
-                        ConflictOpsMessage::OpenInEditorRequested(f.path.clone()),
-                    ));
-                    if first_file_target.is_none() {
-                        first_file_target = Some(editor_target.clone());
-                    }
-                    order.push((editor_target, editor_msg));
-
-                    let tool_target =
-                        FocusTarget::control_dynamic(format!("resolve.file.{i}.open_tool"));
-                    let tool_msg = merge_tool_configured.then_some(Message::ConflictOps(
-                        ConflictOpsMessage::OpenInMergeToolRequested(f.path.clone()),
-                    ));
-                    order.push((tool_target, tool_msg));
-
-                    // Mirrors `third_slot_for`'s own classification — Git
-                    // gets a real "Mark done" control, Jujutsu/no-evidence
-                    // get prose, which is not a Tab stop.
-                    if vcs_kind == Some(VcsKind::Git) {
-                        let mark_target =
-                            FocusTarget::control_dynamic(format!("resolve.file.{i}.mark_done"));
-                        order.push((
-                            mark_target,
-                            Some(Message::ConflictOps(
-                                ConflictOpsMessage::MarkResolvedRequested {
-                                    project_id: project_id.clone(),
-                                    file_path: f.path.clone(),
-                                },
-                            )),
-                        ));
-                    }
+            // D2's rule: the first file's own first *reachable* control is
+            // the entry — a disabled control is not a focus target
+            // (`snora::design::control`'s own rule), so `operation::focus`
+            // would silently land nowhere if this named one that press
+            // gates away.
+            let has_files = detail.is_some_and(|d| !d.conflicted_files.is_empty());
+            if has_files {
+                if editor_configured {
+                    Some(crate::view::ids::resolve::open_in_editor(0))
+                } else if merge_tool_configured {
+                    Some(crate::view::ids::resolve::open_in_compare(0))
+                } else if vcs_kind == Some(VcsKind::Git) {
+                    Some(crate::view::ids::resolve::mark_done(0))
+                } else if abort_supported {
+                    Some(crate::view::ids::resolve::stop_this_fix())
+                } else {
+                    Some(crate::view::ids::resolve::done_close())
                 }
+            } else if abort_supported {
+                Some(crate::view::ids::resolve::stop_this_fix())
+            } else {
+                Some(crate::view::ids::resolve::done_close())
             }
-
-            if abort_supported {
-                let stop_reason = stop_control_reason(state);
-                order.push((
-                    FocusTarget::control(focus_target::STOP_ATTEMPT),
-                    stop_reason.is_none().then_some(Message::ConflictOps(
-                        ConflictOpsMessage::StopRequested(project_id.clone()),
-                    )),
-                ));
-            }
-            order.push((footer_close_target.clone(), close_msg));
-
-            let entry = first_file_target.or(Some(footer_close_target));
-            LayerFocus { order, entry }
         }
     }
 }
@@ -241,34 +160,33 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
 
         let footer = row![
             Space::new().width(Length::Fill),
-            styled_button(
+            ghost_control(
                 tokens,
                 state.t("plain.resolve.stop_confirm_keep"),
-                Some(Message::ConflictOps(ConflictOpsMessage::StopCancelled)),
-                crate::app::ring(state, &FocusTarget::control(focus_target::CONFIRM_KEEP)),
-                style::ghost,
+                Message::ConflictOps(ConflictOpsMessage::StopCancelled),
+                crate::view::ids::resolve::keep_fixing(),
             ),
-            styled_button(
+            danger_control(
                 tokens,
                 state.t("plain.resolve.stop_confirm_stop"),
-                Some(Message::ConflictOps(
-                    ConflictOpsMessage::AbortMergeRequested(project_id.clone(),)
-                )),
-                crate::app::ring(state, &FocusTarget::control(focus_target::CONFIRM_STOP)),
-                style::danger,
+                Message::ConflictOps(ConflictOpsMessage::AbortMergeRequested(project_id.clone())),
+                crate::view::ids::resolve::stop(),
             ),
         ]
         .align_y(Alignment::Center)
         .spacing(8);
 
-        return surface(
-            tokens,
-            OverlayWidth::Large.resolve(state.window_width),
-            format!("{} — {}", state.t("plain.resolve.title"), name),
-            close_msg,
-            crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
-            body,
-            footer,
+        return knotra_ui::widget::focus_by_id(
+            surface(
+                tokens,
+                OverlayWidth::Large.resolve(state.window_width),
+                format!("{} — {}", state.t("plain.resolve.title"), name),
+                close_msg,
+                crate::view::ids::resolve::close(),
+                body,
+                footer,
+            ),
+            &[],
         );
     }
 
@@ -321,12 +239,11 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
             };
             let mut result_col = column![
                 banner,
-                styled_button(
+                ghost_control(
                     tokens,
                     details_label,
-                    Some(Message::ToggleOpDetails),
-                    crate::app::ring(state, &FocusTarget::control(focus_target::DETAILS_TOGGLE)),
-                    style::ghost,
+                    Message::ToggleOpDetails,
+                    crate::view::ids::resolve::details_toggle(),
                 ),
             ]
             .spacing(8);
@@ -389,13 +306,9 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                         .iter()
                         .enumerate()
                         .map(|(i, f)| {
-                            let editor_target = FocusTarget::control_dynamic(format!(
-                                "resolve.file.{i}.open_editor"
-                            ));
-                            let tool_target =
-                                FocusTarget::control_dynamic(format!("resolve.file.{i}.open_tool"));
-                            let mark_target =
-                                FocusTarget::control_dynamic(format!("resolve.file.{i}.mark_done"));
+                            let editor_id = crate::view::ids::resolve::open_in_editor(i);
+                            let tool_id = crate::view::ids::resolve::open_in_compare(i);
+                            let mark_id = crate::view::ids::resolve::mark_done(i);
                             let editor_reason = (!editor_configured)
                                 .then_some(state.t("plain.resolve.editor_not_configured"));
                             let open_editor_msg =
@@ -478,13 +391,13 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                 // it is a button — both are peripheral row
                                 // actions, not this phase's one completing
                                 // action.
-                                container(reasoned(
+                                container(reasoned_control_maybe(
                                     tokens,
                                     state.t("plain.resolve.open_editor"),
                                     open_editor_msg,
                                     editor_reason,
-                                    crate::app::ring(state, &editor_target),
                                     style::secondary,
+                                    editor_id,
                                 ))
                                 .width(Length::Fill),
                                 // Handoff 058: same control, same weight,
@@ -494,13 +407,13 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
                                 // each with its own reason when
                                 // unconfigured, rather than the row's shape
                                 // depending on Settings.
-                                container(reasoned(
+                                container(reasoned_control_maybe(
                                     tokens,
                                     state.t("plain.resolve.open_merge_tool"),
                                     open_merge_tool_msg,
                                     merge_tool_reason,
-                                    crate::app::ring(state, &tool_target),
                                     style::secondary,
+                                    tool_id,
                                 ))
                                 .width(Length::Fill),
                             ]
@@ -509,12 +422,7 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
 
                             let mut file_col = column![line1].spacing(4);
                             match third_slot_for(
-                                state,
-                                tokens,
-                                vcs_kind,
-                                project_id,
-                                &f.path,
-                                crate::app::ring(state, &mark_target),
+                                state, tokens, vcs_kind, project_id, &f.path, mark_id,
                             ) {
                                 ThirdSlot::Button(control) => {
                                     line2_controls = line2_controls.push(control);
@@ -588,31 +496,28 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     let stop_control: Element<'_, Message> =
         if abort_supported {
             let reason = stop_control_reason(state);
-            reasoned(
+            reasoned_control_maybe(
                 tokens,
                 state.t("plain.resolve.stop_attempt"),
                 reason.is_none().then_some(Message::ConflictOps(
                     ConflictOpsMessage::StopRequested(project_id.clone()),
                 )),
                 reason,
-                crate::app::ring(state, &FocusTarget::control(focus_target::STOP_ATTEMPT)),
                 style::danger,
+                crate::view::ids::resolve::stop_this_fix(),
             )
         } else {
             Space::new().width(Length::Fixed(0.0)).into()
         };
 
-    let footer_close_focused =
-        crate::app::ring(state, &FocusTarget::control(focus_target::FOOTER_CLOSE));
     let footer = row![
         stop_control,
         Space::new().width(Length::Fill),
-        styled_button(
+        knotra_ui::widget::ghost_control_maybe(
             tokens,
             state.t("action.close"),
             close_msg.clone(),
-            footer_close_focused,
-            style::ghost
+            crate::view::ids::resolve::done_close(),
         ),
     ]
     .align_y(Alignment::Center);
@@ -625,19 +530,30 @@ pub fn resolve_panel<'a>(state: &'a AppState, project_id: &'a ProjectId) -> Elem
     ]
     .spacing(14);
 
-    surface(
-        tokens,
-        // RFC-051 D4: was Small — 400px, chosen when each file row held one
-        // control. It now holds up to three (editor, comparison tool,
-        // mark-done or the Jujutsu hint), which need roughly 300px between
-        // them; see the Handoff 070 review request for the row arithmetic
-        // this floor was set against.
-        OverlayWidth::Large.resolve(state.window_width),
-        format!("{} — {}", state.t("plain.resolve.title"), name),
-        close_msg,
-        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
-        body,
-        footer,
+    // RFC-075 stage 3 §1/§2: every control that disables itself when
+    // pressed joins `reserved` so focus keeps the row it belongs to
+    // rather than jumping to a neighbour (A2 §3) — the editor/merge-tool
+    // controls never self-disable (their own `_configured` gate is a
+    // Settings fact, not something their own press flips), but "Mark
+    // done" removes its own row's file once fixed, which is a structural
+    // removal `belongs_on`'s own neighbour rule already covers correctly,
+    // not a disable — so nothing here is `reserved`.
+    knotra_ui::widget::focus_by_id(
+        surface(
+            tokens,
+            // RFC-051 D4: was Small — 400px, chosen when each file row held
+            // one control. It now holds up to three (editor, comparison
+            // tool, mark-done or the Jujutsu hint), which need roughly
+            // 300px between them; see the Handoff 070 review request for
+            // the row arithmetic this floor was set against.
+            OverlayWidth::Large.resolve(state.window_width),
+            format!("{} — {}", state.t("plain.resolve.title"), name),
+            close_msg,
+            crate::view::ids::resolve::close(),
+            body,
+            footer,
+        ),
+        &[],
     )
 }
 
@@ -678,29 +594,6 @@ fn labelled_lines<'a>(
         .collect()
 }
 
-/// A button styled with one of `knotra_ui::widget::style`'s semantic
-/// functions plus a focus ring — the same shape `workspace_manager.rs`
-/// (RFC-034 R9's validating migration) uses for every dialog button.
-fn styled_button<'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    on_press: Option<Message>,
-    is_focused: bool,
-    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
-) -> Element<'a, Message> {
-    let t = tokens.clone();
-    iced::widget::button(centered_button_label(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 18])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
-    .into()
-}
-
 /// RFC-054 D4: the conflicted-file row's third slot, as a value rather than
 /// something implied by which match arm happened to build which widget.
 /// Neither this project nor its reviewer can render this panel, so without
@@ -733,31 +626,27 @@ fn third_slot_for<'a>(
     vcs_kind: Option<VcsKind>,
     project_id: &ProjectId,
     file_path: &str,
-    is_focused: bool,
+    id: iced::widget::Id,
 ) -> ThirdSlot<'a> {
     match vcs_kind {
         Some(VcsKind::Git) => {
-            // Task 098 Amendment A1: built with `reasoned`, the same
-            // helper and style as its neighbours ("Open in editor",
-            // "Open in comparison tool") — a bare `iced::widget::button`
-            // with a literal `.height(36.0)` and an uncentred label used
-            // to make this button shorter than those neighbours, with its
-            // label sitting against the top edge (in Japanese,
-            // 「完了としてマーク」 touched the border). `button_label_guard`
-            // never saw it: the guard only knew the two height constants,
-            // not a numeric literal.
-            ThirdSlot::Button(reasoned(
+            // Task 098 Amendment A1: built with the same helper and style
+            // as its neighbours ("Open in editor", "Open in comparison
+            // tool") — a bare `iced::widget::button` with a literal
+            // `.height(36.0)` and an uncentred label used to make this
+            // button shorter than those neighbours, with its label
+            // sitting against the top edge (in Japanese, 「完了としてマーク」
+            // touched the border). `button_label_guard` never saw it: the
+            // guard only knew the two height constants, not a numeric
+            // literal.
+            ThirdSlot::Button(knotra_ui::widget::secondary_control(
                 tokens,
                 state.t("plain.resolve.mark_done"),
-                Some(Message::ConflictOps(
-                    ConflictOpsMessage::MarkResolvedRequested {
-                        project_id: project_id.clone(),
-                        file_path: file_path.to_owned(),
-                    },
-                )),
-                None,
-                is_focused,
-                style::secondary,
+                Message::ConflictOps(ConflictOpsMessage::MarkResolvedRequested {
+                    project_id: project_id.clone(),
+                    file_path: file_path.to_owned(),
+                }),
+                id,
             ))
         }
         // D1 deleted `ProjectConflictDetail.note`, the VCS layer's discarded
@@ -1010,7 +899,7 @@ mod tests {
                 Some(VcsKind::Git),
                 &project_id,
                 "src/lib.rs",
-                false
+                iced::widget::Id::new("test")
             ),
             ThirdSlot::Button(_)
         ));
@@ -1021,12 +910,19 @@ mod tests {
                 Some(VcsKind::Jujutsu),
                 &project_id,
                 "src/lib.rs",
-                false
+                iced::widget::Id::new("test")
             ),
             ThirdSlot::Prose(_)
         ));
         assert!(matches!(
-            third_slot_for(&state, tokens, None, &project_id, "src/lib.rs", false),
+            third_slot_for(
+                &state,
+                tokens,
+                None,
+                &project_id,
+                "src/lib.rs",
+                iced::widget::Id::new("test")
+            ),
             ThirdSlot::Prose(_)
         ));
     }

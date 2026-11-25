@@ -277,6 +277,28 @@ impl<Message> FollowsId<'_, Message> {
             .as_widget_mut()
             .operate(&mut tree.children[0], layout, renderer, &mut survey);
 
+        // RFC-075 stage 3: `snora::Inert` (what a dialog/sheet/menu wraps
+        // the page in while it is open) hides every `focusable()` call
+        // from its own content's `operate` entirely — confirmed by
+        // reading it directly (`snora-interaction-0.65.0/src/inert.rs`'s
+        // own `Hide`: "`focusable` is the one thing not forwarded"), not
+        // merely a disabled-control count mismatch. Content wrapped this
+        // way surveys as empty, every redraw, for as long as the window
+        // stays open — if reconciliation ran anyway, it would read
+        // `survey.focused == None` as "lost, go find a neighbour" and
+        // overwrite `state.focused` with a guess a `FocusById` attempt
+        // can never actually land (also hidden by the same `Inert`),
+        // corrupting the one thing a window's own close needs: which id
+        // to return focus to. Freezing `state` here — reporting it
+        // exactly as it was, never touching it — is what lets that
+        // return happen with no explicit code of its own: once the
+        // window closes and this content is reachable again, the very
+        // next redraw finds `state.focused` exactly as it was before the
+        // window opened, and reconciles normally from there.
+        if survey.ids.is_empty() {
+            return;
+        }
+
         let state = tree.state.downcast_ref::<State>();
         let new_ids = merge_reserved(&state.ids, &survey.ids, &self.reserved);
 
@@ -546,6 +568,78 @@ mod tests {
         assert_eq!(
             belongs_on(&old, &merged, &id("refresh")),
             Some(id("refresh"))
+        );
+    }
+
+    /// RFC-075 stage 3: `follow`'s own "empty survey → freeze, never
+    /// reconcile" guard — confirmed through the real widget, not just
+    /// `merge_reserved`/`belongs_on` in isolation, since the thing being
+    /// guarded against is `follow` *itself* corrupting `state.focused`
+    /// while every `focusable()` call is hidden (the real shape of a
+    /// window open over this content, per `snora::Inert`).
+    #[test]
+    fn an_empty_survey_leaves_remembered_focus_untouched() {
+        use crate::test_support::Harness;
+        use iced::Element;
+        use iced::widget::{Space, column, text};
+        use iced_test::core::Size;
+        use snora::design::Tokens;
+
+        use super::focus_by_id;
+
+        #[derive(Debug, Clone, PartialEq)]
+        enum Msg {
+            Pressed(&'static str),
+        }
+
+        fn tokens() -> &'static Tokens {
+            use std::sync::OnceLock;
+            static T: OnceLock<Tokens> = OnceLock::new();
+            T.get_or_init(Tokens::light)
+        }
+
+        fn three_controls() -> Element<'static, Msg> {
+            let make = |label: &'static str, id: &'static str| {
+                Element::from(
+                    snora::design::control(tokens(), text(label))
+                        .height(crate::widget::BUTTON_HEIGHT)
+                        .id(Id::new(id))
+                        .on_press(Msg::Pressed(label)),
+                )
+            };
+            focus_by_id(
+                column![
+                    make("One", "one"),
+                    make("Two", "two"),
+                    make("Three", "three")
+                ]
+                .spacing(8),
+                &[],
+            )
+        }
+
+        let size = Size::new(400.0, 400.0);
+        let mut h = Harness::new(three_controls(), size, None);
+        h.tab(false);
+        h.tab(false);
+        h.redraw();
+        assert_eq!(h.focused_id(), Some(Id::new("two")));
+
+        // The window opens: this content becomes `Inert`'s own hidden
+        // content — simulated here directly as "draws nothing at all",
+        // the same empty survey `Inert` itself produces.
+        h = h.rebuilt(focus_by_id(Space::new(), &[]));
+        h.redraw();
+        assert_eq!(h.focused_id(), None, "nothing to find while hidden");
+
+        // The window closes: the same content comes back.
+        h = h.rebuilt(three_controls());
+        h.redraw();
+        assert_eq!(
+            h.focused_id(),
+            Some(Id::new("two")),
+            "focus must still be on \"Two\" — not reset to \"One\" (the start) or lost \
+             entirely — once this content is reachable again"
         );
     }
 }

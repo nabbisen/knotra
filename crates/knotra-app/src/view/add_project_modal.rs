@@ -8,115 +8,29 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, column, container, row, text},
+    widget::{Space, column, container, row, text},
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, centered_button_label, guided_field_focused,
+    ghost_control, guided_field_focused,
     overlay::{OverlayWidth, surface},
-    reasoned, style,
+    reasoned_control_maybe, style,
 };
 
 use crate::{
     message::{Message, WorkspaceMessage},
-    state::{
-        AddProjectStep, AppState,
-        focus::{FocusTarget, LayerFocus},
-    },
+    state::{AddProjectStep, AppState},
 };
 
-mod focus_target {
-    pub const CLOSE: &str = "add_project.close";
-    pub const BROWSE: &str = "add_project.browse";
-    pub const NEXT: &str = "add_project.next";
-    pub const CANCEL: &str = "add_project.cancel";
-    pub const ADD: &str = "add_project.add";
-    pub const BACK: &str = "add_project.back";
-}
-
-/// RFC-066 D2: order and entry for Add project. `None` while no dialog is
-/// open, the general "no controls" rule.
-pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
-    let Some(dialog) = state.add_project_dialog.as_ref() else {
-        return LayerFocus {
-            order: Vec::new(),
-            entry: None,
-        };
-    };
-    let close_target = FocusTarget::control(focus_target::CLOSE);
-    let close_msg = Some(Message::Workspace(WorkspaceMessage::AddProjectCancelled));
-
-    match dialog.step {
-        AddProjectStep::ChooseFolder => {
-            let path_field =
-                FocusTarget::text_input(knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone());
-            let has_path = !dialog.path.trim().is_empty();
-            LayerFocus {
-                order: vec![
-                    (close_target, close_msg),
-                    (path_field.clone(), None),
-                    (
-                        FocusTarget::control(focus_target::BROWSE),
-                        Some(Message::Workspace(WorkspaceMessage::BrowsePathRequested)),
-                    ),
-                    (
-                        FocusTarget::control(focus_target::NEXT),
-                        has_path
-                            .then_some(Message::Workspace(WorkspaceMessage::AddProjectNextStep)),
-                    ),
-                    (
-                        FocusTarget::control(focus_target::CANCEL),
-                        Some(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
-                    ),
-                ],
-                entry: Some(path_field),
-            }
-        }
-        AddProjectStep::NameProject => {
-            let name_field =
-                FocusTarget::text_input(knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone());
-            let has_name = !dialog.name.trim().is_empty();
-            LayerFocus {
-                order: vec![
-                    (close_target, close_msg),
-                    (name_field.clone(), None),
-                    (
-                        FocusTarget::control(focus_target::ADD),
-                        has_name
-                            .then_some(Message::Workspace(WorkspaceMessage::AddProjectConfirmed)),
-                    ),
-                    (
-                        FocusTarget::control(focus_target::BACK),
-                        Some(Message::Workspace(WorkspaceMessage::AddProjectBack)),
-                    ),
-                ],
-                entry: Some(name_field),
-            }
-        }
-    }
-}
-
-/// A button styled with one of `knotra_ui::widget::style`'s semantic
-/// functions plus a focus ring (RFC-066 D4) — the same shape every other
-/// overlay's local `styled_button` uses.
-fn styled_button<'a>(
-    tokens: &Tokens,
-    label: &'a str,
-    on_press: Option<Message>,
-    is_focused: bool,
-    style_fn: fn(&Tokens, iced::widget::button::Status) -> iced::widget::button::Style,
-) -> Element<'a, Message> {
-    let t = tokens.clone();
-    button(centered_button_label(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
-    ))
-    .height(BUTTON_HEIGHT)
-    .padding([0, 18])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| style::with_focus_ring(&t, is_focused, style_fn(&t, status)))
-    .into()
+/// RFC-075 stage 3 §3: Add project's own entry per step — the folder
+/// field for step 1, the name field for step 2. `None` while no dialog is
+/// open.
+pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
+    let dialog = state.add_project_dialog.as_ref()?;
+    Some(match dialog.step {
+        AddProjectStep::ChooseFolder => knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
+        AddProjectStep::NameProject => knotra_ui::widget::focus_id::ADD_PROJECT_NAME.clone(),
+    })
 }
 
 /// Task 098 Amendment A2: content now goes through `surface()`, so this
@@ -159,12 +73,11 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 knotra_ui::widget::focus_id::ADD_PROJECT_PATH.clone(),
             );
 
-            let browse_btn = styled_button(
+            let browse_btn = ghost_control(
                 tokens,
                 state.t("plain.add_project.browse"),
-                Some(Message::Workspace(WorkspaceMessage::BrowsePathRequested)),
-                crate::app::ring(state, &FocusTarget::control(focus_target::BROWSE)),
-                style::ghost,
+                Message::Workspace(WorkspaceMessage::BrowsePathRequested),
+                crate::view::ids::add_project::browse(),
             );
 
             let next_reason: Option<&str> = if dialog.path.trim().is_empty() {
@@ -172,24 +85,24 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             } else {
                 None
             };
+            let next = reasoned_control_maybe(
+                tokens,
+                state.t("plain.add_project.next"),
+                (!dialog.path.trim().is_empty())
+                    .then_some(Message::Workspace(WorkspaceMessage::AddProjectNextStep)),
+                next_reason,
+                style::primary,
+                crate::view::ids::add_project::next(),
+            );
 
             let footer = row![
-                reasoned(
-                    tokens,
-                    state.t("plain.add_project.next"),
-                    (!dialog.path.trim().is_empty())
-                        .then_some(Message::Workspace(WorkspaceMessage::AddProjectNextStep)),
-                    next_reason,
-                    crate::app::ring(state, &FocusTarget::control(focus_target::NEXT)),
-                    style::primary,
-                ),
+                next,
                 Space::new().width(Length::Fill),
-                styled_button(
+                ghost_control(
                     tokens,
                     state.t("action.cancel"),
-                    Some(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
-                    crate::app::ring(state, &FocusTarget::control(focus_target::CANCEL)),
-                    style::ghost,
+                    Message::Workspace(WorkspaceMessage::AddProjectCancelled),
+                    crate::view::ids::add_project::cancel(),
                 ),
             ]
             .align_y(Alignment::Center);
@@ -243,24 +156,24 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
             } else {
                 None
             };
+            let add = reasoned_control_maybe(
+                tokens,
+                state.t("plain.add_project.add"),
+                (!dialog.name.trim().is_empty())
+                    .then_some(Message::Workspace(WorkspaceMessage::AddProjectConfirmed)),
+                add_reason,
+                style::primary,
+                crate::view::ids::add_project::add(),
+            );
 
             let footer = row![
-                reasoned(
-                    tokens,
-                    state.t("plain.add_project.add"),
-                    (!dialog.name.trim().is_empty())
-                        .then_some(Message::Workspace(WorkspaceMessage::AddProjectConfirmed)),
-                    add_reason,
-                    crate::app::ring(state, &FocusTarget::control(focus_target::ADD)),
-                    style::primary,
-                ),
+                add,
                 Space::new().width(Length::Fill),
-                styled_button(
+                ghost_control(
                     tokens,
                     state.t("plain.add_project.back"),
-                    Some(Message::Workspace(WorkspaceMessage::AddProjectBack)),
-                    crate::app::ring(state, &FocusTarget::control(focus_target::BACK)),
-                    style::ghost,
+                    Message::Workspace(WorkspaceMessage::AddProjectBack),
+                    crate::view::ids::add_project::back(),
                 ),
             ]
             .align_y(Alignment::Center);
@@ -281,13 +194,16 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
         }
     };
 
-    Some(surface(
-        tokens,
-        OverlayWidth::Standard.resolve(state.window_width),
-        state.t("plain.add_project.title"),
-        Some(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
-        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
-        body,
-        footer,
+    Some(knotra_ui::widget::focus_by_id(
+        surface(
+            tokens,
+            OverlayWidth::Standard.resolve(state.window_width),
+            state.t("plain.add_project.title"),
+            Some(Message::Workspace(WorkspaceMessage::AddProjectCancelled)),
+            crate::view::ids::add_project::close(),
+            body,
+            footer,
+        ),
+        &[],
     ))
 }

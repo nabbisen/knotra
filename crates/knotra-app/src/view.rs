@@ -164,8 +164,20 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     // `HEADER_REGION`/`BODY_REGION` (`.header(...)`'s own ids for snora's
     // F6 zone cycling) — knotra does not bind F6 to anything today.
     let page = column![shell::view(state), body];
-    let page: Element<'_, Message> =
-        knotra_ui::widget::focus_by_id(page, &[ids::shell::refresh(), ids::selection_bar::fetch()]);
+    // RFC-075 stage 3 §1: `ids::detail_panel::fetch()` ("Check for
+    // updates") joins the page's own `reserved` list — its own press
+    // acquires the same `operation_interlock` its `on_press_maybe` gate
+    // reads (`app/misc.rs`'s `ProjectMessage::FetchRequested`), the same
+    // self-disabling shape as `shell::refresh()`/`selection_bar::fetch()`
+    // (Amendment A2 §3).
+    let page: Element<'_, Message> = knotra_ui::widget::focus_by_id(
+        page,
+        &[
+            ids::shell::refresh(),
+            ids::selection_bar::fetch(),
+            ids::detail_panel::fetch(),
+        ],
+    );
 
     // -----------------------------------------------------------------------
     // snora AppLayout: skeleton + standard modal overlays (RFC-0013).

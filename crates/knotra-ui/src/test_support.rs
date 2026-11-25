@@ -160,6 +160,19 @@ impl<Message: 'static> Harness<Message> {
         let _ = self.key(Named::ArrowUp);
     }
 
+    /// Delivers one `RedrawRequested` — the event every real frame sends
+    /// before drawing (`iced_winit`'s own shell loop), and the only event
+    /// `knotra_ui::widget::keyed::FollowsId` acts on to reconcile focus.
+    /// A plain [`rebuilt`](Self::rebuilt)/[`focused_id`](Self::focused_id)
+    /// call never delivers this on its own — it only rebuilds the tree or
+    /// queries what is *already* really focused, neither of which runs a
+    /// `FollowsId` wrapper's own `follow()` step.
+    pub fn redraw(&mut self) {
+        let _ = self.deliver(&[Event::Window(
+            iced_test::core::window::Event::RedrawRequested(std::time::Instant::now()),
+        )]);
+    }
+
     /// Types `text`, one character at a time, as a real keyboard would —
     /// `iced_test::simulator::typewrite`, the same sequence `iced_test`
     /// itself builds for `Simulator::typewrite`.

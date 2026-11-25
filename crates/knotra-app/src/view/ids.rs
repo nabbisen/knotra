@@ -129,3 +129,276 @@ pub mod selection_bar {
         Id::new("dashboard.selection_bar.exit")
     }
 }
+
+/// RFC-075 stage 3 §1: the page's own last two regions.
+pub mod detail_panel {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("detail_panel.close")
+    }
+    pub fn refresh() -> Id {
+        Id::new("detail_panel.refresh")
+    }
+    pub fn fetch() -> Id {
+        Id::new("detail_panel.fetch")
+    }
+    pub fn remove() -> Id {
+        Id::new("detail_panel.remove")
+    }
+}
+
+pub mod activity_strip {
+    use super::Id;
+
+    pub fn undo() -> Id {
+        Id::new("activity_strip.undo")
+    }
+    pub fn dismiss() -> Id {
+        Id::new("activity_strip.dismiss")
+    }
+    /// Shown only in `LatestOpState::Completed`'s own
+    /// `RetryAvailability::Available` arm — not in the handoff's own
+    /// Undo/Dismiss/Details table, which names the strip's two
+    /// mutually-exclusive phases (the undo snackbar; a completed run)
+    /// together without this conditional fourth control. Flagged here
+    /// rather than folded silently under `details()`.
+    pub fn retry() -> Id {
+        Id::new("activity_strip.retry")
+    }
+    pub fn details() -> Id {
+        Id::new("activity_strip.details")
+    }
+}
+
+/// RFC-075 stage 3 §2: every window. `close()` is shared by every window
+/// that draws one through `knotra_ui::widget::overlay::surface` (every
+/// window but the workspace switcher menu, which has none) — one id per
+/// window, not one per window *and* per phase, since a window's own
+/// header close button is the same control throughout its own lifetime.
+pub mod smart_pull {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("smart_pull.close")
+    }
+    pub fn review_retry() -> Id {
+        Id::new("smart_pull.review_retry")
+    }
+    pub fn retry_failed_close() -> Id {
+        Id::new("smart_pull.retry_failed_close")
+    }
+    pub fn check_only(index: usize) -> Id {
+        Id::from(format!("smart_pull.entry.{index}.check_only"))
+    }
+    pub fn get_anyway(index: usize) -> Id {
+        Id::from(format!("smart_pull.entry.{index}.get_anyway"))
+    }
+    pub fn start() -> Id {
+        Id::new("smart_pull.start")
+    }
+    pub fn cancel() -> Id {
+        Id::new("smart_pull.cancel")
+    }
+    pub fn show_details() -> Id {
+        Id::new("smart_pull.show_details")
+    }
+    pub fn done_close() -> Id {
+        Id::new("smart_pull.done_close")
+    }
+}
+
+pub mod freezer {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("freezer.close")
+    }
+    pub fn check_readiness() -> Id {
+        Id::new("freezer.check_readiness")
+    }
+    pub fn save() -> Id {
+        Id::new("freezer.save")
+    }
+    pub fn show_details() -> Id {
+        Id::new("freezer.show_details")
+    }
+    pub fn cancel() -> Id {
+        Id::new("freezer.cancel")
+    }
+    pub fn share() -> Id {
+        Id::new("freezer.share")
+    }
+    pub fn not_now() -> Id {
+        Id::new("freezer.not_now")
+    }
+    pub fn done_close() -> Id {
+        Id::new("freezer.done_close")
+    }
+}
+
+pub mod context_switch {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("context_switch.close")
+    }
+    pub fn confirm() -> Id {
+        Id::new("context_switch.confirm")
+    }
+    pub fn cancel() -> Id {
+        Id::new("context_switch.cancel")
+    }
+    pub fn show_details() -> Id {
+        Id::new("context_switch.show_details")
+    }
+    pub fn done_close() -> Id {
+        Id::new("context_switch.done_close")
+    }
+}
+
+pub mod changelog {
+    use super::{Id, ProjectId};
+
+    pub fn close() -> Id {
+        Id::new("changelog.close")
+    }
+    pub fn project_toggle(id: &ProjectId) -> Id {
+        Id::from(format!("changelog.project.{id}"))
+    }
+    pub fn generate() -> Id {
+        Id::new("changelog.generate")
+    }
+    pub fn copy() -> Id {
+        Id::new("changelog.copy")
+    }
+    pub fn done_close() -> Id {
+        Id::new("changelog.done_close")
+    }
+}
+
+pub mod resolve {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("resolve.close")
+    }
+    pub fn keep_fixing() -> Id {
+        Id::new("resolve.keep_fixing")
+    }
+    pub fn stop() -> Id {
+        Id::new("resolve.stop")
+    }
+    pub fn done_close() -> Id {
+        Id::new("resolve.done_close")
+    }
+    pub fn details_toggle() -> Id {
+        Id::new("resolve.details_toggle")
+    }
+    pub fn open_in_editor(index: usize) -> Id {
+        Id::from(format!("resolve.file.{index}.editor"))
+    }
+    pub fn open_in_compare(index: usize) -> Id {
+        Id::from(format!("resolve.file.{index}.compare"))
+    }
+    pub fn mark_done(index: usize) -> Id {
+        Id::from(format!("resolve.file.{index}.mark_done"))
+    }
+    pub fn stop_this_fix() -> Id {
+        Id::new("resolve.stop_this_fix")
+    }
+}
+
+pub mod palette {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("palette.close")
+    }
+}
+
+pub mod add_project {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("add_project.close")
+    }
+    pub fn browse() -> Id {
+        Id::new("add_project.browse")
+    }
+    pub fn next() -> Id {
+        Id::new("add_project.next")
+    }
+    pub fn cancel() -> Id {
+        Id::new("add_project.cancel")
+    }
+    pub fn add() -> Id {
+        Id::new("add_project.add")
+    }
+    pub fn back() -> Id {
+        Id::new("add_project.back")
+    }
+}
+
+/// Create and Rename share one dialog shape; Delete is its own.
+pub mod workspace_manager {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("workspace_manager.close")
+    }
+    pub fn confirm() -> Id {
+        Id::new("workspace_manager.confirm")
+    }
+    pub fn cancel() -> Id {
+        Id::new("workspace_manager.cancel")
+    }
+    pub fn confirm_delete() -> Id {
+        Id::new("workspace_manager.confirm_delete")
+    }
+    pub fn delete_cancel() -> Id {
+        Id::new("workspace_manager.delete_cancel")
+    }
+}
+
+/// The workspace switcher menu — its own dropdown, not `workspace_manager`
+/// (`view/shell.rs`, per the stage-0 inventory's own §7e).
+pub mod switcher {
+    use super::Id;
+    use knotra_vcs::model::workspace::WorkspaceId;
+
+    pub fn row(id: &WorkspaceId) -> Id {
+        Id::from(format!("switcher.row.{id}"))
+    }
+    pub fn add_workspace() -> Id {
+        Id::new("switcher.add_workspace")
+    }
+    pub fn rename() -> Id {
+        Id::new("switcher.rename")
+    }
+    pub fn delete() -> Id {
+        Id::new("switcher.delete")
+    }
+}
+
+pub mod remove_project {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("remove_project.close")
+    }
+    pub fn keep() -> Id {
+        Id::new("remove_project.keep")
+    }
+    pub fn remove() -> Id {
+        Id::new("remove_project.remove")
+    }
+}
+
+pub mod shortcuts {
+    use super::Id;
+
+    pub fn close() -> Id {
+        Id::new("shortcuts.close")
+    }
+}

@@ -93,9 +93,10 @@ const BODY_MAX_HEIGHT: f32 = 420.0;
 /// requires at least one keyboard route to close except where a
 /// non-cancellable operation deliberately owns the surface.
 ///
-/// `is_close_focused` draws the RFC-036 focus ring on the close button when
-/// true (RFC-036 Stage 5 R8) — ignored when `on_close` is `None`, since
-/// there is no close button to ring.
+/// `close_id` is the close button's own real `iced::widget::Id` (RFC-075
+/// stage 3) — a real `snora::design::control`, drawing its own ring from
+/// real keyboard focus directly; ignored when `on_close` is `None`, since
+/// there is no close button to give it to.
 ///
 /// `width` (RFC-053 D2/D3) is a [`ResolvedWidth`] — a window width already
 /// resolved against a chosen `OverlayWidth` variant via
@@ -128,11 +129,11 @@ pub fn surface<'a, Message: Clone + 'a>(
     width: ResolvedWidth,
     title: impl Into<String>,
     on_close: Option<Message>,
-    is_close_focused: bool,
+    close_id: iced::widget::Id,
     body: impl Into<Element<'a, Message>>,
     footer: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    use iced::widget::{Space, button, column, container, row, scrollable, text};
+    use iced::widget::{Space, column, container, row, scrollable, text};
 
     // RFC-071 D1: every dialog's title is `strong` — it is the one line
     // that names what the whole window is, so it outranks the window's own
@@ -148,21 +149,19 @@ pub fn surface<'a, Message: Clone + 'a>(
         let t = tokens.clone();
         // RFC-073 D8: `BUTTON_HEIGHT`, matching `icon_button_maybe`'s own
         // icon-only sizing — every dialog's close control routes through
-        // here, so fixing it once fixes every dialog.
+        // here, so fixing it once fixes every dialog. RFC-075 stage 3: a
+        // real `snora::design::control`, with its own id — every window's
+        // own "Close" is the same control, drawn here once.
         header = header.push(
-            button(centered_button_row(row![
-                icon::icon_element(&icon::close())
-            ]))
+            snora::design::control(
+                tokens,
+                centered_button_row(row![icon::icon_element(&icon::close())]),
+            )
             .height(Length::Fixed(BUTTON_HEIGHT))
             .width(Length::Fixed(BUTTON_HEIGHT))
+            .id(close_id)
             .on_press(close_msg)
-            .style(move |_theme, status| {
-                super::buttons::style::with_focus_ring(
-                    &t,
-                    is_close_focused,
-                    super::buttons::style::ghost(&t, status),
-                )
-            }),
+            .style(move |_theme, status| super::buttons::style::ghost(&t, status)),
         );
     }
 

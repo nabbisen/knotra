@@ -3,11 +3,16 @@
 //! iced 0.14 has no accessibility tree (confirmed: neither `iced` nor
 //! `iced_winit` name `accesskit`/`a11y` anywhere, not even behind an
 //! unselected optional feature), so the owner's GUI rules' AT-SPI path is
-//! closed for this application specifically. And knotra moves keyboard
-//! focus with its own model — `overlay_focus`, inside each layer's own
-//! focus order (RFC-066) — never through a snora/iced widget-tree focus
-//! at all. So the snora 0.53 → 0.57 upgrade can change only one thing
-//! about Tab: whether the key **reaches** knotra's own
+//! closed for this application specifically. At the time this file was
+//! written, knotra moved keyboard focus with its own model —
+//! `overlay_focus`, inside each layer's own focus order (RFC-066) — never
+//! through a snora/iced widget-tree focus at all; RFC-075 retired that
+//! model (every window's own controls are real snora focus targets now),
+//! but Tab/Shift-Tab's own *routing* is unchanged either way — still
+//! `app.rs`'s own subscription-driven `keyboard::listen()`, which this
+//! file's own tests exist to confirm snora's overlay machinery does not
+//! intercept first. So the snora 0.53 → 0.57 upgrade can change only one
+//! thing about Tab: whether the key **reaches** knotra's own
 //! `app.rs::subscription`-driven `keyboard::listen()` while a dialog or
 //! sheet is open, or whether snora's own overlay machinery now swallows
 //! it the way it already swallows Escape (`escape_verification.rs`'s own

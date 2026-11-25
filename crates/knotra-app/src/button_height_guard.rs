@@ -107,14 +107,16 @@ mod tests {
     /// `is_button_callee` to cover `control(...)` too (RFC-075 handoff
     /// stage 1 §2), rather than a second, near-identical function.
     fn is_callee(callee: &str, name: &str) -> bool {
-        // `FocusTarget::control(...)` (`view/focus.rs` — knotra's own,
-        // pre-RFC-075 model the windows still use, stage 5's own
-        // territory) is a path-qualified call ending in "control" too,
-        // the same shape `snora::design::control(...)` has — found only
-        // once `view/` itself was scanned (Amendment A1 §4), since
-        // `FocusTarget` has no reason to appear under `knotra-ui/src/
-        // widget/`. Excluded by name: it builds an enum variant, never a
-        // pressable widget, so a missing height here would mean nothing.
+        // `FocusTarget::control(...)` was `state/focus.rs`'s own enum
+        // constructor, a path-qualified call ending in "control" too, the
+        // same shape `snora::design::control(...)` has — excluded by name
+        // since it built an enum variant, never a pressable widget, so a
+        // missing height there would have meant nothing. `state/focus.rs`
+        // is gone (RFC-075 stage 3 §5: nothing in production called any
+        // of it once every window's own controls became real snora focus
+        // targets), so this arm is now a no-op — kept rather than
+        // removed, since a future `FocusTarget`-named type would still
+        // want the same exclusion for the same reason.
         if callee.ends_with("FocusTarget::control") {
             return false;
         }

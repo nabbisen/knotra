@@ -20,78 +20,58 @@ use iced::{
     Alignment, Element, Length,
     widget::{Space, column, container, row, text, tooltip},
 };
-use knotra_ui::widget::{
-    self, BUTTON_HEIGHT, Tokens, centered_button_label, centered_button_row, icon,
-};
+use knotra_ui::widget::{self, BUTTON_HEIGHT, Tokens, centered_button_row, icon};
 
 use crate::{
     message::{Message, WorkspaceMessage},
-    state::{
-        AppState, Screen,
-        focus::{FocusOrder, FocusTarget, LayerFocus},
-    },
+    state::{AppState, Screen},
     view::ids,
 };
 
-/// Stable keys for the switcher **menu's** `FocusTarget`s (RFC-036) — the
-/// one part of this module still on knotra's own model this stage (see the
-/// module doc). The bar's own controls now take their ids from
-/// `view::ids::shell` instead.
-mod focus_target {
-    pub const ADD_WORKSPACE: &str = "shell.switcher.add_workspace";
-    pub const RENAME: &str = "shell.switcher.rename";
-    pub const DELETE: &str = "shell.switcher.delete";
-}
-
-/// RFC-066 D2: order and entry for the workspace switcher menu —
-/// `[workspace rows…, "Add workspace", "Rename", "Delete"]`, entry the
-/// first workspace row.
-pub fn switcher_menu_layer_focus(state: &AppState) -> LayerFocus<Message> {
+/// RFC-075 stage 3 §4: the workspace menu's own entry — the first
+/// workspace row that is not the active one (`WorkspaceSwitched` starts a
+/// change there, so the active row disables itself and is never the
+/// entry); "Add workspace" if every workspace is somehow the active one
+/// (a single-workspace menu).
+pub fn switcher_menu_entry_id(state: &AppState) -> Option<iced::widget::Id> {
+    if !state.workspace_mgr.switcher_open {
+        return None;
+    }
     let active_id = state
         .all_workspaces
         .get(state.active_workspace_idx)
         .map(|ws| ws.id.clone());
+    Some(
+        state
+            .all_workspaces
+            .iter()
+            .find(|ws| Some(&ws.id) != active_id.as_ref())
+            .map(|ws| ids::switcher::row(&ws.id))
+            .unwrap_or_else(ids::switcher::add_workspace),
+    )
+}
 
-    let mut order: FocusOrder<Message> = Vec::new();
-    let mut first_workspace = None;
-    for ws in &state.all_workspaces {
-        let is_active = Some(&ws.id) == active_id.as_ref();
-        let target = FocusTarget::control_dynamic(format!("shell.switcher.workspace.{}", ws.id));
-        if first_workspace.is_none() {
-            first_workspace = Some(target.clone());
-        }
-        order.push((
-            target,
-            (!is_active).then_some(Message::Workspace(WorkspaceMessage::WorkspaceSwitched(
-                ws.id.clone(),
-            ))),
-        ));
+/// RFC-075 stage 3 §4: every enabled row's own id, in reading order — the
+/// list ↓/↑ moves real focus among (`knotra_ui::widget::keyboard::
+/// focus_among`), skipping the active workspace row (disabled) and
+/// "Delete" when it is the workspace's only one.
+pub fn switcher_menu_ids(state: &AppState) -> Vec<iced::widget::Id> {
+    let active_id = state
+        .all_workspaces
+        .get(state.active_workspace_idx)
+        .map(|ws| ws.id.clone());
+    let mut ids: Vec<iced::widget::Id> = state
+        .all_workspaces
+        .iter()
+        .filter(|ws| Some(&ws.id) != active_id.as_ref())
+        .map(|ws| ids::switcher::row(&ws.id))
+        .collect();
+    ids.push(ids::switcher::add_workspace());
+    ids.push(ids::switcher::rename());
+    if state.all_workspaces.len() > 1 {
+        ids.push(ids::switcher::delete());
     }
-
-    let can_delete = state.all_workspaces.len() > 1;
-    order.push((
-        FocusTarget::control(focus_target::ADD_WORKSPACE),
-        Some(Message::Workspace(
-            WorkspaceMessage::CreateWorkspaceDialogOpened,
-        )),
-    ));
-    order.push((
-        FocusTarget::control(focus_target::RENAME),
-        Some(Message::Workspace(
-            WorkspaceMessage::RenameWorkspaceDialogOpened,
-        )),
-    ));
-    order.push((
-        FocusTarget::control(focus_target::DELETE),
-        can_delete.then_some(Message::Workspace(
-            WorkspaceMessage::DeleteWorkspaceRequested,
-        )),
-    ));
-
-    LayerFocus {
-        entry: first_workspace.or_else(|| order.first().map(|(t, _)| t.clone())),
-        order,
-    }
+    ids
 }
 
 /// Height of the persistent shell bar (RFC-033 D7: 48-52px). Also used to
@@ -346,10 +326,11 @@ fn header_icon_control<'a>(
 /// all in that case (an empty `Some` would still opt into the click-outside
 /// backdrop per `AppLayout` semantics).
 ///
-/// **Unchanged by RFC-075 stage 2** (the handoff's own carve-out: "the
-/// switcher's menu stays knotra's until stage 3") — still a plain `button`,
-/// still drawing its own ring from `crate::app::ring`/knotra's `FocusTarget`
-/// model.
+/// RFC-075 stage 3 §4: "a list on its own" — every row here is now a real
+/// snora control and Tab stop (unlike the command palette's/Change work
+/// area's own highlight-only lists); ↓/↑ move real focus between them
+/// (`switcher_menu_ids`, driven from `app.rs`), wrapping, skipping
+/// disabled rows.
 pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
     if !state.workspace_mgr.switcher_open {
         return None;
@@ -364,69 +345,39 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
     let mut items = column![].spacing(2);
     for ws in &state.all_workspaces {
         let is_active = Some(&ws.id) == active_id.as_ref();
-        let t = tokens.clone();
-        let is_focused = crate::app::ring(
-            state,
-            &FocusTarget::control_dynamic(format!("shell.switcher.workspace.{}", ws.id)),
-        );
         // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a menu row.
-        items = items.push(
-            iced::widget::button(centered_button_label(
-                text(ws.name.clone())
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens)),
-            ))
-            .width(Length::Fill)
-            .height(widget::SMALL_BUTTON_HEIGHT)
-            .padding([0, 12])
-            .on_press_maybe((!is_active).then_some(Message::Workspace(
-                WorkspaceMessage::WorkspaceSwitched(ws.id.clone()),
-            )))
-            .style(move |_theme, status| {
-                widget::style::with_focus_ring(&t, is_focused, widget::style::ghost(&t, status))
-            }),
-        );
+        items = items.push(widget::ghost_control_maybe(
+            tokens,
+            ws.name.clone(),
+            (!is_active).then_some(Message::Workspace(WorkspaceMessage::WorkspaceSwitched(
+                ws.id.clone(),
+            ))),
+            ids::switcher::row(&ws.id),
+        ));
     }
 
     let can_delete = state.all_workspaces.len() > 1;
-    let menu_action = |label: &str, msg: Message, tokens: &Tokens, is_focused: bool| {
-        let t = tokens.clone();
-        // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a menu row.
-        iced::widget::button(centered_button_label(
-            text(label.to_owned())
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-        ))
-        .width(Length::Fill)
-        .height(widget::SMALL_BUTTON_HEIGHT)
-        .padding([0, 12])
-        .on_press(msg)
-        .style(move |_theme, status| {
-            widget::style::with_focus_ring(&t, is_focused, widget::style::ghost(&t, status))
-        })
-    };
-
     let content = column![
         items,
-        menu_action(
+        widget::ghost_control(
+            tokens,
             state.t("plain.add_workspace"),
             Message::Workspace(WorkspaceMessage::CreateWorkspaceDialogOpened),
-            tokens,
-            crate::app::ring(state, &FocusTarget::control(focus_target::ADD_WORKSPACE)),
+            ids::switcher::add_workspace(),
         ),
-        menu_action(
+        widget::ghost_control(
+            tokens,
             state.t("workspace.rename.short"),
             Message::Workspace(WorkspaceMessage::RenameWorkspaceDialogOpened),
-            tokens,
-            crate::app::ring(state, &FocusTarget::control(focus_target::RENAME)),
+            ids::switcher::rename(),
         ),
-        danger_menu_action(
+        widget::danger_control_maybe(
+            tokens,
             state.t("workspace.delete.short"),
             can_delete.then_some(Message::Workspace(
                 WorkspaceMessage::DeleteWorkspaceRequested
             )),
-            tokens,
-            crate::app::ring(state, &FocusTarget::control(focus_target::DELETE)),
+            ids::switcher::delete(),
         ),
     ]
     .spacing(2)
@@ -434,36 +385,12 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
 
     let surface = widget::overlay::raised_card(tokens, content);
 
-    Some(
-        container(surface)
-            .padding(iced::Padding {
-                top: SHELL_HEIGHT + 4.0,
-                left: 8.0,
-                ..iced::Padding::ZERO
-            })
-            .into(),
-    )
-}
-
-fn danger_menu_action<'a>(
-    label: &'a str,
-    on_press: Option<Message>,
-    tokens: &Tokens,
-    is_focused: bool,
-) -> Element<'a, Message> {
-    let t = tokens.clone();
-    // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a menu row.
-    iced::widget::button(centered_button_label(
-        text(label)
-            .size(snora::design::style::text::body_size(tokens))
-            .line_height(snora::design::style::text::body_line_height(tokens)),
+    Some(knotra_ui::widget::focus_by_id(
+        container(surface).padding(iced::Padding {
+            top: SHELL_HEIGHT + 4.0,
+            left: 8.0,
+            ..iced::Padding::ZERO
+        }),
+        &[],
     ))
-    .width(Length::Fill)
-    .height(widget::SMALL_BUTTON_HEIGHT)
-    .padding([0, 12])
-    .on_press_maybe(on_press)
-    .style(move |_theme, status| {
-        widget::style::with_focus_ring(&t, is_focused, widget::style::danger(&t, status))
-    })
-    .into()
 }

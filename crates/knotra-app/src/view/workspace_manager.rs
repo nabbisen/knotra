@@ -8,134 +8,42 @@
 
 use iced::{
     Alignment, Element, Length,
-    widget::{Space, button, column, row, text},
+    widget::{Space, column, row, text},
 };
 
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, centered_button_label, guided_field_focused,
+    danger_control_maybe, guided_field_focused,
     overlay::{OverlayWidth, surface},
-    style,
+    primary_control_maybe, secondary_control,
 };
 
 use crate::{
     message::{Message, WorkspaceMessage},
-    state::{
-        AppState,
-        focus::{FocusTarget, LayerFocus},
-        workspace_mgr,
-    },
+    state::{AppState, workspace_mgr},
 };
-
-/// Stable keys for the non-text-input `FocusTarget`s these dialogs share
-/// (RFC-036 Stage 3), kept alongside [`focus_order`] so the order and the
-/// dialog it describes cannot drift apart.
-mod focus_target {
-    pub const CONFIRM: &str = "workspace_mgr.dialog.confirm";
-    pub const CANCEL: &str = "workspace_mgr.dialog.cancel";
-    pub const CLOSE: &str = "workspace_mgr.dialog.close";
-}
 
 /// Whether the Confirm button's disabled-reason text should render.
 /// Reproduces `guided_button`'s own rule verbatim: the reason shows only
-/// while the button is genuinely disabled. Neither dialog builder calls
-/// `guided_button` any more (RFC-036 Stage 5), so this behaviour has to be
-/// preserved explicitly rather than inherited — `pub(crate)` so it can be
+/// while the button is genuinely disabled. `pub(crate)` so it can be
 /// tested directly rather than by inspecting rendered output, which this
 /// codebase's test suite has no existing way to do.
 pub(crate) fn confirm_shows_reason(has_on_press: bool, reason: Option<&str>) -> bool {
     !has_on_press && reason.is_some()
 }
 
-/// The focus order and entry for whichever workspace-manager dialog is
-/// open, or an empty order with no entry if none is (RFC-066 D2/R2).
-/// `order` is reading order: header close first, then the body/footer left
-/// to right — matching `workspace_name_dialog`'s/`delete_dialog`'s own
-/// `row![confirm, Space, cancel_btn]` footer layout, Confirm before Cancel.
-/// `entry` is unchanged from RFC-036: the name field for create/rename;
-/// `Cancel` — the safe action — for delete, which has no field.
-pub fn layer_focus(state: &AppState) -> LayerFocus<Message> {
-    if let Some(dialog) = &state.workspace_mgr.create_dialog {
-        return name_dialog_layer_focus(
-            dialog.name.trim().is_empty(),
-            WorkspaceMessage::CreateWorkspaceConfirmed,
-            WorkspaceMessage::CreateWorkspaceCancelled,
-        );
+/// RFC-075 stage 3 §3: the entry for whichever workspace-manager dialog
+/// is open, or `None` if none is. The name field for create/rename; the
+/// safe action, `Cancel`, for delete, which has no field (R6: a
+/// destructive dialog should not default focus onto its destructive
+/// action).
+pub fn entry_id(state: &AppState) -> Option<iced::widget::Id> {
+    if state.workspace_mgr.create_dialog.is_some() || state.workspace_mgr.rename_dialog.is_some() {
+        return Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone());
     }
-    if let Some(dialog) = &state.workspace_mgr.rename_dialog {
-        return name_dialog_layer_focus(
-            dialog.new_name.trim().is_empty(),
-            WorkspaceMessage::RenameWorkspaceConfirmed,
-            WorkspaceMessage::RenameWorkspaceCancelled,
-        );
+    if state.workspace_mgr.confirm_delete.is_some() {
+        return Some(crate::view::ids::workspace_manager::delete_cancel());
     }
-    if let Some(dialog) = &state.workspace_mgr.confirm_delete {
-        let can_delete = state.all_workspaces.len() > 1 && dialog.error.is_none();
-        return delete_dialog_layer_focus(can_delete);
-    }
-    LayerFocus {
-        order: Vec::new(),
-        entry: None,
-    }
-}
-
-/// Shared shape for the create and rename dialogs: header close, field,
-/// Confirm (gated on a non-empty name, exactly like the view's own
-/// `guided_button` call), Cancel. Close and Cancel dispatch the same
-/// `cancel` message the view wires to both controls.
-fn name_dialog_layer_focus(
-    name_is_empty: bool,
-    confirm: WorkspaceMessage,
-    cancel: WorkspaceMessage,
-) -> LayerFocus<Message> {
-    let field = FocusTarget::text_input(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone());
-    LayerFocus {
-        order: vec![
-            (
-                FocusTarget::control(focus_target::CLOSE),
-                Some(Message::Workspace(cancel.clone())),
-            ),
-            (field.clone(), None),
-            (
-                FocusTarget::control(focus_target::CONFIRM),
-                (!name_is_empty).then_some(Message::Workspace(confirm)),
-            ),
-            (
-                FocusTarget::control(focus_target::CANCEL),
-                Some(Message::Workspace(cancel)),
-            ),
-        ],
-        entry: Some(field),
-    }
-}
-
-/// Delete has no text field, so Cancel — not Confirm — is the entry point
-/// (R6): a destructive dialog should not default focus onto its destructive
-/// action.
-fn delete_dialog_layer_focus(can_delete: bool) -> LayerFocus<Message> {
-    let cancel_target = FocusTarget::control(focus_target::CANCEL);
-    LayerFocus {
-        order: vec![
-            (
-                FocusTarget::control(focus_target::CLOSE),
-                Some(Message::Workspace(
-                    WorkspaceMessage::DeleteWorkspaceCancelled,
-                )),
-            ),
-            (
-                FocusTarget::control(focus_target::CONFIRM),
-                can_delete.then_some(Message::Workspace(
-                    WorkspaceMessage::DeleteWorkspaceConfirmed,
-                )),
-            ),
-            (
-                cancel_target.clone(),
-                Some(Message::Workspace(
-                    WorkspaceMessage::DeleteWorkspaceCancelled,
-                )),
-            ),
-        ],
-        entry: Some(cancel_target),
-    }
+    None
 }
 
 pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
@@ -209,21 +117,12 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
 
     let tokens = &state.theme.tokens;
     let confirm_on_press = (!value.trim().is_empty()).then_some(Message::Workspace(confirm));
-    let confirm_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CONFIRM));
-    let confirm_btn = {
-        let t = tokens.clone();
-        button(centered_button_label(
-            text(confirm_label)
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-        ))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 18])
-        .on_press_maybe(confirm_on_press.clone())
-        .style(move |_theme, status| {
-            style::with_focus_ring(&t, confirm_focused, style::primary(&t, status))
-        })
-    };
+    let confirm_btn = primary_control_maybe(
+        tokens,
+        confirm_label,
+        confirm_on_press.clone(),
+        crate::view::ids::workspace_manager::confirm(),
+    );
     let confirm: Element<'_, Message> = if confirm_shows_reason(confirm_on_press.is_some(), reason)
     {
         column![
@@ -236,36 +135,30 @@ fn workspace_name_dialog<'a>(state: &'a AppState, dialog: NameDialog<'a>) -> Ele
         .spacing(6)
         .into()
     } else {
-        confirm_btn.into()
+        confirm_btn
     };
 
-    let cancel_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CANCEL));
-    let cancel_btn = {
-        let t = tokens.clone();
-        button(centered_button_label(
-            text(state.t("action.cancel"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-        ))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 18])
-        .on_press(Message::Workspace(cancel.clone()))
-        .style(move |_theme, status| {
-            style::with_focus_ring(&t, cancel_focused, style::secondary(&t, status))
-        })
-    };
+    let cancel_btn = secondary_control(
+        tokens,
+        state.t("action.cancel"),
+        Message::Workspace(cancel.clone()),
+        crate::view::ids::workspace_manager::cancel(),
+    );
 
     let footer =
         row![confirm, Space::new().width(Length::Fill), cancel_btn].align_y(Alignment::Center);
 
-    surface(
-        tokens,
-        OverlayWidth::Standard.resolve(state.window_width),
-        title,
-        Some(Message::Workspace(cancel)),
-        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
-        field,
-        footer,
+    knotra_ui::widget::focus_by_id(
+        surface(
+            tokens,
+            OverlayWidth::Standard.resolve(state.window_width),
+            title,
+            Some(Message::Workspace(cancel)),
+            crate::view::ids::workspace_manager::close(),
+            field,
+            footer,
+        ),
+        &[],
     )
 }
 
@@ -296,21 +189,12 @@ fn delete_dialog<'a>(
     let confirm_on_press = can_delete.then_some(Message::Workspace(
         WorkspaceMessage::DeleteWorkspaceConfirmed,
     ));
-    let confirm_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CONFIRM));
-    let confirm_btn = {
-        let t = tokens.clone();
-        button(centered_button_label(
-            text(state.t("workspace.delete.confirm"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-        ))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 18])
-        .on_press_maybe(confirm_on_press.clone())
-        .style(move |_theme, status| {
-            style::with_focus_ring(&t, confirm_focused, style::danger(&t, status))
-        })
-    };
+    let confirm_btn = danger_control_maybe(
+        tokens,
+        state.t("workspace.delete.confirm"),
+        confirm_on_press.clone(),
+        crate::view::ids::workspace_manager::confirm_delete(),
+    );
     let confirm: Element<'_, Message> = if confirm_shows_reason(confirm_on_press.is_some(), reason)
     {
         column![
@@ -323,26 +207,15 @@ fn delete_dialog<'a>(
         .spacing(6)
         .into()
     } else {
-        confirm_btn.into()
+        confirm_btn
     };
 
-    let cancel_focused = crate::app::ring(state, &FocusTarget::control(focus_target::CANCEL));
-    let cancel_btn = {
-        let t = tokens.clone();
-        button(centered_button_label(
-            text(state.t("action.cancel"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-        ))
-        .height(BUTTON_HEIGHT)
-        .padding([0, 18])
-        .on_press(Message::Workspace(
-            WorkspaceMessage::DeleteWorkspaceCancelled,
-        ))
-        .style(move |_theme, status| {
-            style::with_focus_ring(&t, cancel_focused, style::secondary(&t, status))
-        })
-    };
+    let cancel_btn = secondary_control(
+        tokens,
+        state.t("action.cancel"),
+        Message::Workspace(WorkspaceMessage::DeleteWorkspaceCancelled),
+        crate::view::ids::workspace_manager::delete_cancel(),
+    );
 
     let footer =
         row![confirm, Space::new().width(Length::Fill), cancel_btn].align_y(Alignment::Center);
@@ -359,15 +232,18 @@ fn delete_dialog<'a>(
     ]
     .spacing(8);
 
-    surface(
-        tokens,
-        OverlayWidth::Standard.resolve(state.window_width),
-        state.t("workspace.delete.title"),
-        Some(Message::Workspace(
-            WorkspaceMessage::DeleteWorkspaceCancelled,
-        )),
-        crate::app::ring(state, &FocusTarget::control(focus_target::CLOSE)),
-        body,
-        footer,
+    knotra_ui::widget::focus_by_id(
+        surface(
+            tokens,
+            OverlayWidth::Standard.resolve(state.window_width),
+            state.t("workspace.delete.title"),
+            Some(Message::Workspace(
+                WorkspaceMessage::DeleteWorkspaceCancelled,
+            )),
+            crate::view::ids::workspace_manager::close(),
+            body,
+            footer,
+        ),
+        &[],
     )
 }

@@ -28,15 +28,15 @@ mod freezer;
 mod smart_pull;
 
 pub use changelog::changelog_modal;
-pub(crate) use changelog::layer_focus as changelog_layer_focus;
+pub(crate) use changelog::entry_id as changelog_entry_id;
 pub(crate) use conflict::close_message as conflict_close_message;
-pub(crate) use conflict::layer_focus as conflict_layer_focus;
+pub(crate) use conflict::entry_id as conflict_entry_id;
 pub use conflict::resolve_panel;
-pub(crate) use context_switch::layer_focus as context_switch_layer_focus;
+pub(crate) use context_switch::entry_id as context_switch_entry_id;
 pub use context_switch::switch_modal;
-pub(crate) use freezer::layer_focus as freezer_layer_focus;
+pub(crate) use freezer::entry_id as freezer_entry_id;
 pub use freezer::tag_modal;
-pub(crate) use smart_pull::layer_focus as smart_pull_layer_focus;
+pub(crate) use smart_pull::entry_id as smart_pull_entry_id;
 pub use smart_pull::pull_modal;
 
 // `tests.rs` calls these two `pub(crate)` changelog helpers via the old

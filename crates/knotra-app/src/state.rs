@@ -5,7 +5,6 @@ pub mod conflict_ops;
 pub mod context;
 pub mod dashboard;
 pub mod detail_panel;
-pub mod focus;
 pub mod freezer;
 pub mod layer;
 pub mod palette;
@@ -408,6 +407,11 @@ pub struct PaletteState {
     pub results: Vec<PaletteEntry>,
     /// Last disabled/no-op reason shown in the palette.
     pub notice_key: Option<&'static str>,
+    /// RFC-075 stage 3 §4: which result ↓/↑ has highlighted, if any. Real
+    /// focus never leaves the search field — this is a second cursor,
+    /// drawn with snora's own ring tokens so it looks like focus without
+    /// being a Tab stop.
+    pub highlighted: Option<usize>,
 }
 
 impl PaletteState {
@@ -415,10 +419,12 @@ impl PaletteState {
         self.open = true;
         self.query.clear();
         self.notice_key = None;
+        self.highlighted = None;
     }
     pub fn close(&mut self) {
         self.open = false;
         self.notice_key = None;
+        self.highlighted = None;
     }
 }
 
@@ -565,16 +571,18 @@ pub struct AppState {
     /// A recently removed project eligible for undo (cleared by next action or timeout).
     pub recent_removal: Option<UndoableRemoval>,
     // ------------------------------------------------------------------
-    // RFC-036 keyboard focus traversal (windows only, RFC-075: the page
-    // itself has no knotra-focus value left — see `app/focus_ops.rs`)
+    // RFC-036 keyboard focus traversal — retired RFC-075 stage 3: every
+    // window's own controls are real snora focus targets now, with no
+    // knotra-focus value left anywhere to track (`app/focus_ops.rs`).
     // ------------------------------------------------------------------
-    /// Current knotra-focus target while an overlay is open.
-    pub overlay_focus: Option<focus::FocusTarget>,
-    /// RFC-066 D4: whether the focus outline should be drawn right now, for
-    /// a window still on knotra's own model. `true` from Tab/Shift-Tab/an
-    /// arrow key/`j`/`k`; `false` from a mouse button press — the
-    /// browser's `:focus-visible` behaviour. Focus itself (`overlay_focus`)
-    /// is never cleared by either; only whether its ring is drawn changes.
+    /// RFC-066 D4: `true` from Tab/Shift-Tab/an arrow key/`j`/`k`; `false`
+    /// from a mouse button press — the browser's `:focus-visible`
+    /// behaviour. Set and cleared in `app.rs`'s `handle_shortcut`; nothing
+    /// reads it any more since every control draws its own ring from real
+    /// focus (RFC-075), but it is kept rather than torn out mid-stage —
+    /// not named in the handoff's own retirement list, and removing it
+    /// would also mean deciding what to do with the test that exercises
+    /// it (`tests.rs::focus_visible_is_set_by_tab_and_cleared_by_a_mouse_press`).
     pub focus_visible: bool,
     // ------------------------------------------------------------------
     // RFC-035 R8 responsive mode
@@ -651,7 +659,6 @@ impl AppState {
             arrange_select_open: None,
             settings_advanced_open: false,
             recent_removal: None,
-            overlay_focus: None,
             focus_visible: false,
             width_mode: WidthMode::from_width(INITIAL_WINDOW_SIZE.width),
             window_width: INITIAL_WINDOW_SIZE.width,

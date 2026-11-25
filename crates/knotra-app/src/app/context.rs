@@ -51,6 +51,7 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
         ContextMessage::OpenRequested(preselect_id) => {
             state.active_modal = crate::state::ActiveModal::Switch;
             state.context_ops.phase = ContextPhase::Idle;
+            state.context_ops.highlighted = None;
 
             // If a project was pre-selected (e.g. from a dashboard card shortcut), load it.
             if let Some(id) = preselect_id
@@ -69,6 +70,7 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
             if let ContextPhase::BrowsingList { search, .. } = &mut state.context_ops.phase {
                 *search = s;
             }
+            state.context_ops.highlighted = None;
             Task::none()
         }
 
@@ -176,6 +178,7 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
                 ContextPhase::ConfirmSwitch { project_id, .. } => Some(project_id.clone()),
                 _ => None,
             };
+            state.context_ops.highlighted = None;
             if let Some(id) = prev_id
                 && let Some(cached) = state.context_ops.cached_lists.get(&id).cloned()
             {
@@ -200,6 +203,7 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
             };
             state.active_modal = crate::state::ActiveModal::Switch;
             state.context_ops.phase = ContextPhase::LoadingList(project_id);
+            state.context_ops.highlighted = None;
             Task::perform(
                 async move { VcsAdapter::list_contexts(&project).await },
                 |list| Message::Background(BackgroundMessage::ContextListLoaded(list)),
@@ -210,6 +214,10 @@ pub(super) fn handle_context(state: &mut AppState, msg: ContextMessage) -> Task<
                 return Task::none();
             }
             state.active_modal = crate::state::ActiveModal::None;
+            Task::none()
+        }
+        ContextMessage::HighlightMoved(forward) => {
+            state.context_ops.move_highlight(forward);
             Task::none()
         }
     }

@@ -867,7 +867,9 @@ fn en_strings() -> HashMap<Key, &'static str> {
     m.insert("shortcut.column_where", "Where");
     m.insert("shortcut.column_action", "Action");
     m.insert("shortcut.where_everywhere", "Everywhere");
-    m.insert("shortcut.where_window", "In a window");
+    // RFC-075 stage 3 §6: replaces `shortcut.where_window`, unused once the
+    // arrow row below moves to it.
+    m.insert("shortcut.where_list", "In a list");
     m.insert("shortcut.ctx_dashboard", "Dashboard");
     m.insert("shortcut.where_main_screens", "Main screens");
     m.insert(
@@ -875,6 +877,12 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "Move to the next or previous control",
     );
     m.insert("shortcut.action_press", "Press the highlighted control");
+    // RFC-075 stage 3 §6: the arrow row's own new action text, owner-
+    // approved (Review 301 §4).
+    m.insert(
+        "shortcut.action_move_in_list",
+        "Move to the next or previous item",
+    );
     m.insert(
         "shortcut.action_close_or_clear",
         "Close the open window, or clear the selection",
@@ -1651,11 +1659,15 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("shortcut.column_where", "場所");
     m.insert("shortcut.column_action", "アクション");
     m.insert("shortcut.where_everywhere", "どこでも");
-    m.insert("shortcut.where_window", "画面内");
+    // RFC-075 stage 3 §6: replaces `shortcut.where_window`, unused once
+    // the arrow row below moves to it.
+    m.insert("shortcut.where_list", "一覧の中");
     m.insert("shortcut.ctx_dashboard", "ダッシュボード");
     m.insert("shortcut.where_main_screens", "メイン画面");
     m.insert("shortcut.action_focus_move", "次または前の項目へ移動");
     m.insert("shortcut.action_press", "強調表示中の項目を押す");
+    // RFC-075 stage 3 §6: owner-approved (Review 301 §4).
+    m.insert("shortcut.action_move_in_list", "次または前の項目へ移動");
     m.insert(
         "shortcut.action_close_or_clear",
         "開いている画面を閉じる、または選択を解除",
