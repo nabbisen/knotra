@@ -110,7 +110,7 @@ const ACTIONS: &[PaletteAction] = &[
             state
                 .all_workspaces
                 .get(next_idx)
-                .map(|ws| Message::Workspace(WorkspaceMessage::WorkspaceSwitched(ws.id.clone())))
+                .map(|ws| Message::Workspace(WorkspaceMessage::WorkspaceSwitched(ws.id)))
         },
     },
     PaletteAction {
@@ -217,9 +217,8 @@ pub fn update_results(state: &mut AppState) {
     for ws in &state.all_workspaces {
         let label = format!("{}: {}", state.t("palette.kind.workspace"), ws.name);
         if matches_query(&q, &label) {
-            let disabled = (state.workspace.as_ref().map(|active| active.id.clone())
-                == Some(ws.id.clone()))
-            .then_some("palette.disabled.already_open");
+            let disabled = (state.workspace.as_ref().map(|active| active.id) == Some(ws.id))
+                .then_some("palette.disabled.already_open");
             entries.push(PaletteEntry {
                 kind: PaletteEntryKind::Workspace,
                 label,
@@ -255,7 +254,7 @@ pub fn dispatch_entry(state: &AppState, index: usize) -> PaletteDispatch {
                 .find(|ws| ws.id.to_string() == entry.payload);
             ws.map(|ws| {
                 PaletteDispatch::Dispatched(Message::Workspace(
-                    WorkspaceMessage::WorkspaceSwitched(ws.id.clone()),
+                    WorkspaceMessage::WorkspaceSwitched(ws.id),
                 ))
             })
             .unwrap_or(PaletteDispatch::Noop)

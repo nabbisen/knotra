@@ -107,13 +107,13 @@ fn start_activity_fetch_retry(
     let operation_id = OperationId::new();
     let total = projects.len() + exclusions.len();
     state.activity.latest = crate::state::LatestOpState::Running {
-        operation_id: operation_id.clone(),
+        operation_id,
         label: state.t("plain.activity.retrying_fetch").to_owned(),
         done: exclusions.len(),
         total,
     };
     state.activity.fetch_retry = Some(crate::state::FetchRetryRun {
-        operation_id: operation_id.clone(),
+        operation_id,
         lease_id,
         started_at: jiff::Timestamp::now(),
         total,
@@ -127,7 +127,7 @@ fn start_activity_fetch_retry(
     Task::run(stream, move |result| {
         Message::Background(BackgroundMessage::ActivityFetchRetryProjectCompleted {
             lease_id,
-            operation_id: operation_id.clone(),
+            operation_id,
             result: Box::new(result),
         })
     })
@@ -145,11 +145,7 @@ fn start_activity_smart_pull_review(
         state.status_bar = Some(state.t("plain.activity.none_available").to_owned());
         return Task::none();
     }
-    let Some(workspace_id) = state
-        .workspace
-        .as_ref()
-        .map(|workspace| workspace.id.clone())
-    else {
+    let Some(workspace_id) = state.workspace.as_ref().map(|workspace| workspace.id) else {
         return Task::none();
     };
     let Some(lease_id) =
@@ -173,7 +169,7 @@ fn start_activity_smart_pull_review(
     state.sync.retry_exclusions = exclusions.clone();
     state.sync.retry_preparation = Some(SmartPullRetryPreparation {
         id: request_id,
-        workspace_id: workspace_id.clone(),
+        workspace_id,
         source_operation_id,
         lease_id,
         eligible_ids,
@@ -193,7 +189,7 @@ fn start_activity_smart_pull_review(
         move |statuses| {
             Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
                 request_id,
-                workspace_id: workspace_id.clone(),
+                workspace_id,
                 lease_id,
                 statuses,
             })

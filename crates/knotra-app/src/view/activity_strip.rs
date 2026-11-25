@@ -147,7 +147,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                     };
                     let retry = (!state.operation_interlock.is_busy()).then_some(
                         Message::Activity(ActivityMessage::RetryRequested {
-                            source_operation_id: source_operation_id.clone(),
+                            source_operation_id: *source_operation_id,
                         }),
                     );
                     // RFC-075 stage 3 §1: a real snora control now — not
@@ -187,7 +187,7 @@ pub fn view(state: &AppState) -> Option<Element<'_, Message>> {
                 tokens,
                 state.t("plain.activity.details"),
                 Message::Activity(ActivityMessage::DetailsRequested {
-                    operation_id: log.result.operation_id.clone(),
+                    operation_id: log.result.operation_id,
                 }),
                 crate::view::ids::activity_strip::details(),
             ));

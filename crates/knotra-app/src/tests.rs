@@ -669,7 +669,7 @@ fn delete_workspace_confirm_removes_file_and_selects_nearest_workspace() {
     let mut state = make_state_with_paths(paths.clone());
     let first = Workspace::new("Main");
     let second = Workspace::new("Lab");
-    let deleted_id = second.id.clone();
+    let deleted_id = second.id;
     save_workspace(&first, &paths).expect("save first");
     save_workspace(&second, &paths).expect("save second");
     install_workspaces(&mut state, vec![first, second], 1);
@@ -1093,7 +1093,7 @@ fn switching_to_a_workspace_with_every_project_in_a_closed_group_gives_the_palet
     let second_project_id = second_project.id.clone();
     let mut second_workspace = Workspace::new("Second");
     second_workspace.projects = vec![second_project];
-    let second_workspace_id = second_workspace.id.clone();
+    let second_workspace_id = second_workspace.id;
     install_workspaces(
         &mut state,
         vec![Workspace::new("Main"), second_workspace],
@@ -1248,7 +1248,7 @@ fn palette_project_row_opens_detail_panel() {
 fn palette_active_workspace_row_is_disabled() {
     let mut state = make_state();
     let workspace = Workspace::new("Main");
-    let workspace_id = workspace.id.clone();
+    let workspace_id = workspace.id;
     install_workspaces(&mut state, vec![workspace], 0);
     let index = palette_payload_index(&mut state, "Main", &workspace_id.to_string());
 
@@ -1335,7 +1335,7 @@ fn palette_next_workspace_switches_in_tab_order() {
     let mut state = make_state();
     let first = Workspace::new("Main");
     let second = Workspace::new("Lab");
-    let second_id = second.id.clone();
+    let second_id = second.id;
     install_workspaces(&mut state, vec![first, second], 0);
     let index = palette_payload_index(&mut state, "next workspace", "action.workspace_next");
 
@@ -1462,7 +1462,7 @@ fn workspace_switch_clears_selection_mode() {
         ..Workspace::new("Main")
     };
     let second = Workspace::new("Lab");
-    let second_id = second.id.clone();
+    let second_id = second.id;
     install_workspaces(&mut state, vec![first, second], 0);
     state.selection_mode = true;
     state.selection.selected_ids.insert(project.id);
@@ -3030,9 +3030,7 @@ fn activity_details_opens_and_expands_source_history_entry() {
 
     dispatch(
         &mut state,
-        Message::Activity(ActivityMessage::DetailsRequested {
-            operation_id: operation_id.clone(),
-        }),
+        Message::Activity(ActivityMessage::DetailsRequested { operation_id }),
     );
 
     assert_eq!(state.screen, Screen::History);
@@ -3062,11 +3060,11 @@ fn fetch_retry_records_ineligible_source_target_as_skipped() {
             make_operation_result(removed_id.clone(), ProjectOperationOutcome::Failed),
         ],
     );
-    let source_id = source.result.operation_id.clone();
+    let source_id = source.result.operation_id;
     state.activity.latest = LatestOpState::Completed {
         log: source,
         retry: RetryAvailability::Available(ActivityRetryAction::FetchFailed {
-            source_operation_id: source_id.clone(),
+            source_operation_id: source_id,
             project_ids: vec![project.id.clone(), removed_id.clone()],
         }),
     };
@@ -3074,7 +3072,7 @@ fn fetch_retry_records_ineligible_source_target_as_skipped() {
     dispatch(
         &mut state,
         Message::Activity(ActivityMessage::RetryRequested {
-            source_operation_id: source_id.clone(),
+            source_operation_id: source_id,
         }),
     );
     let run = state.activity.fetch_retry.clone().expect("fetch retry run");
@@ -3116,7 +3114,7 @@ fn closing_smart_pull_retry_ignores_late_status_result_and_releases_lease() {
         projects: vec![project.clone()],
         ..Workspace::new("Main")
     };
-    let workspace_id = workspace.id.clone();
+    let workspace_id = workspace.id;
     install_workspaces(&mut state, vec![workspace], 0);
     let source = make_operation_log(
         OperationKind::SmartPull,
@@ -3125,11 +3123,11 @@ fn closing_smart_pull_retry_ignores_late_status_result_and_releases_lease() {
             ProjectOperationOutcome::Failed,
         )],
     );
-    let source_id = source.result.operation_id.clone();
+    let source_id = source.result.operation_id;
     state.activity.latest = LatestOpState::Completed {
         log: source,
         retry: RetryAvailability::Available(ActivityRetryAction::ReviewSmartPull {
-            source_operation_id: source_id.clone(),
+            source_operation_id: source_id,
             project_ids: vec![project.id.clone()],
         }),
     };
@@ -3137,7 +3135,7 @@ fn closing_smart_pull_retry_ignores_late_status_result_and_releases_lease() {
     dispatch(
         &mut state,
         Message::Activity(ActivityMessage::RetryRequested {
-            source_operation_id: source_id.clone(),
+            source_operation_id: source_id,
         }),
     );
     let preparation = state
@@ -3156,7 +3154,7 @@ fn closing_smart_pull_retry_ignores_late_status_result_and_releases_lease() {
         &mut state,
         Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
             request_id: preparation.id,
-            workspace_id: workspace_id.clone(),
+            workspace_id,
             lease_id: preparation.lease_id,
             statuses: vec![make_project_status(project.id.clone(), Some("origin/main"))],
         }),
@@ -3167,7 +3165,7 @@ fn closing_smart_pull_retry_ignores_late_status_result_and_releases_lease() {
     dispatch(
         &mut state,
         Message::Activity(ActivityMessage::RetryRequested {
-            source_operation_id: source_id.clone(),
+            source_operation_id: source_id,
         }),
     );
     let superseded = state
@@ -3193,7 +3191,7 @@ fn closing_smart_pull_retry_ignores_late_status_result_and_releases_lease() {
         &mut state,
         Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
             request_id: superseded.id,
-            workspace_id: workspace_id.clone(),
+            workspace_id,
             lease_id: superseded.lease_id,
             statuses: vec![make_project_status(project.id.clone(), Some("origin/main"))],
         }),
@@ -3284,11 +3282,11 @@ fn zero_eligible_fetch_retry_becomes_unavailable_without_task_or_log() {
             ProjectOperationOutcome::Failed,
         )],
     );
-    let source_id = source.result.operation_id.clone();
+    let source_id = source.result.operation_id;
     state.activity.latest = LatestOpState::Completed {
         log: source,
         retry: RetryAvailability::Available(ActivityRetryAction::FetchFailed {
-            source_operation_id: source_id.clone(),
+            source_operation_id: source_id,
             project_ids: vec![missing_id],
         }),
     };
@@ -3328,11 +3326,11 @@ fn zero_eligible_smart_pull_retry_becomes_unavailable_without_task_or_log() {
             ProjectOperationOutcome::Failed,
         )],
     );
-    let source_id = source.result.operation_id.clone();
+    let source_id = source.result.operation_id;
     state.activity.latest = LatestOpState::Completed {
         log: source,
         retry: RetryAvailability::Available(ActivityRetryAction::ReviewSmartPull {
-            source_operation_id: source_id.clone(),
+            source_operation_id: source_id,
             project_ids: vec![missing_id],
         }),
     };
@@ -3493,7 +3491,7 @@ fn install_correlated_smart_pull_preparation(
         projects: vec![first.clone(), second.clone()],
         ..Workspace::new("Main")
     };
-    let workspace_id = workspace.id.clone();
+    let workspace_id = workspace.id;
     install_workspaces(state, vec![workspace], 0);
     let source = make_operation_log(
         OperationKind::SmartPull,
@@ -3502,11 +3500,11 @@ fn install_correlated_smart_pull_preparation(
             make_operation_result(second.id.clone(), ProjectOperationOutcome::Failed),
         ],
     );
-    let source_operation_id = source.result.operation_id.clone();
+    let source_operation_id = source.result.operation_id;
     state.activity.latest = LatestOpState::Completed {
         log: source,
         retry: RetryAvailability::Available(ActivityRetryAction::ReviewSmartPull {
-            source_operation_id: source_operation_id.clone(),
+            source_operation_id,
             project_ids: vec![first.id.clone(), second.id.clone()],
         }),
     };
@@ -3537,7 +3535,7 @@ fn complete_smart_pull_preparation(
         state,
         Message::Background(BackgroundMessage::SmartPullRetryStatusReady {
             request_id: preparation.id,
-            workspace_id: preparation.workspace_id.clone(),
+            workspace_id: preparation.workspace_id,
             lease_id: preparation.lease_id,
             statuses,
         }),
@@ -3659,10 +3657,10 @@ fn make_operation_log_at(seconds: i64) -> OperationLog {
 fn lowering_max_log_entries_truncates_at_once_and_drops_expanded_ids() {
     let mut state = make_state();
     let logs: Vec<OperationLog> = (0..5).map(|i| make_operation_log_at(1000 + i)).collect();
-    let kept_id = logs[0].result.operation_id.clone();
-    let dropped_id = logs[4].result.operation_id.clone();
-    state.history_expanded.insert(kept_id.clone());
-    state.history_expanded.insert(dropped_id.clone());
+    let kept_id = logs[0].result.operation_id;
+    let dropped_id = logs[4].result.operation_id;
+    state.history_expanded.insert(kept_id);
+    state.history_expanded.insert(dropped_id);
     state.operation_logs = logs;
 
     dispatch(
@@ -3729,15 +3727,15 @@ fn raising_max_log_entries_merges_disk_and_in_memory_losing_nothing() {
     let ids: Vec<_> = state
         .operation_logs
         .iter()
-        .map(|l| l.result.operation_id.clone())
+        .map(|l| l.result.operation_id)
         .collect();
     assert_eq!(state.operation_logs.len(), 3, "{ids:?}");
     assert_eq!(
         ids,
         vec![
-            finished_during_the_read.result.operation_id.clone(),
-            shared_both_copies_in_memory.result.operation_id.clone(),
-            older_on_disk_only.result.operation_id.clone(),
+            finished_during_the_read.result.operation_id,
+            shared_both_copies_in_memory.result.operation_id,
+            older_on_disk_only.result.operation_id,
         ],
         "newest first; the in-memory copy of the shared id wins, no duplicate"
     );

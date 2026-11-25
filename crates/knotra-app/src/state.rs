@@ -63,6 +63,20 @@ pub enum ArrangeSelect {
     Sort,
 }
 
+/// RFC-075 stage 4 §2: which of Settings' seven selects, if any, is open —
+/// `AppState::settings_select_open`'s own value type, the same "at most one
+/// at a time" shape [`ArrangeSelect`] already gives the Arrange panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingsSelect {
+    Locale,
+    Theme,
+    Zoom,
+    RefreshAuto,
+    MaxConcurrent,
+    MaxLogs,
+    FsDebounce,
+}
+
 // ---------------------------------------------------------------------------
 // Filter state
 // ---------------------------------------------------------------------------
@@ -568,6 +582,11 @@ pub struct AppState {
     /// `false` every time Settings is entered, so it is always closed on
     /// a fresh visit, the same as this field's own default.
     pub settings_advanced_open: bool,
+    /// RFC-075 stage 4 §2: which of Settings' own selects, if any, is open
+    /// — reset to `None` whenever `screen != Screen::Settings`
+    /// (`app.rs`'s `Message::Navigate`), the same lifetime
+    /// `arrange_select_open` already has for the dashboard.
+    pub settings_select_open: Option<SettingsSelect>,
     /// A recently removed project eligible for undo (cleared by next action or timeout).
     pub recent_removal: Option<UndoableRemoval>,
     // ------------------------------------------------------------------
@@ -664,6 +683,7 @@ impl AppState {
             dashboard_arrange_open: false,
             arrange_select_open: None,
             settings_advanced_open: false,
+            settings_select_open: None,
             recent_removal: None,
             focus_visible: false,
             window_focus_mode: None,

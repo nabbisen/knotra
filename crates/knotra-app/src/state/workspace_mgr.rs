@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn workspace_name_allows_current_name_for_rename() {
         let workspace = Workspace::new("Work");
-        let id = workspace.id.clone();
+        let id = workspace.id;
         let workspaces = vec![workspace];
         assert_eq!(
             validate_workspace_name(" work ", &workspaces, Some(&id)),

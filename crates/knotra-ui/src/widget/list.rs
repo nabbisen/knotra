@@ -19,7 +19,7 @@
 //! own pixel; padding and a visible edge on every row would work against
 //! density.
 
-use iced::widget::{Column, rule};
+use iced::widget::{Column, keyed, rule};
 use iced::{Color, Element};
 use snora::design::Tokens;
 
@@ -49,6 +49,63 @@ pub fn list<'a, Message: 'a>(
                 fill_mode: rule::FillMode::Full,
                 snap: true,
             }));
+        }
+    }
+    column.into()
+}
+
+/// A per-item key paired with [`list_keyed`]'s own divider rule, so the
+/// rule after item `k` never collides with the key of the item itself.
+#[derive(Clone, Copy, PartialEq)]
+enum RowKey<Key> {
+    Item(Key),
+    Rule(Key),
+}
+
+/// Same look as [`list`], but reconciled by each item's own `key` rather
+/// than its tree position (RFC-075 stage 4 §2).
+///
+/// A plain [`Column`] (what [`list`] builds) reuses a child's internal
+/// state — including which row is *really* keyboard-focused — by
+/// position: when an item is inserted or removed anywhere but the end,
+/// every item after that point can be handed a different item's old
+/// state, including a focus that was never really on it. `iced`'s own
+/// `keyed::Column` exists exactly to avoid this ("adding an element at
+/// the top may cause a loss of continuity on every element on the
+/// list" — `iced_widget::keyed`'s own module docs): giving each item a
+/// stable key lets it find and reuse its *own* old state wherever it
+/// now sits, so a row's real focus travels with it across a reorder,
+/// insertion, or removal.
+///
+/// Use this instead of [`list`] for any list whose own membership or
+/// order can change while one of its rows holds real keyboard focus —
+/// the two must still look identical, since both build the same
+/// divider rule between items.
+#[must_use]
+pub fn list_keyed<'a, Key, Message>(
+    tokens: &Tokens,
+    items: Vec<(Key, Element<'a, Message>)>,
+) -> Element<'a, Message>
+where
+    Key: Copy + PartialEq + 'static,
+    Message: 'a,
+{
+    let line_color = to_iced(tokens.palette.border);
+    let last_index = items.len().saturating_sub(1);
+
+    let mut column = keyed::Column::new();
+    for (index, (key, item)) in items.into_iter().enumerate() {
+        column = column.push(RowKey::Item(key), item);
+        if index != last_index {
+            column = column.push(
+                RowKey::Rule(key),
+                Element::from(rule::horizontal(1.0).style(move |_theme| rule::Style {
+                    color: line_color,
+                    radius: 0.0.into(),
+                    fill_mode: rule::FillMode::Full,
+                    snap: true,
+                })),
+            );
         }
     }
     column.into()

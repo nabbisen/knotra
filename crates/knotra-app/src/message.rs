@@ -187,6 +187,14 @@ pub enum SettingsMessage {
     FsDebounceSecs(u32),
     /// RFC-073 D11: Settings' "Advanced" disclosure.
     AdvancedToggled,
+    /// RFC-075 stage 4 §2: one Settings select's own `on_open_change` —
+    /// `true` opens it (closing any other, `AppState::settings_select_open`
+    /// being an `Option`, not seven booleans), `false` closes it (the
+    /// trigger pressed again while open, or snora's own Escape handling).
+    /// Each "Changed" handler above additionally closes its own select on
+    /// choosing — unlike `DashboardMessage::ArrangeSelectOpenChanged`'s own
+    /// siblings, which do not (RFC-073, untouched by this stage).
+    SelectOpenChanged(crate::state::SettingsSelect, bool),
 }
 
 // --- Background ---

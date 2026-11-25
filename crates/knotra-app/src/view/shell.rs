@@ -40,7 +40,7 @@ pub fn switcher_menu_entry_id(state: &AppState) -> Option<iced::widget::Id> {
     let active_id = state
         .all_workspaces
         .get(state.active_workspace_idx)
-        .map(|ws| ws.id.clone());
+        .map(|ws| ws.id);
     Some(
         state
             .all_workspaces
@@ -59,7 +59,7 @@ pub fn switcher_menu_ids(state: &AppState) -> Vec<iced::widget::Id> {
     let active_id = state
         .all_workspaces
         .get(state.active_workspace_idx)
-        .map(|ws| ws.id.clone());
+        .map(|ws| ws.id);
     let mut ids: Vec<iced::widget::Id> = state
         .all_workspaces
         .iter()
@@ -340,7 +340,7 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
     let active_id = state
         .all_workspaces
         .get(state.active_workspace_idx)
-        .map(|ws| ws.id.clone());
+        .map(|ws| ws.id);
 
     let mut items = column![].spacing(2);
     for ws in &state.all_workspaces {
@@ -350,7 +350,7 @@ pub fn switcher_menu(state: &AppState) -> Option<Element<'_, Message>> {
             tokens,
             ws.name.clone(),
             (!is_active).then_some(Message::Workspace(WorkspaceMessage::WorkspaceSwitched(
-                ws.id.clone(),
+                ws.id,
             ))),
             ids::switcher::row(&ws.id),
         ));

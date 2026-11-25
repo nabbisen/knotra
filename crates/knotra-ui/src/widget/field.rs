@@ -259,6 +259,15 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
     group.width(Length::Fill).into()
 }
 
+/// [`validated_field`]'s own `unit`/`error` pair, bundled to keep that
+/// function's own parameter count at 7 (see its doc comment). `Default`
+/// gives both `None`, the common case (every call site today).
+#[derive(Default)]
+pub struct FieldAnnotations<'a> {
+    pub unit: Option<&'a str>,
+    pub error: Option<&'a str>,
+}
+
 /// A validated field (RFC-038 D1): a label, the current text, an optional
 /// unit suffix, and a persistent validation error.
 ///
@@ -284,22 +293,33 @@ fn guided_field_with_id<'a, Message: Clone + 'a>(
 /// than inside the input as part of the value — keeping the raw text the
 /// input carries exactly what the user typed, with nothing appended that
 /// `on_change` would then have to strip back out.
+///
+/// `unit`/`error` are bundled into [`FieldAnnotations`] rather than two more
+/// bare parameters — RFC-075 stage 4 §2 added `id`, which would otherwise
+/// have pushed this past clippy's `too_many_arguments` floor (the
+/// suppression map stays at 7, the same discipline `guided_field_entry`'s
+/// own `FieldFocus` bundling already holds `knotra-ui` to).
 #[must_use]
 pub fn validated_field<'a, Message: Clone + 'a>(
     tokens: &Tokens,
     label: &'a str,
     placeholder: &'a str,
     value: &'a str,
-    unit: Option<&'a str>,
+    annotations: FieldAnnotations<'a>,
     on_change: impl Fn(String) -> Message + 'a,
-    error: Option<&'a str>,
+    id: iced::widget::Id,
 ) -> Element<'a, Message> {
     use iced::widget::{column, row, text};
+    let FieldAnnotations { unit, error } = annotations;
 
     // RFC-073 handoff Amendment A3 §2: same shared builder as
     // `guided_field_with_id` above.
+    // RFC-075 stage 4 §2: `.id(id)` — this field's own real Tab target,
+    // the one thing it never had until this stage (Settings' entire Tab
+    // reach was the shell header before it).
     let field = styled_text_input(tokens, placeholder, value)
         .on_input(on_change)
+        .id(id)
         .width(Length::Fill);
 
     let mut field_row = row![field].spacing(8).align_y(iced::Alignment::Center);

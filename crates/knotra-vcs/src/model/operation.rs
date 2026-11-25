@@ -7,7 +7,13 @@ use uuid::Uuid;
 use super::project::ProjectId;
 
 /// Unique identifier for a logged operation.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// RFC-075 stage 4 §2: `Copy` (a `Uuid` already is) — `iced::widget::keyed::
+/// Column`'s own `Key` bound requires it, so History's own list can use
+/// this id directly as the hint that keeps a row's real focus with it
+/// across a reorder or an insertion, rather than letting whichever row
+/// slides into its old tree position inherit its focus instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct OperationId(pub Uuid);
 
 impl OperationId {

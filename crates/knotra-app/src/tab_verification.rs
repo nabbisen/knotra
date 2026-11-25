@@ -218,7 +218,7 @@ mod tests {
     fn tab_and_escape_in_rename_workspace_with_the_field_focused() {
         let mut state = make_state();
         let workspace = Workspace::new("Demo");
-        let workspace_id = workspace.id.clone();
+        let workspace_id = workspace.id;
         state.all_workspaces = vec![workspace];
         state.active_workspace_idx = 0;
         state.workspace = state.all_workspaces.first().cloned();

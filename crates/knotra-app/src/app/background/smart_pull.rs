@@ -203,7 +203,7 @@ pub(super) fn smart_pull_project_completed(
                 let per_project = completed.clone();
                 completed_log = Some(OperationLog {
                     result: OperationResult {
-                        operation_id: operation_id.clone(),
+                        operation_id: *operation_id,
                         kind: OperationKind::Fetch,
                         started_at: *started_at,
                         finished_at: jiff::Timestamp::now(),
@@ -258,7 +258,7 @@ pub(super) fn smart_pull_project_completed(
                 logged_results.extend(retry_skipped_results);
                 completed_log = Some(OperationLog {
                     result: OperationResult {
-                        operation_id: plan.id.clone(),
+                        operation_id: plan.id,
                         kind: OperationKind::SmartPull,
                         started_at: started_at.to_owned(),
                         finished_at: jiff::Timestamp::now(),

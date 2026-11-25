@@ -35,8 +35,8 @@ pub use buttons::{
 pub use checkbox::{checkbox, checkbox_control, checkbox_control_unlabeled};
 pub use escape_first::escape_first;
 pub use field::{
-    guided_field, guided_field_entry, guided_field_focused, styled_text_input, text_input_style,
-    validated_field,
+    FieldAnnotations, guided_field, guided_field_entry, guided_field_focused, styled_text_input,
+    text_input_style, validated_field,
 };
 pub use focus::{clear_input_focus, focus_id, focus_input};
 pub use keyed::{Scope, focus_by_id_page, focus_by_id_window, tab_anchor};
@@ -46,7 +46,7 @@ pub use layout::{
     scrollable, strong, text, text_input,
 };
 pub use link::name_link;
-pub use list::list;
+pub use list::{list, list_keyed};
 pub use notice::{NoticeAction, NoticeTone, notice};
 pub use record::record_row;
 /// Focus-ring tokens (RFC-033 D7). Re-exported for the same reason as

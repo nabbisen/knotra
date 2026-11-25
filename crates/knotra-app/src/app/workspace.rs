@@ -364,7 +364,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
 
         WorkspaceMessage::RenameWorkspaceDialogOpened => {
             state.workspace_mgr.switcher_open = false;
-            if let Some(id) = state.workspace.as_ref().map(|ws| ws.id.clone()) {
+            if let Some(id) = state.workspace.as_ref().map(|ws| ws.id) {
                 open_rename_dialog(state, id);
             }
             Task::none()
@@ -432,7 +432,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
         }
 
         WorkspaceMessage::DeleteWorkspaceRequested => {
-            if let Some(id) = state.workspace.as_ref().map(|ws| ws.id.clone()) {
+            if let Some(id) = state.workspace.as_ref().map(|ws| ws.id) {
                 open_delete_dialog(state, id);
             }
             Task::none()
@@ -456,7 +456,7 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 .workspace_mgr
                 .confirm_delete
                 .as_ref()
-                .map(|d| d.workspace_id.clone());
+                .map(|d| d.workspace_id);
             let deleted_idx = delete_id
                 .as_ref()
                 .and_then(|id| state.all_workspaces.iter().position(|ws| &ws.id == id))

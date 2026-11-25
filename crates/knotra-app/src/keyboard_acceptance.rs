@@ -1117,7 +1117,7 @@ mod stage3_entry_ids {
         let mut state = base_state();
         let main = Workspace::new("Main");
         let second = Workspace::new("Second");
-        let second_id = second.id.clone();
+        let second_id = second.id;
         state.all_workspaces = vec![main, second];
         state.active_workspace_idx = 0;
         state.workspace_mgr.switcher_open = true;
@@ -3666,12 +3666,12 @@ mod stage3_amendment_a1_mouse_mode_and_phases {
         // for.
         assert!(tab_to(&mut rig, &mut state, &ids::smart_pull::cancel()));
 
-        let workspace_id = state.workspace.as_ref().unwrap().id.clone();
+        let workspace_id = state.workspace.as_ref().unwrap().id;
         let lease_id = crate::state::OperationLeaseId(777);
         let request_id = crate::state::sync::RetryPreparationId(1);
         state.sync.retry_preparation = Some(crate::state::sync::SmartPullRetryPreparation {
             id: request_id,
-            workspace_id: workspace_id.clone(),
+            workspace_id,
             source_operation_id: knotra_vcs::OperationId::new(),
             lease_id,
             eligible_ids: vec![id],
@@ -4238,12 +4238,12 @@ mod stage3_amendment_a2_tests {
         );
         assert!(tab_to(&mut rig, &mut state, &ids::smart_pull::cancel()));
 
-        let workspace_id = state.workspace.as_ref().unwrap().id.clone();
+        let workspace_id = state.workspace.as_ref().unwrap().id;
         let lease_id = crate::state::OperationLeaseId(778);
         let request_id = crate::state::sync::RetryPreparationId(1);
         state.sync.retry_preparation = Some(crate::state::sync::SmartPullRetryPreparation {
             id: request_id,
-            workspace_id: workspace_id.clone(),
+            workspace_id,
             source_operation_id: knotra_vcs::OperationId::new(),
             lease_id,
             eligible_ids: vec![id],
@@ -4341,7 +4341,7 @@ mod stage3_amendment_a2_tests {
         );
 
         // Every one of the menu's own real entries is reachable.
-        let second_id = state.all_workspaces[1].id.clone();
+        let second_id = state.all_workspaces[1].id;
         assert!(tab_to(
             &mut rig,
             &mut state,
@@ -4368,6 +4368,1007 @@ mod stage3_amendment_a2_tests {
             focused_id(&mut rig, &state),
             Some(ids::shell::workspace_switcher()),
             "closing the window must return focus to the page's own control that opened it"
+        );
+    }
+}
+
+/// RFC-075 handoff stage 4 §5, rows 1, 3, 5, 6 — Settings' own Tab
+/// sequence, its selects' keyboard behaviour, and its per-workspace
+/// Rename/Remove windows. Follows `stage3_tab_and_confinement`'s/
+/// `stage3_amendment_a1_return_on_close`'s own conventions (`tab`/
+/// `shift_tab`/`tab_to`/`assert_tab_sequence_wraps`/`last_message`, each a
+/// small hand-rolled copy rather than a shared export, matching this
+/// file's own established per-module precedent).
+///
+/// Every fixture here builds its own `AppState` on a fresh `tempfile::
+/// TempDir`, never the real, resolved `AppPaths` `AppState::new` would
+/// otherwise reach for — `SettingsMessage::*Changed`'s own handlers
+/// (`app/misc.rs::handle_settings`) call `persist_config` on every choice,
+/// and the workspace Rename/Remove flows call `save_workspace`/
+/// `delete_workspace_file`, all genuine disk I/O. Driving those messages
+/// for real (the whole point of this file, over calling `handle_settings`
+/// by hand) must never touch the person's own real config/workspace files.
+#[cfg(test)]
+mod stage4_settings_tab_and_selects {
+    use super::{Rig, SIZE, drive, focused_id, key};
+    use crate::config::{AppConfig, AppPaths};
+    use crate::message::{Message, SettingsMessage, ShortcutMessage, WorkspaceMessage};
+    use crate::state::layer::WindowFocusMode;
+    use crate::state::{AppState, Screen, SettingsSelect};
+    use crate::view::ids;
+    use iced::keyboard::key::Named;
+    use iced::widget::Id;
+    use knotra_ui::ThemeChoice;
+    use knotra_ui::i18n::Locale;
+    use knotra_vcs::{Workspace, WorkspaceId};
+
+    fn tmp_paths() -> (AppPaths, tempfile::TempDir) {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths {
+            config_file: tmp.path().join("config.toml"),
+            workspaces_dir: tmp.path().join("workspaces"),
+            history_dir: tmp.path().join("history"),
+        };
+        (paths, tmp)
+    }
+
+    fn tab(rig: &mut Rig, state: &mut AppState) {
+        drive(rig, state, Message::Shortcut(ShortcutMessage::FocusNext));
+    }
+    fn shift_tab(rig: &mut Rig, state: &mut AppState) {
+        drive(
+            rig,
+            state,
+            Message::Shortcut(ShortcutMessage::FocusPrevious),
+        );
+    }
+
+    fn tab_to(rig: &mut Rig, state: &mut AppState, target: &Id) -> bool {
+        for _ in 0..60 {
+            tab(rig, state);
+            if focused_id(rig, state) == Some(target.clone()) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The most recently published message — every call site below drives
+    /// a real key press immediately before reading this, matching
+    /// `stage3_amendment_a1_return_on_close`'s own `last_message`.
+    fn last_message(rig: &Rig) -> Message {
+        rig.messages()
+            .last()
+            .cloned()
+            .expect("the key press must have published a message")
+    }
+
+    /// `super::key`'s own multi-press twin: delivers every one of
+    /// `presses` as its own `UserInterface::update` call against the
+    /// *same* `UserInterface` (built once, from `state` as it stands
+    /// right now), with a single redraw only once every press has been
+    /// handled — never one redraw per press the way repeated `key()`
+    /// calls would.
+    ///
+    /// **Needed for moving within an already-open select's own list**:
+    /// `snora::design::select` keeps no highlighted-item state of its
+    /// own across a redraw — only real `operation::Focusable` focus
+    /// does — and the whole page sits inside `knotra_ui::widget::keyed::
+    /// FollowsId` (`focus_by_id_page`), whose own reconciliation runs on
+    /// every `RedrawRequested` and pulls real focus back to its last
+    /// *tracked* id (the select's own trigger, since the open list's
+    /// items carry no id of their own, `select.rs`'s module doc). A
+    /// `key()` call's own redraw, run after *each* press, would reset
+    /// "nothing (menu-wise) focused" before the next one ever reaches
+    /// `MenuKeys`, so every press would land on the list's first item
+    /// again — never the real behaviour: a real keyboard driver delivers
+    /// several presses before the next frame redraws, not one redraw per
+    /// key. Seen directly: the three select tests below first failed
+    /// with exactly that shape (always choosing the open list's first
+    /// item, regardless of how many ↓ presses were sent) until they were
+    /// rewritten onto this batched helper.
+    fn keys(rig: &mut Rig, state: &AppState, presses: &[Named]) {
+        let mut ui = super::rebuild(rig, state);
+        for &named in presses {
+            let events = [iced_test::simulator::press_key(named, None)];
+            let _ = ui.update(
+                &events,
+                rig.cursor,
+                &mut rig.renderer,
+                &mut super::clipboard::Null,
+                &mut rig.messages,
+            );
+        }
+        super::redraw(rig, &mut ui);
+        rig.cache = ui.into_cache();
+    }
+
+    /// Same shape as `stage3_tab_and_confinement::assert_tab_sequence_wraps`
+    /// — a hand-rolled copy, not a shared export, matching this file's own
+    /// per-module convention.
+    fn assert_tab_sequence_wraps(rig: &mut Rig, state: &mut AppState, expected: &[Id]) {
+        for _ in 0..expected.len() * 2 {
+            if focused_id(rig, state) == Some(expected[0].clone()) {
+                break;
+            }
+            tab(rig, state);
+        }
+        assert_eq!(
+            focused_id(rig, state),
+            Some(expected[0].clone()),
+            "sanity: Tab must be able to reach {:?}",
+            expected[0]
+        );
+        for want in &expected[1..] {
+            tab(rig, state);
+            assert_eq!(
+                focused_id(rig, state),
+                Some(want.clone()),
+                "expected {want:?}"
+            );
+        }
+        tab(rig, state);
+        assert_eq!(
+            focused_id(rig, state),
+            Some(expected[0].clone()),
+            "Tab past the last control must wrap to the first"
+        );
+        shift_tab(rig, state);
+        assert_eq!(
+            focused_id(rig, state),
+            Some(expected.last().unwrap().clone()),
+            "Shift+Tab before the first control must wrap to the last"
+        );
+    }
+
+    fn settings_state_one_workspace() -> (AppState, WorkspaceId, tempfile::TempDir) {
+        let (paths, tmp) = tmp_paths();
+        let mut state = AppState::new_with_paths(AppConfig::default(), paths);
+        state.screen = Screen::Settings;
+        let ws = Workspace::new("Main");
+        let id = ws.id;
+        state.workspace = Some(ws.clone());
+        state.all_workspaces = vec![ws];
+        (state, id, tmp)
+    }
+
+    fn settings_state_two_workspaces() -> (AppState, WorkspaceId, WorkspaceId, tempfile::TempDir) {
+        let (paths, tmp) = tmp_paths();
+        let mut state = AppState::new_with_paths(AppConfig::default(), paths);
+        state.screen = Screen::Settings;
+        let a = Workspace::new("Main");
+        let b = Workspace::new("Second");
+        let (a_id, b_id) = (a.id, b.id);
+        state.workspace = Some(a.clone());
+        state.all_workspaces = vec![a, b];
+        (state, a_id, b_id, tmp)
+    }
+
+    fn settings_state_three_workspaces() -> (
+        AppState,
+        WorkspaceId,
+        WorkspaceId,
+        WorkspaceId,
+        tempfile::TempDir,
+    ) {
+        let (paths, tmp) = tmp_paths();
+        let mut state = AppState::new_with_paths(AppConfig::default(), paths);
+        state.screen = Screen::Settings;
+        let a = Workspace::new("Main");
+        let b = Workspace::new("Beta");
+        let c = Workspace::new("Gamma");
+        let (a_id, b_id, c_id) = (a.id, b.id, c.id);
+        state.workspace = Some(a.clone());
+        state.all_workspaces = vec![a, b, c];
+        (state, a_id, b_id, c_id, tmp)
+    }
+
+    // -----------------------------------------------------------------
+    // Row 1: Settings' Tab sequence, by id, wrapping both ways.
+    // -----------------------------------------------------------------
+
+    /// One workspace (so Remove is disabled on it — `can_delete` requires
+    /// 2+ — and skipped by Tab entirely, D4 b); Advanced closed.
+    #[test]
+    fn settings_tab_sequence_one_workspace_advanced_closed_wraps_both_ways() {
+        let (mut state, ws_id, _tmp) = settings_state_one_workspace();
+        let mut rig = Rig::new(SIZE);
+
+        // Neither Dashboard nor History is the active screen while on
+        // Settings, so both are real, enabled Tab stops — unlike the
+        // dashboard's own sequence tests, where Dashboard (the active
+        // screen) is skipped. No workspace switcher: only one workspace.
+        let expected: Vec<Id> = vec![
+            ids::shell::nav_dashboard(),
+            ids::shell::nav_history(),
+            ids::shell::refresh(),
+            ids::shell::palette(),
+            ids::shell::settings(),
+            ids::settings::locale(),
+            ids::settings::theme(),
+            ids::settings::zoom(),
+            ids::settings::refresh_auto(),
+            ids::settings::editor(),
+            ids::settings::merge_tool(),
+            ids::settings::workspace_rename(&ws_id),
+            // Remove is disabled (the only workspace) — skipped by Tab.
+            ids::settings::add_workspace(),
+            ids::settings::advanced_toggle(),
+        ];
+
+        assert_tab_sequence_wraps(&mut rig, &mut state, &expected);
+    }
+
+    /// Two workspaces (Remove now enabled on both, D4 b); Advanced open,
+    /// with the file-change checkbox off — the interval select is not
+    /// drawn (RFC-073 handoff Amendment A5 §5), one fewer stop than the
+    /// checkbox-on case below.
+    #[test]
+    fn settings_tab_sequence_two_workspaces_advanced_open_checkbox_off_wraps_both_ways() {
+        let (mut state, a_id, b_id, _tmp) = settings_state_two_workspaces();
+        state.settings_advanced_open = true;
+        assert!(
+            !state.config.fs_watch_enabled,
+            "sanity: the file-change checkbox is off by default"
+        );
+        let mut rig = Rig::new(SIZE);
+
+        let expected: Vec<Id> = vec![
+            ids::shell::workspace_switcher(),
+            ids::shell::nav_dashboard(),
+            ids::shell::nav_history(),
+            ids::shell::refresh(),
+            ids::shell::palette(),
+            ids::shell::settings(),
+            ids::settings::locale(),
+            ids::settings::theme(),
+            ids::settings::zoom(),
+            ids::settings::refresh_auto(),
+            ids::settings::editor(),
+            ids::settings::merge_tool(),
+            ids::settings::workspace_rename(&a_id),
+            ids::settings::workspace_remove(&a_id),
+            ids::settings::workspace_rename(&b_id),
+            ids::settings::workspace_remove(&b_id),
+            ids::settings::add_workspace(),
+            ids::settings::advanced_toggle(),
+            ids::settings::max_concurrent(),
+            ids::settings::max_logs(),
+            ids::settings::fs_watch_checkbox(),
+        ];
+
+        assert_tab_sequence_wraps(&mut rig, &mut state, &expected);
+    }
+
+    /// Same as above, but the file-change checkbox is on: the interval
+    /// select appears as one more Tab stop, right after the checkbox.
+    #[test]
+    fn settings_tab_sequence_two_workspaces_advanced_open_checkbox_on_reveals_the_interval_select()
+    {
+        let (mut state, a_id, b_id, _tmp) = settings_state_two_workspaces();
+        state.settings_advanced_open = true;
+        state.config.fs_watch_enabled = true;
+        let mut rig = Rig::new(SIZE);
+
+        let expected: Vec<Id> = vec![
+            ids::shell::workspace_switcher(),
+            ids::shell::nav_dashboard(),
+            ids::shell::nav_history(),
+            ids::shell::refresh(),
+            ids::shell::palette(),
+            ids::shell::settings(),
+            ids::settings::locale(),
+            ids::settings::theme(),
+            ids::settings::zoom(),
+            ids::settings::refresh_auto(),
+            ids::settings::editor(),
+            ids::settings::merge_tool(),
+            ids::settings::workspace_rename(&a_id),
+            ids::settings::workspace_remove(&a_id),
+            ids::settings::workspace_rename(&b_id),
+            ids::settings::workspace_remove(&b_id),
+            ids::settings::add_workspace(),
+            ids::settings::advanced_toggle(),
+            ids::settings::max_concurrent(),
+            ids::settings::max_logs(),
+            ids::settings::fs_watch_checkbox(),
+            ids::settings::fs_debounce(),
+        ];
+
+        assert_tab_sequence_wraps(&mut rig, &mut state, &expected);
+    }
+
+    // -----------------------------------------------------------------
+    // Row 3: each select opens, ↓ moves, Enter chooses, and focus stays
+    // on it (by id) — Language, Theme and Zoom, each genuinely rebuilding
+    // the screen on choice.
+    // -----------------------------------------------------------------
+
+    /// Locale: choosing re-translates the whole screen (a new `Catalog`),
+    /// yet focus (by id) stays on `ids::settings::locale()` across that
+    /// rebuild.
+    #[test]
+    fn locale_select_open_arrow_down_enter_focus_survives_the_retranslation() {
+        let (mut state, _ws_id, _tmp) = settings_state_one_workspace();
+        let mut rig = Rig::new(SIZE);
+        assert_eq!(state.config.locale, Locale::En, "sanity: default locale");
+        let en_title = state.t("settings.title").to_owned();
+
+        assert!(tab_to(&mut rig, &mut state, &ids::settings::locale()));
+
+        // ↓ on the focused, closed trigger opens it (RFC-075 §2).
+        key(&mut rig, &state, Named::ArrowDown);
+        let opened = last_message(&rig);
+        assert!(
+            matches!(
+                opened,
+                Message::Settings(SettingsMessage::SelectOpenChanged(
+                    SettingsSelect::Locale,
+                    true
+                ))
+            ),
+            "expected the locale select's own open-change, got {opened:?}"
+        );
+        drive(&mut rig, &mut state, opened);
+        assert_eq!(state.settings_select_open, Some(SettingsSelect::Locale));
+
+        // Within the open list: ↓ lands on "English" (index 0), a second ↓
+        // moves to "日本語" (index 1); Enter chooses it. One batch
+        // (`keys`, not three separate `key()` calls) — see that helper's
+        // own doc comment for why.
+        keys(
+            &mut rig,
+            &state,
+            &[Named::ArrowDown, Named::ArrowDown, Named::Enter],
+        );
+        let chosen = last_message(&rig);
+        assert!(
+            matches!(
+                chosen,
+                Message::Settings(SettingsMessage::LocaleChanged(Locale::Ja))
+            ),
+            "expected LocaleChanged(Ja), got {chosen:?}"
+        );
+        drive(&mut rig, &mut state, chosen);
+
+        assert_eq!(state.config.locale, Locale::Ja);
+        assert_ne!(
+            state.t("settings.title"),
+            en_title,
+            "sanity: the screen must really have re-translated"
+        );
+        assert_eq!(
+            state.settings_select_open, None,
+            "choosing must close the select (its own Changed handler, not just snora's)"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::settings::locale()),
+            "focus must stay on the select, by id, across the real rebuild the \
+             re-translation triggers"
+        );
+    }
+
+    /// Theme: choosing swaps `state.theme` (and so every token the whole
+    /// screen renders with), yet focus stays on `ids::settings::theme()`.
+    #[test]
+    fn theme_select_open_arrow_down_enter_focus_survives_the_theme_swap() {
+        let (mut state, _ws_id, _tmp) = settings_state_one_workspace();
+        let mut rig = Rig::new(SIZE);
+        assert_eq!(
+            state.config.theme,
+            ThemeChoice::Light,
+            "sanity: default theme"
+        );
+
+        assert!(tab_to(&mut rig, &mut state, &ids::settings::theme()));
+
+        key(&mut rig, &state, Named::ArrowDown);
+        let opened = last_message(&rig);
+        assert!(matches!(
+            opened,
+            Message::Settings(SettingsMessage::SelectOpenChanged(
+                SettingsSelect::Theme,
+                true
+            ))
+        ));
+        drive(&mut rig, &mut state, opened);
+        assert_eq!(state.settings_select_open, Some(SettingsSelect::Theme));
+
+        // Light (index 0), then Dark (index 1) — Enter chooses Dark.
+        keys(
+            &mut rig,
+            &state,
+            &[Named::ArrowDown, Named::ArrowDown, Named::Enter],
+        );
+        let chosen = last_message(&rig);
+        assert!(
+            matches!(
+                chosen,
+                Message::Settings(SettingsMessage::ThemeChanged(ThemeChoice::Dark))
+            ),
+            "expected ThemeChanged(Dark), got {chosen:?}"
+        );
+        drive(&mut rig, &mut state, chosen);
+
+        assert_eq!(state.config.theme, ThemeChoice::Dark);
+        assert_eq!(state.settings_select_open, None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::settings::theme()),
+            "focus must stay on the select, by id, across the real rebuild the theme \
+             swap triggers"
+        );
+    }
+
+    /// Zoom: choosing changes `state.config.zoom_percent`, yet focus stays
+    /// on `ids::settings::zoom()`.
+    #[test]
+    fn zoom_select_open_arrow_down_enter_focus_survives_the_zoom_change() {
+        let (mut state, _ws_id, _tmp) = settings_state_one_workspace();
+        let mut rig = Rig::new(SIZE);
+        assert_eq!(state.config.zoom_percent, 100, "sanity: default zoom");
+
+        assert!(tab_to(&mut rig, &mut state, &ids::settings::zoom()));
+
+        key(&mut rig, &state, Named::ArrowDown);
+        let opened = last_message(&rig);
+        assert!(matches!(
+            opened,
+            Message::Settings(SettingsMessage::SelectOpenChanged(
+                SettingsSelect::Zoom,
+                true
+            ))
+        ));
+        drive(&mut rig, &mut state, opened);
+        assert_eq!(state.settings_select_open, Some(SettingsSelect::Zoom));
+
+        // 100% (index 0), then 115% (index 1) — Enter chooses 115%.
+        keys(
+            &mut rig,
+            &state,
+            &[Named::ArrowDown, Named::ArrowDown, Named::Enter],
+        );
+        let chosen = last_message(&rig);
+        assert!(
+            matches!(chosen, Message::Settings(SettingsMessage::ZoomChanged(115))),
+            "expected ZoomChanged(115), got {chosen:?}"
+        );
+        drive(&mut rig, &mut state, chosen);
+
+        assert_eq!(state.config.zoom_percent, 115);
+        assert_eq!(state.settings_select_open, None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::settings::zoom()),
+            "focus must stay on the select, by id, across the real rebuild the zoom \
+             change triggers"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Row 6: Escape with a select open closes only the select.
+    // -----------------------------------------------------------------
+
+    /// Same mechanism `snora::design::Select`'s own Escape handling
+    /// already gives the dashboard's Arrange select
+    /// (`select::select_control`, `crates/knotra-ui/src/widget/select.rs`'s
+    /// own test) — proven here for Settings' own Theme select: Escape
+    /// closes the select alone, never navigates away from Settings or
+    /// drops focus off the trigger.
+    #[test]
+    fn escape_with_a_settings_select_open_closes_only_the_select() {
+        let (mut state, _ws_id, _tmp) = settings_state_one_workspace();
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::settings::theme()));
+        key(&mut rig, &state, Named::ArrowDown);
+        let opened = last_message(&rig);
+        drive(&mut rig, &mut state, opened);
+        assert_eq!(state.settings_select_open, Some(SettingsSelect::Theme));
+
+        key(&mut rig, &state, Named::Escape);
+        let closed = last_message(&rig);
+        assert!(
+            matches!(
+                closed,
+                Message::Settings(SettingsMessage::SelectOpenChanged(
+                    SettingsSelect::Theme,
+                    false
+                ))
+            ),
+            "Escape must publish only the select's own close, got {closed:?}"
+        );
+        drive(&mut rig, &mut state, closed);
+
+        assert_eq!(
+            state.settings_select_open, None,
+            "Escape must close the select"
+        );
+        assert_eq!(
+            state.screen,
+            Screen::Settings,
+            "Escape must not navigate away from Settings"
+        );
+        assert_eq!(
+            state.config.theme,
+            ThemeChoice::Light,
+            "Escape must not have chosen anything"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::settings::theme()),
+            "Escape must return focus to the select's own trigger, not leave the page"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Row 5: Rename and Remove from the keyboard — entry, return, and the
+    // neighbour after an actual removal.
+    // -----------------------------------------------------------------
+
+    fn open_rename_dialog_for(rig: &mut Rig, state: &mut AppState, button_id: &Id) {
+        assert!(
+            tab_to(rig, state, button_id),
+            "sanity: Tab must reach {button_id:?}"
+        );
+        key(rig, state, Named::Enter);
+        let opened = last_message(rig);
+        assert!(
+            matches!(
+                opened,
+                Message::Workspace(WorkspaceMessage::RenameWorkspaceDialogOpenedFor(_))
+            ),
+            "expected RenameWorkspaceDialogOpenedFor, got {opened:?}"
+        );
+        drive(rig, state, opened);
+        drive(
+            rig,
+            state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+    }
+
+    fn open_delete_dialog_for(rig: &mut Rig, state: &mut AppState, button_id: &Id) {
+        assert!(
+            tab_to(rig, state, button_id),
+            "sanity: Tab must reach {button_id:?}"
+        );
+        key(rig, state, Named::Enter);
+        let opened = last_message(rig);
+        assert!(
+            matches!(
+                opened,
+                Message::Workspace(WorkspaceMessage::DeleteWorkspaceRequestedFor(_))
+            ),
+            "expected DeleteWorkspaceRequestedFor, got {opened:?}"
+        );
+        drive(rig, state, opened);
+        drive(
+            rig,
+            state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+    }
+
+    /// Entry: opening Rename from Settings' own per-workspace button
+    /// focuses the dialog's own name field (`workspace_manager::
+    /// entry_id`'s own rule, shared with the switcher's Rename — same
+    /// dialog, only reached differently). Return: closing by Cancel
+    /// returns focus to the exact per-workspace button that opened it —
+    /// `ids::settings::workspace_rename(&b_id)`, never the switcher's own
+    /// generic `ids::switcher::rename()`.
+    #[test]
+    fn settings_rename_entry_is_the_name_field_cancel_returns_to_its_own_rename_button() {
+        let (mut state, _a_id, b_id, _tmp) = settings_state_two_workspaces();
+        let mut rig = Rig::new(SIZE);
+        let rename_b = ids::settings::workspace_rename(&b_id);
+
+        open_rename_dialog_for(&mut rig, &mut state, &rename_b);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(knotra_ui::widget::focus_id::WORKSPACE_NAME.clone()),
+            "opening Rename via a real key must focus its own entry, the name field"
+        );
+
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::workspace_manager::cancel()
+        ));
+        key(&mut rig, &state, Named::Enter);
+        let cancelled = last_message(&rig);
+        assert!(matches!(
+            cancelled,
+            Message::Workspace(WorkspaceMessage::RenameWorkspaceCancelled)
+        ));
+        drive(&mut rig, &mut state, cancelled);
+
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            None,
+            "sanity: Cancel must close the dialog"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(rename_b.clone()),
+            "closing Rename must return focus to Settings' own per-workspace button that \
+             opened it"
+        );
+        assert_ne!(
+            focused_id(&mut rig, &state),
+            Some(ids::switcher::rename()),
+            "must never return to the switcher's own generic Rename — a different button"
+        );
+    }
+
+    /// The same entry/return pair for Remove: the entry is the dialog's
+    /// own safe default, Cancel (R6 — never the destructive action), and
+    /// closing by Cancel returns focus to `ids::settings::
+    /// workspace_remove(&b_id)`, never `ids::switcher::delete()`.
+    #[test]
+    fn settings_remove_entry_is_cancel_and_cancel_returns_to_its_own_remove_button() {
+        let (mut state, _a_id, b_id, _tmp) = settings_state_two_workspaces();
+        let mut rig = Rig::new(SIZE);
+        let remove_b = ids::settings::workspace_remove(&b_id);
+
+        open_delete_dialog_for(&mut rig, &mut state, &remove_b);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::workspace_manager::delete_cancel()),
+            "opening Remove via a real key must focus its own entry, Cancel"
+        );
+
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::workspace_manager::delete_cancel()
+        ));
+        key(&mut rig, &state, Named::Enter);
+        let cancelled = last_message(&rig);
+        assert!(matches!(
+            cancelled,
+            Message::Workspace(WorkspaceMessage::DeleteWorkspaceCancelled)
+        ));
+        drive(&mut rig, &mut state, cancelled);
+
+        assert_eq!(crate::state::layer::top_layer(&state), None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(remove_b.clone()),
+            "closing Remove must return focus to Settings' own per-workspace button that \
+             opened it"
+        );
+        assert_ne!(
+            focused_id(&mut rig, &state),
+            Some(ids::switcher::delete()),
+            "must never return to the switcher's own generic Remove — a different button"
+        );
+    }
+
+    /// The neighbour rule (A1 of stage 3), for a real removal reached from
+    /// Settings: with two workspaces and the second (Beta, the last row
+    /// in the per-workspace list) removed via its own per-workspace
+    /// Remove, Beta's whole row vanishes with nothing sliding up to take
+    /// its place (it was last), so the page's own remembered focus (Beta's
+    /// Remove) is genuinely gone and the fallback search finds the next
+    /// surviving id in the page's own flat tracked order — not another
+    /// workspace's own button (there is only one left, Main, whose own
+    /// Remove is a different row entirely), but "Add workspace", the
+    /// control that was already right after the workspace list the whole
+    /// time. The same backward/forward neighbour search already proven
+    /// for dashboard rows (`stage3_amendment_a1_return_on_close::
+    /// remove_project_confirmed_lands_on_alphas_row_its_neighbour`),
+    /// exercised here for Settings' own per-workspace controls — see
+    /// this module's own report for a found-but-not-fixed gap in the same
+    /// mechanism when the *removed* workspace is not the last one.
+    #[test]
+    fn settings_remove_confirmed_removes_its_row_and_focus_falls_to_the_neighbour() {
+        let (mut state, _a_id, b_id, _tmp) = settings_state_two_workspaces();
+        let mut rig = Rig::new(SIZE);
+        let remove_b = ids::settings::workspace_remove(&b_id);
+
+        open_delete_dialog_for(&mut rig, &mut state, &remove_b);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::workspace_manager::delete_cancel())
+        );
+
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::workspace_manager::confirm_delete()
+        ));
+        key(&mut rig, &state, Named::Enter);
+        let confirmed = last_message(&rig);
+        assert!(matches!(
+            confirmed,
+            Message::Workspace(WorkspaceMessage::DeleteWorkspaceConfirmed)
+        ));
+        drive(&mut rig, &mut state, confirmed);
+
+        assert!(
+            state.all_workspaces.iter().all(|ws| ws.id != b_id),
+            "sanity: Beta must really be gone"
+        );
+        assert_eq!(state.all_workspaces.len(), 1, "sanity: only Main survives");
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::settings::add_workspace()),
+            "A1's own rule: with Beta's whole row gone and nothing left in the workspace \
+             list to slide into its place, focus falls to the next surviving control in \
+             the page's own tracked order, \"Add workspace\" — never to nothing, and never \
+             to the switcher's own generic Remove"
+        );
+    }
+
+    /// The harder case the test above cannot reach: removing a
+    /// **non-last** workspace, so another row (Gamma's) really does slide
+    /// up into the removed row's own old tree position. Before `view/
+    /// settings.rs::view_workspaces_section` was converted onto `iced::
+    /// widget::keyed::Column` (keyed by each `WorkspaceId`), this slid
+    /// Gamma's row into Beta's own old, really-focused state — landing
+    /// real focus on Gamma's Remove, not Gamma's Rename, and never
+    /// running `belongs_on`'s id-based search at all (confirmed directly
+    /// before the fix: this assertion failed with exactly that id).
+    /// Keyed, Beta's row is genuinely gone rather than reused, so nothing
+    /// reports real focus and `belongs_on`'s own forward-then-backward
+    /// neighbour search runs — forward from Beta's own Remove in the
+    /// page's old tracked order finds Gamma's own Rename next.
+    #[test]
+    fn settings_remove_confirmed_for_a_non_last_workspace_lands_on_its_neighbour() {
+        let (mut state, _a_id, b_id, c_id, _tmp) = settings_state_three_workspaces();
+        let mut rig = Rig::new(SIZE);
+        let remove_b = ids::settings::workspace_remove(&b_id);
+
+        open_delete_dialog_for(&mut rig, &mut state, &remove_b);
+        assert!(tab_to(
+            &mut rig,
+            &mut state,
+            &ids::workspace_manager::confirm_delete()
+        ));
+        key(&mut rig, &state, Named::Enter);
+        let confirmed = last_message(&rig);
+        assert!(matches!(
+            confirmed,
+            Message::Workspace(WorkspaceMessage::DeleteWorkspaceConfirmed)
+        ));
+        drive(&mut rig, &mut state, confirmed);
+
+        assert!(
+            state.all_workspaces.iter().all(|ws| ws.id != b_id),
+            "sanity: Beta must really be gone"
+        );
+        assert_eq!(
+            state.all_workspaces.len(),
+            2,
+            "sanity: Main and Gamma survive"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::settings::workspace_rename(&c_id)),
+            "with Gamma's row sliding into Beta's own old tree position, focus must still \
+             land on the neighbour `belongs_on` finds by id — never on whatever control a \
+             plain, unkeyed Column would have left behind at that position"
+        );
+    }
+}
+
+/// RFC-075 handoff stage 4 §5, rows 2 and 4 — History's own Tab sequence,
+/// and the `FollowsId`-by-id mechanism (already proven for dashboard rows
+/// in `focus_follows_its_id`) written for History's own per-entry
+/// controls, keyed by each entry's stable key, its `OperationId`
+/// (`view/ids.rs::history`'s own module doc comment).
+#[cfg(test)]
+mod stage4_history {
+    use super::{Rig, SIZE, drive, focused_id};
+    use crate::config::{AppConfig, AppPaths};
+    use crate::message::{BackgroundMessage, Message, ShortcutMessage};
+    use crate::state::{AppState, OperationOwner, Screen};
+    use crate::view::ids;
+    use iced::widget::Id;
+    use knotra_vcs::model::operation::OperationKind;
+    use knotra_vcs::{OperationId, OperationLog, OperationResult};
+
+    fn tmp_paths() -> (AppPaths, tempfile::TempDir) {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let paths = AppPaths {
+            config_file: tmp.path().join("config.toml"),
+            workspaces_dir: tmp.path().join("workspaces"),
+            history_dir: tmp.path().join("history"),
+        };
+        (paths, tmp)
+    }
+
+    fn tab(rig: &mut Rig, state: &mut AppState) {
+        drive(rig, state, Message::Shortcut(ShortcutMessage::FocusNext));
+    }
+    fn shift_tab(rig: &mut Rig, state: &mut AppState) {
+        drive(
+            rig,
+            state,
+            Message::Shortcut(ShortcutMessage::FocusPrevious),
+        );
+    }
+
+    fn tab_to(rig: &mut Rig, state: &mut AppState, target: &Id) -> bool {
+        for _ in 0..40 {
+            tab(rig, state);
+            if focused_id(rig, state) == Some(target.clone()) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn assert_tab_sequence_wraps(rig: &mut Rig, state: &mut AppState, expected: &[Id]) {
+        for _ in 0..expected.len() * 2 {
+            if focused_id(rig, state) == Some(expected[0].clone()) {
+                break;
+            }
+            tab(rig, state);
+        }
+        assert_eq!(
+            focused_id(rig, state),
+            Some(expected[0].clone()),
+            "sanity: Tab must be able to reach {:?}",
+            expected[0]
+        );
+        for want in &expected[1..] {
+            tab(rig, state);
+            assert_eq!(
+                focused_id(rig, state),
+                Some(want.clone()),
+                "expected {want:?}"
+            );
+        }
+        tab(rig, state);
+        assert_eq!(
+            focused_id(rig, state),
+            Some(expected[0].clone()),
+            "Tab past the last control must wrap to the first"
+        );
+        shift_tab(rig, state);
+        assert_eq!(
+            focused_id(rig, state),
+            Some(expected.last().unwrap().clone()),
+            "Shift+Tab before the first control must wrap to the last"
+        );
+    }
+
+    /// A minimal, real `OperationLog` — empty `per_project` throughout,
+    /// since every test in this module is about *which entry holds
+    /// focus*, never about what a given entry's own summary/detail
+    /// renders (`history.rs`'s own test module already covers that).
+    fn sample_log(id: OperationId) -> OperationLog {
+        let now = jiff::Timestamp::now();
+        OperationLog {
+            result: OperationResult {
+                operation_id: id,
+                kind: OperationKind::Fetch,
+                started_at: now,
+                finished_at: now,
+                per_project: Vec::new(),
+                rollback_attempted: false,
+                rollback_succeeded: None,
+            },
+            recovery_hints: Vec::new(),
+        }
+    }
+
+    fn history_state_two_entries() -> (AppState, OperationId, OperationId, tempfile::TempDir) {
+        let (paths, tmp) = tmp_paths();
+        let mut state = AppState::new_with_paths(AppConfig::default(), paths);
+        state.screen = Screen::History;
+        let id_a = OperationId::new();
+        let id_b = OperationId::new();
+        state.operation_logs = vec![sample_log(id_a), sample_log(id_b)];
+        // Row 2's own "one of them expanded" — its detail content (none,
+        // here, since `per_project` is empty) must add no extra Tab stop;
+        // `history.rs`'s own `record_row` never does (checked directly:
+        // its detail is plain `text`, nothing focusable).
+        state.history_expanded.insert(id_a);
+        (state, id_a, id_b, tmp)
+    }
+
+    // -----------------------------------------------------------------
+    // Row 2: History's Tab sequence, with two entries, one expanded.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn history_tab_sequence_two_entries_one_expanded_wraps_both_ways() {
+        let (mut state, id_a, id_b, _tmp) = history_state_two_entries();
+        let mut rig = Rig::new(SIZE);
+
+        // History is the active screen, so `nav_history` is disabled
+        // (skipped, D4 b) — `nav_dashboard` is not.
+        let expected: Vec<Id> = vec![
+            ids::shell::nav_dashboard(),
+            ids::shell::refresh(),
+            ids::shell::palette(),
+            ids::shell::settings(),
+            ids::history::search(),
+            ids::history::toggle(&id_a),
+            ids::history::copy(&id_a),
+            ids::history::toggle(&id_b),
+            ids::history::copy(&id_b),
+        ];
+
+        assert_tab_sequence_wraps(&mut rig, &mut state, &expected);
+    }
+
+    // -----------------------------------------------------------------
+    // Row 4: a new History entry arriving above the currently-focused
+    // one — focus stays on its own entry, by `OperationId`.
+    // -----------------------------------------------------------------
+
+    /// Mirrors `focus_follows_its_id::focus_stays_on_its_project_when_a_
+    /// refresh_moves_it_to_another_tier`'s own real-message shape: a
+    /// genuine `BackgroundMessage` a live fetch completing would publish
+    /// (`SingleFetchCompleted`), not a direct `state.operation_logs`
+    /// write — `persist_log`'s own `insert(0, ...)` (`app/background/
+    /// mod.rs`) is what actually puts the new entry above every existing
+    /// one.
+    ///
+    /// **Found failing against production code, then fixed at the root**
+    /// (a test must never assert a known defect as correct, and the
+    /// handoff's own §2 requires this exact scenario to survive). The
+    /// test-writing pass confirmed directly (instrumented
+    /// `knotra_ui::widget::keyed::FollowsId::follow`, reverted after)
+    /// that the redraw applying `persist_log`'s insert reported
+    /// `survey.focused` as the *new* entry's own toggle, not `None` —
+    /// `list()`'s own plain `Column` (no stable per-item key) reused the
+    /// tree-position-0 widget's internal `is_focused` flag for whatever
+    /// now rendered there, before `FollowsId` ever got a look, and
+    /// `follow`'s own "something is really, currently focused — trust it
+    /// completely" rule then took that leaked, spurious focus at face
+    /// value instead of running `belongs_on`'s id-based reconciliation at
+    /// all. Same class as Settings' own per-workspace Remove (removing a
+    /// non-last workspace) — one mechanism, not two bugs.
+    ///
+    /// Fixed by giving `list()`'s own callers a keyed alternative,
+    /// `knotra_ui::widget::list_keyed` (built on `iced::widget::keyed::
+    /// Column`, which exists for exactly this: "adding an element at the
+    /// top may cause a loss of continuity on every element on the list"
+    /// — `iced_widget::keyed`'s own module docs). History's `view_body`
+    /// now calls it keyed by each entry's own `OperationId` (made `Copy`
+    /// for this — a `Uuid` already is — `knotra-vcs/src/model/
+    /// operation.rs`); Settings' own per-workspace list is converted the
+    /// same way, keyed by `WorkspaceId`. `list()` itself, and every other
+    /// caller (dashboard rows, window lists), is untouched — reconciling
+    /// *their* own reorders/insertions the same way is a separate,
+    /// broader change the review-request reports but does not make here.
+    #[test]
+    fn focus_stays_on_its_entry_when_a_new_one_arrives_above_it() {
+        let (mut state, id_a, _id_b, _tmp) = history_state_two_entries();
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::history::toggle(&id_a)));
+
+        let lease_id = state
+            .operation_interlock
+            .try_acquire(OperationOwner::SingleFetch)
+            .expect("sanity: the interlock starts idle");
+        let new_id = OperationId::new();
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Background(BackgroundMessage::SingleFetchCompleted {
+                lease_id,
+                log: sample_log(new_id),
+            }),
+        );
+
+        assert_eq!(
+            state.operation_logs.first().map(|l| l.result.operation_id),
+            Some(new_id),
+            "sanity: the new entry must really land above (index 0)"
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::history::toggle(&id_a)),
+            "focus must stay on its own entry, by OperationId — not on whatever is now at \
+             the position it used to occupy"
         );
     }
 }

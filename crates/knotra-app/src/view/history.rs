@@ -16,19 +16,21 @@
 
 use iced::{
     Alignment, Element, Length, Padding,
-    widget::{Space, button, column, container, row, scrollable, text},
+    widget::{Space, column, container, row, scrollable, text},
 };
 use knotra_ui::widget::{
     SMALL_BUTTON_HEIGHT, Tokens, Tone, WIDE_CONTENT_WIDTH, body_badge_diameter,
-    centered_button_label, centered_button_row, icon, list, record_row, status_badge,
+    centered_button_label, centered_button_row, icon, list_keyed, record_row, status_badge,
     status_symbol, strong, style, styled_text_input,
 };
-use knotra_vcs::model::operation::{OperationLog, OperationResult, ProjectOperationOutcome};
+use knotra_vcs::model::operation::{
+    OperationId, OperationLog, OperationResult, ProjectOperationOutcome,
+};
 
 use crate::{
     message::{HistoryMessage, Message},
     state::{AppState, dashboard::badge_for_operation_outcome},
-    view::dashboard::WidthMode,
+    view::{dashboard::WidthMode, ids},
 };
 
 /// Matches `view/settings.rs`'s own bounded-form width (`FORM_MAX_WIDTH`) —
@@ -81,6 +83,7 @@ fn view_toolbar(state: &AppState) -> Element<'_, Message> {
         &state.history_search,
     )
     .on_input(|s| Message::History(HistoryMessage::SearchChanged(s)))
+    .id(ids::history::search())
     .width(Length::Fill);
 
     container(input)
@@ -123,7 +126,7 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
 
     let q = state.history_search.to_lowercase();
 
-    let entries: Vec<Element<'_, Message>> = state
+    let entries: Vec<(OperationId, Element<'_, Message>)> = state
         .operation_logs
         .iter()
         .filter(|log| {
@@ -141,7 +144,7 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
                         || p.stderr.to_lowercase().contains(&q)
                 })
         })
-        .map(|log| view_log_entry(state, log))
+        .map(|log| (log.result.operation_id, view_log_entry(state, log)))
         .collect();
 
     if entries.is_empty() {
@@ -167,7 +170,7 @@ fn view_body(state: &AppState) -> Element<'_, Message> {
     if let Some(notice) = notice {
         list_body = list_body.push(notice);
     }
-    let list_column = list_body.push(list(tokens, entries));
+    let list_column = list_body.push(list_keyed(tokens, entries));
 
     // RFC-071 D7: the same wide-band ceiling Dashboard and Settings use —
     // an entry's result and actions then sit within `WIDE_CONTENT_WIDTH` of
@@ -247,7 +250,7 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         icon::chevron_right()
     };
 
-    let op_id_toggle = result.operation_id.clone();
+    let op_id_toggle = result.operation_id;
 
     // H4: a fixed metadata hierarchy — kind, status, and the two actions on
     // one primary line; timestamp and project count, both secondary, on a
@@ -282,44 +285,58 @@ fn view_log_entry<'a>(state: &'a AppState, log: &'a OperationLog) -> Element<'a,
         .spacing(6)
         .align_y(Alignment::Center),
         // RFC-071 D5: an entry's own actions are not the page's main act —
-        // both become `secondary`, not the bare-default (effectively
-        // filled) look they had before. Neither is a focus target today
-        // (History has no focus-order wiring at all yet), so `false` is
-        // passed explicitly rather than left out — the ring ships in case
-        // one is ever wired up, same choice Task 100's snackbar made.
+        // both `secondary`, not the bare-default (effectively filled) look
+        // they had before.
         // RFC-073 D8: `SMALL_BUTTON_HEIGHT` — a per-entry control in a
         // potentially long list, the floor rather than `BUTTON_HEIGHT`.
-        button(centered_button_row(
-            row![
-                text(toggle_label)
-                    .size(snora::design::style::text::body_size(tokens))
-                    .line_height(snora::design::style::text::body_line_height(tokens)),
-                icon::icon_element(&chevron)
-            ]
-            .spacing(4)
-        ))
-        .height(SMALL_BUTTON_HEIGHT)
-        .padding([0, 10])
-        .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle)))
-        .style({
+        // RFC-075 stage 4 §2: real snora controls now, each with its own
+        // id built from the entry's stable key (its `OperationId`) — Copy
+        // log never disables itself (its own `on_press` is unconditional,
+        // checked directly), so neither joins `reserved`.
+        {
             let t = tokens.clone();
-            move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
-        }),
-        button(centered_button_label(
-            text(state.t("history.copy_log"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens))
-        ))
-        .height(SMALL_BUTTON_HEIGHT)
-        .padding([0, 10])
-        .on_press(Message::CopyToClipboard(export_text(
-            result,
-            &copied_log_names(state, result)
-        )))
-        .style({
+            snora::design::control(
+                tokens,
+                centered_button_row(
+                    row![
+                        text(toggle_label)
+                            .size(snora::design::style::text::body_size(tokens))
+                            .line_height(snora::design::style::text::body_line_height(tokens)),
+                        icon::icon_element(&chevron)
+                    ]
+                    .spacing(4),
+                ),
+            )
+            .height(SMALL_BUTTON_HEIGHT)
+            .padding([0.0, 10.0])
+            .id(ids::history::toggle(&op_id_toggle))
+            .on_press(Message::History(HistoryMessage::EntryToggled(op_id_toggle)))
+            .style(move |_theme, status| style::secondary(&t, status))
+        },
+        {
+            // `secondary_control` itself is `BUTTON_HEIGHT` (44px), not
+            // this row's own `SMALL_BUTTON_HEIGHT` (36px) — built directly
+            // on `snora::design::control` instead, to keep "the same look
+            // at rest" the handoff asks for (no height exception named for
+            // Copy log, unlike the selects/checkbox).
             let t = tokens.clone();
-            move |_theme, status| style::with_focus_ring(&t, false, style::secondary(&t, status))
-        }),
+            snora::design::control(
+                tokens,
+                centered_button_label(
+                    text(state.t("history.copy_log"))
+                        .size(snora::design::style::text::body_size(tokens))
+                        .line_height(snora::design::style::text::body_line_height(tokens)),
+                ),
+            )
+            .height(SMALL_BUTTON_HEIGHT)
+            .padding([0.0, 10.0])
+            .id(ids::history::copy(&result.operation_id))
+            .on_press(Message::CopyToClipboard(export_text(
+                result,
+                &copied_log_names(state, result),
+            )))
+            .style(move |_theme, status| style::secondary(&t, status))
+        },
     ]
     .spacing(8)
     .align_y(Alignment::Center);

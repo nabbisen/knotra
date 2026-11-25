@@ -5,7 +5,11 @@ use serde::{Deserialize, Serialize};
 use super::project::{Project, ProjectId};
 
 /// Unique identifier for a named workspace.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// RFC-075 stage 4 §2: `Copy` (a `Uuid` already is) — same reason as
+/// `OperationId`'s own doc comment: `iced::widget::keyed::Column`'s `Key`
+/// bound requires it, for Settings' own per-workspace list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct WorkspaceId(pub uuid::Uuid);
 
 impl WorkspaceId {

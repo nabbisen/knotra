@@ -9,11 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed — The keyboard reaches everything on the dashboard and in every window
+### Changed — The keyboard reaches everything, on every screen and in every window
 
-- Tab now reaches every control on the dashboard and in every window, including the Group and
-  Sort choices, the buttons shown when there are no projects or no matches, the details panel,
-  and Undo.
+- Tab now reaches every control on every screen and in every window, including Settings and
+  History, the Group and Sort choices, the buttons shown when there are no projects or no
+  matches, the details panel, and Undo.
 - After the last control, Tab goes back to the first, and Shift+Tab the other way, so the
   highlight never disappears.
 - ↑ and ↓ move through lists: the command palette's results, the workspace menu, and "Find work

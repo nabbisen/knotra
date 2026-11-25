@@ -125,7 +125,7 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                         ),
                 } => Some(Message::Activity(
                     crate::message::ActivityMessage::RetryRequested {
-                        source_operation_id: log.result.operation_id.clone(),
+                        source_operation_id: log.result.operation_id,
                     },
                 )),
                 _ => None,

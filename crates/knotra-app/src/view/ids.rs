@@ -402,3 +402,74 @@ pub mod shortcuts {
         Id::new("shortcuts.close")
     }
 }
+
+/// RFC-075 stage 4 §2.
+pub mod settings {
+    use super::Id;
+    use knotra_vcs::model::workspace::WorkspaceId;
+
+    pub fn locale() -> Id {
+        Id::new("settings.locale")
+    }
+    pub fn theme() -> Id {
+        Id::new("settings.theme")
+    }
+    pub fn zoom() -> Id {
+        Id::new("settings.zoom")
+    }
+    pub fn refresh_auto() -> Id {
+        Id::new("settings.refresh_auto")
+    }
+    pub fn max_concurrent() -> Id {
+        Id::new("settings.max_concurrent")
+    }
+    pub fn max_logs() -> Id {
+        Id::new("settings.max_logs")
+    }
+    pub fn fs_debounce() -> Id {
+        Id::new("settings.fs_debounce")
+    }
+    pub fn editor() -> Id {
+        Id::new("settings.editor")
+    }
+    pub fn merge_tool() -> Id {
+        Id::new("settings.merge_tool")
+    }
+    /// A Settings workspace row's own Rename — distinct from
+    /// `switcher::rename()` (the switcher menu's own single trigger): this
+    /// is one per workspace, in the list `view_workspaces_section` builds.
+    pub fn workspace_rename(id: &WorkspaceId) -> Id {
+        Id::from(format!("settings.workspace.{id}.rename"))
+    }
+    pub fn workspace_remove(id: &WorkspaceId) -> Id {
+        Id::from(format!("settings.workspace.{id}.remove"))
+    }
+    pub fn add_workspace() -> Id {
+        Id::new("settings.add_workspace")
+    }
+    pub fn advanced_toggle() -> Id {
+        Id::new("settings.advanced_toggle")
+    }
+    pub fn fs_watch_checkbox() -> Id {
+        Id::new("settings.fs_watch_checkbox")
+    }
+}
+
+/// RFC-075 stage 4 §2. A History entry's own stable key is its
+/// `OperationId` — already what `AppState::history_expanded` is keyed by,
+/// so these ids survive a new entry arriving above an already-focused one
+/// the same way.
+pub mod history {
+    use super::Id;
+    use knotra_vcs::model::operation::OperationId;
+
+    pub fn search() -> Id {
+        Id::new("history.search")
+    }
+    pub fn toggle(id: &OperationId) -> Id {
+        Id::from(format!("history.entry.{id}.toggle"))
+    }
+    pub fn copy(id: &OperationId) -> Id {
+        Id::from(format!("history.entry.{id}.copy"))
+    }
+}

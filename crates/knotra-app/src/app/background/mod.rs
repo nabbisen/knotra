@@ -79,13 +79,13 @@ fn persist_log(log: &OperationLog, state: &mut AppState) {
         match log.result.kind {
             OperationKind::Fetch => {
                 RetryAvailability::Available(ActivityRetryAction::FetchFailed {
-                    source_operation_id: log.result.operation_id.clone(),
+                    source_operation_id: log.result.operation_id,
                     project_ids: failed_ids,
                 })
             }
             OperationKind::SmartPull => {
                 RetryAvailability::Available(ActivityRetryAction::ReviewSmartPull {
-                    source_operation_id: log.result.operation_id.clone(),
+                    source_operation_id: log.result.operation_id,
                     project_ids: failed_ids,
                 })
             }
@@ -222,7 +222,7 @@ fn history_logs_reloaded(state: &mut AppState, loaded: LoadedLogs) -> Task<Messa
     let mut seen = std::collections::HashSet::new();
     let mut merged: Vec<OperationLog> = Vec::new();
     for log in state.operation_logs.drain(..).chain(loaded.logs) {
-        if seen.insert(log.result.operation_id.clone()) {
+        if seen.insert(log.result.operation_id) {
             merged.push(log);
         }
     }

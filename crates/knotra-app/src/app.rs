@@ -263,6 +263,11 @@ fn update_inner(state: &mut AppState, message: Message) -> Task<Message> {
             if screen != crate::state::Screen::Dashboard {
                 state.arrange_select_open = None;
             }
+            // RFC-075 stage 4 §2: leaving Settings closes whichever of its
+            // own selects was open, the same shape.
+            if screen != crate::state::Screen::Settings {
+                state.settings_select_open = None;
+            }
             state.screen = screen;
             Task::none()
         }

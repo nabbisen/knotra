@@ -132,23 +132,32 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
             state.config.locale = l;
             state.catalog = knotra_ui::i18n::Catalog::for_locale(l);
             persist_config(state);
+            // RFC-075 stage 4 §2: "choosing closes it" — the select's own
+            // id does not change across the rebuild this triggers, so
+            // `knotra_ui::widget::focus_by_id_page` keeps real focus on it
+            // by construction; only the open/closed flag needs clearing.
+            state.settings_select_open = None;
         }
         SettingsMessage::ThemeChanged(choice) => {
             state.config.theme = choice;
             state.theme = knotra_ui::KnotraTheme::from_choice(choice);
             persist_config(state);
+            state.settings_select_open = None;
         }
         SettingsMessage::ZoomChanged(percent) => {
             state.config.zoom_percent = percent;
             persist_config(state);
+            state.settings_select_open = None;
         }
         SettingsMessage::RefreshAutoChanged(secs) => {
             state.config.refresh_interval_secs = secs;
             persist_config(state);
+            state.settings_select_open = None;
         }
         SettingsMessage::MaxConcurrentChanged(n) => {
             state.config.max_concurrent_reads = n;
             persist_config(state);
+            state.settings_select_open = None;
         }
         SettingsMessage::ExternalEditorChanged(s) => {
             state.settings_edit.external_editor = s.clone();
@@ -171,6 +180,7 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
         SettingsMessage::MaxLogEntriesChanged(n) => {
             state.config.max_log_entries = n;
             persist_config(state);
+            state.settings_select_open = None;
             // RFC-073 Amendment A5 §2: takes effect at once, both ways —
             // no setting needs a restart once this one does not (D13's
             // own result, below, becomes "none").
@@ -217,9 +227,13 @@ pub(super) fn handle_settings(state: &mut AppState, msg: SettingsMessage) -> Tas
         SettingsMessage::FsDebounceSecs(secs) => {
             state.config.fs_debounce_secs = secs;
             persist_config(state);
+            state.settings_select_open = None;
         }
         SettingsMessage::AdvancedToggled => {
             state.settings_advanced_open = !state.settings_advanced_open;
+        }
+        SettingsMessage::SelectOpenChanged(which, opened) => {
+            state.settings_select_open = opened.then_some(which);
         }
     }
     Task::none()

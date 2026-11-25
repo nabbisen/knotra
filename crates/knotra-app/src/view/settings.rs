@@ -23,19 +23,19 @@
 
 use iced::{
     Alignment, Element, Length, Padding,
-    widget::{Space, button, column, container, row, scrollable, text},
+    widget::{Space, column, container, keyed, row, scrollable, text},
 };
 use knotra_ui::ThemeChoice;
 use knotra_ui::i18n::Locale;
 use knotra_ui::widget::{
-    BUTTON_HEIGHT, Tokens, WIDE_CONTENT_WIDTH, centered_button_row, checkbox, icon,
-    secondary_maybe, select, strong, style, validated_field,
+    BUTTON_HEIGHT, Tokens, WIDE_CONTENT_WIDTH, centered_button_row, checkbox_control, icon,
+    secondary_control_maybe, select, strong, style, validated_field,
 };
 
 use crate::{
     message::{Message, SettingsMessage, WorkspaceMessage},
-    state::AppState,
-    view::dashboard::WidthMode,
+    state::{AppState, SettingsSelect},
+    view::{dashboard::WidthMode, ids},
 };
 
 /// Matches `OverlayWidth::Large` (`knotra-ui`'s dialog-width vocabulary,
@@ -154,12 +154,19 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::styled_pick_list(
+        select::select_control(
             tokens,
             locale_options,
             Some(state.config.locale),
-            false,
+            state.settings_select_open == Some(SettingsSelect::Locale),
             |value| Message::Settings(SettingsMessage::LocaleChanged(value)),
+            |opened| {
+                Message::Settings(SettingsMessage::SelectOpenChanged(
+                    SettingsSelect::Locale,
+                    opened,
+                ))
+            },
+            ids::settings::locale(),
         ),
     ]
     .spacing(8)
@@ -187,12 +194,19 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::styled_pick_list(
+        select::select_control(
             tokens,
             theme_options,
             Some(state.config.theme),
-            false,
+            state.settings_select_open == Some(SettingsSelect::Theme),
             |value| Message::Settings(SettingsMessage::ThemeChanged(value)),
+            |opened| {
+                Message::Settings(SettingsMessage::SelectOpenChanged(
+                    SettingsSelect::Theme,
+                    opened,
+                ))
+            },
+            ids::settings::theme(),
         ),
     ]
     .spacing(8)
@@ -210,12 +224,19 @@ fn view_display_section(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::styled_pick_list(
+        select::select_control(
             tokens,
             zoom_options,
             Some(state.config.zoom_percent),
-            false,
+            state.settings_select_open == Some(SettingsSelect::Zoom),
             |value| Message::Settings(SettingsMessage::ZoomChanged(value)),
+            |opened| {
+                Message::Settings(SettingsMessage::SelectOpenChanged(
+                    SettingsSelect::Zoom,
+                    opened,
+                ))
+            },
+            ids::settings::zoom(),
         ),
     ]
     .spacing(8)
@@ -245,22 +266,40 @@ fn view_workspaces_section(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     let can_delete = state.all_workspaces.len() > 1;
 
-    let mut list = column![].spacing(8);
+    // RFC-075 stage 4 §2: a keyed column, by each workspace's own
+    // `WorkspaceId` (made `Copy` for this — a `Uuid` already is,
+    // `knotra-vcs/src/model/workspace.rs`) — removing a non-last
+    // workspace must hand real keyboard focus to its neighbour's own
+    // row, not to whatever a plain `Column` leaves behind by tree
+    // position (the same class of bug fixed for History's own list via
+    // `knotra_ui::widget::list_keyed`; see this stage's review-request
+    // for the full finding). No divider lines here — this list never
+    // had `knotra_ui::widget::list`'s own look, so `iced::widget::keyed::
+    // Column` is used directly rather than switching this section onto
+    // that shared, differently-styled helper.
+    let mut list = keyed::Column::new().spacing(8);
     for ws in &state.all_workspaces {
-        let rename_btn = secondary_maybe(
+        let rename_btn = secondary_control_maybe(
             tokens,
             state.t("workspace.rename.short"),
             Some(Message::Workspace(
-                WorkspaceMessage::RenameWorkspaceDialogOpenedFor(ws.id.clone()),
+                WorkspaceMessage::RenameWorkspaceDialogOpenedFor(ws.id),
             )),
+            ids::settings::workspace_rename(&ws.id),
         );
 
-        let remove_btn = secondary_maybe(
+        // RFC-075 stage 4 §2: `can_delete` (the last-workspace guard) is
+        // the only thing this ever disables on — never itself, on its own
+        // press, the way `reserved` exists for (checked directly: nothing
+        // here reads `operation_interlock`/a busy flag), so it joins no
+        // `reserved` list.
+        let remove_btn = secondary_control_maybe(
             tokens,
             state.t("workspace.delete.short"),
             can_delete.then_some(Message::Workspace(
-                WorkspaceMessage::DeleteWorkspaceRequestedFor(ws.id.clone()),
+                WorkspaceMessage::DeleteWorkspaceRequestedFor(ws.id),
             )),
+            ids::settings::workspace_remove(&ws.id),
         );
 
         // RFC-073 D4: "Remove ... stays unavailable for the last
@@ -299,15 +338,16 @@ fn view_workspaces_section(state: &AppState) -> Element<'_, Message> {
                     .line_height(snora::design::style::text::body_line_height(tokens)),
             );
         }
-        list = list.push(entry);
+        list = list.push(ws.id, entry);
     }
 
-    let add_workspace = secondary_maybe(
+    let add_workspace = secondary_control_maybe(
         tokens,
         state.t("plain.add_workspace"),
         Some(Message::Workspace(
             WorkspaceMessage::CreateWorkspaceDialogOpened,
         )),
+        ids::settings::add_workspace(),
     );
 
     column![list, add_workspace].spacing(12).into()
@@ -333,12 +373,19 @@ fn view_refresh_auto_field(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::styled_pick_list(
+        select::select_control(
             tokens,
             options,
             Some(state.config.refresh_interval_secs),
-            false,
+            state.settings_select_open == Some(SettingsSelect::RefreshAuto),
             |value| Message::Settings(SettingsMessage::RefreshAutoChanged(value)),
+            |opened| {
+                Message::Settings(SettingsMessage::SelectOpenChanged(
+                    SettingsSelect::RefreshAuto,
+                    opened,
+                ))
+            },
+            ids::settings::refresh_auto(),
         ),
     ]
     .spacing(8)
@@ -373,12 +420,19 @@ fn view_max_concurrent_field(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::styled_pick_list(
+        select::select_control(
             tokens,
             options,
             Some(state.config.max_concurrent_reads),
-            false,
+            state.settings_select_open == Some(SettingsSelect::MaxConcurrent),
             |value| Message::Settings(SettingsMessage::MaxConcurrentChanged(value)),
+            |opened| {
+                Message::Settings(SettingsMessage::SelectOpenChanged(
+                    SettingsSelect::MaxConcurrent,
+                    opened,
+                ))
+            },
+            ids::settings::max_concurrent(),
         ),
     ]
     .spacing(8)
@@ -402,12 +456,19 @@ fn view_max_logs_field(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::styled_pick_list(
+        select::select_control(
             tokens,
             options,
             Some(state.config.max_log_entries),
-            false,
+            state.settings_select_open == Some(SettingsSelect::MaxLogs),
             |value| Message::Settings(SettingsMessage::MaxLogEntriesChanged(value)),
+            |opened| {
+                Message::Settings(SettingsMessage::SelectOpenChanged(
+                    SettingsSelect::MaxLogs,
+                    opened,
+                ))
+            },
+            ids::settings::max_logs(),
         ),
     ]
     .spacing(8)
@@ -422,9 +483,9 @@ fn view_editor_field(state: &AppState) -> Element<'_, Message> {
         state.t("settings.editor_label"),
         state.t("settings.editor_hint"),
         &state.settings_edit.external_editor,
-        None,
+        knotra_ui::widget::FieldAnnotations::default(),
         |s| Message::Settings(SettingsMessage::ExternalEditorChanged(s)),
-        None,
+        ids::settings::editor(),
     )
 }
 
@@ -435,9 +496,9 @@ fn view_merge_tool_field(state: &AppState) -> Element<'_, Message> {
         state.t("settings.merge_tool_label"),
         state.t("settings.merge_tool_hint"),
         &state.settings_edit.external_merge_tool,
-        None,
+        knotra_ui::widget::FieldAnnotations::default(),
         |s| Message::Settings(SettingsMessage::ExternalMergeToolChanged(s)),
-        None,
+        ids::settings::merge_tool(),
     )
 }
 
@@ -457,12 +518,19 @@ fn view_fs_debounce_field(state: &AppState) -> Element<'_, Message> {
             .size(snora::design::style::text::body_size(tokens))
             .line_height(snora::design::style::text::body_line_height(tokens)),
         Space::new().width(Length::Fill),
-        select::styled_pick_list(
+        select::select_control(
             tokens,
             options,
             Some(state.config.fs_debounce_secs),
-            false,
+            state.settings_select_open == Some(SettingsSelect::FsDebounce),
             |value| Message::Settings(SettingsMessage::FsDebounceSecs(value)),
+            |opened| {
+                Message::Settings(SettingsMessage::SelectOpenChanged(
+                    SettingsSelect::FsDebounce,
+                    opened,
+                ))
+            },
+            ids::settings::fs_debounce(),
         ),
     ]
     .spacing(8)
@@ -496,22 +564,26 @@ fn view_advanced_section(state: &AppState) -> Element<'_, Message> {
 
     // RFC-073 D8: `BUTTON_HEIGHT` — a frequent, full-width target, the same
     // rule every other pressable row on this screen follows.
-    let header = button(centered_button_row(
-        row![
-            text(state.t("settings.section.advanced"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-            icon::icon_element(&chevron),
-        ]
-        .spacing(6),
-    ))
+    // RFC-075 stage 4 §2: a real snora control now, the same shape
+    // `toolbar.rs`'s own `arrange_button` disclosure trigger already uses.
+    let t = tokens.clone();
+    let header = snora::design::control(
+        tokens,
+        centered_button_row(
+            row![
+                text(state.t("settings.section.advanced"))
+                    .size(snora::design::style::text::body_size(tokens))
+                    .line_height(snora::design::style::text::body_line_height(tokens)),
+                icon::icon_element(&chevron),
+            ]
+            .spacing(6),
+        ),
+    )
     .height(Length::Fixed(BUTTON_HEIGHT))
     .width(Length::Fill)
+    .id(ids::settings::advanced_toggle())
     .on_press(Message::Settings(SettingsMessage::AdvancedToggled))
-    .style({
-        let t = tokens.clone();
-        move |_theme, status| style::with_focus_ring(&t, false, style::ghost(&t, status))
-    });
+    .style(move |_theme, status| style::ghost(&t, status));
 
     if !open {
         return header.into();
@@ -542,21 +614,19 @@ fn view_fs_watch_section(state: &AppState) -> Element<'_, Message> {
     let tokens = &state.theme.tokens;
     let enabled = state.config.fs_watch_enabled;
 
+    // RFC-075 stage 4 §2: a real snora checkbox, drawing its own label as
+    // part of the target (`checkbox_control`'s own doc comment) — the
+    // separate sibling `text(...)` the old `checkbox(...)` needed (a
+    // hover-tooltip-only label) is gone; the words are the same catalog
+    // key, now drawn instead of only announced.
     let mut section = column![
-        row![
-            checkbox(
-                tokens,
-                state.t("settings.fs_watch_enable_label"),
-                enabled,
-                |v| Message::Settings(SettingsMessage::FsWatchEnabledChanged(v)),
-                false,
-            ),
-            text(state.t("settings.fs_watch_enable_label"))
-                .size(snora::design::style::text::body_size(tokens))
-                .line_height(snora::design::style::text::body_line_height(tokens)),
-        ]
-        .spacing(8)
-        .align_y(Alignment::Center),
+        checkbox_control(
+            tokens,
+            state.t("settings.fs_watch_enable_label"),
+            enabled,
+            |v| Message::Settings(SettingsMessage::FsWatchEnabledChanged(v)),
+            ids::settings::fs_watch_checkbox(),
+        ),
         // RFC-038 Stage 1 §9: this sentence names `.git/HEAD` and "index" —
         // moved into the catalog unchanged rather than reworded, per the
         // handoff's explicit instruction. `settings.*` is not among
