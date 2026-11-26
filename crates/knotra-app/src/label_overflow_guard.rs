@@ -641,4 +641,664 @@ mod tests {
             failures.join("\n")
         );
     }
+
+    /// Task 122 §2: extends this guard from button/chip labels to every
+    /// description/note paragraph — any UI text long enough to wrap, where
+    /// Japanese (no spaces to break at) can strand one short word alone on
+    /// the wrapped text's own last line (Review 305 F3: Settings'
+    /// file-change description, 「す。」 alone on its own second line).
+    ///
+    /// **The instrument.** `Simulator::find` gives a paragraph's own
+    /// *rendered* width — its real column, after the real layout — but not
+    /// its wrapped line boundaries (no public API exposes those from a
+    /// live widget tree). So each case renders the real screen first to
+    /// read that one real number, `bounds.width`, then builds a second,
+    /// independent `Paragraph` (the same `iced::Renderer`-backed, tiny-skia
+    /// type every headless test already uses, Task 123) at exactly that
+    /// width with the same font/size/line-height/wrapping the real
+    /// `text(...)` call uses, and reads its wrapped lines back from
+    /// `cosmic_text::Buffer::layout_runs()` (re-exported at
+    /// `iced::advanced::graphics::text::cosmic_text`) — each run's own
+    /// `text`/glyph `start`/`end` gives the exact substring that landed on
+    /// that line, not a pixel-band guess. Confirmed against the known
+    /// defect directly before writing this: at Ja/150%/800px, Settings'
+    /// `fs_watch_hint` measures a 479.5px column and wraps onto two lines
+    /// ending "…プロジェクト" / "…再読み込みします。" (13 chars) — not
+    /// stranded at today's measurement, a width this exact for a reason
+    /// this guard does not need to know (RFC-065/RFC-073 layout changes
+    /// since Review 305 F3's own screenshot).
+    ///
+    /// **Scope**, surveyed directly across every file under `view/`,
+    /// `view/overlays/`, `view/dashboard/` for a `text(state.t(...))` call
+    /// styled `body`/`body_small` that is explanatory prose, not a
+    /// title/button/chip/badge/field-label/placeholder: Settings (zoom
+    /// help, the file-watch hint), Add Project (both step instructions),
+    /// Remove project, Workspace delete (both of its own two sentences),
+    /// the empty-workspace welcome text, Get latest safely (the preparing
+    /// hint, and all five bounded skip-reason notes), Change work area
+    /// (the loading hint, "already current", and all five confirm-step
+    /// cautions), Save release point (the saving hint, both impact-panel
+    /// notes, the share offer), and Resolve conflict (the instruction, no
+    /// unresolved files, the working hint, the stop-confirmation body).
+    ///
+    /// **Left out, and why:** `history.rs`'s recovery hints and
+    /// `changelog.rs`'s per-project result lines splice in raw,
+    /// un-translated VCS/error text the catalog never touches (confirmed
+    /// directly in `knotra-vcs`) or an open-ended project-name/error tail —
+    /// neither is a fixed string this instrument can enumerate, the same
+    /// reason `detail_panel.rs`'s own `commits_error` is out of scope.
+    /// `plain.what_will_happen` (Get latest safely) is a column header, not
+    /// a description — confirmed by reading its own row (beside
+    /// `plain.project`, the other column's header). `activity_strip.rs`
+    /// and `command_palette.rs` hold only single-line status/snackbar
+    /// text, never a wrapping paragraph.
+    #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "renders and re-lays-out text — the pinned faces (Noto Sans, Noto Sans CJK \
+                  JP) are installed only on the Linux CI runner (Task 108 A1 §4)"
+    )]
+    fn no_japanese_description_strands_a_word_on_its_last_line() {
+        use crate::state::conflict_ops::ConflictPhase;
+        use crate::state::context::ContextPhase;
+        use crate::state::freezer::FreezerPhase;
+        use crate::state::sync::SyncPhase;
+        use crate::view;
+        use iced::Element;
+        use iced::advanced::text::{Paragraph as _, Text};
+        use knotra_vcs::model::operation::SmartPullSkipReason;
+        use knotra_vcs::{
+            ConflictMarker, ConflictedFile, ContextCandidate, ContextList, ContextTarget,
+            FreezeResult, FreezeValidation, OperationId, ProjectConflictDetail, ProjectId,
+            SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry, Workspace,
+        };
+
+        type Msg = crate::message::Message;
+
+        /// A case's own `setup` always starts a project with this id, so
+        /// `render` (which cannot capture a value `setup` computed — both
+        /// are plain `fn`, not closures, the same reason `headless.rs`'s
+        /// own helpers stay free functions) can re-derive the same id
+        /// deterministically rather than needing it passed in.
+        fn fixed_project_id() -> ProjectId {
+            ProjectId(uuid::Uuid::nil())
+        }
+
+        /// A `'static` handle to the same id, for `resolve_panel`'s own
+        /// second argument, whose lifetime ties to the `Element` this
+        /// `fn`-typed `render` must return — a fresh local `ProjectId`
+        /// does not live long enough to borrow from; a `'static` one does.
+        fn fixed_project_id_static() -> &'static ProjectId {
+            static ID: std::sync::OnceLock<ProjectId> = std::sync::OnceLock::new();
+            ID.get_or_init(fixed_project_id)
+        }
+
+        struct ParagraphCase {
+            name: &'static str,
+            setup: fn(&mut AppState),
+            render: fn(&AppState) -> Element<'_, Msg>,
+            content: fn(&AppState) -> String,
+        }
+
+        let cases: &[ParagraphCase] = &[
+            ParagraphCase {
+                name: "Settings: zoom help",
+                setup: |_state| {},
+                render: |state| view::settings::view(state),
+                content: |state| state.t("settings.zoom_help").to_owned(),
+            },
+            ParagraphCase {
+                name: "Settings: file-watch hint",
+                setup: |state| state.settings_advanced_open = true,
+                render: |state| view::settings::view(state),
+                content: |state| state.t("settings.fs_watch_hint").to_owned(),
+            },
+            ParagraphCase {
+                name: "Add Project: step 1 instruction",
+                setup: |state| {
+                    state.add_project_dialog = Some(crate::state::AddProjectDialog::default());
+                },
+                render: |state| view::add_project_modal::view(state).expect("dialog must be open"),
+                content: |state| state.t("plain.add_project.step1_instruction").to_owned(),
+            },
+            ParagraphCase {
+                name: "Add Project: step 2 instruction",
+                setup: |state| {
+                    state.add_project_dialog = Some(crate::state::AddProjectDialog {
+                        step: crate::state::AddProjectStep::NameProject,
+                        ..Default::default()
+                    });
+                },
+                render: |state| view::add_project_modal::view(state).expect("dialog must be open"),
+                content: |state| state.t("plain.add_project.step2_instruction").to_owned(),
+            },
+            ParagraphCase {
+                name: "Remove project: body",
+                setup: |state| {
+                    state.confirm_remove_dialog = Some(crate::state::ConfirmRemoveDialog {
+                        project_id: fixed_project_id(),
+                        project_name: "billing-service".to_owned(),
+                    });
+                },
+                render: |state| {
+                    view::remove_project_dialog::view(state).expect("dialog must be open")
+                },
+                content: |state| state.t("plain.remove.body").to_owned(),
+            },
+            ParagraphCase {
+                name: "Workspace delete: body sentence",
+                setup: |state| {
+                    state.all_workspaces =
+                        vec![Workspace::new("billing-service"), Workspace::new("other")];
+                    state.workspace_mgr.confirm_delete =
+                        Some(crate::state::workspace_mgr::DeleteWorkspaceDialog {
+                            workspace_id: state.all_workspaces[0].id,
+                            workspace_name: "billing-service".to_owned(),
+                            project_count: 3,
+                            error: None,
+                        });
+                },
+                render: |state| view::workspace_manager::view(state).expect("dialog must be open"),
+                content: |state| {
+                    format!(
+                        "{} \"{}\". {}",
+                        state.t("workspace.delete.body_prefix"),
+                        "billing-service",
+                        state.t("workspace.delete.body_suffix"),
+                    )
+                },
+            },
+            ParagraphCase {
+                name: "Workspace delete: project count sentence",
+                setup: |state| {
+                    state.all_workspaces =
+                        vec![Workspace::new("billing-service"), Workspace::new("other")];
+                    state.workspace_mgr.confirm_delete =
+                        Some(crate::state::workspace_mgr::DeleteWorkspaceDialog {
+                            workspace_id: state.all_workspaces[0].id,
+                            workspace_name: "billing-service".to_owned(),
+                            project_count: 3,
+                            error: None,
+                        });
+                },
+                render: |state| view::workspace_manager::view(state).expect("dialog must be open"),
+                content: |state| {
+                    format!("{} {}", 3, state.t("workspace.delete.project_count_suffix"))
+                },
+            },
+            ParagraphCase {
+                name: "Dashboard: empty-workspace welcome",
+                setup: |state| state.workspace = Some(Workspace::new("Empty")),
+                render: |state| view::dashboard::view(state, WidthMode::Standard),
+                content: |state| state.t("plain.empty.welcome_body").to_owned(),
+            },
+            ParagraphCase {
+                name: "Get latest safely: preparing hint",
+                setup: |_state| {},
+                render: |state| view::overlays::pull_modal(state),
+                content: |state| state.t("plain.get_latest.preparing_hint").to_owned(),
+            },
+            ParagraphCase {
+                name: "Get latest safely: skip reason (deselected)",
+                setup: |state| {
+                    state.sync.phase = SyncPhase::AwaitingConfirm(SmartPullPlan {
+                        id: OperationId::new(),
+                        entries: vec![SmartPullPlanEntry {
+                            project_id: fixed_project_id(),
+                            project_name: "billing-service".to_owned(),
+                            is_dirty: false,
+                            has_conflict: false,
+                            skip_reason: Some(SmartPullSkipReason::Deselected),
+                            disposition: SmartPullDisposition::Excluded,
+                        }],
+                    });
+                },
+                render: |state| view::overlays::pull_modal(state),
+                content: |state| {
+                    state
+                        .t(SmartPullSkipReason::Deselected.i18n_key())
+                        .to_owned()
+                },
+            },
+            ParagraphCase {
+                name: "Get latest safely: skip reason (no upstream)",
+                setup: |state| {
+                    state.sync.phase = SyncPhase::AwaitingConfirm(SmartPullPlan {
+                        id: OperationId::new(),
+                        entries: vec![SmartPullPlanEntry {
+                            project_id: fixed_project_id(),
+                            project_name: "billing-service".to_owned(),
+                            is_dirty: false,
+                            has_conflict: false,
+                            skip_reason: Some(SmartPullSkipReason::NoUpstream),
+                            disposition: SmartPullDisposition::Excluded,
+                        }],
+                    });
+                },
+                render: |state| view::overlays::pull_modal(state),
+                content: |state| {
+                    state
+                        .t(SmartPullSkipReason::NoUpstream.i18n_key())
+                        .to_owned()
+                },
+            },
+            ParagraphCase {
+                name: "Get latest safely: skip reason (conflict)",
+                setup: |state| {
+                    state.sync.phase = SyncPhase::AwaitingConfirm(SmartPullPlan {
+                        id: OperationId::new(),
+                        entries: vec![SmartPullPlanEntry {
+                            project_id: fixed_project_id(),
+                            project_name: "billing-service".to_owned(),
+                            is_dirty: false,
+                            has_conflict: true,
+                            skip_reason: Some(SmartPullSkipReason::Conflict),
+                            disposition: SmartPullDisposition::Excluded,
+                        }],
+                    });
+                },
+                render: |state| view::overlays::pull_modal(state),
+                content: |state| state.t(SmartPullSkipReason::Conflict.i18n_key()).to_owned(),
+            },
+            ParagraphCase {
+                name: "Get latest safely: skip reason (status missing)",
+                setup: |state| {
+                    state.sync.phase = SyncPhase::AwaitingConfirm(SmartPullPlan {
+                        id: OperationId::new(),
+                        entries: vec![SmartPullPlanEntry {
+                            project_id: fixed_project_id(),
+                            project_name: "billing-service".to_owned(),
+                            is_dirty: false,
+                            has_conflict: false,
+                            skip_reason: Some(SmartPullSkipReason::MissingStatus),
+                            disposition: SmartPullDisposition::Excluded,
+                        }],
+                    });
+                },
+                render: |state| view::overlays::pull_modal(state),
+                content: |state| {
+                    state
+                        .t(SmartPullSkipReason::MissingStatus.i18n_key())
+                        .to_owned()
+                },
+            },
+            ParagraphCase {
+                name: "Get latest safely: skip reason (project not found)",
+                setup: |state| {
+                    state.sync.phase = SyncPhase::AwaitingConfirm(SmartPullPlan {
+                        id: OperationId::new(),
+                        entries: vec![SmartPullPlanEntry {
+                            project_id: fixed_project_id(),
+                            project_name: "billing-service".to_owned(),
+                            is_dirty: false,
+                            has_conflict: false,
+                            skip_reason: Some(SmartPullSkipReason::ProjectNotFound),
+                            disposition: SmartPullDisposition::Excluded,
+                        }],
+                    });
+                },
+                render: |state| view::overlays::pull_modal(state),
+                content: |state| {
+                    state
+                        .t(SmartPullSkipReason::ProjectNotFound.i18n_key())
+                        .to_owned()
+                },
+            },
+            ParagraphCase {
+                name: "Change work area: loading hint",
+                setup: |state| {
+                    state.context_ops.phase = ContextPhase::LoadingList(fixed_project_id())
+                },
+                render: |state| view::overlays::switch_modal(state),
+                content: |state| state.t("plain.switch.loading_hint").to_owned(),
+            },
+            ParagraphCase {
+                name: "Change work area: already current",
+                setup: |state| {
+                    state.context_ops.phase = ContextPhase::BrowsingList {
+                        project_id: fixed_project_id(),
+                        list: ContextList {
+                            project_id: fixed_project_id(),
+                            vcs_kind: knotra_vcs::VcsKind::Git,
+                            candidates: vec![ContextCandidate {
+                                label: "main".to_owned(),
+                                target: ContextTarget::GitLocalBranch {
+                                    name: "main".to_owned(),
+                                },
+                                is_current: true,
+                            }],
+                            warning: None,
+                        },
+                        search: String::new(),
+                    };
+                },
+                render: |state| view::overlays::switch_modal(state),
+                content: |state| state.t("plain.switch.reason_current").to_owned(),
+            },
+            ParagraphCase {
+                name: "Change work area: confirm caution (unavailable)",
+                setup: |state| {
+                    state.context_ops.phase = ContextPhase::ConfirmSwitch {
+                        project_id: fixed_project_id(),
+                        project_name: "billing-service".to_owned(),
+                        target: ContextTarget::GitLocalBranch {
+                            name: "feature/x".to_owned(),
+                        },
+                        target_label: "feature/x".to_owned(),
+                        is_dirty: false,
+                        disabled_reason_key: Some("plain.switch.reason_unavailable"),
+                    };
+                },
+                render: |state| view::overlays::switch_modal(state),
+                content: |state| state.t("plain.switch.reason_unavailable").to_owned(),
+            },
+            ParagraphCase {
+                name: "Change work area: confirm caution (conflict)",
+                setup: |state| {
+                    state.context_ops.phase = ContextPhase::ConfirmSwitch {
+                        project_id: fixed_project_id(),
+                        project_name: "billing-service".to_owned(),
+                        target: ContextTarget::GitLocalBranch {
+                            name: "feature/x".to_owned(),
+                        },
+                        target_label: "feature/x".to_owned(),
+                        is_dirty: false,
+                        disabled_reason_key: Some("plain.switch.reason_conflict"),
+                    };
+                },
+                render: |state| view::overlays::switch_modal(state),
+                content: |state| state.t("plain.switch.reason_conflict").to_owned(),
+            },
+            ParagraphCase {
+                name: "Change work area: confirm caution (dirty, disabled)",
+                setup: |state| {
+                    state.context_ops.phase = ContextPhase::ConfirmSwitch {
+                        project_id: fixed_project_id(),
+                        project_name: "billing-service".to_owned(),
+                        target: ContextTarget::GitLocalBranch {
+                            name: "feature/x".to_owned(),
+                        },
+                        target_label: "feature/x".to_owned(),
+                        is_dirty: true,
+                        disabled_reason_key: Some("plain.switch.reason_dirty"),
+                    };
+                },
+                render: |state| view::overlays::switch_modal(state),
+                content: |state| state.t("plain.switch.reason_dirty").to_owned(),
+            },
+            ParagraphCase {
+                name: "Change work area: confirm caution (dirty hint)",
+                setup: |state| {
+                    state.context_ops.phase = ContextPhase::ConfirmSwitch {
+                        project_id: fixed_project_id(),
+                        project_name: "billing-service".to_owned(),
+                        target: ContextTarget::GitLocalBranch {
+                            name: "feature/x".to_owned(),
+                        },
+                        target_label: "feature/x".to_owned(),
+                        is_dirty: true,
+                        disabled_reason_key: None,
+                    };
+                },
+                render: |state| view::overlays::switch_modal(state),
+                content: |state| state.t("plain.switch.dirty_hint").to_owned(),
+            },
+            ParagraphCase {
+                name: "Change work area: confirm caution (no next step)",
+                setup: |state| {
+                    state.context_ops.phase = ContextPhase::ConfirmSwitch {
+                        project_id: fixed_project_id(),
+                        project_name: "billing-service".to_owned(),
+                        target: ContextTarget::GitLocalBranch {
+                            name: "feature/x".to_owned(),
+                        },
+                        target_label: "feature/x".to_owned(),
+                        is_dirty: false,
+                        disabled_reason_key: None,
+                    };
+                },
+                render: |state| view::overlays::switch_modal(state),
+                content: |state| state.t("plain.no_next_step").to_owned(),
+            },
+            ParagraphCase {
+                name: "Save release point: saving hint",
+                setup: |state| state.freezer.phase = FreezerPhase::Executing,
+                render: |state| view::overlays::tag_modal(state),
+                content: |state| state.t("plain.release.saving_hint").to_owned(),
+            },
+            ParagraphCase {
+                name: "Save release point: impact unchecked",
+                setup: |state| {
+                    state.freezer.phase = FreezerPhase::ValidationReady(FreezeValidation {
+                        freeze_name: "v1.0.0".to_owned(),
+                        entries: vec![],
+                    });
+                    state.freezer.topology_checked = false;
+                },
+                render: |state| view::overlays::tag_modal(state),
+                content: |state| state.t("plain.release.impact_unchecked").to_owned(),
+            },
+            ParagraphCase {
+                name: "Save release point: impact clear",
+                setup: |state| {
+                    state.freezer.phase = FreezerPhase::ValidationReady(FreezeValidation {
+                        freeze_name: "v1.0.0".to_owned(),
+                        entries: vec![],
+                    });
+                    state.freezer.topology_checked = true;
+                    state.freezer.impact_warnings = vec![];
+                },
+                render: |state| view::overlays::tag_modal(state),
+                content: |state| state.t("plain.release.impact_clear").to_owned(),
+            },
+            ParagraphCase {
+                name: "Save release point: share offer",
+                setup: |state| {
+                    state.freezer.phase = FreezerPhase::Done(FreezeResult {
+                        freeze_name: "v1.0.0".to_owned(),
+                        project_results: vec![],
+                        outcome: knotra_vcs::FreezeOutcome::Success,
+                    });
+                    state.pending_tag_push = Some(crate::state::PendingTagPush {
+                        freeze_name: "v1.0.0".to_owned(),
+                        project_ids: vec![fixed_project_id()],
+                        is_pushing: false,
+                    });
+                },
+                render: |state| view::overlays::tag_modal(state),
+                content: |state| state.t("plain.release.share_offer").to_owned(),
+            },
+            ParagraphCase {
+                name: "Resolve conflict: instruction",
+                setup: |state| {
+                    state.conflict_ops.phase = ConflictPhase::Browsing {
+                        project_id: fixed_project_id(),
+                        detail: ProjectConflictDetail {
+                            project_id: fixed_project_id(),
+                            project_name: "billing-service".to_owned(),
+                            conflicted_files: vec![ConflictedFile {
+                                path: "src/lib.rs".to_owned(),
+                                marker: ConflictMarker::BothModified,
+                            }],
+                            read_error: None,
+                        },
+                    };
+                },
+                render: |state| view::overlays::resolve_panel(state, fixed_project_id_static()),
+                content: |state| state.t("plain.resolve.instruction").to_owned(),
+            },
+            ParagraphCase {
+                name: "Resolve conflict: no unresolved files",
+                setup: |state| {
+                    state.conflict_ops.phase = ConflictPhase::Browsing {
+                        project_id: fixed_project_id(),
+                        detail: ProjectConflictDetail {
+                            project_id: fixed_project_id(),
+                            project_name: "billing-service".to_owned(),
+                            conflicted_files: vec![],
+                            read_error: None,
+                        },
+                    };
+                },
+                render: |state| view::overlays::resolve_panel(state, fixed_project_id_static()),
+                content: |state| state.t("plain.resolve.no_files").to_owned(),
+            },
+            ParagraphCase {
+                name: "Resolve conflict: working hint",
+                setup: |state| {
+                    state.conflict_ops.phase = ConflictPhase::Operating {
+                        project_id: fixed_project_id(),
+                        action: "placeholder".to_owned(),
+                    };
+                },
+                render: |state| view::overlays::resolve_panel(state, fixed_project_id_static()),
+                content: |state| state.t("plain.resolve.working_hint").to_owned(),
+            },
+            ParagraphCase {
+                name: "Resolve conflict: stop-confirmation body",
+                setup: |state| {
+                    state.conflict_ops.phase = ConflictPhase::ConfirmStop {
+                        project_id: fixed_project_id(),
+                        detail: ProjectConflictDetail {
+                            project_id: fixed_project_id(),
+                            project_name: "billing-service".to_owned(),
+                            conflicted_files: vec![ConflictedFile {
+                                path: "src/lib.rs".to_owned(),
+                                marker: ConflictMarker::BothModified,
+                            }],
+                            read_error: None,
+                        },
+                    };
+                },
+                render: |state| view::overlays::resolve_panel(state, fixed_project_id_static()),
+                content: |state| state.t("plain.resolve.stop_confirm_body").to_owned(),
+            },
+        ];
+
+        // Task 122 §3: four real cases strand a word with no layout fix
+        // available — each already renders at its own full available
+        // width (confirmed by reading the surrounding view code directly:
+        // none squeezes the description beside a narrower sibling column
+        // the way Task 118's own note-in-a-third-column case did), so only
+        // a shorter Japanese sentence can fix them, and "never change a
+        // word without the owner" (this task's own §3) forbids doing that
+        // here. Verified, reworded candidates for all four are in this
+        // task's own review request, awaiting the owner's word — not
+        // applied to the catalog.
+        //
+        // Named here, not silently dropped from the assertion below: each
+        // entry is checked to still genuinely strand (if the owner's
+        // wording ever lands, that entry stops appearing in `stranded`,
+        // and the assertion after this list fails — "is in
+        // `KNOWN_PENDING_REWORDING` but no longer strands" — forcing this
+        // list to be edited forward rather than quietly going stale, the
+        // same shape `text_size_guard.rs`'s own pinned-count map uses.
+        const KNOWN_PENDING_REWORDING: &[&str] = &[
+            "Settings: file-watch hint: zoom=100% width=800",
+            "Settings: file-watch hint: zoom=100% width=1280",
+            "Settings: file-watch hint: zoom=150% width=1280",
+            "Workspace delete: body sentence: zoom=100% width=800",
+            "Workspace delete: body sentence: zoom=150% width=800",
+            "Workspace delete: body sentence: zoom=150% width=1280",
+            "Dashboard: empty-workspace welcome: zoom=100% width=800",
+            "Change work area: confirm caution (dirty hint): zoom=100% width=800",
+            "Change work area: confirm caution (dirty hint): zoom=150% width=1280",
+        ];
+
+        let mut checked = 0usize;
+        let mut stranded: Vec<String> = Vec::new();
+        let mut pending_seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+
+        for case in cases {
+            for &zoom_percent in &[100.0_f32, 150.0_f32] {
+                for &width in &[800.0_f32, 1280.0_f32] {
+                    let mut state = AppState::new(AppConfig::default());
+                    state.catalog =
+                        knotra_ui::i18n::Catalog::for_locale(knotra_ui::i18n::Locale::Ja);
+                    (case.setup)(&mut state);
+
+                    let logical = crate::headless::logical_size_at_zoom(
+                        Size::new(width, 900.0),
+                        zoom_percent,
+                    );
+                    state.window_width = logical.width;
+
+                    let content = (case.content)(&state);
+                    let context = format!("{}: zoom={zoom_percent}% width={width}", case.name);
+
+                    let mut ui = crate::headless::simulator((case.render)(&state), logical);
+                    let bounds = ui
+                        .find(content.as_str())
+                        .unwrap_or_else(|e| {
+                            panic!("{context}: paragraph {content:?} not found: {e}")
+                        })
+                        .bounds();
+
+                    let tokens = &state.theme.tokens;
+                    let text = Text {
+                        content: content.as_str(),
+                        bounds: Size::new(bounds.width, f32::INFINITY),
+                        size: snora::design::style::text::body_size(tokens),
+                        line_height: snora::design::style::text::body_line_height(tokens),
+                        font: iced::Font::with_name("Noto Sans"),
+                        align_x: iced::advanced::text::Alignment::Default,
+                        align_y: iced::alignment::Vertical::Top,
+                        shaping: iced::advanced::text::Shaping::Advanced,
+                        wrapping: iced::advanced::text::Wrapping::Word,
+                    };
+                    type P = <iced::Renderer as iced::advanced::text::Renderer>::Paragraph;
+                    let paragraph = P::with_text(text);
+                    let runs: Vec<_> = paragraph.buffer().layout_runs().collect();
+                    let Some(last) = runs.last() else {
+                        continue;
+                    };
+                    let start = last.glyphs.first().map(|g| g.start).unwrap_or(0);
+                    let end = last.glyphs.last().map(|g| g.end).unwrap_or(0);
+                    let last_line = &last.text[start..end];
+                    let char_count = last_line.chars().count();
+
+                    if runs.len() > 1 && char_count <= 3 {
+                        if let Some(&known) =
+                            KNOWN_PENDING_REWORDING.iter().find(|&&k| k == context)
+                        {
+                            pending_seen.insert(known);
+                        } else {
+                            stranded.push(format!(
+                                "{context}: last line {last_line:?} ({char_count} chars) of {} \
+                                 total (bounds.width={:.2})",
+                                runs.len(),
+                                bounds.width
+                            ));
+                        }
+                    }
+                    checked += 1;
+                }
+            }
+        }
+
+        assert!(checked > 0, "the matrix must check at least one case");
+        eprintln!("label_overflow_guard: checked {checked} description/note cases");
+        assert!(
+            stranded.is_empty(),
+            "{} of {checked} cases strand a word alone on the wrapped text's last line, not \
+             already named in KNOWN_PENDING_REWORDING:\n{}",
+            stranded.len(),
+            stranded.join("\n")
+        );
+
+        let stale: Vec<&str> = KNOWN_PENDING_REWORDING
+            .iter()
+            .filter(|known| !pending_seen.contains(*known))
+            .copied()
+            .collect();
+        assert!(
+            stale.is_empty(),
+            "{} entr{} in KNOWN_PENDING_REWORDING no longer strand a word -- the owner's wording \
+             must have landed; remove {} from the list rather than leave it stale:\n{}",
+            stale.len(),
+            if stale.len() == 1 { "y" } else { "ies" },
+            if stale.len() == 1 { "it" } else { "them" },
+            stale.join("\n")
+        );
+    }
 }

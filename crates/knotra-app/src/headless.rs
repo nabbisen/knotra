@@ -24,6 +24,31 @@
 //! `#[cfg(test)]`-only: this module never compiles into the shipped
 //! binary.
 
+/// Task 122 §0 (Review 311 §2): `Simulator` reads `ICED_TEST_BACKEND` from
+/// the environment at construction, not from anything this function
+/// passes it directly (`iced_test`'s own `Settings` has no backend field —
+/// confirmed by reading its full field list, Task 123's own report). The
+/// workspace's `.cargo/config.toml` sets it to `"tiny-skia"` for every
+/// process *cargo* spawns — but a test binary run directly (from an IDE or
+/// a debugger, not through `cargo test`) never passes through cargo at
+/// all, so the variable is simply absent there, and `Simulator` falls back
+/// to wgpu without a word, with Task 123's own segfault (Review 310 F2)
+/// right behind it. Checked once, here, rather than left to fail
+/// unexplained deep inside wgpu's own Vulkan loader.
+#[cfg(test)]
+fn require_tiny_skia_backend() {
+    let backend = std::env::var("ICED_TEST_BACKEND").unwrap_or_default();
+    assert!(
+        backend == "tiny-skia",
+        "ICED_TEST_BACKEND is {backend:?}, not \"tiny-skia\" -- a headless test must never \
+         start wgpu (Task 123 §1, Review 310 F2: it touches a real Vulkan instance and the \
+         host's display, and several test threads doing that at once segfaults). Run tests \
+         through `cargo test`, which picks up `.cargo/config.toml`'s own `[env]` automatically; \
+         a test binary invoked directly needs `ICED_TEST_BACKEND=tiny-skia` exported in the \
+         same shell first."
+    );
+}
+
 #[cfg(test)]
 pub(crate) fn simulator<'a, Message, Theme, Renderer>(
     element: impl Into<iced_test::core::Element<'a, Message, Theme, Renderer>>,
@@ -33,6 +58,7 @@ where
     Theme: iced_test::core::theme::Base,
     Renderer: iced_test::core::Renderer + iced_test::core::renderer::Headless,
 {
+    require_tiny_skia_backend();
     let settings = iced_test::core::Settings {
         fonts: vec![std::borrow::Cow::Borrowed(
             knotra_ui::widget::icon::FONT_BYTES,
