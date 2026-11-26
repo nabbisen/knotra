@@ -692,6 +692,19 @@ mod tests {
     /// `plain.project`, the other column's header). `activity_strip.rs`
     /// and `command_palette.rs` hold only single-line status/snackbar
     /// text, never a wrapping paragraph.
+    ///
+    /// **Task 124**: four cases (`settings.fs_watch_hint`,
+    /// `workspace.delete.body_suffix`, `plain.empty.welcome_body`,
+    /// `plain.switch.dirty_hint`) strand a word with today's Japanese text
+    /// and no layout fix available (each already renders at its own full
+    /// available width — confirmed by reading the surrounding view code).
+    /// Task 122 pinned these in a named, self-checking
+    /// `KNOWN_PENDING_REWORDING` allowlist while awaiting the owner's own
+    /// wording (Review 303: a list of accepted defects is exactly what a
+    /// suite must not keep, so Review 312 §2 asked for the list itself to
+    /// go once the words landed). The owner's wording (Review 312 §3)
+    /// fixes all four; the allowlist and its own forcing-function code are
+    /// gone — this assertion has no exception.
     #[test]
     #[cfg_attr(
         not(target_os = "linux"),
@@ -1175,39 +1188,8 @@ mod tests {
             },
         ];
 
-        // Task 122 §3: four real cases strand a word with no layout fix
-        // available — each already renders at its own full available
-        // width (confirmed by reading the surrounding view code directly:
-        // none squeezes the description beside a narrower sibling column
-        // the way Task 118's own note-in-a-third-column case did), so only
-        // a shorter Japanese sentence can fix them, and "never change a
-        // word without the owner" (this task's own §3) forbids doing that
-        // here. Verified, reworded candidates for all four are in this
-        // task's own review request, awaiting the owner's word — not
-        // applied to the catalog.
-        //
-        // Named here, not silently dropped from the assertion below: each
-        // entry is checked to still genuinely strand (if the owner's
-        // wording ever lands, that entry stops appearing in `stranded`,
-        // and the assertion after this list fails — "is in
-        // `KNOWN_PENDING_REWORDING` but no longer strands" — forcing this
-        // list to be edited forward rather than quietly going stale, the
-        // same shape `text_size_guard.rs`'s own pinned-count map uses.
-        const KNOWN_PENDING_REWORDING: &[&str] = &[
-            "Settings: file-watch hint: zoom=100% width=800",
-            "Settings: file-watch hint: zoom=100% width=1280",
-            "Settings: file-watch hint: zoom=150% width=1280",
-            "Workspace delete: body sentence: zoom=100% width=800",
-            "Workspace delete: body sentence: zoom=150% width=800",
-            "Workspace delete: body sentence: zoom=150% width=1280",
-            "Dashboard: empty-workspace welcome: zoom=100% width=800",
-            "Change work area: confirm caution (dirty hint): zoom=100% width=800",
-            "Change work area: confirm caution (dirty hint): zoom=150% width=1280",
-        ];
-
         let mut checked = 0usize;
         let mut stranded: Vec<String> = Vec::new();
-        let mut pending_seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
 
         for case in cases {
             for &zoom_percent in &[100.0_f32, 150.0_f32] {
@@ -1258,18 +1240,12 @@ mod tests {
                     let char_count = last_line.chars().count();
 
                     if runs.len() > 1 && char_count <= 3 {
-                        if let Some(&known) =
-                            KNOWN_PENDING_REWORDING.iter().find(|&&k| k == context)
-                        {
-                            pending_seen.insert(known);
-                        } else {
-                            stranded.push(format!(
-                                "{context}: last line {last_line:?} ({char_count} chars) of {} \
-                                 total (bounds.width={:.2})",
-                                runs.len(),
-                                bounds.width
-                            ));
-                        }
+                        stranded.push(format!(
+                            "{context}: last line {last_line:?} ({char_count} chars) of {} total \
+                             (bounds.width={:.2})",
+                            runs.len(),
+                            bounds.width
+                        ));
                     }
                     checked += 1;
                 }
@@ -1280,25 +1256,9 @@ mod tests {
         eprintln!("label_overflow_guard: checked {checked} description/note cases");
         assert!(
             stranded.is_empty(),
-            "{} of {checked} cases strand a word alone on the wrapped text's last line, not \
-             already named in KNOWN_PENDING_REWORDING:\n{}",
+            "{} of {checked} cases strand a word alone on the wrapped text's last line:\n{}",
             stranded.len(),
             stranded.join("\n")
-        );
-
-        let stale: Vec<&str> = KNOWN_PENDING_REWORDING
-            .iter()
-            .filter(|known| !pending_seen.contains(*known))
-            .copied()
-            .collect();
-        assert!(
-            stale.is_empty(),
-            "{} entr{} in KNOWN_PENDING_REWORDING no longer strand a word -- the owner's wording \
-             must have landed; remove {} from the list rather than leave it stale:\n{}",
-            stale.len(),
-            if stale.len() == 1 { "y" } else { "ies" },
-            if stale.len() == 1 { "it" } else { "them" },
-            stale.join("\n")
         );
     }
 }

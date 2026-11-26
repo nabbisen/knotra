@@ -1300,7 +1300,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("plain.switch.kind_change", "変更");
     m.insert(
         "plain.switch.dirty_hint",
-        "このプロジェクトには未保存の作業があります。作業エリアを変更する前に確認してください。",
+        "このプロジェクトには未保存の作業があります。変更前に内容を確認してください。",
     );
     m.insert("plain.switch.working", "作業エリアを変更中…");
     m.insert("plain.switch.done_title", "作業エリアを変更しました。");
@@ -1453,7 +1453,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "プロジェクトフォルダーを選択",
     );
     m.insert("plain.empty.welcome_title", "knotra へようこそ");
-    m.insert("plain.empty.welcome_body",    "最初のプロジェクトフォルダーを追加してください。knotra が確認して、対応が必要なものをお知らせします。");
+    m.insert("plain.empty.welcome_body",    "最初のプロジェクトフォルダーを追加してください。knotra が確認し、対応が必要なものをお伝えします。");
     m.insert("plain.empty.add_first", "プロジェクトフォルダーを追加");
     m.insert(
         "plain.empty.no_match",
@@ -1477,7 +1477,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     m.insert("workspace.delete.body_prefix", "削除対象:");
     m.insert(
         "workspace.delete.body_suffix",
-        "knotra の一覧から削除します。プロジェクトフォルダーはこのコンピューターに残ります。",
+        "knotra の一覧から削除します。プロジェクトフォルダーはこのまま残ります。",
     );
     m.insert(
         "workspace.delete.project_count_suffix",
@@ -1632,7 +1632,7 @@ fn ja_strings() -> HashMap<Key, &'static str> {
     );
     m.insert(
         "settings.fs_watch_hint",
-        "次の自動再読み込みを待たずに、ファイルが変わったプロジェクトをすぐに再読み込みします。",
+        "次の自動再読み込みを待たずに、ファイルが変わったプロジェクトを再読み込みします。",
     );
     m.insert("settings.fs_watch_interval_label", "変更検出の間隔");
     m.insert("tool.not_configured", "先に設定でツールを選んでください。");

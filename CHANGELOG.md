@@ -33,6 +33,11 @@ shared with people in other time zones.
 A note about a project, such as why it only checks for updates, now has its own line under the
 project, so it is no longer squeezed into a narrow column.
 
+### Fixed — Japanese descriptions no longer leave a word alone on its last line
+
+At larger zoom, a Japanese description could end with one or two characters on a line of their
+own. Those descriptions now wrap evenly.
+
 ## [0.34.0] — 2026-11-21
 
 **Calmer by default: the dashboard and Settings show less at once, everything is easier to hit
