@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.35.0] — 2026-11-26
+
+**Every screen and window now works from the keyboard.**
+
 ### Changed — The keyboard reaches everything, on every screen and in every window
 
 - Tab now reaches every control on every screen and in every window, including Settings and
@@ -27,6 +31,31 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 History and the details panel now show times in your computer's own time zone, without "UTC".
 A copied log and generated release notes still use UTC, marked as such, because they are often
 shared with people in other time zones.
+
+### Changed — every control is a snora control, with an id and keyboard focus (`knotra-ui` crate)
+
+Each control now takes an `iced::widget::Id`. Use `primary_control`, `secondary_control`,
+`ghost_control` and `danger_control` (each with a `_maybe` form), `reasoned_control_maybe`,
+`current_or_control`, `checkbox_control`, `checkbox_control_unlabeled`, `select::select_control`,
+`chip::filter_control` and `name_link`. `validated_field` now takes a `FieldAnnotations` and an
+`Id`, and `overlay::surface` takes an `Id` in place of its `bool`.
+
+New: `widget::keyed` (`focus_by_id_page`, `focus_by_id_window`, `tab_anchor`, `Scope`, `Anchor`),
+which keeps keyboard focus on the same control, by its id, when the view is rebuilt;
+`widget::keyboard` (`traverse_wrapping`, `focus_among`, `focused_id`); `list_keyed`;
+`guided_field_entry`; and `i18n::Catalog::contains_value`.
+
+Removed: the older `primary`, `secondary`, `ghost` and `danger` buttons and their `_maybe` forms,
+`icon_button_maybe`, `header_control`, `current_or`, `reasoned`, `select::styled_pick_list`,
+`checkbox`, `chip::filter`, `guided_field`, `clear_input_focus` and the `focus_id` module.
+`text_input_style` is no longer public.
+
+### Changed — a new `process` module, and two ids are `Copy` (`knotra-vcs` crate)
+
+New: `process::host_command` builds the command that runs a program on the user's own system:
+through `flatpak-spawn --host` inside a Flatpak, and directly elsewhere. `process::restore_host_xdg_dirs`
+restores the user's own settings folders inside a Flatpak. `OperationId` and `WorkspaceId` are now
+`Copy`.
 
 ### Fixed — Get latest safely's notes are easier to read
 
