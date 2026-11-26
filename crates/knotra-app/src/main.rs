@@ -17,6 +17,8 @@ mod fs_watcher;
 #[cfg(test)]
 mod headless;
 #[cfg(test)]
+mod headless_backend_guard;
+#[cfg(test)]
 mod headless_probe;
 #[cfg(test)]
 mod keyboard_acceptance;

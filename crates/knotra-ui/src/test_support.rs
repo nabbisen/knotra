@@ -80,10 +80,18 @@ impl<Message: 'static> Harness<Message> {
     ) -> Self {
         load_icon_font(font_bytes);
         let size = logical_size.into();
+        // Task 123: "tiny-skia", never wgpu's default — wgpu's own
+        // `Headless::new` starts a real Vulkan instance and touches the
+        // host's display even when the caller never asked for a window,
+        // which many test threads doing this at once segfaults (Review
+        // 310 F2). `Some("tiny-skia")` makes wgpu's own impl return `None`
+        // immediately (its own `backend.is_some_and(|b| b != "wgpu")`
+        // check) and the fallback renderer moves straight to tiny-skia,
+        // touching neither.
         let mut renderer = iced::futures::executor::block_on(<iced::Renderer as Headless>::new(
             Font::with_name("Noto Sans"),
             Pixels(16.0),
-            None,
+            Some("tiny-skia"),
         ))
         .expect("the default headless renderer starts");
         let ui = UserInterface::build(root, size, user_interface::Cache::default(), &mut renderer);

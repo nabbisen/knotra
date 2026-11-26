@@ -1,8 +1,8 @@
 # Keyboard Shortcuts
 
 Every control on every screen is reachable by `Tab` — this page lists the
-shortcuts the in-app cheat sheet (`Ctrl+/` or the "Show keyboard shortcuts"
-command) shows, in the same order.
+shortcuts the in-app cheat sheet shows, in the same order. Open it from the
+Command palette's "Show keyboard shortcuts" entry; no key opens it directly.
 
 ## Everywhere
 

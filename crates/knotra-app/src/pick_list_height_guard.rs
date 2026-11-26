@@ -32,17 +32,20 @@ mod tests {
     /// introspection also could not reach).
     ///
     /// **Does not reach `BUTTON_HEIGHT`.** `select_control`'s drawn box
-    /// measures 28px locally (re-measured by stage 2 §1, after `label`
-    /// became `body`'s 16px — stage 1 measured 26px against the 14px
-    /// `label` of that stage), not 44 — `Select`'s own trigger row sizes to
-    /// its content (`snora_widgets::form::Skin::designed`'s own fixed,
-    /// non-configurable padding, confirmed by reading it in the registry),
-    /// with no seam this crate can use to make it larger. This test asserts
-    /// the **found** height, not a target one, so it still catches a
-    /// regression (the gap closing or widening without this guard, or the
-    /// handoff report, being updated) rather than silently passing or being
-    /// deleted — see the handoff report itself for how the owner wants
-    /// this carried forward.
+    /// measures 30px (Task 123: re-measured once every machine renders
+    /// headless tests on tiny-skia, never wgpu — stage 2 §1's own 28px
+    /// and stage 1's 26px were each read on whichever renderer the
+    /// un-pinned headless renderer of that day happened to start, wgpu
+    /// locally and tiny-skia on CI, not two real states of the control;
+    /// Review 310 F2 traced the gap to exactly that), not 44 — `Select`'s
+    /// own trigger row sizes to its content (`snora_widgets::form::
+    /// Skin::designed`'s own fixed, non-configurable padding, confirmed by
+    /// reading it in the registry), with no seam this crate can use to
+    /// make it larger. This test asserts the **found** height, not a
+    /// target one, so it still catches a regression (the gap closing or
+    /// widening without this guard, or the handoff report, being updated)
+    /// rather than silently passing or being deleted — see the handoff
+    /// report itself for how the owner wants this carried forward.
     #[test]
     #[cfg_attr(
         not(target_os = "linux"),
@@ -87,15 +90,20 @@ mod tests {
         }
         let measured_height = max_y - min_y + 1;
 
-        // RFC-075 handoff stage 1, re-measured stage 2 §1: `select_control`'s
-        // height is derived from glyph metrics (`Select`'s own trigger row
-        // sizes to its content), so it moves a little by font/platform --
-        // 28px locally, after §1 made `label` the same size as `body`
-        // (stage 1 measured 26px against the 14px `label` of that stage).
+        // Task 123: `select_control`'s height is derived from glyph metrics
+        // (`Select`'s own trigger row sizes to its content), so it still
+        // moves a little by font/platform — but every machine measuring
+        // this now renders through the same renderer (tiny-skia,
+        // `Harness::new`'s own `Some("tiny-skia")`), so the old 22-34px
+        // band (wide enough to cover wgpu's own 26-28px *and* tiny-skia's)
+        // is no longer needed. 30px, tightened to a 1px tolerance either
+        // side for whatever residual font-hinting variance remains between
+        // two Linux machines' own fontconfig.
         assert!(
-            (22..=34).contains(&measured_height),
-            "select_control's measured height ({measured_height}px) moved well outside the \
-             22-34px stage 2 §1 re-measured -- if this now reads \
+            (29..=31).contains(&measured_height),
+            "select_control's measured height ({measured_height}px) moved outside the 29-31px \
+             Task 123 re-measured range (every machine now renders through tiny-skia, so this \
+             should no longer vary by local-vs-CI renderer) -- if this now reads \
              knotra_ui::widget::BUTTON_HEIGHT (44), update this assertion to match and \
              remove the \"does not reach\" framing above and in the handoff report; if it \
              changed to some other value, the root cause in select.rs's own doc comment \

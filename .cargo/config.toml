@@ -1,0 +1,12 @@
+# Task 123: `iced_test::Simulator` reads `ICED_TEST_BACKEND` at construction
+# and tries wgpu first unless it says otherwise — wgpu's own `Headless::new`
+# starts a real Vulkan instance and touches the host's display even in a
+# test, which many test threads doing that at once segfaults (Review 310
+# F2). Forcing "tiny-skia" here means every `Simulator`-based test, on every
+# machine, renders the same way CI already does. Cargo's own `[env]` only
+# reaches processes *cargo* spawns (`cargo test`, `cargo run`, …); it has no
+# effect on the published `knotra` binary a user runs directly, and no
+# effect on `cargo run` either, since nothing outside test code ever reads
+# this variable.
+[env]
+ICED_TEST_BACKEND = "tiny-skia"

@@ -60,10 +60,13 @@ impl Rig {
                 knotra_ui::widget::icon::FONT_BYTES,
             ));
 
+        // Task 123: "tiny-skia", never wgpu's default — see
+        // `knotra-ui/src/test_support.rs`'s own comment on the same call
+        // for why (Review 310 F2).
         let renderer = iced::futures::executor::block_on(<iced::Renderer as Headless>::new(
             Font::with_name("Noto Sans"),
             Pixels(16.0),
-            None,
+            Some("tiny-skia"),
         ))
         .expect("the default headless renderer starts");
 
