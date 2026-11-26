@@ -8,9 +8,9 @@
 # User Guide
 
 - [Dashboard](guide/dashboard.md)
-- [Sync & Pull](guide/sync_center.md)
-- [Freezer (Tag / Bookmark)](guide/freezer.md)
-- [Context Switch](guide/context_ops.md)
+- [Get latest safely](guide/get_latest_safely.md)
+- [Save release point](guide/save_release_point.md)
+- [Change work area](guide/change_work_area.md)
 - [History](guide/history.md)
 - [Settings](guide/settings.md)
 

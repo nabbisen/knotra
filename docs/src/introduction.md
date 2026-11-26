@@ -6,8 +6,9 @@ Git and Jujutsu repositories in parallel.
 ## What knotra does
 
 - Shows you the health of all your repositories on one screen.
-- Lets you fetch, pull, and switch context across repositories in bulk.
-- Creates release snapshots (tags / bookmarks) atomically, with rollback.
+- Lets you check for updates, get the latest safely, and change work area across
+  repositories in bulk.
+- Saves release points (tags / bookmarks) atomically, with rollback.
 - Logs every operation so you can audit what happened and why.
 
 ## What knotra does not do

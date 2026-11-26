@@ -1,11 +1,19 @@
 # Settings
 
-**Display**: language (English / 日本語), theme (Dark / Light) — both take effect immediately.
+Every change here is saved as soon as you make it, to `~/.config/knotra/config.toml` — there is no
+Save button.
 
-**Refresh & Performance**: background refresh interval (seconds; 0 = manual only), max concurrent status reads.
+**Display**: language (English / 日本語), theme (Dark / Light / High contrast light / High contrast
+dark), and zoom — all take effect immediately.
 
-**External Tools**: editor and merge-tool command paths (empty = button disabled).
+**Refresh**: how often knotra refreshes project statuses on its own (Off / Every 30 seconds / Every
+minute / Every 5 minutes / Every 15 minutes).
 
-**Logs**: max operation log entries kept (default 200).
+**External tools**: editor and comparison-tool command paths (empty = the button that opens them is
+disabled).
 
-Click **Save Settings** to persist to `~/.config/knotra/config.toml`.
+**Workspaces**: create, rename, and remove workspaces.
+
+**Advanced** (closed by default): simultaneous reads, operation log size, and file-system monitoring
+(an experimental checkbox that refreshes a project soon after its files change, instead of waiting
+for the next automatic refresh).

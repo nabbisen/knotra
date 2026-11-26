@@ -3,11 +3,12 @@
 Location: `~/.config/knotra/config.toml`
 
 ```toml
-locale = "En"               # "En" or "Ja"
-dark_theme = true
-refresh_interval_secs = 60  # 0 = manual only
+locale = "En"                # "En" or "Ja"
+theme = "light"               # "light", "dark", "high_contrast_light", or "high_contrast_dark"
+refresh_interval_secs = 60   # 0 = manual only; also 30, 300, 900
 max_concurrent_reads = 8
 max_log_entries = 200
+zoom_percent = 100
 
 # Optional — omit the key to disable
 # external_editor = "/usr/bin/nvim"
@@ -26,8 +27,8 @@ A corrupt or missing config causes knotra to start with safe defaults and displa
 ## How saving works
 
 knotra rewrites `config.toml` whenever a setting changes — including changing the
-dashboard's **Group** or **Sort**, or collapsing a section, not only when you press
-**Save Settings**.
+dashboard's **Group** or **Sort**, or collapsing a section. There is no Save button;
+every change on the Settings page is written as soon as you make it.
 
 Each save is atomic. The new contents go to a temporary file beside the target, are
 flushed to disk, and are then renamed into place. A crash, power loss, or full disk
@@ -56,16 +57,10 @@ than replacing your link with a regular file. The link is left exactly as it was
 Your change still applies for the rest of the session; it is simply not written to
 disk. Repair the link, then make the change again to persist it.
 
-Where the reason appears depends on how you triggered the save:
-
-| Trigger | What you see |
-|---|---|
-| **Save Settings** | The full reason, naming the link and the missing directory |
-| Group / Sort / collapsing a section | A short "could not save" notice in the status bar; the full reason goes to the log |
-
-In the second case the full reason is logged at warning level, which knotra prints
-by default — so it is visible if you started knotra from a terminal, and lost if you
-started it from a desktop launcher.
+When this happens, you see a short "could not save" notice in the status bar; the
+full reason — naming the link and the missing directory — is logged at warning
+level, which knotra prints by default. It is visible if you started knotra from a
+terminal, and lost if you started it from a desktop launcher.
 
 ## When the config directory cannot be found
 

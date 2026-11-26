@@ -26,7 +26,7 @@ Local Persistence Layer (knotra-app)
 ## Concurrency
 
 Status reads: concurrent behind `tokio::sync::Semaphore` (configurable cap).  
-Writes: sequential via `stream::iter().then()` (Smart Pull, Freeze).  
+Writes: sequential via `stream::iter().then()` (Get latest safely, Save release point).\
 UI thread: never blocked — all I/O via `Task`/`Subscription`.
 
 ## Failure architecture

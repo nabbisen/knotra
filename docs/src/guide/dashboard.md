@@ -4,7 +4,9 @@ The Dashboard is knotra's home screen — a card-grid view of every registered r
 
 ## Card anatomy
 
-Each card shows: project name, VCS badge (Git / jj), current context (branch or change-id), status indicator, Ahead/Behind/Uncommitted/Untracked counts, and the time of the last status read.
+Each card shows: project name, VCS badge (Git / jj), current work area
+(branch or change-id), status indicator, and Local commits / Updates
+available / Unsaved files / New files counts.
 
 ## Status indicators
 
@@ -14,11 +16,11 @@ and **All set** (nothing to do). The Needs help tier is shown first; All set
 is collapsed by default.
 
 Each status indicator uses both colour and text (WCAG AA compliant). The
-first-level labels are plain-language: **All set** / **Updates available** /
-**Unshared changes** / **Unsaved work** / **Needs your choice** / **Not sure
-yet**. The exact technical state (Synced / Behind / Ahead / Uncommitted /
-Conflict / Unknown) is shown in the project detail panel and operation
-history under "Show details".
+chips at the top of the Dashboard are plain-language: **Needs help** /
+**Unsaved work** / **Updates available** / **Local commits** / **All set**.
+A project that needs help says why — commonly "A resolution choice is
+needed" or "Project folder is missing" — in its own card and in the detail
+panel.
 
 ## Filter chips, search, and grouping
 
@@ -26,8 +28,9 @@ Click status chips to filter cards. Use the search box to filter by project name
 
 ## Keyboard shortcuts
 
-- Move focus: `Tab` / `Shift+Tab` · activate: `Enter` or `Space` · close modal: `Esc`
-- `Ctrl+R` refresh · `Ctrl+K` context switch · `Ctrl+T` tag/freeze · `/` or `Ctrl+/` search
+- Move focus: `Tab` / `Shift+Tab` (wraps) · activate: `Enter` or `Space` · close or clear: `Esc`
+- Between projects: `↑` / `↓` / `j` / `k`
+- `Ctrl+R` refresh · `Ctrl+K` change work area · `Ctrl+T` save release point · `/` or `Ctrl+/` search
 
-Focus moves through the Dashboard but is not yet drawn there — see
-[Keyboard Shortcuts](../reference/keyboard.md) for what is and is not covered.
+Every control on the Dashboard is reachable by `Tab` — see
+[Keyboard Shortcuts](../reference/keyboard.md) for the full list.

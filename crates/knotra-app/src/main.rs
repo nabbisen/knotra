@@ -10,6 +10,8 @@ mod button_label_guard;
 mod button_style_guard;
 mod config;
 #[cfg(test)]
+mod docs_ui_names_guard;
+#[cfg(test)]
 mod escape_verification;
 mod fs_watcher;
 #[cfg(test)]

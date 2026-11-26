@@ -14,8 +14,9 @@ knotra is a local-first GUI application for developers and release managers
 who work across multiple Git and Jujutsu (jj) repositories simultaneously.
 
 It solves the problem of keeping your multi-repo workspace coherent: knowing
-which repos are behind, which have uncommitted changes, and performing bulk
-operations — fetches, context switches, release tagging — safely and atomically.
+which repos are behind, which have unsaved work, and performing bulk
+operations — checking for updates, changing work area, saving release points —
+safely and atomically.
 
 ---
 
@@ -24,8 +25,8 @@ operations — fetches, context switches, release tagging — safely and atomica
 | Situation | Without knotra | With knotra |
 |---|---|---|
 | "Are all my repos up to date?" | `cd` into each, run `git status` | Dashboard card grid shows it instantly |
-| "Update everything safely" | Manual loop, forget dirty repos | Smart Pull with dirty-state guard |
-| "Tag v1.2.3 across 8 repos" | Run tag command 8 times, pray | Freezer validates, tags atomically, rolls back on failure |
+| "Update everything safely" | Manual loop, forget dirty repos | Get latest safely, with a dirty-state guard |
+| "Tag v1.2.3 across 8 repos" | Run tag command 8 times, pray | Save release point validates, tags atomically, rolls back on failure |
 | "What went wrong during the last release?" | Search terminal history | History screen with per-project logs |
 
 ---
@@ -56,19 +57,19 @@ cargo build --release -p knotra
 ./target/release/knotra
 
 # The first run creates ~/.config/knotra/config.toml with defaults.
-# Add your repositories via Settings → Add Project.
+# Add your repositories via the Dashboard's "Add project folder" button.
 ```
 
 ---
 
 ## Features / Design Notes
 
-- **Dashboard**: card-grid view of all registered projects — auto-grouped by attention tier (Needs Attention / Active / Clean).
-- **Sync & Pull**: bulk fetch and Smart Pull with dirty-repo detection — opens as a modal from the selection bar.
-- **Context Switch**: switch branch / change-set across projects from a single modal (`Ctrl+K` or **Switch…** button).
-- **Freezer**: transactional cross-repo tag/bookmark creation with automatic rollback — opens as a modal from the selection bar.
-- **History**: searchable operation log with copy-paste-friendly command output.
-- **Accessible by Default**: keyboard navigation, sufficient contrast, labels on all status indicators.
+- **Dashboard**: card-grid view of all registered projects — auto-grouped by how much attention they need (Needs help / In progress / All set).
+- **Get latest safely**: select projects, then check for updates or pull with dirty-repo detection — opens as a modal from the selection bar.
+- **Change work area**: switch branch / change-set across projects from a single modal (`Ctrl+K` or the selection bar).
+- **Save release point**: transactional cross-repo tag/bookmark creation with automatic rollback — opens as a modal from the selection bar (`Ctrl+T`).
+- **History**: searchable operation log, times shown in your own time zone, with copy-paste-friendly command output.
+- **Accessible by Default**: every control is reachable by keyboard, sufficient contrast, labels on all status indicators.
 - **Transparent**: every operation logs the VCS commands it executed and their output.
 - **Local-first**: no cloud sync, no telemetry, no required external services.
 

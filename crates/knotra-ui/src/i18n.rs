@@ -69,6 +69,14 @@ impl Catalog {
     pub fn contains_key(&self, key: Key) -> bool {
         self.strings.contains_key(key)
     }
+
+    /// Task 121 §3: whether some key resolves to exactly `value` — the
+    /// other direction from `contains_key`, for a consumer that has a
+    /// user-visible string (quoted from a doc page, say) and wants to know
+    /// whether it is still a real UI name, not which key produces it.
+    pub fn contains_value(&self, value: &str) -> bool {
+        self.strings.values().any(|&v| v == value)
+    }
 }
 
 fn en_strings() -> HashMap<Key, &'static str> {

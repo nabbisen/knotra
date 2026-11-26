@@ -1,51 +1,53 @@
 # Keyboard Shortcuts
 
-## Navigation
+Every control on every screen is reachable by `Tab` — this page lists the
+shortcuts the in-app cheat sheet (`Ctrl+/` or the "Show keyboard shortcuts"
+command) shows, in the same order.
+
+## Everywhere
 
 | Shortcut | Action |
 |---|---|
-| `Tab` | Move focus to the next control |
-| `Shift+Tab` | Move focus to the previous control |
-| `Enter` / `Space` | Activate the focused control |
-| `Esc` | Close the open modal or dialog |
+| `Tab` / `Shift+Tab` | Move to the next or previous control |
+| `Enter` / `Space` | Press the highlighted control |
+| `Esc` | Close the open window, or clear the selection |
 
-While a text input holds focus, `Enter`, `Space`, and `/` go to the input as
-typed characters rather than acting as shortcuts.
-
-Inside a dialog, `Tab` cycles within that dialog and does not reach the window
+Tabbing wraps: from the last control it moves to the first, and back. Inside a
+dialog, `Tab` cycles within that dialog only and does not reach the window
 behind it. Closing the dialog returns focus to the control that opened it.
 
-## Commands
+## In a list
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+R` / `⌘R` | Refresh all project statuses |
-| `Ctrl+K` / `⌘K` | Open Context Switch |
-| `Ctrl+T` / `⌘T` | Open Freezer (Tag modal) |
-| `/` | Focus the search box |
-| `Ctrl+/` / `⌘/` | Focus the search box (returns to Dashboard) |
+| `↑` / `↓` | Move to the next or previous item |
 
-## Moving between projects
+On the Dashboard specifically, `↑` / `↓` / `j` / `k` move between project
+names, skipping the controls within each row that `Tab` reaches, and skipping
+projects in a collapsed section. While a text field holds focus these keys
+type or do nothing, so they never interrupt a search.
+
+## Main screens
 
 | Shortcut | Action |
 |---|---|
-| `↑` / `k` | Move to the previous project |
-| `↓` / `j` | Move to the next project |
-| `Enter` | Open the focused project's detail panel |
+| `Ctrl+R` / `⌘R` | Refresh |
+| `Ctrl+K` / `⌘K` | Change work area |
+| `Ctrl+T` / `⌘T` | Save release point |
+| `/` or `Ctrl+/` / `⌘/` | Go to the search field (Dashboard) |
+| `Ctrl+Plus` / `Ctrl+=` | Zoom in |
+| `Ctrl+Minus` | Zoom out |
+| `Ctrl+0` | Reset zoom |
 
-Arrow and `j`/`k` movement steps between project names, skipping the controls
-within each row that `Tab` reaches. Projects in collapsed sections are skipped.
-While a text field holds focus these keys type or do nothing, so they never
-interrupt a search.
+`Ctrl` and the listed shortcuts work the same on every platform; `⌘` is
+accepted as an alias for `Ctrl` on macOS.
 
 ## What is not yet keyboard-accessible
 
-- **The Group and Sort menus cannot be opened by keyboard.** `Tab` reaches them
-  and they show a focus ring, but they cannot be opened without a pointer, so
-  grouping and sorting cannot be changed by keyboard alone.
-- **Selection mode has no single-key shortcuts.** Fetch, pull, tag, and switch
-  are reached through the selection bar or the command palette, not by pressing
-  `f`, `p`, `t`, or `b`.
+- **Selection mode has no single-key shortcuts.** Check for updates, get
+  latest safely, save a release point, and change work area are reached
+  through the selection bar or the command palette once projects are
+  selected, not by pressing a single letter key.
 - **There is no screen-reader support.** knotra targets iced 0.14, which
   exposes no accessibility API.
 
