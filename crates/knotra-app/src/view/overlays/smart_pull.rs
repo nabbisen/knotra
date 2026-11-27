@@ -26,6 +26,7 @@ use knotra_ui::widget::{
 };
 use knotra_vcs::{
     ProjectId, model::operation::ProjectOperationOutcome, model::operation::SmartPullDisposition,
+    model::operation::SmartPullPlan,
 };
 
 use crate::{
@@ -296,12 +297,16 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                 .any(|e| !matches!(e.disposition, SmartPullDisposition::Excluded));
             let can_start = has_work && !state.operation_interlock.is_busy();
 
+            // RFC-074 Stage 1 "Decided": every project here was chosen
+            // (this is a plan, not an empty selection) — `plain.disabled.
+            // choose_one` ("Choose at least one project.") would be wrong,
+            // so the all-skipped case gets its own reason.
             let start_reason = if can_start {
                 None
             } else if state.operation_interlock.is_busy() {
                 Some(state.t("plain.activity.busy"))
             } else {
-                Some(state.t("plain.disabled.choose_one"))
+                Some(state.t("plain.get_latest.all_skipped"))
             };
 
             let start_on_press = can_start.then_some(Message::Sync(SyncMessage::ExecuteRequested));
@@ -346,6 +351,9 @@ pub fn pull_modal(state: &AppState) -> Element<'_, Message> {
                     text(state.t("plain.get_latest.review_heading"))
                         .size(snora::design::style::text::body_size(tokens))
                         .line_height(snora::design::style::text::body_line_height(tokens)),
+                    // RFC-074 Stage 1 D2: how many projects, and which,
+                    // before "Start".
+                    plan_summary_line(state, tokens, plan),
                     header_row,
                     // RFC-071 D8a: the plan's own entries are a list of
                     // items — one border line between adjacent entries.
@@ -714,6 +722,93 @@ fn pick_disposition_btn<'a>(
     .into()
 }
 
+/// RFC-074 Stage 1 D2: one line above the plan's rows, counting each
+/// disposition by its own existing name (`plain.get_latest.action_get`,
+/// `.action_check`, `.skipped_row` — the same names each row's own action
+/// cell already shows, not a fourth vocabulary). Built from `plan.entries`
+/// through the plan's own count methods — the same source the rows
+/// themselves iterate — so the line can never disagree with them. A count
+/// of zero is left out.
+///
+/// **Never wraps inside a name:** each segment's internal spaces are
+/// non-breaking (`\u{a0}`), so if the line itself wraps in a narrow
+/// window, it only wraps between segments, at the ` · ` separator — the
+/// same separator the dashboard's rows already use (`row.rs`) — never in
+/// the middle of, say, "Only check for updates".
+/// Each disposition's own name and count, as `"<name>: <n>"`, in order,
+/// with a zero count left out — the text content of [`plan_summary_line`]
+/// before it is split into one chip per segment. Built from `plan.entries`
+/// through the plan's own count methods — the same source the rows
+/// themselves iterate — so it can never disagree with them.
+pub(crate) fn plan_summary_segments(state: &AppState, plan: &SmartPullPlan) -> Vec<String> {
+    let counts = [
+        (state.t("plain.get_latest.action_get"), plan.pull_count()),
+        (
+            state.t("plain.get_latest.action_check"),
+            plan.fetch_only_count(),
+        ),
+        (
+            state.t("plain.get_latest.skipped_row"),
+            plan.excluded_count(),
+        ),
+    ];
+
+    counts
+        .into_iter()
+        .filter(|(_, count)| *count > 0)
+        .map(|(name, count)| format!("{name}: {count}"))
+        .collect()
+}
+
+/// RFC-074 Stage 1 D2: one line above the plan's rows, counting each
+/// disposition by its own existing name (`plain.get_latest.action_get`,
+/// `.action_check`, `.skipped_row` — the same names each row's own action
+/// cell already shows, not a fourth vocabulary).
+///
+/// **Never wraps inside a name.** First tried as a single flowing
+/// `text()` (the same shape `changelog.rs`'s own `changelog_summary_text`
+/// joins with " · "), with each name's own spaces made non-breaking
+/// (`\u{a0}`) to keep "Only check for updates" together. That works for
+/// English, but Japanese's three names have no spaces at all — cosmic
+/// text's own CJK line-breaking allows a break between *any* two
+/// characters there, so a narrow window still split a name like
+/// "更新の確認のみ" mid-word (confirmed directly: a forced-narrow render
+/// broke it after its 5th character). The fix used here is the one the
+/// toolbar's own filter chips already use for the identical problem
+/// (`toolbar.rs`'s `chips` row, `chip::filter_control`): each segment is
+/// its own `text()` with `Wrapping::None` — unbreakable regardless of
+/// script — joined in a `row(...).wrap()`, so the *row* wraps between
+/// segments while no single segment ever wraps internally. The
+/// separator is folded into each segment after the first (`"· {segment}"`),
+/// so a wrap never isolates a lone `·` on its own line either.
+fn plan_summary_line<'a>(
+    state: &'a AppState,
+    tokens: &Tokens,
+    plan: &SmartPullPlan,
+) -> Element<'a, Message> {
+    let size = snora::design::style::text::body_size(tokens);
+    let line_height = snora::design::style::text::body_line_height(tokens);
+
+    let children: Vec<Element<'_, Message>> = plan_summary_segments(state, plan)
+        .into_iter()
+        .enumerate()
+        .map(|(i, segment)| {
+            let content = if i == 0 {
+                segment
+            } else {
+                format!("· {segment}")
+            };
+            text(content)
+                .size(size)
+                .line_height(line_height)
+                .wrapping(iced::advanced::text::Wrapping::None)
+                .into()
+        })
+        .collect();
+
+    row(children).spacing(4).wrap().into()
+}
+
 /// Map a `SmartPullDisposition` to plain-language action label + contextual note.
 fn disposition_plain(
     state: &AppState,
@@ -746,5 +841,167 @@ fn disposition_plain(
                 ""
             },
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use crate::state::AppState;
+    use knotra_vcs::OperationId;
+    use knotra_vcs::model::operation::{SmartPullPlanEntry, SmartPullSkipReason};
+
+    fn entry(disposition: SmartPullDisposition) -> SmartPullPlanEntry {
+        SmartPullPlanEntry {
+            project_id: ProjectId::new(),
+            project_name: "svc".to_owned(),
+            is_dirty: matches!(
+                disposition,
+                SmartPullDisposition::FetchOnly | SmartPullDisposition::StashAndPull
+            ),
+            has_conflict: false,
+            skip_reason: matches!(disposition, SmartPullDisposition::Excluded)
+                .then_some(SmartPullSkipReason::Deselected),
+            disposition,
+        }
+    }
+
+    fn plan(entries: Vec<SmartPullPlanEntry>) -> SmartPullPlan {
+        SmartPullPlan {
+            id: OperationId::new(),
+            entries,
+        }
+    }
+
+    /// Handoff §1/§3 row 1: "the counts always equal the rows", built from
+    /// one mix across both languages.
+    #[test]
+    fn plan_summary_segments_counts_match_the_rows_in_both_languages() {
+        let mixed = plan(vec![
+            entry(SmartPullDisposition::Pull),
+            entry(SmartPullDisposition::StashAndPull),
+            entry(SmartPullDisposition::FetchOnly),
+            entry(SmartPullDisposition::Excluded),
+            entry(SmartPullDisposition::Excluded),
+        ]);
+
+        let en = AppState::new(AppConfig::default());
+        assert_eq!(
+            plan_summary_segments(&en, &mixed),
+            vec!["Get latest: 2", "Only check for updates: 1", "Skipped: 2"]
+        );
+
+        let mut ja = AppState::new(AppConfig::default());
+        ja.catalog = knotra_ui::i18n::Catalog::for_locale(knotra_ui::i18n::Locale::Ja);
+        assert_eq!(
+            plan_summary_segments(&ja, &mixed),
+            vec!["最新を取得: 2", "更新の確認のみ: 1", "スキップ: 2"]
+        );
+    }
+
+    /// Handoff §3 row 2: a count of zero is left out entirely, not shown
+    /// as "Only check for updates: 0".
+    #[test]
+    fn plan_summary_segments_leave_zero_counts_out() {
+        let state = AppState::new(AppConfig::default());
+
+        let only_get_latest = plan(vec![
+            entry(SmartPullDisposition::Pull),
+            entry(SmartPullDisposition::Pull),
+        ]);
+        assert_eq!(
+            plan_summary_segments(&state, &only_get_latest),
+            vec!["Get latest: 2"]
+        );
+
+        let only_skipped = plan(vec![
+            entry(SmartPullDisposition::Excluded),
+            entry(SmartPullDisposition::Excluded),
+            entry(SmartPullDisposition::Excluded),
+        ]);
+        assert_eq!(
+            plan_summary_segments(&state, &only_skipped),
+            vec!["Skipped: 3"]
+        );
+    }
+
+    /// Handoff §1: "Changing a row's choice updates the line at once" —
+    /// both counts are read fresh from `plan.entries` on every call, so a
+    /// changed disposition is reflected with no cache to invalidate.
+    #[test]
+    fn plan_summary_segments_update_when_a_rows_disposition_changes() {
+        let state = AppState::new(AppConfig::default());
+        let mut p = plan(vec![entry(SmartPullDisposition::FetchOnly)]);
+        assert_eq!(
+            plan_summary_segments(&state, &p),
+            vec!["Only check for updates: 1"]
+        );
+
+        p.entries[0].disposition = SmartPullDisposition::StashAndPull;
+        assert_eq!(plan_summary_segments(&state, &p), vec!["Get latest: 1"]);
+    }
+
+    /// Handoff §1: never wraps inside a name. Each segment renders as its
+    /// own `text()` with `Wrapping::None` (the module doc on
+    /// [`plan_summary_line`] explains why — the non-breaking-space version
+    /// tried first did not hold for Japanese), so this is checked by
+    /// rendering, not by inspecting the plain-text content — see
+    /// `label_overflow_guard.rs`'s own
+    /// `the_plan_summary_lines_segments_never_wrap_or_clamp`.
+    #[test]
+    fn plan_summary_line_renders_one_chip_per_segment() {
+        let state = AppState::new(AppConfig::default());
+        let p = plan(vec![
+            entry(SmartPullDisposition::Pull),
+            entry(SmartPullDisposition::FetchOnly),
+        ]);
+        let tokens = &state.theme.tokens;
+        let mut ui = crate::headless::simulator(
+            plan_summary_line(&state, tokens, &p),
+            iced_test::core::Size::new(900.0, 200.0),
+        );
+        assert!(ui.find("Get latest: 1").is_ok());
+        assert!(ui.find("· Only check for updates: 1").is_ok());
+    }
+
+    /// Handoff §1 "Decided": the all-skipped reason, read from the real
+    /// `pull_modal` view (not the bare catalog key) so this also proves
+    /// `plain.disabled.choose_one` — wrong here, since projects were
+    /// chosen — no longer appears in this phase.
+    #[test]
+    fn all_skipped_plan_shows_the_new_reason_in_both_languages() {
+        let cases = [
+            (
+                knotra_ui::i18n::Locale::En,
+                "Every project is skipped, so nothing would change.",
+            ),
+            (
+                knotra_ui::i18n::Locale::Ja,
+                "すべてのプロジェクトがスキップされるため、変更はありません。",
+            ),
+        ];
+
+        for (locale, reason) in cases {
+            let mut state = AppState::new(AppConfig::default());
+            state.catalog = knotra_ui::i18n::Catalog::for_locale(locale);
+            state.sync.phase = crate::state::sync::SyncPhase::AwaitingConfirm(plan(vec![entry(
+                SmartPullDisposition::Excluded,
+            )]));
+
+            let mut ui = crate::headless::simulator(
+                pull_modal(&state),
+                iced_test::core::Size::new(900.0, 700.0),
+            );
+            assert!(
+                ui.find(reason).is_ok(),
+                "locale {locale:?}: the all-skipped reason must be shown"
+            );
+            assert!(
+                ui.find(state.t("plain.disabled.choose_one")).is_err(),
+                "locale {locale:?}: the old, wrong reason (\"Choose at least one project.\") \
+                 must not appear here"
+            );
+        }
     }
 }

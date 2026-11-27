@@ -341,6 +341,15 @@ impl SmartPullPlan {
             .filter(|e| e.disposition == SmartPullDisposition::Excluded)
             .count()
     }
+
+    /// RFC-074 Stage 1 D2: projects that will only check for updates, not
+    /// get the latest — the plan's summary line's own third count.
+    pub fn fetch_only_count(&self) -> usize {
+        self.entries
+            .iter()
+            .filter(|e| e.disposition == SmartPullDisposition::FetchOnly)
+            .count()
+    }
 }
 
 /// Progress event emitted during Smart Pull execution (one per project).

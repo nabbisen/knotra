@@ -102,7 +102,15 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
         crate::state::Screen::Settings => settings::view(state),
     };
 
-    let sel_bar = selection_bar::view(state, mode);
+    // RFC-074 Stage 1 D4: the bar's actions (Check for updates, Get latest
+    // safely, Save release point, Change work area) all belong to the
+    // dashboard — drawing it on History or Settings offered dashboard
+    // actions on a screen that has nothing to do with them.
+    let sel_bar = if matches!(state.screen, crate::state::Screen::Dashboard) {
+        selection_bar::view(state, mode)
+    } else {
+        None
+    };
     let sel_bar_open = sel_bar.is_some();
     let activity = activity_strip::view(state);
 

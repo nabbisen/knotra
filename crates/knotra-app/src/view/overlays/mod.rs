@@ -38,6 +38,12 @@ pub(crate) use freezer::entry_id as freezer_entry_id;
 pub use freezer::tag_modal;
 pub(crate) use smart_pull::entry_id as smart_pull_entry_id;
 pub use smart_pull::pull_modal;
+// RFC-074 Stage 1 D2: `label_overflow_guard.rs`'s own matrix test builds
+// each segment's exact text to search for, the same reuse-not-duplicate
+// reason `changelog_result_counts` is re-exported just below — and the
+// same `#[cfg(test)]` gate, since nothing outside tests uses this path.
+#[cfg(test)]
+pub(crate) use smart_pull::plan_summary_segments;
 
 // `tests.rs` calls these two `pub(crate)` changelog helpers via the old
 // `crate::view::bulk_modals::...` path (see `view.rs`'s `bulk_modals` alias)

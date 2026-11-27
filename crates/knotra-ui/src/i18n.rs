@@ -305,6 +305,12 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "Review the plan before anything changes.",
     );
     m.insert("plain.get_latest.start", "Start getting latest");
+    // RFC-074 Stage 1 "Decided": replaces `plain.disabled.choose_one` for
+    // this one case — projects were chosen, but every one is skipped.
+    m.insert(
+        "plain.get_latest.all_skipped",
+        "Every project is skipped, so nothing would change.",
+    );
     m.insert("plain.get_latest.working", "Getting latest…");
     m.insert("plain.get_latest.action_get", "Get latest");
     m.insert("plain.get_latest.action_check", "Only check for updates");
@@ -1120,6 +1126,10 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "変更前に内容を確認してください。",
     );
     m.insert("plain.get_latest.start", "最新を取得する");
+    m.insert(
+        "plain.get_latest.all_skipped",
+        "すべてのプロジェクトがスキップされるため、変更はありません。",
+    );
     m.insert("plain.get_latest.working", "最新を取得中…");
     m.insert("plain.get_latest.action_get", "最新を取得");
     m.insert("plain.get_latest.action_check", "更新の確認のみ");

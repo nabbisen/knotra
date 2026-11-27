@@ -349,7 +349,12 @@ pub(super) fn close_topmost_layer(state: &mut AppState) -> Task<Message> {
 
     match layer::top_layer(state) {
         None => {
-            if state.selection_mode {
+            // RFC-074 Stage 1 D4: the selection bar — the only place this
+            // choice is shown — is drawn only on the dashboard now. Escape
+            // on History or Settings must not discard a selection the
+            // user cannot even see, since there is nothing else open for
+            // it to close instead.
+            if state.selection_mode && matches!(state.screen, Screen::Dashboard) {
                 state.clear_selection_mode();
             }
             Task::none()

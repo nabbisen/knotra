@@ -4017,7 +4017,7 @@ mod stage3_amendment_a2_tests {
         WorkspaceMessage,
     };
     use crate::state::layer::{Layer, WindowFocusMode};
-    use crate::state::{AppState, OperationOwner};
+    use crate::state::{AppState, OperationOwner, Screen};
     use crate::view::ids;
     use iced::keyboard::key::Named;
     use knotra_vcs::model::status::{RemoteStatus, RepositoryIdentity, VcsKind, WorkingTreeStatus};
@@ -4177,6 +4177,58 @@ mod stage3_amendment_a2_tests {
             Some(ids::selection_bar::fetch()),
             "never a reinstated id nothing in the real tree answers to, even once the bar \
              itself is gone"
+        );
+    }
+
+    /// RFC-074 Stage 1 D4: "a control in the bar cannot hold focus on a
+    /// screen where the bar is not drawn", and "leaving and returning"
+    /// keeps the selection. "Exit selection" is tabbed to and genuinely
+    /// focused (the same real-key-path proof the row above this one
+    /// makes), then `Message::Navigate` — what activating the shell's own
+    /// History link publishes — takes the whole bar with it, by
+    /// `view.rs`'s new `if matches!(state.screen, Screen::Dashboard)`
+    /// gate. The bar's own id is never in `reserved` once it is gone (the
+    /// same `sel_bar_open`-conditioned push the row above this one reads),
+    /// so this does not depend on Amendment A2 F1's fix directly — it
+    /// proves the more basic thing that fix's own neighbour-fallback
+    /// (`belongs_on`) rests on: focus never still claims to be an id the
+    /// real tree no longer answers to, and returning redraws the bar as a
+    /// real, reachable Tab stop again, with the same selection.
+    #[test]
+    fn selection_bar_focus_does_not_survive_leaving_the_dashboard() {
+        let (mut state, id) = one_project_selected_with_upstream();
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::selection_bar::exit()));
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::selection_bar::exit())
+        );
+
+        drive(&mut rig, &mut state, Message::Navigate(Screen::History));
+
+        assert_eq!(state.screen, Screen::History);
+        assert!(
+            state.selection_mode,
+            "leaving the dashboard must keep the selection"
+        );
+        assert!(state.selection.contains(&id));
+        assert_ne!(
+            focused_id(&mut rig, &state),
+            Some(ids::selection_bar::exit()),
+            "the bar's own control cannot still hold focus once the bar itself is gone"
+        );
+
+        drive(&mut rig, &mut state, Message::Navigate(Screen::Dashboard));
+
+        assert!(
+            state.selection_mode,
+            "returning must still carry the same selection"
+        );
+        assert!(state.selection.contains(&id));
+        assert!(
+            tab_to(&mut rig, &mut state, &ids::selection_bar::exit()),
+            "the bar's own control must be a real Tab stop again once it returns"
         );
     }
 

@@ -642,6 +642,140 @@ mod tests {
         );
     }
 
+    /// RFC-074 Stage 1 handoff §1/§3 row 2: "the line never wraps inside a
+    /// name". Each segment of the plan's own summary line is its own
+    /// `text()` with `Wrapping::None` (`plan_summary_line`'s own module
+    /// doc explains why — a plain joined string with non-breaking spaces,
+    /// tried first, did not hold for Japanese, whose names have no spaces
+    /// at all for cosmic text's CJK line-breaking to respect), so this is
+    /// checked exactly the way `every_label_fits_its_control_across_the_
+    /// matrix` above already checks the toolbar's own filter chips, built
+    /// the same way for the same reason: a segment's own *rendered* width
+    /// must equal its natural, unclamped width — any narrowing at all
+    /// would mean it wrapped or was clamped internally — and must lie
+    /// inside the viewport.
+    ///
+    /// **Seen failing first**, confirmed directly: against a version of
+    /// `plan_summary_line` built as one flowing `text()` with `.replace('
+    /// ', "\u{a0}")` instead of per-segment `Wrapping::None` chips (the
+    /// first design tried, kept just long enough to run this check
+    /// against it), every one of this test's 24 cases failed — each
+    /// segment's own text no longer exists as its own widget to find at
+    /// all, since the whole line is one joined string now. A narrower,
+    /// cosmic-text-level version of this same check (looking inside that
+    /// one string's own wrapped `layout_runs()` instead) had already shown
+    /// the more specific defect non-breaking spaces alone cannot fix:
+    /// Japanese's own names have no spaces for cosmic text's CJK
+    /// line-breaking to respect, so a forced-narrow render split 「更新の
+    /// 確認のみ」 after its 5th character. Reverted before this test was
+    /// committed; the shipped function uses the chip-row design.
+    #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "the pinned faces (Noto Sans, Noto Sans CJK JP) are installed only on the \
+                  Linux CI runner (Task 108 A1 §4) — the widths this guard measures would be \
+                  some other font's on macOS/Windows"
+    )]
+    fn the_plan_summary_lines_segments_never_wrap_or_clamp() {
+        use crate::state::sync::SyncPhase;
+        use knotra_vcs::model::operation::SmartPullSkipReason;
+        use knotra_vcs::{
+            OperationId, ProjectId, SmartPullDisposition, SmartPullPlan, SmartPullPlanEntry,
+        };
+
+        let mut checked = 0usize;
+        let mut failures: Vec<String> = Vec::new();
+
+        for &locale in &[knotra_ui::i18n::Locale::En, knotra_ui::i18n::Locale::Ja] {
+            let mut state = AppState::new(AppConfig::default());
+            state.catalog = knotra_ui::i18n::Catalog::for_locale(locale);
+            let plan = SmartPullPlan {
+                id: OperationId::new(),
+                entries: vec![
+                    SmartPullPlanEntry {
+                        project_id: ProjectId::new(),
+                        project_name: "a".to_owned(),
+                        is_dirty: false,
+                        has_conflict: false,
+                        skip_reason: None,
+                        disposition: SmartPullDisposition::Pull,
+                    },
+                    SmartPullPlanEntry {
+                        project_id: ProjectId::new(),
+                        project_name: "b".to_owned(),
+                        is_dirty: true,
+                        has_conflict: false,
+                        skip_reason: None,
+                        disposition: SmartPullDisposition::FetchOnly,
+                    },
+                    SmartPullPlanEntry {
+                        project_id: ProjectId::new(),
+                        project_name: "c".to_owned(),
+                        is_dirty: false,
+                        has_conflict: false,
+                        skip_reason: Some(SmartPullSkipReason::Deselected),
+                        disposition: SmartPullDisposition::Excluded,
+                    },
+                ],
+            };
+            let segments = crate::view::overlays::plan_summary_segments(&state, &plan);
+            assert_eq!(
+                segments.len(),
+                3,
+                "sanity: all three dispositions must appear"
+            );
+            state.sync.phase = SyncPhase::AwaitingConfirm(plan);
+
+            for &zoom_percent in &[100.0_f32, 150.0_f32] {
+                for &width in &[800.0_f32, 1280.0_f32] {
+                    let logical = crate::headless::logical_size_at_zoom(
+                        Size::new(width, 900.0),
+                        zoom_percent,
+                    );
+                    state.window_width = logical.width;
+
+                    let context = format!("locale={locale:?} zoom={zoom_percent}% width={width}");
+
+                    let mut ui = crate::headless::simulator(
+                        crate::view::overlays::pull_modal(&state),
+                        logical,
+                    );
+                    let mut reference = crate::headless::simulator(
+                        crate::view::overlays::pull_modal(&state),
+                        REFERENCE_SIZE,
+                    );
+
+                    for (i, segment) in segments.iter().enumerate() {
+                        // The first segment renders verbatim; every later
+                        // one carries the `· ` separator `plan_summary_
+                        // line` folds into its own chip, so a wrap never
+                        // isolates a lone separator.
+                        let label = if i == 0 {
+                            segment.clone()
+                        } else {
+                            format!("· {segment}")
+                        };
+                        if let Err(e) =
+                            check_label(&mut ui, &mut reference, &label, logical.width, &context)
+                        {
+                            failures.push(e);
+                        }
+                        checked += 1;
+                    }
+                }
+            }
+        }
+
+        assert!(checked > 0, "the matrix must check at least one segment");
+        eprintln!("label_overflow_guard: checked {checked} plan-summary segments");
+        assert!(
+            failures.is_empty(),
+            "{} of {checked} plan-summary segments were clamped, wrapped or off-screen:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+    }
+
     /// Task 122 §2: extends this guard from button/chip labels to every
     /// description/note paragraph — any UI text long enough to wrap, where
     /// Japanese (no spaces to break at) can strand one short word alone on
@@ -1186,6 +1320,14 @@ mod tests {
                 render: |state| view::overlays::resolve_panel(state, fixed_project_id_static()),
                 content: |state| state.t("plain.resolve.stop_confirm_body").to_owned(),
             },
+            // RFC-074 Stage 1's own plan summary line is deliberately
+            // left out of this guard (unlike the rows above): it is not
+            // a flowing paragraph that could strand a word — each of its
+            // segments is its own non-wrapping chip (`plan_summary_line`'s
+            // own module doc explains why), so there is no "last line" for
+            // this guard's own stranding check to apply to. It has its own
+            // guard instead: `the_plan_summary_lines_segments_never_wrap_
+            // or_clamp`, above.
         ];
 
         let mut checked = 0usize;

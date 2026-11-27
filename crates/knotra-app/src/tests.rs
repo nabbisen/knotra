@@ -968,6 +968,115 @@ fn close_shortcut_closes_only_topmost_layer() {
     assert!(matches!(state.active_modal, ActiveModal::None));
 }
 
+/// RFC-074 Stage 1 D4: with no window open (`layer::top_layer`'s `None`
+/// arm), Escape used to end selection mode on any screen. The selection
+/// bar — the only place the choice is shown — is now drawn only on the
+/// dashboard, so clearing it from History or Settings would discard a
+/// choice the user cannot even see there, with nothing else open for
+/// Escape to close instead. On the dashboard, where the bar is visible,
+/// Escape still clears it exactly as before.
+#[test]
+fn close_shortcut_with_no_window_open_clears_selection_only_on_the_dashboard() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    dispatch(&mut state, Message::Selection(SelectionMessage::SelectAll));
+    assert!(state.selection_mode, "sanity: selection mode must be on");
+
+    state.screen = Screen::History;
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+    assert!(
+        state.selection_mode,
+        "Escape on History must not clear a selection the bar there cannot show"
+    );
+    assert_eq!(state.selection.selected_ids.len(), 1);
+
+    state.screen = Screen::Settings;
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+    assert!(
+        state.selection_mode,
+        "Escape on Settings must not clear the selection either"
+    );
+
+    state.screen = Screen::Dashboard;
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+    assert!(
+        !state.selection_mode,
+        "Escape on the dashboard, where the bar is visible, still clears it"
+    );
+    assert_eq!(state.selection.selected_ids.len(), 0);
+}
+
+/// RFC-074 Stage 1 D4: "the bar is drawn only on the dashboard" and "the
+/// selection survives leaving and returning" — rendered through the real
+/// `app_view`, not read off `AppState` alone, since D4's own requirement
+/// is about what is drawn, not just what is stored.
+#[test]
+fn selection_bar_is_drawn_only_on_the_dashboard_and_survives_the_round_trip() {
+    let mut state = make_state();
+    let project = make_project("svc");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    dispatch(&mut state, Message::Selection(SelectionMessage::SelectAll));
+    assert!(state.selection_mode, "sanity: selection mode must be on");
+
+    let exit_label = state.t("plain.exit_selection").to_owned();
+    let size = iced_test::core::Size::new(1280.0, 800.0);
+
+    state.screen = Screen::Dashboard;
+    {
+        let mut ui = crate::headless::simulator(crate::view::app_view(&state), size);
+        assert!(
+            ui.find(exit_label.as_str()).is_ok(),
+            "the bar must be drawn on the dashboard"
+        );
+    }
+
+    state.screen = Screen::History;
+    {
+        let mut ui = crate::headless::simulator(crate::view::app_view(&state), size);
+        assert!(
+            ui.find(exit_label.as_str()).is_err(),
+            "the bar must not be drawn on History"
+        );
+    }
+
+    state.screen = Screen::Settings;
+    {
+        let mut ui = crate::headless::simulator(crate::view::app_view(&state), size);
+        assert!(
+            ui.find(exit_label.as_str()).is_err(),
+            "the bar must not be drawn on Settings"
+        );
+    }
+
+    state.screen = Screen::Dashboard;
+    {
+        let mut ui = crate::headless::simulator(crate::view::app_view(&state), size);
+        assert!(
+            ui.find(exit_label.as_str()).is_ok(),
+            "the bar must be drawn again, back on the dashboard"
+        );
+    }
+    assert!(
+        state.selection.contains(&project.id),
+        "the selection itself must survive the round trip unchanged"
+    );
+}
+
 #[test]
 fn add_project_back_returns_to_folder_step_with_the_path_kept() {
     let mut state = make_state();

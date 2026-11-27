@@ -9,6 +9,17 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — Get latest safely counts what will happen before you start
+
+The plan now says, above the list, how many projects will get the latest, how many will only
+check for updates, and how many are skipped. If every project is skipped, it says so, instead of
+asking you to choose a project.
+
+### Changed — the selection bar stays on the dashboard
+
+The bar for acting on selected projects is shown only on the dashboard. Your selection is kept
+while you visit History or Settings, and Escape there no longer clears it.
+
 ## [0.35.0] — 2026-11-26
 
 **Every screen and window now works from the keyboard.**
