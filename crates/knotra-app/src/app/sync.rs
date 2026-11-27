@@ -263,9 +263,19 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
             state.sync.phase = SyncPhase::Planning;
             state.sync.selected_project_ids = state.selection.selected_ids.clone();
             if let Some(ws) = &state.workspace {
-                state
-                    .sync
-                    .set_selection(&ws.projects, &state.selection.selected_ids);
+                // RFC-074 Stage 2 D1: with nothing selected, this covers
+                // every project — `build_plan`'s own `is_selected` must
+                // see every one of them as selected, not as if each were
+                // individually deselected. `set_selection`'s own default
+                // (nothing marked `true`) is exactly backwards for this
+                // case, so it is given every project's id here instead of
+                // the (empty) real selection.
+                let selection_for_plan = if state.selection.selected_ids.is_empty() {
+                    ws.projects.iter().map(|p| p.id.clone()).collect()
+                } else {
+                    state.selection.selected_ids.clone()
+                };
+                state.sync.set_selection(&ws.projects, &selection_for_plan);
             }
             Task::done(Message::Sync(SyncMessage::SmartPullPlanRequested))
         }

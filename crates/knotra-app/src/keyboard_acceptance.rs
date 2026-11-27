@@ -4232,6 +4232,103 @@ mod stage3_amendment_a2_tests {
         );
     }
 
+    /// RFC-074 Stage 2 handoff §3/§4 row 6: one project, **not** selected,
+    /// **not** dirty, with updates available — so the toolbar's own "Get
+    /// latest safely" is drawn (`get_latest_button_visible`), and the
+    /// plan it opens has no dirty entry, so its own entry (`entry_id`) is
+    /// Cancel, the exact shape `get_latest_safely_by_enter_focuses_the_
+    /// plans_entry` below already proved for the selection bar's own
+    /// button.
+    fn one_behind_project_not_selected() -> (AppState, ProjectId) {
+        let mut state = AppState::new(AppConfig::default());
+        let project = Project::new("Alpha", "/tmp");
+        let id = project.id.clone();
+        state.workspace = Some(Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        });
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![ProjectStatus {
+                project_id: id.clone(),
+                identity: RepositoryIdentity {
+                    path: "/tmp".into(),
+                    vcs_kind: VcsKind::Git,
+                },
+                context: None,
+                remote: RemoteStatus {
+                    ahead: 0,
+                    behind: 2,
+                    upstream: Some("origin/main".to_owned()),
+                },
+                working_tree: WorkingTreeStatus::default(),
+                conflict: Default::default(),
+                refreshed_at: jiff::Timestamp::now(),
+                read_error: None,
+            }],
+            last_refresh: None,
+        });
+        state.load_phase = crate::state::LoadPhase::Ready;
+        state.config.dashboard_all_set_collapsed = false;
+        (state, id)
+    }
+
+    /// Handoff §3/§4 row 6: entry by Enter focuses the plan's own entry,
+    /// and closing it returns focus to the toolbar button — the same
+    /// shape `get_latest_safely_by_enter_focuses_the_plans_entry` proved
+    /// for the selection bar's own button, through the identical
+    /// `BulkPullRequested` message (§1: "the same message the palette's
+    /// path with no selection" dispatches too), now from the toolbar.
+    /// "Return to a neighbour" (A1's own rule, when the opener itself is
+    /// gone) is `add_workspace_closed_three_ways_returns_focus_to_the_
+    /// switcher`'s own already-proved mechanism — nothing in this stage
+    /// changes it, so it is not re-proved here.
+    #[test]
+    fn get_latest_toolbar_button_by_enter_focuses_the_plans_entry_and_returns_on_close() {
+        let (mut state, _id) = one_behind_project_not_selected();
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::toolbar::get_latest()));
+        key(&mut rig, &state, Named::Enter);
+        let opened = last_message(&rig);
+        assert!(matches!(
+            opened,
+            Message::Sync(SyncMessage::BulkPullRequested)
+        ));
+        drive(&mut rig, &mut state, opened);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::GetLatest)
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(crate::view::ids::smart_pull::cancel()),
+            "opened from the keyboard, the plan's own entry must be focused"
+        );
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::Close),
+        );
+        assert_eq!(crate::state::layer::top_layer(&state), None);
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(ids::toolbar::get_latest()),
+            "on close, focus must return to the toolbar button that opened it"
+        );
+    }
+
     /// One project, clean, selected — "Get latest safely" opens with
     /// nothing tabbed to first (RFC-121), the shape every row below
     /// needs: no dirty projects, so `AwaitingConfirm`'s own entry

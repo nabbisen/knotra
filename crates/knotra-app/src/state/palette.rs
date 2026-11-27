@@ -46,7 +46,7 @@ const ACTIONS: &[PaletteAction] = &[
     PaletteAction {
         id: "action.pull_selected",
         label_key: "plain.get_latest",
-        availability: selection_has_upstream_unless_busy,
+        availability: get_latest_available_unless_busy,
         dispatch: |_| Some(Message::Sync(SyncMessage::BulkPullRequested)),
     },
     PaletteAction {
@@ -166,8 +166,37 @@ fn workspace_has_fetchable_project_unless_busy(state: &AppState) -> PaletteAvail
     unless_busy(state, workspace_has_fetchable_project)
 }
 
-fn selection_has_upstream_unless_busy(state: &AppState) -> PaletteAvailability {
-    unless_busy(state, selection_has_upstream)
+/// RFC-074 Stage 2 D1: "Get latest safely" with a selection acts on the
+/// selection, as before ([`selection_has_upstream`]); with none, it is
+/// available whenever any project in the workspace has a shared source —
+/// `BulkPullRequested`'s own empty-selection path already opens the plan
+/// for every project (`app/sync.rs`'s `SmartPullPlanRequested`). No new
+/// catalog text (RFC-074 R6): `plain.disabled.no_upstream` ("These
+/// projects have nowhere to get updates from.") is the one existing key
+/// for "nowhere to get updates from" and reads naturally for the whole
+/// workspace too, with nothing selected to narrow it to.
+fn get_latest_available(state: &AppState) -> PaletteAvailability {
+    if state.selection_summary().selected_count > 0 {
+        return selection_has_upstream(state);
+    }
+    if state.workspace.is_none() {
+        return PaletteAvailability::Disabled("palette.disabled.no_workspace");
+    }
+    let any_upstream = state.workspace_status.as_ref().is_some_and(|status| {
+        status.projects.iter().any(|project_status| {
+            project_status.remote.upstream.is_some()
+                && !state.missing_projects.contains(&project_status.project_id)
+        })
+    });
+    if any_upstream {
+        PaletteAvailability::Enabled
+    } else {
+        PaletteAvailability::Disabled("plain.disabled.no_upstream")
+    }
+}
+
+fn get_latest_available_unless_busy(state: &AppState) -> PaletteAvailability {
+    unless_busy(state, get_latest_available)
 }
 
 fn selection_non_empty_unless_busy(state: &AppState) -> PaletteAvailability {

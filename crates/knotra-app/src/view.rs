@@ -194,6 +194,14 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     if state.detail_panel.open_project_id.is_some() {
         reserved.push(ids::detail_panel::fetch());
     }
+    // RFC-074 Stage 2 D5: the toolbar's own "Get latest safely" self-
+    // disables while an operation runs, the same as the controls above —
+    // `dashboard::get_latest_button_visible` is the one shared condition
+    // its own view-builder call site also reads, so this can never name
+    // the id while it is not actually drawn.
+    if dashboard::get_latest_button_visible(state) {
+        reserved.push(ids::toolbar::get_latest());
+    }
     let page: Element<'_, Message> = knotra_ui::widget::focus_by_id_page(page, &reserved);
 
     // -----------------------------------------------------------------------

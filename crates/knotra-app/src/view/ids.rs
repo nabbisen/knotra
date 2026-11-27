@@ -64,6 +64,13 @@ pub mod toolbar {
     pub fn select_mode() -> Id {
         Id::new("dashboard.toolbar.select_mode")
     }
+    /// RFC-074 Stage 2 D1/D5: "Get latest safely" with nothing selected —
+    /// shown only while at least one project has updates available, and
+    /// never in selection mode (the selection bar carries the action
+    /// there instead).
+    pub fn get_latest() -> Id {
+        Id::new("dashboard.toolbar.get_latest")
+    }
     /// The Arrange panel's "Group by" select (RFC-075 stage 2 §3).
     pub fn arrange_group() -> Id {
         Id::new("dashboard.toolbar.arrange.group")

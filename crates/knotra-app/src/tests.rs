@@ -1852,6 +1852,160 @@ fn smart_pull_plan_keeps_mixed_no_upstream_project_skipped() {
     assert_eq!(skipped.skip_reason, Some(SmartPullSkipReason::NoUpstream));
 }
 
+/// RFC-074 Stage 2 handoff §4 row 1: the palette's own "Get latest
+/// safely", with nothing selected, opens a plan for every project in the
+/// workspace — the real message path (the palette's `dispatch_entry`,
+/// not a hand-built `BulkPullRequested`).
+#[test]
+fn palette_get_latest_with_no_selection_opens_the_plan_for_every_project() {
+    let mut state = make_state();
+    let a = make_project("api-gateway");
+    let b = make_project("billing-service");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![a.clone(), b.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![
+            make_project_status(a.id.clone(), Some("origin/main")),
+            make_project_status(b.id.clone(), Some("origin/main")),
+        ],
+        last_refresh: Some(Timestamp::now()),
+    });
+    assert_eq!(
+        state.selection.selected_ids.len(),
+        0,
+        "sanity: nothing selected"
+    );
+
+    let index = palette_payload_index(&mut state, "get latest safely", "action.pull_selected");
+    let dispatched = crate::state::palette::dispatch_entry(&state, index);
+    let crate::state::palette::PaletteDispatch::Dispatched(msg) = dispatched else {
+        panic!("expected a dispatched message, got {dispatched:?}");
+    };
+    dispatch(&mut state, msg);
+    dispatch(
+        &mut state,
+        Message::Sync(SyncMessage::SmartPullPlanRequested),
+    );
+
+    let SyncPhase::AwaitingConfirm(plan) = &state.sync.phase else {
+        panic!("expected a reviewed plan");
+    };
+    assert_eq!(
+        plan.entries.len(),
+        2,
+        "the plan must cover every project in the workspace"
+    );
+    let plan_ids: std::collections::HashSet<_> =
+        plan.entries.iter().map(|e| e.project_id.clone()).collect();
+    assert!(plan_ids.contains(&a.id));
+    assert!(plan_ids.contains(&b.id));
+    // Not merely present as an *entry* — each must actually be treated as
+    // selected (`Pull`, since both are clean with an upstream), never
+    // `Excluded`/`Deselected`. Caught a real bug exactly here: `build_plan`
+    // reads its own `project_selection` map, separate from the entries
+    // list itself, and an earlier version of `BulkPullRequested` populated
+    // that map from the (empty) real selection — marking every project
+    // "not selected for this run" even though the plan's own row list
+    // correctly named all of them.
+    for entry in &plan.entries {
+        assert_eq!(
+            entry.disposition,
+            SmartPullDisposition::Pull,
+            "project {} must be treated as selected, not skipped",
+            entry.project_name
+        );
+        assert_eq!(entry.skip_reason, None);
+    }
+}
+
+/// Handoff §4 row 2: with a selection, the palette's "Get latest safely"
+/// still acts on the selection only — D1's own "with a selection, it acts
+/// on the selection, as today" is unchanged by this stage.
+#[test]
+fn palette_get_latest_with_a_selection_still_acts_on_the_selection_only() {
+    let mut state = make_state();
+    let selected = make_project("api-gateway");
+    let not_selected = make_project("billing-service");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![selected.clone(), not_selected.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![
+            make_project_status(selected.id.clone(), Some("origin/main")),
+            make_project_status(not_selected.id.clone(), Some("origin/main")),
+        ],
+        last_refresh: Some(Timestamp::now()),
+    });
+    state.selection.selected_ids.insert(selected.id.clone());
+
+    let index = palette_payload_index(&mut state, "get latest safely", "action.pull_selected");
+    let dispatched = crate::state::palette::dispatch_entry(&state, index);
+    let crate::state::palette::PaletteDispatch::Dispatched(msg) = dispatched else {
+        panic!("expected a dispatched message, got {dispatched:?}");
+    };
+    dispatch(&mut state, msg);
+    dispatch(
+        &mut state,
+        Message::Sync(SyncMessage::SmartPullPlanRequested),
+    );
+
+    let SyncPhase::AwaitingConfirm(plan) = &state.sync.phase else {
+        panic!("expected a reviewed plan");
+    };
+    assert_eq!(
+        plan.entries.len(),
+        1,
+        "only the selected project, not the whole workspace"
+    );
+    assert_eq!(plan.entries[0].project_id, selected.id);
+}
+
+/// Handoff §1: with no selection, available whenever any project in the
+/// workspace has a shared source — true even when the projects *with* an
+/// upstream are not the ones a hypothetical selection would have named,
+/// since there is no selection to narrow it by here at all.
+#[test]
+fn palette_get_latest_with_no_selection_and_no_upstream_anywhere_is_disabled() {
+    let mut state = make_state();
+    let a = make_project("api-gateway");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![a.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![make_project_status(a.id.clone(), None)],
+        last_refresh: Some(Timestamp::now()),
+    });
+
+    state.palette.query = "get latest safely".to_owned();
+    crate::state::palette::update_results(&mut state);
+    let entry = state
+        .palette
+        .results
+        .iter()
+        .find(|entry| entry.payload == "action.pull_selected")
+        .expect("\"Get latest safely\" is listed even when disabled");
+    assert_eq!(
+        entry.disabled_reason_key,
+        Some("plain.disabled.no_upstream")
+    );
+}
+
 #[test]
 fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
     let tmp = tempfile::tempdir().expect("tempdir");

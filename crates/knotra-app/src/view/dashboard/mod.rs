@@ -28,6 +28,7 @@ mod width_mode;
 
 use empty::{empty_workspace, no_matches, view_without_workspace};
 use section::view_section;
+pub(crate) use toolbar::get_latest_button_visible;
 use toolbar::view_toolbar;
 pub(crate) use width_mode::WidthMode;
 

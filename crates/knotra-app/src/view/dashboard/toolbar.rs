@@ -32,7 +32,9 @@ use knotra_ui::widget::{
 
 use crate::{
     config::{DashboardGrouping, DashboardSort},
-    message::{DashboardMessage, FilterMessage, Message, SelectionMessage, StatusFilter},
+    message::{
+        DashboardMessage, FilterMessage, Message, SelectionMessage, StatusFilter, SyncMessage,
+    },
     state::{AppState, ArrangeSelect, SelectionSummary, dashboard::badge_for_filter},
     view::ids,
 };
@@ -81,6 +83,39 @@ fn chip_element<'a>(
         Message::Filter(FilterMessage::StatusFilterToggled(filter.clone())),
         filter_id(filter),
     )
+}
+
+/// RFC-074 Stage 2 D1/D5: "Get latest safely" with nothing selected.
+/// Shown only while at least one project shows "Updates available" (the
+/// same condition the "Updates available" chip's own count above zero
+/// uses, RFC-073's calm-by-default), and never in selection mode, where
+/// the selection bar already carries this same action for the selection.
+/// Opens the plan for every project — the same `BulkPullRequested`
+/// message the palette's own "Get latest safely" dispatches with nothing
+/// selected; its own empty-`selected_ids` path already covers every
+/// project (`app/sync.rs`'s `SmartPullPlanRequested`), so no new message
+/// is needed here.
+/// `pub(crate)`, not `pub(super)`: `view.rs` reads the exact same
+/// condition this function's own call site below does, to decide whether
+/// `ids::toolbar::get_latest()` belongs in the page's `reserved` list —
+/// one shared predicate, so the two can never disagree about whether the
+/// button is actually drawn.
+pub(crate) fn get_latest_button_visible(state: &AppState) -> bool {
+    !state.selection_mode && state.status_filter_count(&StatusFilter::Behind) > 0
+}
+
+fn toolbar_get_latest<'a>(state: &'a AppState, tokens: &Tokens) -> Option<Element<'a, Message>> {
+    if !get_latest_button_visible(state) {
+        return None;
+    }
+    let on_press = (!state.operation_interlock.is_busy())
+        .then_some(Message::Sync(SyncMessage::BulkPullRequested));
+    Some(secondary_control_maybe(
+        tokens,
+        state.t("plain.get_latest"),
+        on_press,
+        ids::toolbar::get_latest(),
+    ))
 }
 
 /// RFC-035 R15/Handoff 030 §4.1: the Select control's disabled reason must
@@ -158,12 +193,19 @@ fn view_standard_toolbar(state: &AppState) -> Element<'_, Message> {
     // "Select"'s own reason line (rendered beneath it when disabled) grows
     // the row's height without dropping "Arrange" and Search out of line
     // with "Select"'s own top edge.
-    let mut controls = column![
-        row![arrange, search, clear, select]
-            .spacing(6)
-            .align_y(Alignment::Start)
-    ]
-    .spacing(5);
+    let mut controls_children: Vec<Element<'_, Message>> =
+        vec![arrange, search.into(), clear, select];
+    // RFC-074 Stage 2: reading order after "Select"; wraps to its own
+    // line like the chip row above, rather than being cut or squeezed.
+    if let Some(get_latest) = toolbar_get_latest(state, tokens) {
+        controls_children.push(get_latest);
+    }
+    let controls_row = row(controls_children)
+        .spacing(6)
+        .align_y(Alignment::Start)
+        .wrap()
+        .vertical_spacing(4);
+    let mut controls = column![controls_row].spacing(5);
 
     if state.dashboard_arrange_open {
         controls = controls.push(arrange_panel(state, tokens));
@@ -338,12 +380,18 @@ fn view_compact_toolbar(state: &AppState) -> Element<'_, Message> {
     );
 
     // RFC-073 Amendment A2: top-aligned, same reason as the standard band.
-    let mut controls = column![
-        row![search, arrange, select]
-            .spacing(6)
-            .align_y(Alignment::Start)
-    ]
-    .spacing(5);
+    let mut controls_children: Vec<Element<'_, Message>> = vec![search.into(), arrange, select];
+    // RFC-074 Stage 2: reading order after "Select"; may wrap to its own
+    // line in the compact band, but is never cut or squeezed.
+    if let Some(get_latest) = toolbar_get_latest(state, tokens) {
+        controls_children.push(get_latest);
+    }
+    let controls_row = row(controls_children)
+        .spacing(6)
+        .align_y(Alignment::Start)
+        .wrap()
+        .vertical_spacing(4);
+    let mut controls = column![controls_row].spacing(5);
 
     if state.dashboard_arrange_open {
         controls = controls.push(arrange_panel(state, tokens));
@@ -403,4 +451,155 @@ fn clear_filters_button<'a>(tokens: &Tokens, label: &'a str) -> Element<'a, Mess
         Message::Filter(FilterMessage::AllFiltersCleared),
         ids::toolbar::clear_filters(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use crate::state::AppState;
+    use knotra_vcs::{
+        ConflictStatus, Project, ProjectStatus, RemoteStatus, RepositoryIdentity,
+        SmartPullDisposition, VcsKind, WorkingTreeStatus, Workspace, WorkspaceStatus,
+    };
+
+    /// One project, with or without updates available, nothing else set.
+    fn state_with_one_project(behind: bool) -> AppState {
+        let mut state = AppState::new(AppConfig::default());
+        let project = Project::new("api-gateway", "/tmp");
+        let id = project.id.clone();
+        state.workspace = Some(Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        });
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![ProjectStatus {
+                project_id: id,
+                identity: RepositoryIdentity {
+                    path: "/tmp".into(),
+                    vcs_kind: VcsKind::Git,
+                },
+                context: None,
+                remote: RemoteStatus {
+                    ahead: 0,
+                    behind: if behind { 2 } else { 0 },
+                    upstream: Some("origin/main".to_owned()),
+                },
+                working_tree: WorkingTreeStatus::default(),
+                conflict: ConflictStatus::default(),
+                refreshed_at: jiff::Timestamp::now(),
+                read_error: None,
+            }],
+            last_refresh: None,
+        });
+        state
+    }
+
+    /// Handoff §4 row 3: "The button's visibility" — shown with one
+    /// project behind, hidden with none, hidden in selection mode.
+    #[test]
+    fn get_latest_button_visible_with_updates_available_not_in_selection_mode() {
+        let state = state_with_one_project(true);
+        assert!(get_latest_button_visible(&state));
+    }
+
+    #[test]
+    fn get_latest_button_hidden_with_no_project_behind() {
+        let state = state_with_one_project(false);
+        assert!(!get_latest_button_visible(&state));
+    }
+
+    #[test]
+    fn get_latest_button_hidden_in_selection_mode_even_with_updates_available() {
+        let mut state = state_with_one_project(true);
+        state.selection_mode = true;
+        assert!(!get_latest_button_visible(&state));
+    }
+
+    /// Handoff §4 row 4/§1: the button and the palette's own "Get latest
+    /// safely" (with nothing selected) dispatch the identical message —
+    /// `app/sync.rs`'s `BulkPullRequested` handler is a pure function of
+    /// `state`, so the same message from either path builds the same plan.
+    /// Proven by driving the real click through the real view, not by
+    /// reading `toolbar_get_latest`'s own private `on_press` field.
+    #[test]
+    fn get_latest_button_click_dispatches_the_same_message_as_the_palette() {
+        let state = state_with_one_project(true);
+        let label = state.t("plain.get_latest").to_owned();
+
+        let mut ui = crate::headless::simulator(
+            crate::view::dashboard::view(&state, crate::view::dashboard::WidthMode::Standard),
+            iced_test::core::Size::new(1280.0, 800.0),
+        );
+        ui.click(label.as_str())
+            .unwrap_or_else(|e| panic!("the button must be clickable: {e}"));
+        let messages: Vec<Message> = ui.into_messages().collect();
+        assert_eq!(messages.len(), 1);
+        assert!(matches!(
+            messages[0],
+            Message::Sync(SyncMessage::BulkPullRequested)
+        ));
+
+        // The palette's own entry dispatches the exact same message —
+        // `state::palette::ACTIONS`' own `action.pull_selected` row,
+        // unconditional on selection.
+        let mut palette_state = state;
+        palette_state.palette.query = "get latest safely".to_owned();
+        crate::state::palette::update_results(&mut palette_state);
+        let index = palette_state
+            .palette
+            .results
+            .iter()
+            .position(|entry| entry.payload == "action.pull_selected")
+            .expect("the palette lists \"Get latest safely\" with no selection");
+        let dispatched = crate::state::palette::dispatch_entry(&palette_state, index);
+        assert!(matches!(
+            dispatched,
+            crate::state::palette::PaletteDispatch::Dispatched(Message::Sync(
+                SyncMessage::BulkPullRequested
+            ))
+        ));
+
+        // Handoff §4 row 4: "the same rows" — driven to the real plan, not
+        // just the same message. The project must be covered as selected
+        // (`Pull`), not `Excluded`/`Deselected` — the exact shape of a
+        // real bug this stage found (`app/sync.rs`'s own `BulkPullRequested`
+        // handler, see its own doc comment).
+        let _ = crate::app::update(&mut palette_state, messages[0].clone());
+        let _ = crate::app::update(
+            &mut palette_state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+        let crate::state::sync::SyncPhase::AwaitingConfirm(plan) = &palette_state.sync.phase else {
+            panic!("expected a reviewed plan");
+        };
+        assert_eq!(plan.entries.len(), 1);
+        assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Pull);
+        assert_eq!(plan.entries[0].skip_reason, None);
+    }
+
+    /// Handoff §4 row 5: unavailable while busy — the button is still
+    /// drawn (so it stays a stable Tab stop, not a vanishing one), but a
+    /// click publishes nothing.
+    #[test]
+    fn get_latest_button_click_does_nothing_while_busy() {
+        let mut state = state_with_one_project(true);
+        state
+            .operation_interlock
+            .try_acquire(crate::state::OperationOwner::BulkFetch)
+            .expect("sanity: the interlock must be free to acquire");
+        assert!(get_latest_button_visible(&state), "still drawn while busy");
+
+        let label = state.t("plain.get_latest").to_owned();
+        let mut ui = crate::headless::simulator(
+            crate::view::dashboard::view(&state, crate::view::dashboard::WidthMode::Standard),
+            iced_test::core::Size::new(1280.0, 800.0),
+        );
+        let _ = ui.click(label.as_str());
+        let messages: Vec<Message> = ui.into_messages().collect();
+        assert!(
+            messages.is_empty(),
+            "a disabled control must not publish a message on click"
+        );
+    }
 }

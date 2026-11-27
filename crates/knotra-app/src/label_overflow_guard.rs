@@ -327,6 +327,30 @@ mod tests {
                         check(&resolve, &mut failures);
                         checked += 1;
 
+                        // RFC-074 Stage 2 D1/D2: the toolbar's own "Get
+                        // latest safely", shown here since the fixture
+                        // always gives three projects "Updates available"
+                        // — but never in selection mode, where the
+                        // selection bar's own same-text button (checked
+                        // below) is the one actually drawn, so the two
+                        // never coexist for `find` to confuse.
+                        //
+                        // **Seen failing first**, confirmed directly:
+                        // without `toolbar.rs`'s own `.wrap()` on the
+                        // controls row (the button pushed onto a fixed,
+                        // non-wrapping row instead), this exact case —
+                        // `locale=En/Ja zoom=150% width=800 Compact` —
+                        // failed, the button clamped to a third of its
+                        // natural width (`"Get latest safely"` 35.75px
+                        // against a natural 119.57px; `"安全に最新を取得"`
+                        // 61.33px against 128.00px). Reverted before this
+                        // test was committed; the shipped row wraps.
+                        if !selection_mode {
+                            let toolbar_get_latest = state.t("plain.get_latest").to_owned();
+                            check(&toolbar_get_latest, &mut failures);
+                            checked += 1;
+                        }
+
                         // The selection-mode action bar (`selection_bar.rs`):
                         // five buttons, shown only while `selection_mode`.
                         if selection_mode {
