@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Accepted |
 | Priority | High - the most common wish, "bring everything up to date", takes three steps |
 | Effort | Medium - two entry points, one summary line, one row action, and where one bar is drawn |
 | Target | 0.36.0 |
@@ -147,8 +147,14 @@ its summary line, the toolbar button, and a row's button, each in English and Ja
 
 ## Decided
 
-Awaiting the owner.
+**Accepted by the owner, 2026-11-27,** as written:
 
-- D1's toolbar button is shown only while updates are available. That is my recommendation, for
-  RFC-073's calm.
+- D1's toolbar button is shown only while updates are available, for RFC-073's calm;
 - D4 keeps the selection across screens.
+
+**One new text, approved by the owner the same day** (R6's exception). When every project in the
+plan is skipped, "Start getting latest" is unavailable, and today's reason ("Choose at least one
+project.") is wrong, since projects were chosen. The new reason:
+
+- English: "Every project is skipped, so nothing would change."
+- Japanese: 「すべてのプロジェクトがスキップされるため、変更はありません。」
