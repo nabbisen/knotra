@@ -137,8 +137,14 @@ mod tests {
     /// `knotra-ui/src/widget/overlay.rs`'s `too_many_arguments` (the
     /// `ResolvedWidth` newtype gave `surface()` back its seventh parameter
     /// without losing the enforcement the eighth parameter existed for).
-    /// `knotra-vcs/src/vcs/git.rs`'s `tag_exists` entry is deliberately
-    /// kept, not up for removal (RFC-052/RFC-053 non-goals, both).
+    ///
+    /// Task 127 removes an eighth: `knotra-vcs/src/vcs/git.rs`'s own
+    /// `tag_exists` and its `#[allow(dead_code)]` — RFC-052/RFC-053 kept it
+    /// as deliberately tracked, not up for removal, on the premise that
+    /// `knotra-vcs` being published made it reachable API-completeness
+    /// surface; Review 318 §4 found that premise false (`vcs/mod.rs`
+    /// declares `pub(crate) mod git;`, so nothing outside the crate could
+    /// ever reach it, and nothing inside called it either).
     ///
     /// RFC-068 D1 adds two: `knotra-vcs/src/process.rs`'s own
     /// `#[allow(clippy::disallowed_methods)]` on `host_command`'s one
@@ -155,7 +161,6 @@ mod tests {
         ("knotra-app/src/view/detail_panel.rs", 1),
         ("knotra-app/src/view/shortcuts_overlay.rs", 1),
         ("knotra-vcs/src/process.rs", 1),
-        ("knotra-vcs/src/vcs/git.rs", 1),
         ("knotra-vcs/tests/git_integration.rs", 1),
     ];
 
