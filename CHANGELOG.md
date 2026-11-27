@@ -26,6 +26,12 @@ When any project has updates available, the dashboard shows "Get latest safely".
 for every project, which says what will happen before anything starts. The command palette's
 "Get latest safely" works the same way when nothing is selected.
 
+### Changed — a project with updates available offers "Get latest safely" on its row
+
+Its button opens the plan for that one project, which says what will happen before anything
+starts. The button appears only when the project would really get the latest: no unsaved work, a
+source to get updates from, and nothing that needs your choice.
+
 ## [0.35.0] — 2026-11-26
 
 **Every screen and window now works from the keyboard.**

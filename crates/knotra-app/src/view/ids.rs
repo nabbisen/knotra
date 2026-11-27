@@ -106,6 +106,13 @@ pub mod row {
     pub fn action(id: &ProjectId) -> Id {
         Id::from(format!("dashboard.row.{id}.action"))
     }
+    /// RFC-074 Stage 3 D3/D5: a row's own "Get latest safely" — distinct
+    /// from [`action`] (the NeedsHelp tier's "Choose resolution"/"Show
+    /// details"), since a row never shows two actions and the two never
+    /// coexist on the same row, but each still deserves its own id.
+    pub fn get_latest(id: &ProjectId) -> Id {
+        Id::from(format!("dashboard.row.{id}.get_latest"))
+    }
 }
 
 pub mod empty {

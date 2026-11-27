@@ -4329,6 +4329,74 @@ mod stage3_amendment_a2_tests {
         );
     }
 
+    /// RFC-074 Stage 3 handoff §2 row 6: a row's own "Get latest safely",
+    /// entry and return by keyboard, **including the row ceasing to
+    /// qualify after the plan runs** — Amendment A1's own neighbour rule
+    /// must then apply, the same as it already does for a vanished
+    /// control anywhere else in this file (e.g. `add_workspace_closed_
+    /// three_ways_returns_focus_to_the_switcher`, `stage3_amendment_a1_
+    /// return_on_close`).
+    #[test]
+    fn get_latest_row_button_by_enter_focuses_the_plans_entry_and_falls_to_a_neighbour_once_it_no_longer_qualifies()
+     {
+        let (mut state, id) = one_behind_project_not_selected();
+        let mut rig = Rig::new(SIZE);
+
+        assert!(tab_to(&mut rig, &mut state, &ids::row::get_latest(&id)));
+        key(&mut rig, &state, Named::Enter);
+        let opened = last_message(&rig);
+        assert!(matches!(
+            opened,
+            Message::Sync(SyncMessage::RowPullRequested(ref opened_id)) if *opened_id == id
+        ));
+        drive(&mut rig, &mut state, opened);
+        drive(
+            &mut rig,
+            &mut state,
+            Message::WindowFocusModeResolved(WindowFocusMode::Keyboard),
+        );
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Sync(SyncMessage::SmartPullPlanRequested),
+        );
+
+        assert_eq!(
+            crate::state::layer::top_layer(&state),
+            Some(Layer::GetLatest)
+        );
+        assert_eq!(
+            focused_id(&mut rig, &state),
+            Some(crate::view::ids::smart_pull::cancel()),
+            "opened from the keyboard, the plan's own entry must be focused"
+        );
+
+        // The pull "ran": the project is no longer behind, so its own row
+        // no longer shows the button at all — stands in for a completed
+        // pull's own refresh, the same direct-state-mutation shortcut this
+        // file's other modules already use for an async completion no
+        // headless harness runs for real.
+        if let Some(status) = state
+            .workspace_status
+            .as_mut()
+            .and_then(|ws| ws.projects.iter_mut().find(|p| p.project_id == id))
+        {
+            status.remote.behind = 0;
+        }
+
+        drive(
+            &mut rig,
+            &mut state,
+            Message::Shortcut(ShortcutMessage::Close),
+        );
+        assert_eq!(crate::state::layer::top_layer(&state), None);
+        assert_ne!(
+            focused_id(&mut rig, &state),
+            Some(ids::row::get_latest(&id)),
+            "the row's own button is gone — focus cannot still claim to be it"
+        );
+    }
+
     /// One project, clean, selected — "Get latest safely" opens with
     /// nothing tabbed to first (RFC-121), the shape every row below
     /// needs: no dirty projects, so `AwaitingConfirm`'s own entry

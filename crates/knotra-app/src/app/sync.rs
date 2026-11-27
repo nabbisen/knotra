@@ -279,6 +279,23 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
             }
             Task::done(Message::Sync(SyncMessage::SmartPullPlanRequested))
         }
+        SyncMessage::RowPullRequested(project_id) => {
+            shared::clear_sync_retry_context(state);
+            state.active_modal = crate::state::ActiveModal::Pull;
+            state.sync.phase = SyncPhase::Planning;
+            state.sync.selected_project_ids = std::iter::once(project_id.clone()).collect();
+            if let Some(ws) = &state.workspace {
+                // RFC-074 Stage 3 D3 (Review 317's own lesson, stage 2):
+                // the plan's project list *and* its selection map are both
+                // set to exactly this one project — never the dashboard's
+                // own `state.selection`, which this row's own button does
+                // not read or touch at all.
+                let only: std::collections::HashSet<_> =
+                    std::iter::once(project_id.clone()).collect();
+                state.sync.set_selection(&ws.projects, &only);
+            }
+            Task::done(Message::Sync(SyncMessage::SmartPullPlanRequested))
+        }
     }
 }
 

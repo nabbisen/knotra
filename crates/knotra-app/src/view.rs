@@ -194,13 +194,22 @@ pub fn app_view(state: &AppState) -> Element<'_, Message> {
     if state.detail_panel.open_project_id.is_some() {
         reserved.push(ids::detail_panel::fetch());
     }
-    // RFC-074 Stage 2 D5: the toolbar's own "Get latest safely" self-
-    // disables while an operation runs, the same as the controls above —
-    // `dashboard::get_latest_button_visible` is the one shared condition
-    // its own view-builder call site also reads, so this can never name
-    // the id while it is not actually drawn.
-    if dashboard::get_latest_button_visible(state) {
-        reserved.push(ids::toolbar::get_latest());
+    // RFC-074 Stage 2 D5 / Stage 3 D5: the toolbar's own "Get latest
+    // safely" and every row's own copy of it self-disable while an
+    // operation runs, the same as the controls above — both conditions
+    // (`get_latest_button_visible`, `visible_row_get_latest_ids`) are the
+    // exact same shared predicates their own view-builder call sites
+    // read, so this can never name an id while it is not actually drawn.
+    // Both are gated on the dashboard screen first: neither the toolbar
+    // nor a row exists in the tree on History or Settings, regardless of
+    // what `get_latest_button_visible` alone would answer — the same
+    // "named only while actually drawn" rule `sel_bar_open`'s own gate
+    // above already follows (RFC-074 Stage 1 D4).
+    if matches!(state.screen, crate::state::Screen::Dashboard) {
+        if dashboard::get_latest_button_visible(state) {
+            reserved.push(ids::toolbar::get_latest());
+        }
+        reserved.extend(dashboard::visible_row_get_latest_ids(state));
     }
     let page: Element<'_, Message> = knotra_ui::widget::focus_by_id_page(page, &reserved);
 

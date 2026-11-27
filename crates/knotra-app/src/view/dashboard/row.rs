@@ -169,8 +169,29 @@ fn name_button<'a>(tokens: &Tokens, project: &'a Project) -> Element<'a, Message
     )
 }
 
-/// The tier-specific row action — shared between layouts. `Space::new()` for
-/// InProgress/AllSet (no action slot, per RFC-032 R10's tier density).
+/// RFC-074 Stage 3 D3: all five of the handoff's own conditions, in one
+/// place, shared with [`crate::state::sync::would_pull`] — the same
+/// "would this project's plan entry resolve to Pull" fact `build_plan`
+/// uses — so a row's own button and the plan it opens can never disagree
+/// about which projects qualify. "Not missing" and "not in selection
+/// mode" are checked directly here rather than inferred from
+/// `entry.tier` (a `path_missing` project is always `NeedsHelp`, so this
+/// is belt-and-suspenders, the same style `palette.rs`'s own `workspace_
+/// has_fetchable_project` and `any_upstream` checks already use).
+pub(super) fn would_get_latest(
+    state: &AppState,
+    project_id: &knotra_vcs::ProjectId,
+    status: Option<&knotra_vcs::ProjectStatus>,
+) -> bool {
+    if state.selection_mode || state.missing_projects.contains(project_id) {
+        return false;
+    }
+    status.is_some_and(|status| status.remote.behind > 0 && crate::state::sync::would_pull(status))
+}
+
+/// The tier-specific row action — shared between layouts. `Space::new()`
+/// when nothing qualifies (per RFC-032 R10's tier density: a row carries
+/// at most one action, never more).
 fn row_action<'a>(
     tokens: &Tokens,
     state: &'a AppState,
@@ -178,7 +199,24 @@ fn row_action<'a>(
     project: &'a Project,
 ) -> Element<'a, Message> {
     if entry.tier != DashboardTier::NeedsHelp {
-        return Space::new().into();
+        // RFC-074 Stage 3 D3: the one other row action, "Get latest
+        // safely" — never alongside the NeedsHelp actions below (a row
+        // never shows two actions), since `would_get_latest` requires no
+        // conflict and a clean work area, both of which put a project in
+        // `NeedsHelp`/`InProgress`'s dirty tiers instead, never here.
+        return if would_get_latest(state, &project.id, entry.status) {
+            row_action_control(
+                tokens,
+                state.t("plain.get_latest"),
+                (!state.operation_interlock.is_busy()).then_some(Message::Sync(
+                    crate::message::SyncMessage::RowPullRequested(project.id.clone()),
+                )),
+                knotra_ui::widget::style::secondary,
+                ids::row::get_latest(&project.id),
+            )
+        } else {
+            Space::new().into()
+        };
     }
     let id = ids::row::action(&project.id);
     if entry.cause == Some(DashboardCause::Conflict) {
@@ -574,5 +612,330 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod row_get_latest_tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use knotra_vcs::{
+        ConflictStatus, Project, ProjectId, ProjectStatus, RemoteStatus, RepositoryIdentity,
+        VcsKind, WorkingTreeStatus, Workspace, WorkspaceStatus,
+    };
+
+    fn state_with_project(
+        behind: u32,
+        uncommitted: u32,
+        has_conflict: bool,
+        upstream: Option<&str>,
+        missing: bool,
+        selection_mode: bool,
+    ) -> (AppState, ProjectId) {
+        let mut state = AppState::new(AppConfig::default());
+        let project = Project::new("svc", "/tmp");
+        let id = project.id.clone();
+        state.workspace = Some(Workspace {
+            projects: vec![project],
+            ..Workspace::new("Main")
+        });
+        state.workspace_status = Some(WorkspaceStatus {
+            projects: vec![ProjectStatus {
+                project_id: id.clone(),
+                identity: RepositoryIdentity {
+                    path: "/tmp".into(),
+                    vcs_kind: VcsKind::Git,
+                },
+                context: None,
+                remote: RemoteStatus {
+                    ahead: 0,
+                    behind,
+                    upstream: upstream.map(str::to_owned),
+                },
+                working_tree: WorkingTreeStatus {
+                    uncommitted_count: uncommitted,
+                    untracked_count: 0,
+                },
+                conflict: ConflictStatus {
+                    has_conflict,
+                    conflict_count: None,
+                    detection_unavailable: false,
+                },
+                refreshed_at: jiff::Timestamp::now(),
+                read_error: None,
+            }],
+            last_refresh: None,
+        });
+        if missing {
+            state.missing_projects.insert(id.clone());
+        }
+        state.selection_mode = selection_mode;
+        (state, id)
+    }
+
+    /// Handoff §2 row 1/2: one row per failing condition, and one that
+    /// passes everything — "the button and the plan agree" is checked in
+    /// the same case, each time the button would show: a one-project plan
+    /// for exactly that project must resolve to `Pull`, via the same
+    /// shared `would_pull` the button itself calls.
+    #[test]
+    fn would_get_latest_holds_only_when_every_condition_holds() {
+        struct Case {
+            name: &'static str,
+            behind: u32,
+            uncommitted: u32,
+            has_conflict: bool,
+            upstream: Option<&'static str>,
+            missing: bool,
+            selection_mode: bool,
+            expected: bool,
+        }
+        let cases = [
+            Case {
+                name: "passes everything",
+                behind: 2,
+                uncommitted: 0,
+                has_conflict: false,
+                upstream: Some("origin/main"),
+                missing: false,
+                selection_mode: false,
+                expected: true,
+            },
+            Case {
+                name: "unsaved work",
+                behind: 2,
+                uncommitted: 1,
+                has_conflict: false,
+                upstream: Some("origin/main"),
+                missing: false,
+                selection_mode: false,
+                expected: false,
+            },
+            Case {
+                name: "no shared source",
+                behind: 0,
+                uncommitted: 0,
+                has_conflict: false,
+                upstream: None,
+                missing: false,
+                selection_mode: false,
+                expected: false,
+            },
+            Case {
+                name: "a needed choice",
+                behind: 2,
+                uncommitted: 0,
+                has_conflict: true,
+                upstream: Some("origin/main"),
+                missing: false,
+                selection_mode: false,
+                expected: false,
+            },
+            Case {
+                name: "missing",
+                behind: 2,
+                uncommitted: 0,
+                has_conflict: false,
+                upstream: Some("origin/main"),
+                missing: true,
+                selection_mode: false,
+                expected: false,
+            },
+            Case {
+                name: "selection mode",
+                behind: 2,
+                uncommitted: 0,
+                has_conflict: false,
+                upstream: Some("origin/main"),
+                missing: false,
+                selection_mode: true,
+                expected: false,
+            },
+            // Beyond the handoff's own listed 5: "not behind" (up to
+            // date) — part of D3's own condition list ("its project
+            // shows 'Updates available'"), added for completeness.
+            Case {
+                name: "not behind (up to date)",
+                behind: 0,
+                uncommitted: 0,
+                has_conflict: false,
+                upstream: Some("origin/main"),
+                missing: false,
+                selection_mode: false,
+                expected: false,
+            },
+        ];
+
+        for case in cases {
+            let (state, id) = state_with_project(
+                case.behind,
+                case.uncommitted,
+                case.has_conflict,
+                case.upstream,
+                case.missing,
+                case.selection_mode,
+            );
+            let status = state.workspace_status.as_ref().unwrap().projects.first();
+            let got = would_get_latest(&state, &id, status);
+            assert_eq!(got, case.expected, "case {:?}", case.name);
+
+            if got {
+                let ws = state.workspace.as_ref().unwrap();
+                let mut sync_state = crate::state::sync::SyncCenterState::default();
+                sync_state.project_selection.insert(id.clone(), true);
+                let plan = sync_state.build_plan(&ws.projects, state.workspace_status.as_ref());
+                assert_eq!(
+                    plan.entries[0].disposition,
+                    knotra_vcs::SmartPullDisposition::Pull,
+                    "case {:?}: the button and the plan must agree",
+                    case.name
+                );
+            }
+        }
+    }
+
+    /// Handoff §2 row 4: a row that needs help keeps only its own action
+    /// — never alongside "Get latest safely", even rendered through the
+    /// real dashboard view, not just the pure predicate.
+    #[test]
+    fn needs_help_row_never_shows_two_actions() {
+        let (state, _id) = state_with_project(0, 0, true, Some("origin/main"), false, false);
+        let mut ui = crate::headless::simulator(
+            crate::view::dashboard::view(&state, crate::view::dashboard::WidthMode::Standard),
+            iced_test::core::Size::new(1280.0, 800.0),
+        );
+        assert!(ui.find(state.t("dashboard.resolve")).is_ok());
+        assert!(ui.find(state.t("plain.get_latest")).is_err());
+    }
+
+    /// Handoff §2 row 5: "the label never cut", in either band — this
+    /// row's own control, not `label_overflow_guard.rs`'s shared matrix
+    /// (which would have two identically-labelled "Get latest safely"
+    /// controls on screen at once — this row's own and the toolbar's,
+    /// `ui.find` cannot tell apart; this test renders the row alone,
+    /// through `view_project_row` directly, the same isolation
+    /// `label_overflow_guard.rs`'s own detail-panel test already uses for
+    /// the identical reason, see that test's own doc comment).
+    ///
+    /// **Seen failing first**, confirmed directly — but the defect was in
+    /// this test, not the product: its own first version iterated
+    /// `WidthMode::Compact`/`Standard` independent of the logical width,
+    /// so it paired `Standard` (three fixed-width tracks, ~776px minimum)
+    /// with a 150%-zoom 800px window (logical ≈533px) — a combination
+    /// the real app never produces (`view.rs`'s own `state.width_mode` is
+    /// always *derived from* the logical width, the same discipline
+    /// `label_overflow_guard.rs`'s own matrix already follows and this
+    /// one did not, at first). That combination failed loudly (the label
+    /// not found at its usual bounds at all, not merely narrowed).
+    /// Deriving `mode` from `logical.width` via `WidthMode::from_width`
+    /// instead — matching the real app and the existing guard — passes
+    /// cleanly against `ACTION_TRACK_WIDTH`'s own existing 160px,
+    /// unchanged: 「安全に最新を取得」's natural width did fit after all.
+    #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "the pinned faces (Noto Sans, Noto Sans CJK JP) are installed only on the \
+                  Linux CI runner (Task 108 A1 §4) — the widths this guard measures would be \
+                  some other font's on macOS/Windows"
+    )]
+    fn row_get_latest_label_never_cut_in_either_band() {
+        use crate::state::dashboard::RelevantCount;
+        use crate::view::dashboard::WidthMode;
+
+        const REFERENCE_SIZE: iced_test::core::Size = iced_test::core::Size {
+            width: 4000.0,
+            height: 2000.0,
+        };
+
+        let mut checked = 0usize;
+        let mut failures: Vec<String> = Vec::new();
+
+        for &locale in &[knotra_ui::i18n::Locale::En, knotra_ui::i18n::Locale::Ja] {
+            for &zoom_percent in &[100.0_f32, 150.0_f32] {
+                for &width in &[800.0_f32, 1280.0_f32] {
+                    let (mut state, _id) =
+                        state_with_project(2, 0, false, Some("origin/main"), false, false);
+                    state.catalog = knotra_ui::i18n::Catalog::for_locale(locale);
+                    let project = &state.workspace.as_ref().unwrap().projects[0];
+                    let status = state.workspace_status.as_ref().unwrap().projects.first();
+                    let entry = DashboardEntry {
+                        project,
+                        status,
+                        tier: DashboardTier::InProgress,
+                        cause: None,
+                        relevant_count: Some(RelevantCount {
+                            kind: ProgressKind::Behind,
+                            value: 2,
+                        }),
+                    };
+                    let label = state.t("plain.get_latest").to_owned();
+
+                    let logical = crate::headless::logical_size_at_zoom(
+                        iced_test::core::Size::new(width, 900.0),
+                        zoom_percent,
+                    );
+                    // The real app derives the band from the logical
+                    // width (`view.rs`'s own `state.width_mode`), never
+                    // picks one independent of it — Standard's three
+                    // fixed-width tracks are not meant to fit a Compact-
+                    // band width at all, so pairing them freely would
+                    // check a combination the real app never produces.
+                    let mode = WidthMode::from_width(logical.width);
+                    let context = format!(
+                        "locale={locale:?} zoom={zoom_percent}% width={width} mode={mode:?}"
+                    );
+
+                    let mut ui = crate::headless::simulator(
+                        view_project_row(&state, entry.clone(), mode),
+                        logical,
+                    );
+                    let mut reference = crate::headless::simulator(
+                        view_project_row(&state, entry, mode),
+                        REFERENCE_SIZE,
+                    );
+
+                    let actual = ui.find(label.as_str());
+                    let natural = reference.find(label.as_str());
+                    match (actual, natural) {
+                        (Ok(a), Ok(n)) => {
+                            let (ab, nb) = (a.bounds(), n.bounds());
+                            if (ab.width - nb.width).abs() > 0.5 {
+                                failures.push(format!(
+                                    "{context}: width {:.2} != natural {:.2} (clamped)",
+                                    ab.width, nb.width
+                                ));
+                            }
+                            if ab.height != nb.height {
+                                failures.push(format!(
+                                    "{context}: height {:.2} != natural {:.2}",
+                                    ab.height, nb.height
+                                ));
+                            }
+                            if ab.x + ab.width > logical.width + 0.5 {
+                                failures.push(format!(
+                                    "{context}: right edge {:.2} exceeds the viewport's {:.2}",
+                                    ab.x + ab.width,
+                                    logical.width
+                                ));
+                            }
+                        }
+                        (Err(e), _) => failures.push(format!("{context}: not found: {e}")),
+                        (_, Err(e)) => {
+                            failures.push(format!("{context}: not found at reference size: {e}"))
+                        }
+                    }
+                    checked += 1;
+                }
+            }
+        }
+
+        assert!(checked > 0, "the matrix must check at least one case");
+        eprintln!("row.rs: checked {checked} row get-latest label cases");
+        assert!(
+            failures.is_empty(),
+            "{} of {checked} cases clamped, wrapped or ran off-screen:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
     }
 }

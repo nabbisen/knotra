@@ -59,6 +59,30 @@ pub fn card_focus_ids(state: &AppState) -> Vec<iced::widget::Id> {
     ids
 }
 
+/// RFC-074 Stage 3 D5: every row currently showing its own "Get latest
+/// safely" — `view.rs` reads this to decide which row ids join the
+/// page's `reserved` list, the same shared-predicate discipline
+/// `get_latest_button_visible` already uses for the toolbar's own button.
+/// Same collapsed-section exclusion as [`card_focus_ids`], for the same
+/// reason: a collapsed row is never drawn, so its id is never a candidate.
+pub(crate) fn visible_row_get_latest_ids(state: &AppState) -> Vec<iced::widget::Id> {
+    let display = state.dashboard_display();
+    let mut ids = Vec::new();
+
+    for section in &display.sections {
+        if section.collapsed {
+            continue;
+        }
+        for entry in &section.entries {
+            if row::would_get_latest(state, &entry.project.id, entry.status) {
+                ids.push(crate::view::ids::row::get_latest(&entry.project.id));
+            }
+        }
+    }
+
+    ids
+}
+
 /// `mode` is `state.width_mode`, read once in `view.rs` and passed to both
 /// `dashboard::view` and `selection_bar::view` (Handoff 027 Ruling 6.2;
 /// reversed from a `responsive` measurement to a state field by Handoff 029

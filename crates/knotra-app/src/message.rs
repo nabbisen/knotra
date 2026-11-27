@@ -120,6 +120,9 @@ pub enum SyncMessage {
     SmartPullPlanRequested,
     SmartPullConfirmed(SmartPullPlan),
     BulkPullRequested,
+    /// RFC-074 Stage 3 D3: a dashboard row's own "Get latest safely" —
+    /// opens the plan for exactly this one project, never the selection.
+    RowPullRequested(ProjectId),
     ExecuteRequested,
     ModalClosed,
     Cancelled,

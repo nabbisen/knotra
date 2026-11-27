@@ -180,6 +180,12 @@ impl SyncCenterState {
                     )
                 } else if let Some(d) = self.disposition_overrides.get(&p.id) {
                     (d.clone(), None)
+                } else if status.is_some_and(would_pull) {
+                    // RFC-074 Stage 3: the shared "would this resolve to
+                    // Pull" fact, checked before the specific skip reasons
+                    // below so a row's own button (which only ever asks
+                    // this one question) can never disagree with the plan.
+                    (SmartPullDisposition::Pull, None)
                 } else if has_conflict {
                     (
                         SmartPullDisposition::Excluded,
@@ -190,10 +196,8 @@ impl SyncCenterState {
                         SmartPullDisposition::Excluded,
                         Some(SmartPullSkipReason::NoUpstream),
                     )
-                } else if is_dirty {
-                    (SmartPullDisposition::FetchOnly, None)
                 } else {
-                    (SmartPullDisposition::Pull, None)
+                    (SmartPullDisposition::FetchOnly, None)
                 };
 
                 SmartPullPlanEntry {
@@ -212,6 +216,18 @@ impl SyncCenterState {
             entries,
         }
     }
+}
+
+/// RFC-074 Stage 3 D3: true when a selected project with this status, and
+/// no disposition override, would resolve to `Pull` — a clean work area,
+/// no conflict, and a shared source. Shared between [`SyncCenterState::
+/// build_plan`]'s own disposition logic (above) and a dashboard row's own
+/// "Get latest safely" button (`view/dashboard/row.rs`), so the button and
+/// the plan can never disagree about which projects qualify.
+pub fn would_pull(status: &knotra_vcs::ProjectStatus) -> bool {
+    !status.conflict.has_conflict
+        && status.remote.upstream.is_some()
+        && !status.working_tree.is_dirty()
 }
 
 // ---------------------------------------------------------------------------

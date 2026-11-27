@@ -722,24 +722,23 @@ fn pick_disposition_btn<'a>(
     .into()
 }
 
-/// RFC-074 Stage 1 D2: one line above the plan's rows, counting each
-/// disposition by its own existing name (`plain.get_latest.action_get`,
-/// `.action_check`, `.skipped_row` — the same names each row's own action
-/// cell already shows, not a fourth vocabulary). Built from `plan.entries`
-/// through the plan's own count methods — the same source the rows
-/// themselves iterate — so the line can never disagree with them. A count
-/// of zero is left out.
-///
-/// **Never wraps inside a name:** each segment's internal spaces are
-/// non-breaking (`\u{a0}`), so if the line itself wraps in a narrow
-/// window, it only wraps between segments, at the ` · ` separator — the
-/// same separator the dashboard's rows already use (`row.rs`) — never in
-/// the middle of, say, "Only check for updates".
 /// Each disposition's own name and count, as `"<name>: <n>"`, in order,
 /// with a zero count left out — the text content of [`plan_summary_line`]
 /// before it is split into one chip per segment. Built from `plan.entries`
 /// through the plan's own count methods — the same source the rows
 /// themselves iterate — so it can never disagree with them.
+///
+/// RFC-074 Stage 3 §0 (Review 317 F1): the skipped count's own name is
+/// `plain.get_latest.action_skip` ("Skip"), the same word the row's own
+/// action cell shows (`disposition_plain`, below) — **not**
+/// `plain.get_latest.skipped_row` ("Skipped"), which stage 1 used by
+/// mistake. That key belongs to the *result* view (`pull_result_view`,
+/// Step 3: "what was done"), a different phase with a different
+/// grammatical tense; reusing it here read "Get latest: 7 · Skipped: 13"
+/// beside rows that each say "Skip" — two words for the same count in one
+/// window, caught by Review 317 reading a real capture (English only;
+/// both are 「スキップ」 in Japanese, which is why stage 1's own Japanese
+/// capture did not show it).
 pub(crate) fn plan_summary_segments(state: &AppState, plan: &SmartPullPlan) -> Vec<String> {
     let counts = [
         (state.t("plain.get_latest.action_get"), plan.pull_count()),
@@ -748,7 +747,7 @@ pub(crate) fn plan_summary_segments(state: &AppState, plan: &SmartPullPlan) -> V
             plan.fetch_only_count(),
         ),
         (
-            state.t("plain.get_latest.skipped_row"),
+            state.t("plain.get_latest.action_skip"),
             plan.excluded_count(),
         ),
     ];
@@ -762,7 +761,7 @@ pub(crate) fn plan_summary_segments(state: &AppState, plan: &SmartPullPlan) -> V
 
 /// RFC-074 Stage 1 D2: one line above the plan's rows, counting each
 /// disposition by its own existing name (`plain.get_latest.action_get`,
-/// `.action_check`, `.skipped_row` — the same names each row's own action
+/// `.action_check`, `.action_skip` — the same names each row's own action
 /// cell already shows, not a fourth vocabulary).
 ///
 /// **Never wraps inside a name.** First tried as a single flowing
@@ -889,7 +888,7 @@ mod tests {
         let en = AppState::new(AppConfig::default());
         assert_eq!(
             plan_summary_segments(&en, &mixed),
-            vec!["Get latest: 2", "Only check for updates: 1", "Skipped: 2"]
+            vec!["Get latest: 2", "Only check for updates: 1", "Skip: 2"]
         );
 
         let mut ja = AppState::new(AppConfig::default());
@@ -922,7 +921,7 @@ mod tests {
         ]);
         assert_eq!(
             plan_summary_segments(&state, &only_skipped),
-            vec!["Skipped: 3"]
+            vec!["Skip: 3"]
         );
     }
 

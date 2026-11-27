@@ -2006,6 +2006,55 @@ fn palette_get_latest_with_no_selection_and_no_upstream_anywhere_is_disabled() {
     );
 }
 
+/// RFC-074 Stage 3 handoff §2 row 3: the real message path — one row's
+/// own "Get latest safely" opens a plan for that project alone, with its
+/// own row reading "Get latest" and the summary "Get latest: 1", even
+/// though a second, unrelated project also exists in the workspace.
+#[test]
+fn row_pull_requested_opens_a_plan_for_that_one_project_only() {
+    let mut state = make_state();
+    let target = make_project("api-gateway");
+    let other = make_project("billing-service");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![target.clone(), other.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![
+            make_project_status(target.id.clone(), Some("origin/main")),
+            make_project_status(other.id.clone(), Some("origin/main")),
+        ],
+        last_refresh: Some(Timestamp::now()),
+    });
+
+    dispatch(
+        &mut state,
+        Message::Sync(SyncMessage::RowPullRequested(target.id.clone())),
+    );
+    dispatch(
+        &mut state,
+        Message::Sync(SyncMessage::SmartPullPlanRequested),
+    );
+
+    let SyncPhase::AwaitingConfirm(plan) = &state.sync.phase else {
+        panic!("expected a reviewed plan");
+    };
+    assert_eq!(
+        plan.entries.len(),
+        1,
+        "the plan must cover that one project only, not the whole workspace"
+    );
+    assert_eq!(plan.entries[0].project_id, target.id);
+    assert_eq!(plan.entries[0].disposition, SmartPullDisposition::Pull);
+
+    let segments = crate::view::overlays::plan_summary_segments(&state, plan);
+    assert_eq!(segments, vec!["Get latest: 1"]);
+}
+
 #[test]
 fn smart_pull_skipped_completion_persists_without_success_or_failure_count() {
     let tmp = tempfile::tempdir().expect("tempdir");
