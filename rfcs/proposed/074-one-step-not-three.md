@@ -28,7 +28,7 @@ where its actions belong.
 
 - **F1. Three steps for the common case.** The plan already covers every project when nothing is
   selected (`app/sync.rs`, `SmartPullPlanRequested`). But nothing starts it that way:
-  - the command palette's "Get latest" needs a selection ("Choose at least one project");
+  - the command palette's "Get latest safely" needs a selection ("Choose at least one project");
   - the selection bar exists only in selection mode.
 - **F2. No next step on the row.** Only rows that need help carry a button. A project with updates
   available, whose next step is obvious, has none.
