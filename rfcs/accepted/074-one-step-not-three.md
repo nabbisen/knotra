@@ -158,3 +158,42 @@ project.") is wrong, since projects were chosen. The new reason:
 
 - English: "Every project is skipped, so nothing would change."
 - Japanese: 「すべてのプロジェクトがスキップされるため、変更はありません。」
+
+## Amendment A1 (2026-11-28): a tick stays until the user removes it
+
+Found in stage 1's review (Review 316 §2), and decided by the owner's standard ("finally clean,
+safe and secure, robust", "for users not to be confused") on 2026-11-28.
+
+**The problem.** The selection was trimmed to what is visible
+(`reconcile_selection_with_display`). The trimming ran after:
+
+- a filter, a search, grouping, sorting or collapsing a group;
+- a workspace change;
+- **every background refresh.**
+
+A tick could vanish while the user did nothing. That breaks D4's promise that the selection is
+kept. The trimming added no safety of its own: `selection_summary()` already acts only on projects
+that are both ticked and shown.
+
+### D6. Never lose a tick silently, never act on what is not shown, never leave it unexplained
+
+- **A tick is removed only by:**
+  - the user (untick, "Exit selection", Escape on the dashboard);
+  - or its project ceasing to exist (removed from the workspace, or another workspace opened).
+- **An action uses only ticked projects that are shown,** through one function. No action reads
+  the raw selection. This holds for:
+  - Check for updates;
+  - Get latest safely;
+  - Save release point;
+  - Change work area;
+  - Generate notes;
+  - the command palette.
+- **In selection mode, with no shown project ticked,** "Get latest safely" is unavailable, with the
+  existing reason "Choose at least one project." Every project is used only outside selection
+  mode (D1).
+- **When some ticked projects are not shown,** the selection bar says so, below its count. The
+  owner approved this text on 2026-11-28:
+  - English: "Selected but not shown: 2 (not included)"
+  - Japanese: 「選択中で非表示: 2 件（対象外）」
+
+  The line appears only while that number is above zero.
