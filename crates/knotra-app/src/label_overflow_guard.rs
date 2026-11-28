@@ -833,11 +833,7 @@ mod tests {
             state.selection.select_all(&ids);
             state.config.dashboard_all_set_collapsed = true;
 
-            let label = format!(
-                "{}: 5 {}",
-                state.t("plain.selection.hidden_label"),
-                state.t("plain.selection.hidden_suffix")
-            );
+            let label = crate::view::selection_bar::hidden_count_line(&state, 5);
 
             for &zoom_percent in &[100.0_f32, 150.0_f32] {
                 for &width in &[800.0_f32, 1280.0_f32] {

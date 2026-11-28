@@ -32,6 +32,13 @@ Its button opens the plan for that one project, which says what will happen befo
 starts. The button appears only when the project would really get the latest: no unsaved work, a
 source to get updates from, and nothing that needs your choice.
 
+### Changed — a tick stays until you remove it
+
+In selection mode, a ticked project now stays ticked until you untick it or leave selection.
+Closing a group, filtering, searching, or a refresh no longer removes ticks without a word.
+Actions still use only the ticked projects you can see, and the bar says how many ticked projects
+are not shown.
+
 ### Changed — building knotra from source needs Rust 1.95
 
 knotra now uses endringer 0.34 and gix 0.91. Building it from source, including with

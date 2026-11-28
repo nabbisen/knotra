@@ -3,9 +3,10 @@
 //! shown (`AppState::selection_summary().selected_ids`) may drive what
 //! Check for updates, Get latest safely, Save release point, Change work
 //! area, Generate notes or the command palette act on. A raw read bypasses
-//! that filter silently, exactly the shape Review 316 §2 found four times
-//! over (`app/sync.rs` twice, `app/freezer.rs` once, plus the trimming this
-//! amendment also removes).
+//! that filter silently, exactly the shape RFC-074 Amendment A1 found four
+//! times over: `app/sync.rs` (Check for updates; Get latest safely),
+//! `app/freezer.rs` (Save release point), and `state/palette.rs` (the
+//! palette's availability).
 //!
 //! **Two files are allowed to contain the literal `selection.selected_ids`:**
 //!

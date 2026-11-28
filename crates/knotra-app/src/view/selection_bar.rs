@@ -34,6 +34,19 @@ use crate::{
     view::{dashboard::WidthMode, ids},
 };
 
+/// RFC-074 Amendment A1 (D6) §3 / Task 130 §2: the bar's "Selected but not
+/// shown: n (not included)" / 「選択中で非表示: n 件（対象外）」 line, for a
+/// given hidden count — the one function both the view and
+/// `label_overflow_guard.rs` call, so the guard measures the exact text the
+/// screen shows rather than its own second copy of the format.
+pub fn hidden_count_line(state: &AppState, n: usize) -> String {
+    format!(
+        "{}: {n} {}",
+        state.t("plain.selection.hidden_label"),
+        state.t("plain.selection.hidden_suffix")
+    )
+}
+
 pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
     // Selection bar only shown while in selection mode.
     if !state.selection_mode {
@@ -205,13 +218,8 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
         // `Wrapping::None`, as `plan_summary_line` already settled on for
         // the same "never wraps inside a word" requirement: Japanese has
         // no spaces for cosmic text's CJK line-breaking to respect.
-        let hidden_text = format!(
-            "{}: {hidden_count} {}",
-            state.t("plain.selection.hidden_label"),
-            state.t("plain.selection.hidden_suffix")
-        );
         content = content.push(
-            text(hidden_text)
+            text(hidden_count_line(state, hidden_count))
                 .size(snora::design::style::text::body_size(tokens))
                 .line_height(snora::design::style::text::body_line_height(tokens))
                 .wrapping(Wrapping::None),
@@ -268,5 +276,60 @@ mod tests {
         let mut state = AppState::new(AppConfig::default());
         state.selection_mode = true;
         assert!(view(&state, WidthMode::Standard).is_some());
+    }
+
+    /// Task 130 §2: the exact text of `hidden_count_line`, in both
+    /// languages, at a few counts — the colon and the space after it are
+    /// ASCII in both, the brackets in Japanese are full-width, copied byte
+    /// for byte from the owner's own approved text.
+    ///
+    /// **Seen failing first**, confirmed directly: changing one character
+    /// of `plain.selection.hidden_label`'s Japanese value (「選択中で非表示」
+    /// to 「選択中が非表示」) failed this test with a mismatch on every
+    /// Japanese case, as expected; reverted before this test was committed.
+    #[test]
+    fn hidden_count_line_is_exact_in_both_languages() {
+        let cases: &[(knotra_ui::i18n::Locale, usize, &str)] = &[
+            (
+                knotra_ui::i18n::Locale::En,
+                1,
+                "Selected but not shown: 1 (not included)",
+            ),
+            (
+                knotra_ui::i18n::Locale::En,
+                2,
+                "Selected but not shown: 2 (not included)",
+            ),
+            (
+                knotra_ui::i18n::Locale::En,
+                12,
+                "Selected but not shown: 12 (not included)",
+            ),
+            (
+                knotra_ui::i18n::Locale::Ja,
+                1,
+                "選択中で非表示: 1 件（対象外）",
+            ),
+            (
+                knotra_ui::i18n::Locale::Ja,
+                2,
+                "選択中で非表示: 2 件（対象外）",
+            ),
+            (
+                knotra_ui::i18n::Locale::Ja,
+                12,
+                "選択中で非表示: 12 件（対象外）",
+            ),
+        ];
+
+        for &(locale, n, expected) in cases {
+            let mut state = AppState::new(AppConfig::default());
+            state.catalog = knotra_ui::i18n::Catalog::for_locale(locale);
+            assert_eq!(
+                hidden_count_line(&state, n),
+                expected,
+                "locale={locale:?} n={n}"
+            );
+        }
     }
 }
