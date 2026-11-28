@@ -9,16 +9,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed — Get latest safely counts what will happen before you start
+## [0.36.0] — 2026-11-28
 
-The plan now says, above the list, how many projects will get the latest, how many will only
-check for updates, and how many are skipped. If every project is skipped, it says so, instead of
-asking you to choose a project.
-
-### Changed — the selection bar stays on the dashboard
-
-The bar for acting on selected projects is shown only on the dashboard. Your selection is kept
-while you visit History or Settings, and Escape there no longer clears it.
+**Get latest safely now takes one step, without choosing projects first.**
 
 ### Changed — Get latest safely works without choosing projects first
 
@@ -26,11 +19,22 @@ When any project has updates available, the dashboard shows "Get latest safely".
 for every project, which says what will happen before anything starts. The command palette's
 "Get latest safely" works the same way when nothing is selected.
 
+### Changed — Get latest safely counts what will happen before you start
+
+The plan now says, above the list, how many projects will get the latest, how many will only
+check for updates, and how many are skipped. If every project is skipped, it says so, instead of
+asking you to choose a project.
+
 ### Changed — a project with updates available offers "Get latest safely" on its row
 
 Its button opens the plan for that one project, which says what will happen before anything
 starts. The button appears only when the project would really get the latest: no unsaved work, a
 source to get updates from, and nothing that needs your choice.
+
+### Changed — the selection bar stays on the dashboard
+
+The bar for acting on selected projects is shown only on the dashboard. Your selection is kept
+while you visit History or Settings, and Escape there no longer clears it.
 
 ### Changed — a tick stays until you remove it
 
@@ -45,6 +49,11 @@ knotra now uses endringer 0.34 and gix 0.91. Building it from source, including 
 `cargo install knotra`, needs Rust 1.95 or later. With this, the `heapless` 0.8.0 library and its
 nine known security advisories leave knotra's dependencies. The ready-made downloads are
 unaffected.
+
+### Changed — for developers using knotra-ui or knotra-vcs
+
+Both crates now need Rust 1.95. `knotra-vcs` adds `SmartPullPlan::fetch_only_count`, the number
+of projects in a plan that will only check for updates.
 
 ## [0.35.0] — 2026-11-26
 
