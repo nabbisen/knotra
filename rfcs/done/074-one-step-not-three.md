@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | Implemented (main: fde8a80, 506f59a, 04c029b, 009e53b, 54b50e7), with Amendment A1 |
 | Priority | High - the most common wish, "bring everything up to date", takes three steps |
 | Effort | Medium - two entry points, one summary line, one row action, and where one bar is drawn |
 | Target | 0.36.0 |
