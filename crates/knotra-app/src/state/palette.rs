@@ -179,6 +179,13 @@ fn get_latest_available(state: &AppState) -> PaletteAvailability {
     if state.selection_summary().selected_count > 0 {
         return selection_has_upstream(state);
     }
+    // RFC-074 Amendment A1 (D6): in selection mode, no *shown* tick never
+    // falls back to "every project" — including when a hidden tick is
+    // still held. Only outside selection mode does nothing-ticked mean
+    // everyone (D1).
+    if state.selection_mode {
+        return PaletteAvailability::Disabled("plain.disabled.choose_one");
+    }
     if state.workspace.is_none() {
         return PaletteAvailability::Disabled("palette.disabled.no_workspace");
     }

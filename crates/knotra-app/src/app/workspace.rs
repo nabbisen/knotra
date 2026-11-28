@@ -170,7 +170,6 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 state.config.last_project_parent = parent;
                 persist_config(state);
             }
-            state.reconcile_selection_with_display();
             state.is_refreshing = true;
             state.load_phase = LoadPhase::Refreshing;
             Task::batch([
@@ -263,8 +262,8 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 ws_status.projects.retain(|s| s.project_id != id);
             }
             state.fetching_projects.remove(&id);
-            state.reconcile_selection_with_display();
-            if state.selection.selected_ids.is_empty() {
+            state.prune_selection_to_existing_projects();
+            if state.selection.is_empty() {
                 state.selection_mode = false;
             }
 
@@ -293,7 +292,6 @@ pub(super) fn handle_workspace(state: &mut AppState, msg: WorkspaceMessage) -> T
                 {
                     ws_status.projects.push(snap);
                 }
-                state.reconcile_selection_with_display();
                 return shared::scan_topology_task(state);
             }
             Task::none()

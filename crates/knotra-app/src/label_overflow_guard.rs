@@ -800,6 +800,78 @@ mod tests {
         );
     }
 
+    /// RFC-074 Amendment A1 (D6) §3: the selection bar's "Selected but not
+    /// shown: n (not included)" line, the same "never wraps inside a
+    /// word" requirement the plan's own summary segments needed, for the
+    /// same reason (Japanese has no spaces for cosmic text's CJK
+    /// line-breaking to respect) — fixed here with the same tool,
+    /// `Wrapping::None` on the whole phrase, rather than per-segment
+    /// chips, since this line is one sentence, not several joined names.
+    #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "the pinned faces (Noto Sans, Noto Sans CJK JP) are installed only on the \
+                  Linux CI runner (Task 108 A1 §4) — the widths this guard measures would be \
+                  some other font's on macOS/Windows"
+    )]
+    fn the_selection_bar_hidden_count_line_never_wraps_or_clamps() {
+        let mut checked = 0usize;
+        let mut failures: Vec<String> = Vec::new();
+
+        for &locale in &[knotra_ui::i18n::Locale::En, knotra_ui::i18n::Locale::Ja] {
+            let mut state = AppState::new(AppConfig::default());
+            state.catalog = knotra_ui::i18n::Catalog::for_locale(locale);
+            install_one_project_per_status(&mut state);
+            // Tick every project, then collapse "All set" (5 of them) —
+            // ticked and hidden, exactly the case this line reports.
+            let ids: Vec<_> = state
+                .workspace
+                .as_ref()
+                .map(|ws| ws.projects.iter().map(|p| p.id.clone()).collect())
+                .unwrap_or_default();
+            state.selection_mode = true;
+            state.selection.select_all(&ids);
+            state.config.dashboard_all_set_collapsed = true;
+
+            let label = format!(
+                "{}: 5 {}",
+                state.t("plain.selection.hidden_label"),
+                state.t("plain.selection.hidden_suffix")
+            );
+
+            for &zoom_percent in &[100.0_f32, 150.0_f32] {
+                for &width in &[800.0_f32, 1280.0_f32] {
+                    let logical = crate::headless::logical_size_at_zoom(
+                        Size::new(width, 900.0),
+                        zoom_percent,
+                    );
+                    state.width_mode = WidthMode::from_width(logical.width);
+
+                    let context = format!("locale={locale:?} zoom={zoom_percent}% width={width}");
+
+                    let mut ui = crate::headless::simulator(crate::view::app_view(&state), logical);
+                    let mut reference = reference_simulator(&state);
+
+                    if let Err(e) =
+                        check_label(&mut ui, &mut reference, &label, logical.width, &context)
+                    {
+                        failures.push(e);
+                    }
+                    checked += 1;
+                }
+            }
+        }
+
+        assert!(checked > 0, "the matrix must check at least one case");
+        eprintln!("label_overflow_guard: checked {checked} selection-bar hidden-count lines");
+        assert!(
+            failures.is_empty(),
+            "{} of {checked} selection-bar hidden-count lines were clamped, wrapped or off-screen:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+    }
+
     /// Task 122 §2: extends this guard from button/chip labels to every
     /// description/note paragraph — any UI text long enough to wrap, where
     /// Japanese (no spaces to break at) can strand one short word alone on

@@ -410,7 +410,6 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
         DashboardMessage::GroupingChanged(grouping) => {
             state.config.dashboard_grouping = grouping;
             persist_config(state);
-            state.reconcile_selection_with_display();
             Task::none()
         }
         DashboardMessage::SortChanged(sort) => {
@@ -432,7 +431,6 @@ pub(super) fn handle_dashboard(state: &mut AppState, msg: DashboardMessage) -> T
                     }
                 }
                 persist_config(state);
-                state.reconcile_selection_with_display();
             }
             Task::none()
         }

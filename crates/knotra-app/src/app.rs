@@ -266,7 +266,6 @@ fn update_inner(state: &mut AppState, message: Message) -> Task<Message> {
         Message::Background(msg) => background::handle_background(state, msg),
         Message::Filter(msg) => {
             state.apply_filter(msg);
-            state.reconcile_selection_with_display();
             Task::none()
         }
         Message::ConflictOps(msg) => conflict_ops::handle_conflict_ops(state, msg),

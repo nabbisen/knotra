@@ -422,7 +422,7 @@ fn a_failed_save_from_a_zoom_shortcut_shows_in_the_activity_line() {
 }
 
 #[test]
-fn attention_collapse_prunes_hidden_selection_but_needs_help_cannot_collapse() {
+fn attention_collapse_keeps_hidden_selection_but_needs_help_cannot_collapse() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let mut state = make_state_with_paths(AppPaths::under(tmp.path().to_path_buf()));
     let project = make_project("work");
@@ -444,7 +444,11 @@ fn attention_collapse_prunes_hidden_selection_but_needs_help_cannot_collapse() {
             crate::state::dashboard::DashboardTier::InProgress,
         )),
     );
-    assert!(state.selection.selected_ids.is_empty());
+    // RFC-074 Amendment A1 (D6): collapsing the group that holds a ticked
+    // project never removes the tick. `selection_summary()` is the one
+    // place that stops counting it while it is hidden.
+    assert!(state.selection.contains(&project.id));
+    assert_eq!(state.selection_summary().selected_count, 0);
     assert!(state.selection_mode);
 
     dispatch(
@@ -458,7 +462,7 @@ fn attention_collapse_prunes_hidden_selection_but_needs_help_cannot_collapse() {
 }
 
 #[test]
-fn filter_changes_prune_selection_and_summary_defensively_intersects_visibility() {
+fn filter_changes_keep_selection_and_summary_defensively_intersects_visibility() {
     let mut state = make_state();
     state.config.dashboard_all_set_collapsed = false;
     let project = make_project("api");
@@ -475,9 +479,10 @@ fn filter_changes_prune_selection_and_summary_defensively_intersects_visibility(
         &mut state,
         Message::Filter(FilterMessage::StatusFilterToggled(StatusFilter::NeedsHelp)),
     );
-    assert!(state.selection.selected_ids.is_empty());
-
-    state.selection.selected_ids.insert(project.id.clone());
+    // RFC-074 Amendment A1 (D6): a filter that hides a ticked project
+    // never unticks it. `selection_summary()` is the one place that stops
+    // counting it while it is hidden.
+    assert!(state.selection.contains(&project.id));
     let summary = state.selection_summary();
     assert_eq!(summary.selected_count, 0);
     assert!(summary.selected_ids.is_empty());
@@ -1646,6 +1651,513 @@ fn bulk_fetch_empty_dashboard_selection_does_not_start() {
     assert!(matches!(state.sync.phase, SyncPhase::Idle));
 }
 
+// ---------------------------------------------------------------------------
+// RFC-074 Amendment A1 (D6): a tick stays until the user removes it
+// ---------------------------------------------------------------------------
+
+/// Handoff §4 row 1, through the real message path: tick three, collapse
+/// the group holding two (the bar: "1 selected", then hidden count 2),
+/// then expand it again (3 selected, hidden count 0).
+#[test]
+fn hidden_ticks_survive_collapse_and_summary_counts_both() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = false;
+    let shown = make_project("needs-help-co");
+    let hidden_a = make_project("all-set-co-a");
+    let hidden_b = make_project("all-set-co-b");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![shown.clone(), hidden_a.clone(), hidden_b.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let mut shown_status = make_project_status(shown.id.clone(), None);
+    shown_status.conflict = ConflictStatus {
+        has_conflict: true,
+        conflict_count: Some(1),
+        detection_unavailable: false,
+    };
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![
+            shown_status,
+            make_project_status(hidden_a.id.clone(), None),
+            make_project_status(hidden_b.id.clone(), None),
+        ],
+        last_refresh: None,
+    });
+    state.selection_mode = true;
+    state.selection.toggle(shown.id.clone());
+    state.selection.toggle(hidden_a.id.clone());
+    state.selection.toggle(hidden_b.id.clone());
+    assert_eq!(
+        state.selection_summary().selected_count,
+        3,
+        "sanity: all shown"
+    );
+
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::TierToggled(
+            crate::state::dashboard::DashboardTier::AllSet,
+        )),
+    );
+    let summary = state.selection_summary();
+    assert_eq!(summary.selected_count, 1);
+    assert_eq!(state.selection.selected_ids.len(), 3, "no tick was removed");
+    let hidden_count = state.selection.selected_ids.len() - summary.selected_count;
+    assert_eq!(hidden_count, 2);
+
+    dispatch(
+        &mut state,
+        Message::Dashboard(DashboardMessage::TierToggled(
+            crate::state::dashboard::DashboardTier::AllSet,
+        )),
+    );
+    let summary = state.selection_summary();
+    assert_eq!(summary.selected_count, 3);
+    assert_eq!(state.selection.selected_ids.len(), 3);
+}
+
+/// Handoff §4 row 2: a background refresh moves a ticked project into the
+/// collapsed "All set" tier — it stays ticked, and the summary now counts
+/// it as hidden rather than selected.
+#[test]
+fn background_refresh_never_touches_the_selection() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = true;
+    // `WorkspaceStatusRefreshed`'s own handler also checks `repo_exists`
+    // against each project's real path — `make_project`'s own stand-in
+    // `/tmp` has no `.git`, which would mark it missing (always shown)
+    // and mask the collapse this test is about. A real `.git` marker
+    // keeps that check out of the way.
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(tmp.path().join(".git")).expect("git marker");
+    let project = make_project_at("svc", tmp.path().to_string_lossy().into_owned());
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![project.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    // Starts needing help — shown even with "All set" collapsed.
+    let mut status = make_project_status(project.id.clone(), None);
+    status.conflict = ConflictStatus {
+        has_conflict: true,
+        conflict_count: Some(1),
+        detection_unavailable: false,
+    };
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![status],
+        last_refresh: None,
+    });
+    state.selection_mode = true;
+    state.selection.toggle(project.id.clone());
+    assert_eq!(state.selection_summary().selected_count, 1, "sanity: shown");
+
+    // The refresh resolves the conflict — the project now lands in the
+    // collapsed "All set" tier.
+    dispatch(
+        &mut state,
+        Message::Background(BackgroundMessage::WorkspaceStatusRefreshed(
+            WorkspaceStatus {
+                projects: vec![make_project_status(project.id.clone(), None)],
+                last_refresh: Some(Timestamp::now()),
+            },
+        )),
+    );
+
+    assert!(
+        state.selection.contains(&project.id),
+        "the refresh must not untick it"
+    );
+    assert_eq!(state.selection_summary().selected_count, 0, "now hidden");
+}
+
+/// Handoff §4 row 3: a filter, then a search, hiding a ticked project —
+/// the tick survives both, same as a collapse.
+#[test]
+fn filter_then_search_keep_a_hidden_tick() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = false;
+    let needs_help = make_project("needs-help-co");
+    let clean = make_project("clean-co");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![needs_help.clone(), clean.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let mut needs_help_status = make_project_status(needs_help.id.clone(), None);
+    needs_help_status.conflict = ConflictStatus {
+        has_conflict: true,
+        conflict_count: Some(1),
+        detection_unavailable: false,
+    };
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![
+            needs_help_status,
+            make_project_status(clean.id.clone(), None),
+        ],
+        last_refresh: None,
+    });
+    state.selection_mode = true;
+    state.selection.toggle(clean.id.clone());
+
+    dispatch(
+        &mut state,
+        Message::Filter(FilterMessage::StatusFilterToggled(StatusFilter::NeedsHelp)),
+    );
+    assert!(
+        state.selection.contains(&clean.id),
+        "filter must not untick it"
+    );
+    assert_eq!(state.selection_summary().selected_count, 0);
+
+    dispatch(
+        &mut state,
+        Message::Filter(FilterMessage::SearchChanged("needs-help".to_owned())),
+    );
+    assert!(
+        state.selection.contains(&clean.id),
+        "search must not untick it either"
+    );
+    assert_eq!(state.selection_summary().selected_count, 0);
+}
+
+/// Handoff §4 row 4: Check for updates acts only on the ticked project
+/// that is shown, never the hidden one.
+#[test]
+fn bulk_fetch_ignores_a_hidden_tick() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = false;
+    let shown = make_project("needs-help-co");
+    let hidden = make_project("all-set-co");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![shown.clone(), hidden.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let mut shown_status = make_project_status(shown.id.clone(), None);
+    shown_status.conflict = ConflictStatus {
+        has_conflict: true,
+        conflict_count: Some(1),
+        detection_unavailable: false,
+    };
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![shown_status, make_project_status(hidden.id.clone(), None)],
+        last_refresh: None,
+    });
+    state.selection_mode = true;
+    state.selection.toggle(shown.id.clone());
+    state.selection.toggle(hidden.id.clone());
+    state.config.dashboard_all_set_collapsed = true;
+    assert_eq!(
+        state.selection_summary().selected_count,
+        1,
+        "sanity: one shown"
+    );
+
+    dispatch(&mut state, Message::Sync(SyncMessage::BulkFetchRequested));
+
+    assert!(state.sync.selected_project_ids.contains(&shown.id));
+    assert!(!state.sync.selected_project_ids.contains(&hidden.id));
+}
+
+/// Handoff §4 row 4: Get latest safely's own bar/palette action pre-fills
+/// the plan with the shown tick only.
+#[test]
+fn smart_pull_bulk_open_ignores_a_hidden_tick() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = false;
+    let shown = make_project("needs-help-co");
+    let hidden = make_project("all-set-co");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![shown.clone(), hidden.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let mut shown_status = make_project_status(shown.id.clone(), Some("origin/main"));
+    shown_status.conflict = ConflictStatus {
+        has_conflict: true,
+        conflict_count: Some(1),
+        detection_unavailable: false,
+    };
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![
+            shown_status,
+            make_project_status(hidden.id.clone(), Some("origin/main")),
+        ],
+        last_refresh: Some(Timestamp::now()),
+    });
+    state.selection_mode = true;
+    state.selection.toggle(shown.id.clone());
+    state.selection.toggle(hidden.id.clone());
+    state.config.dashboard_all_set_collapsed = true;
+
+    dispatch(&mut state, Message::Sync(SyncMessage::BulkPullRequested));
+    dispatch(
+        &mut state,
+        Message::Sync(SyncMessage::SmartPullPlanRequested),
+    );
+
+    let SyncPhase::AwaitingConfirm(plan) = &state.sync.phase else {
+        panic!("expected a reviewed plan");
+    };
+    assert_eq!(plan.entries.len(), 1, "only the shown tick");
+    assert_eq!(plan.entries[0].project_id, shown.id);
+}
+
+/// Handoff §4 row 4: Save release point pre-populates from the shown
+/// tick only.
+#[test]
+fn freezer_bulk_open_ignores_a_hidden_tick() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = false;
+    let shown = make_project("needs-help-co");
+    let hidden = make_project("all-set-co");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![shown.clone(), hidden.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let mut shown_status = make_project_status(shown.id.clone(), None);
+    shown_status.conflict = ConflictStatus {
+        has_conflict: true,
+        conflict_count: Some(1),
+        detection_unavailable: false,
+    };
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![shown_status, make_project_status(hidden.id.clone(), None)],
+        last_refresh: None,
+    });
+    state.selection_mode = true;
+    state.selection.toggle(shown.id.clone());
+    state.selection.toggle(hidden.id.clone());
+    state.config.dashboard_all_set_collapsed = true;
+
+    dispatch(
+        &mut state,
+        Message::Freezer(FreezerMessage::BulkOpenRequested),
+    );
+
+    assert_eq!(state.freezer.project_selection.get(&shown.id), Some(&true));
+    assert!(!state.freezer.project_selection.contains_key(&hidden.id));
+}
+
+/// Handoff §4 row 4: Generate notes pre-populates from the shown tick
+/// only.
+#[test]
+fn changelog_bulk_open_ignores_a_hidden_tick() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = false;
+    let shown = make_project("needs-help-co");
+    let hidden = make_project("all-set-co");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![shown.clone(), hidden.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let mut shown_status = make_project_status(shown.id.clone(), None);
+    shown_status.conflict = ConflictStatus {
+        has_conflict: true,
+        conflict_count: Some(1),
+        detection_unavailable: false,
+    };
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![shown_status, make_project_status(hidden.id.clone(), None)],
+        last_refresh: None,
+    });
+    state.selection_mode = true;
+    state.selection.toggle(shown.id.clone());
+    state.selection.toggle(hidden.id.clone());
+    state.config.dashboard_all_set_collapsed = true;
+
+    dispatch(
+        &mut state,
+        Message::Changelog(ChangelogMessage::BulkOpenRequested),
+    );
+
+    assert_eq!(
+        state.changelog.project_selection.get(&shown.id),
+        Some(&true)
+    );
+    assert!(!state.changelog.project_selection.contains_key(&hidden.id));
+}
+
+/// Handoff §4 row 4: Change work area treats a hidden extra tick as not
+/// selected at all — exactly one shown tick still opens the switcher for
+/// it, where two raw ticks (one hidden) would otherwise read as "more
+/// than one, choose one work area".
+#[test]
+fn context_bulk_open_ignores_a_hidden_tick() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = false;
+    let shown = make_project("needs-help-co");
+    let hidden = make_project("all-set-co");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![shown.clone(), hidden.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    let mut shown_status = make_project_status(shown.id.clone(), None);
+    shown_status.conflict = ConflictStatus {
+        has_conflict: true,
+        conflict_count: Some(1),
+        detection_unavailable: false,
+    };
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![shown_status, make_project_status(hidden.id.clone(), None)],
+        last_refresh: None,
+    });
+    state.selection_mode = true;
+    state.selection.toggle(shown.id.clone());
+    state.selection.toggle(hidden.id.clone());
+    state.config.dashboard_all_set_collapsed = true;
+
+    dispatch(
+        &mut state,
+        Message::Context(ContextMessage::BulkOpenRequested),
+    );
+
+    assert!(matches!(state.active_modal, ActiveModal::Switch));
+    assert!(matches!(
+        state.context_ops.phase,
+        crate::state::context::ContextPhase::LoadingList(ref id) if *id == shown.id
+    ));
+}
+
+/// Handoff §4 row 5: in selection mode, with only a hidden tick, the
+/// palette's "Get latest safely" is unavailable with "Choose at least one
+/// project" — it must not fall back to every project just because the
+/// raw selection is non-empty.
+#[test]
+fn palette_get_latest_hidden_tick_only_is_unavailable() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = true;
+    let hidden = make_project("all-set-co");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![hidden.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![make_project_status(hidden.id.clone(), Some("origin/main"))],
+        last_refresh: Some(Timestamp::now()),
+    });
+    state.selection_mode = true;
+    state.selection.toggle(hidden.id.clone());
+    assert_eq!(
+        state.selection_summary().selected_count,
+        0,
+        "sanity: hidden"
+    );
+
+    let index = palette_payload_index(&mut state, "get latest safely", "action.pull_selected");
+    let dispatched = crate::state::palette::dispatch_entry(&state, index);
+    assert!(
+        matches!(
+            dispatched,
+            crate::state::palette::PaletteDispatch::Disabled("plain.disabled.choose_one")
+        ),
+        "expected Disabled(choose_one), got {dispatched:?}"
+    );
+}
+
+/// Handoff §4 row 6: removing one ticked project removes only that one
+/// tick — a second, untouched ticked project stays ticked.
+#[test]
+fn project_removal_prunes_only_that_one_tick() {
+    let mut state = make_state();
+    let removed = make_project("removed-co");
+    let kept = make_project("kept-co");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![removed.clone(), kept.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    state.selection_mode = true;
+    state.selection.toggle(removed.id.clone());
+    state.selection.toggle(kept.id.clone());
+
+    dispatch(
+        &mut state,
+        Message::Workspace(WorkspaceMessage::RemoveProjectConfirmed(removed.id.clone())),
+    );
+
+    assert!(!state.selection.contains(&removed.id));
+    assert!(state.selection.contains(&kept.id));
+    assert!(state.selection_mode, "a tick remains");
+}
+
+/// Handoff §4 row 8: Escape on the dashboard, and "Exit selection", clear
+/// a hidden tick exactly as they clear a shown one.
+#[test]
+fn escape_and_exit_selection_clear_a_hidden_tick_too() {
+    let mut state = make_state();
+    state.config.dashboard_all_set_collapsed = true;
+    let hidden = make_project("all-set-co");
+    install_workspaces(
+        &mut state,
+        vec![Workspace {
+            projects: vec![hidden.clone()],
+            ..Workspace::new("Main")
+        }],
+        0,
+    );
+    // A project with no recorded status reads as "status unknown" —
+    // always shown, never collapsed. Give it a clean, all-set one so
+    // this test's own "hidden" premise actually holds.
+    state.workspace_status = Some(WorkspaceStatus {
+        projects: vec![make_project_status(hidden.id.clone(), None)],
+        last_refresh: None,
+    });
+    state.selection_mode = true;
+    state.selection.toggle(hidden.id.clone());
+    assert_eq!(
+        state.selection_summary().selected_count,
+        0,
+        "sanity: hidden"
+    );
+
+    state.screen = Screen::Dashboard;
+    dispatch(&mut state, Message::Shortcut(ShortcutMessage::Close));
+    assert!(!state.selection_mode);
+    assert_eq!(state.selection.selected_ids.len(), 0);
+
+    state.selection_mode = true;
+    state.selection.toggle(hidden.id.clone());
+    dispatch(&mut state, Message::Selection(SelectionMessage::ModeExited));
+    assert!(!state.selection_mode);
+    assert_eq!(state.selection.selected_ids.len(), 0);
+}
+
 #[test]
 fn context_bulk_open_uses_exactly_one_selected_project() {
     let mut state = make_state();
@@ -1930,6 +2442,12 @@ fn palette_get_latest_with_no_selection_opens_the_plan_for_every_project() {
 #[test]
 fn palette_get_latest_with_a_selection_still_acts_on_the_selection_only() {
     let mut state = make_state();
+    // Both projects are otherwise clean, so they would land in the
+    // "All set" tier, collapsed by default — hidden, not merely
+    // unselected. RFC-074 Amendment A1 (D6): the ticked project must be
+    // *shown* for this test's own premise ("the selection, not everyone")
+    // to hold at all.
+    state.config.dashboard_all_set_collapsed = false;
     let selected = make_project("api-gateway");
     let not_selected = make_project("billing-service");
     install_workspaces(
@@ -1947,6 +2465,7 @@ fn palette_get_latest_with_a_selection_still_acts_on_the_selection_only() {
         ],
         last_refresh: Some(Timestamp::now()),
     });
+    state.selection_mode = true;
     state.selection.selected_ids.insert(selected.id.clone());
 
     let index = palette_payload_index(&mut state, "get latest safely", "action.pull_selected");

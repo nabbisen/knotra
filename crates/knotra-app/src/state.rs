@@ -221,6 +221,14 @@ impl SelectionState {
         self.selected_ids.contains(id)
     }
 
+    /// RFC-074 Amendment A1: whether no project is ticked **at all**,
+    /// hidden ones included — the question "should selection mode end"
+    /// needs, as opposed to `SelectionSummary::selected_count`'s "how many
+    /// are ticked and shown", which actions use instead.
+    pub fn is_empty(&self) -> bool {
+        self.selected_ids.is_empty()
+    }
+
     /// Select all projects.
     pub fn select_all(&mut self, ids: &[knotra_vcs::ProjectId]) {
         for id in ids {
@@ -835,9 +843,21 @@ impl AppState {
         }
     }
 
-    pub fn reconcile_selection_with_display(&mut self) {
-        let visible_ids: HashSet<_> = self.visible_project_ids().into_iter().collect();
-        self.selection.retain_ids(&visible_ids);
+    /// RFC-074 Amendment A1 (D6): a tick is removed only when its project
+    /// is gone from the open workspace — never for being filtered,
+    /// grouped into a collapsed section, or temporarily out of a search.
+    /// Call this only where a project actually leaves `self.workspace`
+    /// (today, only `WorkspaceMessage::RemoveProjectConfirmed`); every
+    /// other reconciliation call this replaced is simply gone, not moved,
+    /// since filtering/grouping/sorting/collapsing/refreshing never
+    /// remove a project from the workspace itself.
+    pub fn prune_selection_to_existing_projects(&mut self) {
+        let existing_ids: HashSet<_> = self
+            .workspace
+            .as_ref()
+            .map(|ws| ws.projects.iter().map(|p| p.id.clone()).collect())
+            .unwrap_or_default();
+        self.selection.retain_ids(&existing_ids);
     }
 
     pub fn clear_selection_mode(&mut self) {

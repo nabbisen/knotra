@@ -54,12 +54,13 @@ pub(super) fn handle_freezer(state: &mut AppState, msg: FreezerMessage) -> Task<
             state.freezer.impact_warnings = Vec::new();
             state.freezer.topology_checked = false;
             state.pending_tag_push = None;
-            // Pre-populate freeze selection
+            // Pre-populate freeze selection — RFC-074 Amendment A1 (D6):
+            // only the ticks that are also shown, never a hidden one.
             state.freezer.project_selection = state
-                .selection
+                .selection_summary()
                 .selected_ids
-                .iter()
-                .map(|id| (id.clone(), true))
+                .into_iter()
+                .map(|id| (id, true))
                 .collect();
             Task::none()
         }

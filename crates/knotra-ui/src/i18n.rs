@@ -272,6 +272,12 @@ fn en_strings() -> HashMap<Key, &'static str> {
         "plain.selection.choose_one_work_area",
         "Choose one project to change work area.",
     );
+    // RFC-074 Amendment A1 (D6): composed as `{hidden_label}: {n}
+    // {hidden_suffix}`, the same `{name}: {count}` shape
+    // `plan_summary_line` already uses for the plan's own per-disposition
+    // counts — the number itself is never a catalog key.
+    m.insert("plain.selection.hidden_label", "Selected but not shown");
+    m.insert("plain.selection.hidden_suffix", "(not included)");
 
     m.insert("plain.status.unsaved_work", "Unsaved work");
     m.insert("plain.status.checking", "Refreshing…");
@@ -1093,6 +1099,8 @@ fn ja_strings() -> HashMap<Key, &'static str> {
         "plain.selection.choose_one_work_area",
         "作業エリアを変更するプロジェクトを1つ選んでください。",
     );
+    m.insert("plain.selection.hidden_label", "選択中で非表示");
+    m.insert("plain.selection.hidden_suffix", "件（対象外）");
 
     m.insert("plain.status.unsaved_work", "未保存の作業");
     m.insert("plain.status.checking", "再読み込み中…");

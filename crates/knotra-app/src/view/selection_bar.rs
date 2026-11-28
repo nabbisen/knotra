@@ -22,6 +22,7 @@
 
 use iced::{
     Alignment, Element, Length,
+    advanced::text::Wrapping,
     widget::{Space, column, container, row, text},
 };
 
@@ -50,6 +51,17 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
             state.t("plain.selection.selected_suffix")
         )
     };
+
+    // RFC-074 Amendment A1 (D6): the one place allowed to read the raw
+    // selection directly (`selection_raw_read_guard.rs`'s own allowlist) —
+    // only to report the gap between it and what's shown, never to act on
+    // it. A tick for a project that no longer exists cannot appear here:
+    // `prune_selection_to_existing_projects` already removes those.
+    let hidden_count = state
+        .selection
+        .selected_ids
+        .len()
+        .saturating_sub(summary.selected_count);
 
     let busy = state.operation_interlock.is_busy();
 
@@ -186,6 +198,25 @@ pub fn view(state: &AppState, mode: WidthMode) -> Option<Element<'_, Message>> {
 
     // RFC-071 Amendment A3 D14: reasons — `body`.
     let mut content = column![command_row].spacing(6);
+    if hidden_count > 0 {
+        // RFC-074 Amendment A1 (D6) §3: "Selected but not shown: n (not
+        // included)" / 「選択中で非表示: n 件（対象外）」 — the owner's own
+        // approved text, exact in both languages for any count.
+        // `Wrapping::None`, as `plan_summary_line` already settled on for
+        // the same "never wraps inside a word" requirement: Japanese has
+        // no spaces for cosmic text's CJK line-breaking to respect.
+        let hidden_text = format!(
+            "{}: {hidden_count} {}",
+            state.t("plain.selection.hidden_label"),
+            state.t("plain.selection.hidden_suffix")
+        );
+        content = content.push(
+            text(hidden_text)
+                .size(snora::design::style::text::body_size(tokens))
+                .line_height(snora::design::style::text::body_line_height(tokens))
+                .wrapping(Wrapping::None),
+        );
+    }
     if let Some(reason) = group_reason {
         content = content.push(
             text(reason)

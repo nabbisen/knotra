@@ -28,6 +28,8 @@ mod message;
 mod persistence;
 #[cfg(test)]
 mod pick_list_height_guard;
+#[cfg(test)]
+mod selection_raw_read_guard;
 mod state;
 #[cfg(test)]
 mod suppressions_guard;

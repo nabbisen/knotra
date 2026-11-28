@@ -56,7 +56,6 @@ fn merge_workspace_status(state: &mut AppState, new: knotra_vcs::WorkspaceStatus
     } else {
         state.workspace_status = Some(new);
     }
-    state.reconcile_selection_with_display();
 }
 
 fn persist_log(log: &OperationLog, state: &mut AppState) {

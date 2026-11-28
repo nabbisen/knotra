@@ -61,11 +61,13 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
         SyncMessage::BulkFetchRequested => {
             let (ids, fetchable_ids): (Vec<_>, Vec<_>) = if state.selection_mode {
                 let summary = state.selection_summary();
-                state.sync.selected_project_ids = summary.selected_ids.iter().cloned().collect();
+                let shown_ticked: std::collections::HashSet<_> =
+                    summary.selected_ids.iter().cloned().collect();
+                state.sync.selected_project_ids = shown_ticked.clone();
                 if let Some(ws) = &state.workspace {
                     state
                         .sync
-                        .set_selection(ws.projects.as_slice(), &state.selection.selected_ids);
+                        .set_selection(ws.projects.as_slice(), &shown_ticked);
                 }
                 (summary.selected_ids, summary.fetchable_ids)
             } else {
@@ -261,7 +263,16 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
             shared::clear_sync_retry_context(state);
             state.active_modal = crate::state::ActiveModal::Pull;
             state.sync.phase = SyncPhase::Planning;
-            state.sync.selected_project_ids = state.selection.selected_ids.clone();
+            // RFC-074 Amendment A1 (D6): in selection mode, only the ticks
+            // that are also shown count — never a hidden one, and never a
+            // fallback to every project just because the shown set is
+            // empty (the availability checks keep this handler from being
+            // reached in that state at all). Outside selection mode,
+            // nothing is ticked at all, and D1's own rule still applies:
+            // every project.
+            let shown_ticked: std::collections::HashSet<_> =
+                state.selection_summary().selected_ids.into_iter().collect();
+            state.sync.selected_project_ids = shown_ticked.clone();
             if let Some(ws) = &state.workspace {
                 // RFC-074 Stage 2 D1: with nothing selected, this covers
                 // every project — `build_plan`'s own `is_selected` must
@@ -270,10 +281,10 @@ pub(super) fn handle_sync(state: &mut AppState, msg: SyncMessage) -> Task<Messag
                 // (nothing marked `true`) is exactly backwards for this
                 // case, so it is given every project's id here instead of
                 // the (empty) real selection.
-                let selection_for_plan = if state.selection.selected_ids.is_empty() {
-                    ws.projects.iter().map(|p| p.id.clone()).collect()
+                let selection_for_plan = if state.selection_mode {
+                    shown_ticked
                 } else {
-                    state.selection.selected_ids.clone()
+                    ws.projects.iter().map(|p| p.id.clone()).collect()
                 };
                 state.sync.set_selection(&ws.projects, &selection_for_plan);
             }
