@@ -30,7 +30,7 @@ permissions:
 
 env:
   # Matches the toolchain the project's gates are pinned to.
-  TOOLCHAIN: "1.91"
+  TOOLCHAIN: "1.95"
 
 jobs:
   # release.yaml's own `advisories` job duplicates this one exactly
@@ -72,7 +72,7 @@ jobs:
 
       # Installed, not borrowed from a third-party action: the published
       # cargo-deny-action runs a Docker image pinned only by tag. cargo-deny
-      # 0.20.2 declares Rust 1.88 as its own minimum, below our pinned 1.91
+      # 0.20.2 declares Rust 1.88 as its own minimum, below our pinned 1.95
       # toolchain.
       - name: Install cargo-deny
         if: steps.cache-cargo-deny.outputs.cache-hit != 'true'
@@ -82,4 +82,4 @@ jobs:
       # default deny.toml at the repository root needs neither it nor a
       # non-default `--manifest-path`; both are named here for clarity.
       - name: Check advisories
-        run: cargo +1.91 deny --manifest-path Cargo.toml check advisories
+        run: cargo +1.95 deny --manifest-path Cargo.toml check advisories

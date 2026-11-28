@@ -32,6 +32,13 @@ Its button opens the plan for that one project, which says what will happen befo
 starts. The button appears only when the project would really get the latest: no unsaved work, a
 source to get updates from, and nothing that needs your choice.
 
+### Changed — building knotra from source needs Rust 1.95
+
+knotra now uses endringer 0.34 and gix 0.91. Building it from source, including with
+`cargo install knotra`, needs Rust 1.95 or later. With this, the `heapless` 0.8.0 library and its
+nine known security advisories leave knotra's dependencies. The ready-made downloads are
+unaffected.
+
 ## [0.35.0] — 2026-11-26
 
 **Every screen and window now works from the keyboard.**

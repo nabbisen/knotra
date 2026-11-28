@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Rust 2024 edition (rustc ≥ 1.88; tested with 1.91)
+- Rust 2024 edition (rustc ≥ 1.95)
 - Linux: `libwayland-dev`, `libxkbcommon-dev`, `libgl-dev`, `pkg-config`
 - `git` in PATH; `jj` in PATH (optional, for jj tests)
 

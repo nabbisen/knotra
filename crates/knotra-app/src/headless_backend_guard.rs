@@ -123,8 +123,7 @@ mod tests {
                 if split_top_level(args)
                     .into_iter()
                     .map(str::trim)
-                    .filter(|part| !part.is_empty())
-                    .next_back()
+                    .rfind(|part| !part.is_empty())
                     .is_some_and(|last| last == "None")
                 {
                     let line = source[..open_paren].matches('\n').count() + 1;

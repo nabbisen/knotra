@@ -31,7 +31,7 @@ defaults:
 env:
   BIN_NAME: knotra
   # Matches the toolchain the project's gates are pinned to.
-  TOOLCHAIN: "1.91"
+  TOOLCHAIN: "1.95"
 
 jobs:
   notes:
@@ -173,7 +173,7 @@ jobs:
         run: cargo install --locked cargo-deny --version 0.20.2
 
       - name: Check advisories
-        run: cargo +1.91 deny --manifest-path Cargo.toml check advisories
+        run: cargo +1.95 deny --manifest-path Cargo.toml check advisories
 
   build:
     name: ${{ matrix.name }}

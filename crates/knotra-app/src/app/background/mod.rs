@@ -226,7 +226,7 @@ fn history_logs_reloaded(state: &mut AppState, loaded: LoadedLogs) -> Task<Messa
             merged.push(log);
         }
     }
-    merged.sort_by(|a, b| b.result.started_at.cmp(&a.result.started_at));
+    merged.sort_by_key(|log| std::cmp::Reverse(log.result.started_at));
     merged.truncate(state.config.max_log_entries);
     state.operation_logs = merged;
     state.history_unreadable_count = loaded.unreadable;

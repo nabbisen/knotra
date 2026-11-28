@@ -50,7 +50,7 @@ safely and atomically.
 ## Quick Start
 
 ```sh
-# Build from source (requires Rust 2024 edition / rustc ≥ 1.88)
+# Build from source (requires Rust 2024 edition / rustc ≥ 1.95)
 cargo build --release -p knotra
 
 # Run
